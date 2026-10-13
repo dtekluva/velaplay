@@ -1,0 +1,5 @@
+# Everything goes to the Node server: the API, the WebSocket game rooms, and static pages.
+{$SITE_ADDRESS::80} {
+	encode gzip
+	reverse_proxy server:2567
+}

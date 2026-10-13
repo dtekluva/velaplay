@@ -1,0 +1,13 @@
+#cloud-config
+# Giantwood game server: Docker, swap, key-only SSH, automatic security updates, fail2ban.
+package_update: true
+package_upgrade: true
+packages: [ca-certificates, curl, git, fail2ban, unattended-upgrades]
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && systemctl restart ssh || systemctl restart sshd
+  - systemctl enable --now fail2ban
+  - mkdir -p /opt/giantwood
+  - touch /opt/giantwood/.provisioned
