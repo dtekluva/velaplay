@@ -164,6 +164,10 @@ Players can sell or give land to each other and send money (`src/trade.ts`, tabl
   - what leaves an account is capped at ₦1,000,000 a day: money sent, money paid for land, and the value of land handed over below its worth. All of it is recorded in `payments`.
 - **Tested** end to end against a local Postgres (two accounts: offers, refusals, sale, stale seller, gifts, declines, payments, inbox, caps).
 
+## The map's extent
+
+The server clamps positions to x ±346 and z from −1140 (the north edge, past Yaba and Ikeja) to 346, in `rooms/WorldRoom.ts` (`BOUND`, `ZLO`). When the game's map grows, move these with it. `data/plots.json` lists 267 plots: the 227 on the old map, and the 40 Ikeja GRA lots (kind `e`, ₦40,000) on the mainland, with negative z keys.
+
 ## Next steps
 
 1. **Wire the game in:** sign-in and a character creator screen; send your position and draw other players with the game's own figures, wearing their look; chat bubbles; cloud saves instead of browser saves.

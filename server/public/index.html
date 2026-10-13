@@ -601,7 +601,7 @@ class Builder {
 
 /* ---------- terrain: terraced voxel heightmap ---------- */
 const N = 720, HALF = 360, BOUND = HALF - 14, EDGE_H = 2, Hm = new Int16Array(N * N);
-const ZLO = -(HALF + 384 - 14);   // the north limit: the mainland strip (Yaba) runs 384 m past the old edge
+const ZLO = -(HALF + 794 - 14);   // the north limit: the mainland strip (Yaba, then Ikeja GRA) runs 794 m past the old edge
 const OH = 240, OB = OH - 14;   // the original 480 m map: content placed before the coast keeps to it
 const LAKES = [{ x: -44, z: 36, r: 15 }];
 for (let tries = 0; tries < 400 && LAKES.length < 8; tries++) {
@@ -934,10 +934,13 @@ for (const k in LAND_SAVE.edits || {}) KIND[+k] = 5;   // graded earth
 /* ---------- the mainland: a 384 m strip added along the north edge for Yaba, Yabatech and UNILAG.
    It is its own grid (NHm / NKIND, rows j = -ND..-1), so the old map's cell indices, plot keys and bulldozer edits
    are unchanged. Heights come from the same terrain function; the districts are levelled to the city's height. ---------- */
-const ND = 384, ZN = -HALF - ND, NBOUND = HALF + ND - 14;   // the new north edge, and how far north you can go
+const ND = 794, ZN = -HALF - ND, NBOUND = HALF + ND - 14;   // the new north edge (384 m for Yaba, then 410 m for Ikeja GRA), and how far north you can go
 const NHm = new Int16Array(N * ND), NKIND = new Uint8Array(N * ND), YABA_MAP = [];   // YABA_MAP: building footprints for the maps [x, z, w, d, colour]
 const YB = TOWN ? { x: -60, z: -476 } : null;   // the centre of Yaba's street grid (same 4x4 grid as the city)
 const UNILAG = { x0: 46, x1: 336, z0: -738, z1: -414, lagoonX: 298 }, YTECH = { x0: -336, x1: -176, z0: -660, z1: -446 };
+// Ikeja, north of Yaba: the GRA's three leafy streets west of Obafemi Awolowo Way, Lagos State Government House to the east.
+// GOVH: the compound, its gate drive (z = cz), the fountain forecourt (fx, fz, radius fr) and the front of the main building (bx0)
+const GRA = { x0: -344, x1: -48, z0: -1100, z1: -756, streets: [-804, -924, -1044], ave: -60 }, GOVH = { x0: 20, x1: 336, z0: -1112, z1: -760, cz: -924, fx: 104, fz: -924, fr: 24, bx0: 150 };
 // paved lines in Yaba and on the campuses [ax, az, bx, bz, half-width]; the link road from the city is graded later (after the forest)
 const YROADS = YB ? [
   [-6, -362, -6, -400, 4.5],                                   // the link road's last stretch, on the new land
@@ -945,6 +948,9 @@ const YROADS = YB ? [
   [YB.x - 76, YB.z - 38, YTECH.x1 - 30, YB.z - 38, 4.5],       // Yaba to Yabatech's gate and in
   [120, -446, 280, -446, 4], [120, -446, 120, -716, 4], [280, -446, 280, -716, 4], [120, -716, 280, -716, 4], [120, -580, 280, -580, 4],   // UNILAG's ring road and cross road
   [-206, -456, -206, -650, 4], [-326, -600, -206, -600, 4],    // Yabatech's drives
+  [GRA.ave, -552, GRA.ave, -1130, 4.5],                        // Obafemi Awolowo Way: Yaba's middle street carries on north to Ikeja
+  ...GRA.streets.map(z => [-340, z, GRA.ave, z, 4]),           // the GRA: Isaac John Street, Joel Ogunnaike Street, Oduduwa Crescent
+  [GRA.ave, GOVH.cz, GOVH.fx - GOVH.fr + 4, GOVH.cz, 4.5],     // Government House: the drive from the avenue through the gate to the forecourt
 ] : [];
 const LINK = YB ? [[TOWN.x + 76, TOWN.z - 76, -6, TOWN.z - 76], [-6, TOWN.z - 76, -6, -362]] : [];   // the link road on the old map
 const segDist = (x, z, [ax, az, bx, bz]) => { const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz || 1, t = clamp(((x - ax) * dx + (z - az) * dz) / L, 0, 1); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
@@ -970,7 +976,7 @@ if (YB) {
     // the districts and their roads are level with the city
     let m = 99;
     m = Math.min(m, Math.max(Math.abs(x - YB.x) - RING - 4, Math.abs(z - YB.z) - RING - 4, 0));
-    for (const R of [UNILAG, YTECH]) m = Math.min(m, Math.max(R.x0 - x, x - R.x1, R.z0 - z, z - R.z1, 0));
+    for (const R of [UNILAG, YTECH, GRA, GOVH]) m = Math.min(m, Math.max(R.x0 - x, x - R.x1, R.z0 - z, z - R.z1, 0));
     m = Math.min(m, Math.max(0, yRoadDist(x, z) - 6));
     const t = smooth(16, 0, m); h = h + (Y - h) * t;
     // the lagoon along UNILAG's east side
@@ -992,6 +998,8 @@ if (YB) {
       if (e < 1 && ei >= 1) kd = 5; if (inR(UL_PLAZA, x, z)) kd = 7; if (x > UNILAG.lagoonX - 12) kd = 7;
     }
     if (inR(YTECH, x, z)) { kd = 0; if (inR(YT_PLAZA, x, z)) kd = 7; }
+    if (inR(GRA, x, z)) kd = 0;   // lawns and gardens; the streets come from YROADS
+    if (inR(GOVH, x, z)) { kd = 0; if (Math.hypot(x - GOVH.fx, z - GOVH.fz) < GOVH.fr || (x > GOVH.bx0 - 16 && x < GOVH.bx0 && Math.abs(z - GOVH.cz) < 58)) kd = 7; }   // the forecourt and the terrace before the main building
     const rd = yRoadDist(x, z); if (rd < 4.5) kd = 6; else if (rd < 6.3 && kd !== 1) kd = 7;
     NKIND[k] = kd;
   }
@@ -3959,6 +3967,12 @@ function queryGrid(G, x, z, r) {
 const obstacleGrid = makeGrid(colliders.filter(c => c.tag === 'trunk' || c.tag === 'house' || c.tag === 'base' || c.tag === 'tower'));
 const houseGrid = makeGrid(colliders.filter(c => c.tag === 'house'), 12);
 const solidGrid = makeGrid(colliders, 16);
+// everything built after this point (Yaba, Ikeja, ...) joins the grids in one go once the world is built (gridCatchUp), so it's solid too
+let GRID_DONE = colliders.length;
+function gridCatchUp() {
+  for (let k = GRID_DONE; k < colliders.length; k++) { const c = colliders[k]; gridAdd(solidGrid, c); if (c.tag === 'trunk' || c.tag === 'house' || c.tag === 'base' || c.tag === 'tower') gridAdd(obstacleGrid, c); if (c.tag === 'house') gridAdd(houseGrid, c); }
+  GRID_DONE = colliders.length;
+}
 // a ray against the collision boxes, walked through the spatial grid: cheap however much scenery there is
 const _rbSeen = new Set();
 function rayBoxes(o, d, t0, t1) {
@@ -6467,7 +6481,7 @@ if (YABA) withSeed(9191, () => {
   // giant trees on the rest of the mainland (own seed): never on the districts, roads or the lagoon
   { let n = 0;
     for (let tries = 0; tries < 4000 && n < 70; tries++) {
-      const x = -HALF + 10 + rng() * (2 * HALF - 20), z = ZN + 10 + rng() * (ND - 30);
+      const x = -HALF + 10 + rng() * (2 * HALF - 20), z = -HALF - 384 + 10 + rng() * (384 - 30);   // Yaba's own 384 m, so its trees stay put as the mainland grows
       if (inYabaCore(x, z, 24) || inR(UNILAG, x, z, 24) || inR(YTECH, x, z, 24) || yRoadDist(x, z) < 14 || heightAt(x, z) < 3 || x > UNILAG.lagoonX - 10 && z < -390) continue;
       if (TREES.some(t => Math.hypot(t.x - x, t.z - z) < 20)) continue;
       const b = new Builder(), base = heightAt(x, z) - 1.5, w = Math.round(4 + rng() * 2.5), h = 52 + rng() * 32;
@@ -6499,6 +6513,177 @@ if (YABA) withSeed(9191, () => {
     traffic.push({ g, T: YABA, axis: rng() < .5 ? 'x' : 'z', line: ri2(GRID), dir: ri2([-1, 1]), pos: (rng() - .5) * 140, speed: 0, cruise: 7 + rng() * 4, plan: null });
   }
 });
+/* ---------- Ikeja, north of Yaba up Obafemi Awolowo Way. West of the avenue, the GRA: three leafy streets (Isaac John,
+   Joel Ogunnaike, Oduduwa Crescent) with walled villas and lots for sale, green belts of trees between them. East, Lagos
+   State Government House: a walled compound with a gatehouse, a palm-lined drive to a fountain forecourt, and a great
+   white house with a columned portico and a dome, formal gardens, flags and a helipad. Own seed. ---------- */
+const IKEJA = YB ? { x: -200, z: -930, y: TOWN.y, modern: true, houses: [], civs: [], place: 'seafront' } : null;
+const GRA_NAMES = ['ISAAC JOHN STREET', 'JOEL OGUNNAIKE STREET', 'ODUDUWA CRESCENT'];
+if (IKEJA) withSeed(9393, () => {
+  const Y = IKEJA.y, b = new Builder(), ri2 = a => a[Math.floor(rng() * a.length)];
+  const stone = LM(0xf4efe2), trim = LM(0xe6dcc4), cornice = LM(0xfaf7ee), gold = LM(0xc9a24a), hedge = LM(0x2e6b30), rail = LM(0x1f3a2a), pave = LM(0xd8d0bc);
+  const winM = new THREE.MeshLambertMaterial({ color: 0x3a5468, emissive: 0x0c1820 }), copper = new THREE.MeshLambertMaterial({ color: 0x5fa894 }), water = new THREE.MeshPhongMaterial({ color: 0x7fd0ee, shininess: 120, transparent: true, opacity: .85 });
+  const flowers = [0xd8342c, 0xf2c230, 0xe07aa0, 0xf4f4f2, 0xe8742a].map(c => LM(c));
+  const palm = (x, z) => { b.box(.45, 8, .45, x, Y + 4, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7], [.7, -.7], [-.7, .7]]) b.box(dx ? 3.2 : .6, .22, dz ? 3.2 : .6, x + dx * 1.5, Y + 8 - (dx && dz ? .3 : 0), z + dz * 1.5, M.leaves, 1, false); };
+  const lamp = (x, z, ax, az) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, MM.dark, 1, true, 'house'); b.box(ax ? 1.4 : .12, .1, az ? 1.4 : .12, x + ax * .7, Y + 6.45, z + az * .7, MM.dark, 1, false); b.box(.45, .14, .45, x + ax * 1.3, Y + 6.35, z + az * 1.3, lampMat, 1, false); LAMPS.push([x + ax * 1.3, z + az * 1.3, Y]); };
+  const flagCloth = (x, y, z, cols) => {   // a flag of vertical stripes, flying east of its pole
+    const c = document.createElement('canvas'); c.width = 96; c.height = 64; const g = c.getContext('2d'); cols.forEach((col, k) => { g.fillStyle = col; g.fillRect(k * 96 / cols.length, 0, 96 / cols.length + 1, 64); });
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; const m = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), new THREE.MeshLambertMaterial({ map: t, side: THREE.DoubleSide }));
+    m.position.set(x + 1.6, y, z); scene.add(m);
+  };
+  const flag = (x, z, h, cols) => { b.box(.18, h, .18, x, Y + h / 2, z, MM.steel, 1, true, 'house'); b.box(.4, .3, .4, x, Y + h + .1, z, gold, 1, false); flagCloth(x, Y + h - 1.1, z, cols); };
+  const NG_FLAG = ['#008751', '#ffffff', '#008751'];
+
+  /* ---- the GRA ---- */
+  const GE = { id: 'gra', name: 'Ikeja GRA', short: 'Ikeja GRA', x0: GRA.x0, x1: GRA.x1, z0: GRA.z0, z1: GRA.z1, price: 40000, houses: [], civs: [], modern: true, place: 'seafront', estate: true, lots: [],
+    avenue: { axis: 'x', at: GRA.streets[1], from: GRA.x0, to: GRA.ave }, gate: { x: GRA.ave, z: GRA.streets[1], side: 'x' } };
+  Object.assign(GE, { x: (GE.x0 + GE.x1) / 2, z: (GE.z0 + GE.z1) / 2, w: GE.x1 - GE.x0, d: GE.z1 - GE.z0, y: Y });
+  const wallH = 2.6, wallM = LM(0xece4d2);
+  GRA.streets.forEach((A, si) => {
+    // street furniture: lamps and shade trees on both verges, a name sign at the avenue
+    for (let x = GRA.x0 + 10, k = 0; x < GRA.ave - 12; x += 13, k++) for (const s of [-1, 1]) { if (k % 2) lamp(x, A + s * 8.2, 0, -s); else smallTree(b, x, A + s * 8.6, Y); }
+    for (const s of [-1, 1]) { b.box(.12, 3, .12, GRA.ave - 8, Y + 1.5, A + s * 7.5, MM.dark, 1, false); }
+    ySign(ySignMat(GRA_NAMES[si], '#1f6f3a', '#ffffff', 'IKEJA GRA'), 3.4, .85, GRA.ave - 8, Y + 3.2, A + 7.5, -Math.PI / 2);
+    ySign(ySignMat(GRA_NAMES[si], '#1f6f3a', '#ffffff', 'IKEJA GRA'), 3.4, .85, GRA.ave - 8, Y + 3.2, A - 7.5, -Math.PI / 2);
+    // lots either side: a row north of the street and a row south, 24 m each on the land grid
+    for (const [z0, side] of [[A - 36, 'pz'], [A + 12, 'nz']]) for (let x0 = -336; x0 <= -96; x0 += 24) GE.lots.push({ x0, z0, cx: x0 + 12, cz: z0 + 12, side, street: si });
+  });
+  GE.lots.forEach((L, n) => {
+    L.key = Math.floor((L.cx + HALF) / 24) + ',' + Math.floor((L.cz + HALF) / 24); L.n = n + 1;
+    L.taken = (n * 7 + 2) % 5 < 2;   // two in five already have a villa
+    const fz = L.side === 'nz' ? -1 : 1;   // the street side
+    if (L.taken) {
+      const big = n % 3 === 0, hs = { v: GE, x: L.cx + (n % 2 ? 2 : -2), z: L.cz - fz * 1.5, w: big ? 12 : 11, d: 10, side: L.side, yard: 2 };
+      buildModernHouse(hs, b);
+      // a high compound wall all round, a sliding gate on the street side, bougainvillea over the wall
+      const gx = hs.doorOut.x, x0 = L.x0 + .3, x1 = L.x0 + 23.7, zf = L.cz + fz * 11.7, zb = L.cz - fz * 11.7;
+      b.box(23.4, wallH, .3, L.cx, Y + wallH / 2, zb, wallM, 2, true, 'house');
+      for (const x of [x0, x1]) b.box(.3, wallH, 23.4, x, Y + wallH / 2, L.cz, wallM, 2, true, 'house');
+      if (gx - 2.5 > x0) b.box(gx - 2.5 - x0, wallH, .3, (x0 + gx - 2.5) / 2, Y + wallH / 2, zf, wallM, 2, true, 'house');
+      if (x1 > gx + 2.5) b.box(x1 - gx - 2.5, wallH, .3, (gx + 2.5 + x1) / 2, Y + wallH / 2, zf, wallM, 2, true, 'house');
+      b.box(2.3, wallH - .2, .12, gx - 1.2, Y + (wallH - .2) / 2, zf + fz * .3, LM(0x2a2c30), 1, false);   // the gate, half open
+      b.box(23.6, .16, .5, L.cx, Y + wallH + .08, zb, trim, 1, false);
+      if (n % 2) b.box(6, .7, .7, x0 + 5, Y + wallH + .2, zf, LM(0xc8327a), 1, false);   // bougainvillea
+    } else {
+      const bx = L.cx + 6, bz = L.cz + fz * 10.5, rot = L.side === 'pz' ? 0 : Math.PI;
+      for (const s of [-.9, .9]) b.box(.12, 1.6, .12, bx + s, Y + .8, bz, MM.wood, 1, false);
+      textSign(`GRA PLOT ${L.n} · FOR SALE`, '#f2f0ea', '#1f6f3a', 2.8, .8, bx, Y + 1.9, bz + Math.cos(rot) * .08, rot, '#d8342c');
+      for (const [ox, oz] of [[-11.6, -11.6], [11.6, -11.6], [-11.6, 11.6], [11.6, 11.6]]) b.box(.18, .5, .18, L.cx + ox, Y + .25, L.cz + oz, LM(0xd8342c), 1, false);
+    }
+  });
+  // green belts between the back gardens: rows of shade trees, the GRA's canopy
+  for (const zc of [-852, -972]) for (let x = GRA.x0 + 8; x < GRA.ave - 14; x += 9) smallTree(b, x + (rng() - .5) * 3, zc + (rng() - .5) * 14, Y);
+  // the welcome sign on the avenue, and lamps and palms up Obafemi Awolowo Way
+  ySign(ySignMat('WELCOME TO IKEJA GRA', '#1f6f3a', '#ffffff', 'LAGOS STATE · CENTRE OF EXCELLENCE'), 7, 1.6, GRA.ave - 12, Y + 4.4, -762, 0);   // faces traffic coming up from Yaba
+  for (const s of [-1, 1]) b.box(.25, 4.2, .25, GRA.ave - 12 + s * 3.2, Y + 2.1, -762.1, MM.dark, 1, true, 'house');
+  for (let z = -566, k = 0; z > -1124; z -= 16, k++) for (const s of [-1, 1]) { const x = GRA.ave + s * 9; if (Math.abs(z - GOVH.cz) < 12 || GRA.streets.some(A => Math.abs(z - A) < 12)) continue; if (k % 2) palm(x, z); else lamp(x, z, -s, 0); }
+  ESTATES.push(GE); GRA.E = GE;
+
+  /* ---- Lagos State Government House ---- */
+  const G = GOVH, cz = G.cz, gate = G.x0, gap = 9;
+  // the perimeter: a white wall with green railings on top and pillars every 12 m, a gap at the gate
+  const railWall = (x0, z0, x1, z1) => {
+    const along = Math.abs(x1 - x0) > Math.abs(z1 - z0), L = along ? x1 - x0 : z1 - z0, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    if (L < .5) return;
+    b.box(along ? L : .5, 1.6, along ? .5 : L, mx, Y + .8, mz, stone, 2, true, 'house');
+    b.box(along ? L : .12, 1.4, along ? .12 : L, mx, Y + 2.3, mz, rail, 1, true, 'house');
+    for (let t = 0; t <= L; t += 12) { const px = along ? x0 + t : x0, pz = along ? z0 : z0 + t; b.box(.9, 3.4, .9, px, Y + 1.7, pz, stone, 1, true, 'house'); b.box(1.1, .25, 1.1, px, Y + 3.5, pz, gold, 1, false); }
+  };
+  railWall(gate, G.z0, gate, cz - gap); railWall(gate, cz + gap, gate, G.z1); railWall(G.x1, G.z0, G.x1, G.z1); railWall(gate, G.z0, G.x1, G.z0); railWall(gate, G.z1, G.x1, G.z1);
+  // the gate: tall pillars with lanterns, open wrought-iron leaves, the arch with the crest, gatehouses either side, a barrier
+  for (const s of [-1, 1]) {
+    b.box(2, 7.5, 2, gate, Y + 3.75, cz + s * gap, stone, 2, true, 'house'); b.box(2.4, .4, 2.4, gate, Y + 7.7, cz + s * gap, gold, 1, false); b.box(.8, .9, .8, gate, Y + 8.35, cz + s * gap, lampMat, 1, false);
+    b.box(6, 4.2, .12, gate + 3.4, Y + 2.1, cz + s * (gap - .9), rail, 1, false);   // the gate leaves, swung right back against the drive's edges
+    b.box(5, 3.4, 6, gate + 4.5, Y + 1.7, cz + s * (gap + 6), stone, 2, true, 'house'); b.box(5.6, .4, 6.6, gate + 4.5, Y + 3.6, cz + s * (gap + 6), LM(0x2f6f4a), 1, true, 'roof');
+    b.box(.06, 1.2, 3, gate + 1.98, Y + 1.8, cz + s * (gap + 6), winM, 1, false);
+  }
+  b.box(1.2, 1.2, 2 * gap, gate, Y + 7.2, cz, stone, 1, true, 'roof');
+  ySign(ySignMat('LAGOS STATE GOVERNMENT HOUSE', '#0d3a6a', '#f2c230', 'IKEJA · EKO O NI BAJE O'), 14, 1.6, gate - .65, Y + 7.2, cz, -Math.PI / 2);
+  b.box(.3, 1.1, .3, gate + 8, Y + .55, cz - 3, MM.dark, 1, true, 'house'); { const bar = new THREE.Mesh(new THREE.BoxGeometry(.14, .14, 5.6), LM(0xd8342c)); bar.position.set(gate + 8, Y + 1.15, cz - .2); scene.add(bar); }
+  // the drive: palms and lamps to the forecourt
+  for (let x = gate + 14, k = 0; x < G.fx - G.fr - 4; x += 12, k++) for (const s of [-1, 1]) { if (k % 2) lamp(x, cz + s * 8, 0, -s); else palm(x, cz + s * 8.5); }
+  // the fountain: a stone basin, water, three tiers and jets, a ring of flowers
+  { const fx = G.fx, fz = G.fz, cyl = (r, h, y, m, seg = 40) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); o.position.set(fx, y, fz); o.castShadow = true; o.receiveShadow = true; scene.add(o); return o; };
+    cyl(10, .9, Y + .45, stone); cyl(9.4, .1, Y + .82, water); cyl(3.2, 1.6, Y + 1, stone, 24); cyl(3, .1, Y + 1.85, water, 24); cyl(1.6, 1.4, Y + 2.5, stone, 20); cyl(1.4, .1, Y + 3.25, water, 20); cyl(.5, 1.4, Y + 3.9, stone, 12);
+    const jet = new THREE.MeshBasicMaterial({ color: 0xdff4ff, transparent: true, opacity: .55, depthWrite: false });
+    for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, o = new THREE.Mesh(new THREE.CylinderGeometry(.06, .16, 3.4, 6), jet); o.position.set(fx + Math.cos(a) * 6.5, Y + 2.2, fz + Math.sin(a) * 6.5); o.rotation.set(Math.sin(a) * .35, 0, -Math.cos(a) * .35); scene.add(o); }
+    { const o = new THREE.Mesh(new THREE.CylinderGeometry(.08, .25, 3, 8), jet); o.position.set(fx, Y + 6, fz); scene.add(o); }
+    colliders.push({ x0: fx - 10, x1: fx + 10, y0: Y, y1: Y + .9, z0: fz - 10, z1: fz + 10, tag: 'base' });
+    for (let k = 0; k < 36; k++) { const a = k / 36 * TAU; b.box(1.1, .35, 1.1, fx + Math.cos(a) * 11.3, Y + .18, fz + Math.sin(a) * 11.3, flowers[k % flowers.length], 1, false); }
+  }
+  // the house: a long white front facing west across the forecourt. Centre block (four floors, under the dome), two wings (three
+  // floors), end pavilions standing forward; tall windows on every floor, cornices, a balustrade along the roof
+  const bx0 = G.bx0, depth = 36, bcx = bx0 + depth / 2, FH = 4.4;
+  const blockG = (z0, z1, x0, x1, floors) => {
+    const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, czz = (z0 + z1) / 2, H = floors * FH;
+    b.box(w, H, d, cx, Y + .6 + H / 2, czz, stone, 3, true, 'house');
+    b.box(w + .6, .6, d + .6, cx, Y + .3, czz, trim, 1, true, 'base');   // plinth
+    for (let f = 0; f < floors; f++) {
+      const fy = Y + .6 + f * FH; b.box(w + .3, .25, d + .3, cx, fy + FH - .12, czz, cornice, 1, false);
+      const nz = Math.floor(d / 3.6), nx = Math.floor(w / 3.6);
+      for (let k = 0; k < nz; k++) { const wz = z0 + (k + .5) * d / nz; for (const [xx, s] of [[x0, -1], [x1, 1]]) { b.box(.1, 2.6, 1.5, xx + s * .03, fy + 2.1, wz, winM, 1, false); b.box(.18, .22, 1.9, xx + s * .06, fy + 3.55, wz, cornice, 1, false); } }
+      for (let k = 0; k < nx; k++) { const wx = x0 + (k + .5) * w / nx; for (const [zz, s] of [[z0, -1], [z1, 1]]) b.box(1.5, 2.6, .1, wx, fy + 2.1, zz + s * .03, winM, 1, false); }
+    }
+    const top = Y + .6 + H; b.box(w + .8, .5, d + .8, cx, top + .25, czz, cornice, 1, true, 'roof');
+    for (let t = x0; t <= x1; t += 1.2) for (const zz of [z0, z1]) b.box(.22, .8, .22, t, top + .9, zz, cornice, 1, false);
+    for (let t = z0; t <= z1; t += 1.2) for (const xx of [x0, x1]) b.box(.22, .8, .22, xx, top + .9, t, cornice, 1, false);
+    for (const [x, z] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) b.box(.4, .2, .4, x, top + 1.4, z, cornice, 1, false);
+    b.box(w, .12, .2, cx, top + 1.3, z0, cornice, 1, false); b.box(w, .12, .2, cx, top + 1.3, z1, cornice, 1, false); b.box(.2, .12, d, x0, top + 1.3, czz, cornice, 1, false); b.box(.2, .12, d, x1, top + 1.3, czz, cornice, 1, false);
+    YABA_MAP.push([cx, czz, w, d, '#f4efe2']);
+    return top;
+  };
+  const topC = blockG(cz - 20, cz + 20, bx0, bx0 + depth, 4);
+  for (const s of [-1, 1]) { blockG(s < 0 ? cz - 46 : cz + 20, s < 0 ? cz - 20 : cz + 46, bx0 + 3, bx0 + depth - 3, 3); blockG(s < 0 ? cz - 58 : cz + 46, s < 0 ? cz - 46 : cz + 58, bx0 - 3, bx0 + depth + 1, 3); }
+  // the portico: steps, eight columns, the entablature and a pediment, the great doors
+  for (let k = 0; k < 5; k++) { const w = 16 - k * 1.2; b.box(w, .3, 34, bx0 - w / 2, Y + .15 + k * .3, cz, pave, 1, true, 'base'); }   // five steps up to the portico
+  const colY = Y + 1.5, colH = 4 * FH - 1;
+  for (let k = 0; k < 8; k++) { const z = cz - 14 + k * 4, c = new THREE.Mesh(new THREE.CylinderGeometry(.75, .85, colH, 18), stone); c.position.set(bx0 - 7, colY + colH / 2, z); c.castShadow = true; scene.add(c); b.box(2, .5, 2, bx0 - 7, colY + .25, z, cornice, 1, false); b.box(2, .6, 2, bx0 - 7, colY + colH - .3, z, cornice, 1, false); colliders.push({ x0: bx0 - 7.8, x1: bx0 - 6.2, y0: colY, y1: colY + colH, z0: z - .8, z1: z + .8, tag: 'house' }); }
+  b.box(10, 1.6, 34, bx0 - 5, colY + colH + .8, cz, cornice, 2, true, 'roof'); b.box(10.4, .3, 34.4, bx0 - 5, colY + colH + 1.75, cz, trim, 1, false);
+  { const sh = new THREE.Shape(); sh.moveTo(-17, 0); sh.lineTo(17, 0); sh.lineTo(0, 5.5); sh.lineTo(-17, 0);
+    const ped = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 9.6, bevelEnabled: false }), cornice); ped.rotation.y = Math.PI / 2; ped.position.set(bx0 - 9.8, colY + colH + 1.9, cz); ped.castShadow = true; scene.add(ped);
+    b.box(.2, 1.6, 4, bx0 - 9.95, colY + colH + 3.1, cz, gold, 1, false); }   // the crest
+  b.box(.2, 7, 6, bx0 - .1, Y + 4.1, cz, LM(0x5a3218), 1, false); b.box(.25, .5, 7, bx0 - .15, Y + 7.8, cz, gold, 1, false);
+  ySign(ySignMat('LAGOS HOUSE', '#f4efe2', '#8a6a20', 'GOVERNMENT HOUSE · IKEJA'), 12, 1.4, bx0 - 10.05, colY + colH + .8, cz, -Math.PI / 2);
+  // the dome: a drum ringed with columns, a copper dome, a lantern, the flag on top
+  { const dx = bcx, dzz = cz, dy = topC + 1.5, ring = (r, h, y, m, seg = 48) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); o.position.set(dx, y, dzz); o.castShadow = true; scene.add(o); return o; };
+    ring(12.5, 1.5, dy, cornice); ring(11, 6, dy + 3.75, stone);
+    for (let k = 0; k < 20; k++) { const a = k / 20 * TAU, c = new THREE.Mesh(new THREE.CylinderGeometry(.35, .4, 5.4, 10), cornice); c.position.set(dx + Math.cos(a) * 11.4, dy + 3.75, dzz + Math.sin(a) * 11.4); scene.add(c); if (k % 2) { const w = new THREE.Mesh(new THREE.BoxGeometry(.1, 3, 2), winM); w.position.set(dx + Math.cos(a + .16) * 11.05, dy + 3.9, dzz + Math.sin(a + .16) * 11.05); w.rotation.y = -a - .16; scene.add(w); } }
+    ring(11.8, .8, dy + 7.1, cornice);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(11, 40, 18, 0, TAU, 0, Math.PI / 2), copper); dome.scale.y = .9; dome.position.set(dx, dy + 7.5, dzz); dome.castShadow = true; scene.add(dome);
+    for (let k = 0; k < 16; k++) { const a = k / 16 * TAU, rib = new THREE.Mesh(new THREE.TorusGeometry(11.02, .12, 4, 24, Math.PI / 2), gold); rib.position.set(dx, dy + 7.5, dzz); rib.rotation.set(0, a, 0); rib.scale.y = .9; scene.add(rib); }
+    ring(1.8, 3.2, dy + 7.5 + 9.9 + 1.6, cornice, 16); const lan = new THREE.Mesh(new THREE.SphereGeometry(1.9, 16, 8, 0, TAU, 0, Math.PI / 2), gold); lan.position.set(dx, dy + 20.6, dzz); scene.add(lan);
+    b.box(.16, 5, .16, dx, dy + 24, dzz, MM.steel, 1, false); flagCloth(dx, dy + 25.4, dzz, NG_FLAG);
+    colliders.push({ x0: dx - 12.5, x1: dx + 12.5, y0: topC, y1: dy + 17, z0: dzz - 12.5, z1: dzz + 12.5, tag: 'roof' });
+  }
+  // the terrace: flagpoles before the house (Nigeria either side of Lagos State), planters, guards' sentry boxes
+  flag(bx0 - 18, cz - 24, 14, NG_FLAG); flag(bx0 - 18, cz + 24, 14, NG_FLAG); flag(bx0 - 18, cz - 30, 12, ['#1f3fa8', '#ffffff', '#d8342c']);
+  for (const s of [-1, 1]) { b.box(1.6, 2.6, 1.6, bx0 - 12, Y + 1.3, cz + s * 10, LM(0x2f6f4a), 1, true, 'house'); b.box(1.9, .3, 1.9, bx0 - 12, Y + 2.75, cz + s * 10, gold, 1, false); }
+  for (let k = -3; k <= 3; k++) if (k) { b.box(1.4, .8, 1.4, bx0 - 15, Y + .4, cz + k * 7.5, stone, 1, true, 'base'); b.box(1.2, .9, 1.2, bx0 - 15, Y + 1.25, cz + k * 7.5, hedge, 1, false); }
+  // formal gardens either side of the drive: hedged squares around flower beds, and topiary
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+    const x = gate + 28 + i * 18, z = cz + s * (30 + j * 22);
+    for (const [w, d, ox, oz] of [[12, .8, 0, -6], [12, .8, 0, 6], [.8, 12, -6, 0], [.8, 12, 6, 0]]) b.box(w, .9, d, x + ox, Y + .45, z + oz, hedge, 1, false);
+    b.box(8, .4, 8, x, Y + .2, z, flowers[(i + j * 2 + (s > 0 ? 1 : 0)) % flowers.length], 1, false); b.box(1.6, 2.6, 1.6, x, Y + 1.3, z, hedge, 1, true, 'house');
+  }
+  // behind the house: the rear lawn, a gazebo, the helipad, a car park with the convoy, staff quarters
+  { const hx = 250, hz = cz - 116, pad = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, .2, 40), LM(0x3a3a3e)); pad.position.set(hx, Y + .1, hz); scene.add(pad);
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.strokeStyle = '#f4f4f2'; g.lineWidth = 6; g.beginPath(); g.arc(64, 64, 56, 0, TAU); g.stroke(); g.fillStyle = '#f2c230'; g.font = 'bold 80px sans-serif'; g.textAlign = 'center'; g.fillText('H', 64, 92);
+    const t = new THREE.CanvasTexture(c); const top = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), new THREE.MeshLambertMaterial({ map: t, transparent: true })); top.rotation.x = -Math.PI / 2; top.position.set(hx, Y + .22, hz); scene.add(top); }
+  { const gx = 268, gz = cz - 70; for (const [ox, oz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) b.box(.4, 3.4, .4, gx + ox, Y + 1.7, gz + oz, stone, 1, true, 'house'); b.box(10, .4, 10, gx, Y + 3.6, gz, cornice, 1, true, 'roof'); hipRoof(b, LM(0x2f6f4a), gx, gz, 10, 10, Y + 3.8, { pitch: .5, ground: Y }); }
+  blockG(G.z0 + 16, G.z0 + 46, 270, 326, 2);   // staff quarters
+  b.box(52, .05, 24, 300, Y + .03, G.z1 - 30, LM(0x3a3a3e), 1, false);
+  for (let k = 0; k < 4; k++) makeDrivable(282 + k * 7, G.z1 - 30, Math.PI, 'car');
+  for (let x = bx0 + depth + 12; x < G.x1 - 10; x += 22) for (const z of [cz - 80, cz + 80]) smallTree(b, x, z + (rng() - .5) * 10, Y);
+  b.build();
+  YABA_MAP.push([G.fx, G.fz, 20, 20, '#7fd0ee']);
+
+  /* ---- people: residents on the GRA's pavements, the gate guards, visitors and staff at Government House ---- */
+  for (const A of GRA.streets) for (let k = 0; k < 6; k++) makeCivilian({ x: -200, z: A, y: Y, houses: [], civs: [], sand: [GRA.x0 + 6, GRA.ave - 14, A + (k % 2 ? 6.6 : -7.4), A + (k % 2 ? 7.4 : -6.6)], place: 'seafront' }, { adult: rng() < .9 });
+  const guards = { x: gate, z: cz, y: Y, houses: [], civs: [], sand: [gate + 2, gate + 7, cz - 4, cz + 4], place: 'security' };
+  for (let k = 0; k < 4; k++) { const c = makeCivilian(guards, { adult: true }); c.guard = true; }
+  for (let k = 0; k < 8; k++) makeCivilian({ x: G.fx, z: cz, y: Y, houses: [], civs: [], sand: [G.fx + 14, bx0 - 16, cz - 28, cz + 28], place: k < 3 ? 'security' : 'seafront' }, { adult: true });
+});
+
 bakeProps();
 if (TOWN) { const [gx, gz] = blockAt('gas'); makeDrivable(gx + 8.5, gz + 1.5, Math.PI, 'bike'); makeDrivable(TOWN.x - 57, TOWN.z - 38 - 3.5, Math.PI / 2, 'bike'); }
 if (TOWN) for (const [lx, lz, yaw] of [[57, -38 + 3.5, -Math.PI / 2], [-57, 38 + 3.5, -Math.PI / 2], [19, 76 - 3.5, Math.PI / 2]]) makeDrivable(TOWN.x + lx, TOWN.z + lz, yaw);
@@ -7497,6 +7682,7 @@ function drawBigMap() {
   if (P.driving && !DRIVER.on && !isAir(P.driving)) label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', 0, -HALF - MAP_OY + 14, 13, '#f2c230');
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (YB) {   // the mainland
+    label('IKEJA', GRA.ave, GRA.z1 - 6, 18, '#f2c230'); label('Lagos State Government House', GOVH.bx0 + 18, GOVH.cz - 70, 11, '#ffd3a8');
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
     label('UNIVERSITY OF LAGOS', (UNILAG.x0 + UNILAG.lagoonX) / 2, UNILAG.z0 + 30, 15, '#ffb0b0'); label('Senate', 160, -514, 11, '#ffffff'); label('Lagoon', UNILAG.lagoonX + 30, -560, 12, '#bfe3ff');
     label('YABATECH', (YTECH.x0 + YTECH.x1) / 2, YTECH.z0 - 10, 15, '#bfe3ff'); label('To the city', -6, -300, 11, '#f1ebda');
@@ -7861,7 +8047,8 @@ function drawOutline(info) {
 // every plot for sale, worked out once (a fraction of a second) the first time a map needs it
 let FOR_SALE = null;
 function forSale() {
-  if (!FOR_SALE) { FOR_SALE = []; const n = Math.ceil(2 * HALF / PLOT); for (let px = 0; px < n; px++) for (let pz = 0; pz < n; pz++) { const i = plotInfo(px, pz); if (i.ok) FOR_SALE.push(i); } }
+  if (!FOR_SALE) { FOR_SALE = []; const n = Math.ceil(2 * HALF / PLOT); for (let px = 0; px < n; px++) for (let pz = 0; pz < n; pz++) { const i = plotInfo(px, pz); if (i.ok) FOR_SALE.push(i); }
+    for (const key of ESTATE_LOTS.keys()) { const [px, pz] = key.split(',').map(Number); if (pz < 0) { const i = plotInfo(px, pz); if (i.ok) FOR_SALE.push(i); } } }   // lots on the mainland (Ikeja GRA)
   return FOR_SALE;
 }
 function buyPlot(info) {
@@ -8965,6 +9152,7 @@ function fareSpots() {
   for (const C of CLUBS) s.push([C.name, C.hs ? C.hs.doorOut.x : C.at[0], C.hs ? C.hs.doorOut.z + (C.hs.side === 'pz' ? 5 : 0) : 274]);
   VILLAGES.forEach((v, k) => s.push([k ? 'the forest village' : 'the home village', v.x, v.z]));
   for (const E of ESTATES) s.push([E.name, E.gate.side === 'z' ? E.gate.x : E.gate.x + 12, E.gate.side === 'z' ? E.gate.z - 12 : E.gate.z]);
+  if (YB) s.push(['Government House, Ikeja', GOVH.x0 - 10, GOVH.cz + 14]);
   return s;
 }
 function updateTaxi(dt) {
@@ -9903,6 +10091,7 @@ function drawDriverRoute(ctx, toP, lw) {
   DRIVER.path.slice(DRIVER.i).forEach((p, n) => { const [a, b] = toP(p.x, p.z); n ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }); ctx.stroke(); ctx.setLineDash([]);
   const [dx, dy] = toP(DRIVER.dest.x, DRIVER.dest.z); ctx.fillStyle = '#f2c230'; ctx.strokeStyle = '#1b1608'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(dx, dy, lw * 2.2, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
 }
+gridCatchUp();   // the world is built: make everything since the grids were made solid
 /* ---------- main loop ---------- */
 if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(30);
 /* Peaceful mode: no titans at all. Toggle with T in game or the button on the start screen. */
