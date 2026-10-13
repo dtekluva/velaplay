@@ -21,6 +21,10 @@ export const FURN: Record<string, number> = {
   sofa: 85000, armchair: 35000, coffee: 18000, tv: 120000, dbed: 95000, sbed: 45000, wardrobe: 60000, nightstand: 12000,
   dining: 70000, counter: 90000, fridge: 150000, desk: 40000, rug: 15000, lamp: 9000, plant: 6000, shelf: 30000,
   roundrug: 20000, pendant: 25000, agave: 9000, stove: 75000, blender: 35000, shower: 120000, toilet: 45000, vanity: 60000, bathtub: 140000,
+  // the home setup update: electronics, the Naija kitchen, the spa bathroom, statement pieces
+  tv75: 450000, tv43: 95000, theatre: 180000, gaming: 520000, ac: 380000, fan: 25000, inverter: 850000,
+  cooker: 180000, microwave: 60000, island: 220000, cabinets: 85000, freezer: 160000, dispenser: 70000, washer: 280000,
+  jacuzzi: 1200000, dvanity: 140000, heater: 45000, kbed: 260000, dresser: 75000, sectional: 320000, art: 40000, chandelier: 150000,
 };
 export const BATH_ITEMS = new Set(["shower", "toilet", "vanity", "bathtub"]);
 const FENCE_RATE: Record<string, number> = { rail: 80, wall: 120, high: 180 };

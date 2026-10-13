@@ -201,6 +201,34 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 #vp input{font:16px var(--ui);padding:9px 10px;background:#0e130d;color:var(--ink);border:1px solid var(--edge);text-transform:none;letter-spacing:0}
 .vperr{color:#ff9a8a!important;font-size:15px!important;min-height:1em}
 .vpnote{font-size:14px!important;color:#bdb6a2!important}
+#arr{position:fixed;inset:0;z-index:25;pointer-events:none;font-family:var(--ui);color:var(--ink)}
+#arr[hidden]{display:none}
+#arr>div{pointer-events:auto;background:rgba(20,28,18,.94);border:1px solid var(--edge)}
+#arr .arrTop{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100% - 20px);border-top:3px solid var(--brass);padding:8px 12px;font-size:15px}
+#arr .arrTop b{color:var(--brass);font-size:18px;margin-right:6px}
+#arr button{font:600 15px var(--ui);letter-spacing:.05em;padding:7px 11px;background:#0e130d;color:var(--ink);border:1px solid var(--edge);cursor:pointer;touch-action:manipulation}
+#arr button.go{background:var(--brass);color:#1b1608;border-color:var(--brass)}
+#arr button:disabled{opacity:.4;cursor:default}
+#arr button[hidden]{display:none}
+#arr .arrHold{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(196px + env(safe-area-inset-bottom,0px));display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100% - 20px);padding:8px 10px}
+#arr .arrHold span{font-size:15px;margin-right:4px}
+#arr .arrHold[hidden]{display:none}
+#arr .arrShop{position:absolute;left:0;right:0;bottom:0;border:0;border-top:3px solid var(--brass);padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(14,19,13,.96)}
+#arr .arrTabs{display:flex;gap:4px;overflow-x:auto;margin-bottom:8px;scrollbar-width:thin}
+#arr .arrTabs button{white-space:nowrap;padding:5px 10px;font-size:14px;flex:0 0 auto}
+#arr .arrTabs button.on{background:var(--brass);color:#1b1608}
+#arr .arrItems{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+#arr .card{flex:0 0 138px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:8px 9px;white-space:normal;line-height:1.15;letter-spacing:.01em}
+#arr .card .ic{font-size:26px;line-height:1}
+#arr .card .nm{font-size:13px;font-weight:600;min-height:30px}
+#arr .card .pr{color:var(--brass);font-size:13px}
+#arr .card.poor{opacity:.45}
+#arr .lbl{color:var(--brass);letter-spacing:.1em;text-transform:uppercase;font-size:13px}
+body.arr #hud>*:not(#toast){display:none!important}
+body.arr #tc{display:none!important}
+body.arr #lmenu{display:none!important}
+body.arr canvas{touch-action:none;cursor:pointer}
+@media (max-width:600px){#arr .card{flex-basis:118px}#arr .arrHold{bottom:calc(186px + env(safe-area-inset-bottom,0px))}#arr button{padding:6px 9px;font-size:14px}}
 #vp>.vplist{background:rgba(20,28,18,.96);padding:6px 22px;border-left:1px solid var(--edge);border-right:1px solid var(--edge);display:flex;flex-direction:column;gap:8px}
 .vplist h3{margin:8px 0 0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass)}
 .offer{border:1px solid var(--edge);padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:15px}
@@ -335,6 +363,11 @@ body:not(.touch) #odock{display:none}
   </div>
 
   <div id="vp" hidden></div>
+  <div id="arr" hidden>
+    <div class="arrTop"><span class="lbl">Your home</span><b id="arrMoney" class="num"></b><span id="arrFloorTxt"></span><button type="button" id="arrDown" title="Floor below">▼</button><button type="button" id="arrUp" title="Floor above">▲</button><button type="button" id="arrL" title="Turn the view">⟲</button><button type="button" id="arrR" title="Turn the view">⟳</button><button type="button" id="arrIn" title="Closer">＋</button><button type="button" id="arrOut" title="Further">－</button><button type="button" class="go" id="arrDone">Done</button></div>
+    <div class="arrHold" id="arrHold" hidden><span id="arrHoldTxt"></span><button type="button" id="arrTurn">⟳ Turn (R)</button><button type="button" class="go" id="arrPut">Put here</button><button type="button" id="arrSkip">Skip</button><button type="button" id="arrSell">Sell back</button><button type="button" id="arrCancel">Cancel</button></div>
+    <div class="arrShop"><div class="arrTabs" id="arrTabs"></div><div class="arrItems" id="arrItems"></div></div>
+  </div>
   <div id="overlay">
     <div class="card" id="card">
       <div class="eyebrow" id="cEyebrow">Scout expedition · Giantwood</div>
@@ -6817,6 +6850,7 @@ let shake = 0;
 const SIM = { on: true, t: 0, room: null, pitch: -.92, wall: 1.45, mats: new Set(), seen: -1e9,
   cutY: new THREE.Plane(new V3(0, -1, 0), 1e5), cutX: new THREE.Plane(new V3(1, 0, 0), 1e5), cutZ: new THREE.Plane(new V3(0, 0, 1), 1e5), pos: new V3(), dir: new V3() };
 renderer.localClippingEnabled = true;
+const ARR = { on: false, home: null, f: 0, yaw: 0, pitch: -1, zoom: 1, tab: 'living', hold: null, kit: null, lastPt: null, lastR: 0, hadLock: false, down: null, orbit: null, ray: new THREE.Raycaster(), ndc: new THREE.Vector2(), pt: new V3() };   // arranging your home (see arrStart)
 function simCollect() {   // give every world material the two planes (new ones too: houses you build, a fresh car)
   const skip = new Set([figMat, faceMat]);
   for (const root of [civRoot, titanRoot, playerModel]) root.traverse(o => { if (o.material) for (const m of [].concat(o.material)) skip.add(m); });
@@ -6856,6 +6890,7 @@ function updateCamera(dt) {
     camera.lookAt(0, 13, 0);
     return;
   }
+  if (ARR.on) { arrCamera(); return; }
   const d = camDir(tmpC);
   if (firstPerson) { SIM.t = 0; SIM.cutY.constant = 1e5; camera.position.set(P.pos.x, P.pos.y + 1.65, P.pos.z); camera.lookAt(tmpA.copy(camera.position).add(d)); return; }
   const target = tmpA.set(P.pos.x, P.pos.y + (P.driving ? vehOf(P.driving).camY : 1.7), P.pos.z);
@@ -6890,6 +6925,7 @@ setHelp(helpOn);
 $('helpTab').addEventListener('click', e => { e.stopPropagation(); setHelp(true); });
 addEventListener('keydown', e => {
   if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing in a box (chat, sign-in) never drives the game
+  if (ARR.on && mode === 'play') { arrKey(e); return; }   // arranging your home: its own keys
   if (['Tab', 'F5', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF'].includes(e.code) && mode === 'play') e.preventDefault();
   const was = keys[e.code]; keys[e.code] = true;
   if (was || mode !== 'play') return;
@@ -6917,7 +6953,7 @@ addEventListener('keydown', e => {
     case 'KeyC': fireHook(1); break;
     case 'KeyT': setPeaceful(!peaceful, true); break;
     case 'KeyN': skipDayNight(); break;
-    case 'KeyB': if (P.driving && (P.driving.police || P.driving.ambulance || P.driving.fire)) { if (siren) sirenOff(); else sirenOn(); } break;
+    case 'KeyB': if (P.driving && (P.driving.police || P.driving.ambulance || P.driving.fire)) { if (siren) sirenOff(); else sirenOn(); } else if (myHome()) arrStart(); break;
     case 'KeyM': mCombo = false; break;
     case 'KeyH': setHelp(!helpOn); break;
     case 'Tab': $('board').hidden = false; break;
@@ -6934,7 +6970,7 @@ addEventListener('keyup', e => {
 });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; $('board').hidden = true; });
 renderer.domElement.addEventListener('mousedown', e => {
-  if (mode !== 'play') return;
+  if (mode !== 'play' || ARR.on) return;
   if (!$('bigmap').hidden && document.pointerLockElement) { if (e.button === 0) mapPick(MAPCUR.x, MAPCUR.y); return; }   // the map is open: a click picks the spot under the crosshair
   if (hadLock && !document.pointerLockElement) { lockPointer(); return; }
   if (e.button === 0) fireHook(0); else if (e.button === 2) fireHook(1);
@@ -6945,7 +6981,7 @@ addEventListener('mouseup', e => { if (e.button === 0) releaseHook(0); else if (
 addEventListener('contextmenu', e => e.preventDefault());
 let lastMouse = -9;
 addEventListener('mousemove', e => {
-  if (mode !== 'play') return;
+  if (mode !== 'play' || ARR.on) return;
   if (e.movementX || e.movementY) lastMouse = performance.now() / 1000;
   if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); MAPCUR.x = clamp(MAPCUR.x + e.movementX * k, 0, bmC.width); MAPCUR.y = clamp(MAPCUR.y + e.movementY * k, 0, bmC.height); MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
   yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.35, 1.35);
@@ -6953,7 +6989,7 @@ addEventListener('mousemove', e => {
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement) hadLock = true;
-  else if (mode === 'play' && hadLock) setMode('pause');
+  else if (mode === 'play' && hadLock && !ARR.on) setMode('pause');
 });
 
 /* ---------- player actions ---------- */
@@ -7149,7 +7185,7 @@ function playerTimers(dt) {
 }
 function updatePlayerModel(dt) {
   const bike = P.driving && P.driving.kind === 'bike' ? P.driving : null;
-  playerModel.visible = !firstPerson && mode !== 'title' && (!P.driving || !!bike);
+  playerModel.visible = !firstPerson && mode !== 'title' && !ARR.on && (!P.driving || !!bike);
   const aiming = mode === 'play' && (S.time - (P.lastShot ?? -9) < 1.2 || keys.KeyX || midHeld);
   const hs = Math.hypot(P.vel.x, P.vel.z);
   if (bike) {
@@ -7485,6 +7521,7 @@ function resetRun() {
   if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(40);
 }
 function setMode(m) {
+  if (m !== 'play' && ARR.on) arrEnd(false);
   mode = m;
   // stop all rendering and sound while paused or dead; pick the loop back up on resume
   if (AC) { if (m === 'pause' || m === 'dead') AC.suspend?.(); else AC.resume?.(); }
@@ -8393,7 +8430,7 @@ const FURN = {
   sofa: { name: 'Three-seat sofa', cat: 'living', price: 85000, w: 2.2, d: .9, h: .8, col: 'sofa' },
   armchair: { name: 'Armchair', cat: 'living', price: 35000, w: .9, d: .9, h: .8, col: 'sofa' },
   coffee: { name: 'Coffee table', cat: 'living', price: 18000, w: 1.1, d: .6, h: .42 },
-  tv: { name: '65" TV and stand', cat: 'living', price: 120000, w: 1.8, d: .45, h: 1.4 },
+  tv: { name: '65" TV and stand', cat: 'tech', price: 120000, w: 1.8, d: .45, h: 1.4, live: 'tv' },
   dbed: { name: 'Double bed', cat: 'bedroom', price: 95000, w: 1.8, d: 2.15, h: .6, col: 'duvet' },
   sbed: { name: 'Single bed', cat: 'bedroom', price: 45000, w: 1.05, d: 2.05, h: .6, col: 'duvet' },
   wardrobe: { name: 'Wardrobe', cat: 'bedroom', price: 60000, w: 1.4, d: .6, h: 2.1 },
@@ -8415,8 +8452,67 @@ const FURN = {
   toilet: { name: 'Toilet', cat: 'bath', price: 45000, w: .45, d: .7, h: .8 },
   vanity: { name: 'Vanity, basin and mirror', cat: 'bath', price: 60000, w: .8, d: .5, h: 1.9 },
   bathtub: { name: 'Bathtub', cat: 'bath', price: 140000, w: 1.7, d: .8, h: .6 },
+  // the big home update: electronics, a proper Naija kitchen, a spa bathroom, and statement pieces.
+  // wall: hangs on a wall with its bottom this high (snaps to the nearest wall, no collider); live: can be switched on
+  tv75: { name: '75" wall-mounted TV', cat: 'tech', price: 450000, w: 1.7, d: .1, h: .98, wall: 1.0, flat: true, live: 'tv' },
+  tv43: { name: '43" TV on a console', cat: 'tech', price: 95000, w: 1.3, d: .45, h: 1.15, live: 'tv' },
+  theatre: { name: 'Home theatre: soundbar, sub and towers', cat: 'tech', price: 180000, w: 2.4, d: .45, h: 1.1 },
+  gaming: { name: 'PS5, gaming chair and headset', cat: 'tech', price: 520000, w: 1.1, d: .8, h: 1.4, col: 'cushion' },
+  ac: { name: 'Split AC (1.5 hp)', cat: 'tech', price: 380000, w: .9, d: .22, h: .3, wall: 2.05, flat: true, live: 'ac' },
+  fan: { name: 'Standing fan', cat: 'tech', price: 25000, w: .45, d: .45, h: 1.35, flat: true, live: 'fan' },
+  inverter: { name: 'Inverter and battery bank (for when NEPA takes light)', cat: 'tech', price: 850000, w: .7, d: .45, h: 1.0, live: 'ac' },
+  cooker: { name: 'Gas cooker, four burners, and the cylinder', cat: 'kitchen', price: 180000, w: .95, d: .65, h: 1.0, live: 'cooker' },
+  microwave: { name: 'Counter with a microwave', cat: 'kitchen', price: 60000, w: .9, d: .6, h: 1.25 },
+  island: { name: 'Kitchen island and two stools', cat: 'kitchen', price: 220000, w: 1.9, d: 1.4, h: 1.0 },
+  cabinets: { name: 'Wall cabinets', cat: 'kitchen', price: 85000, w: 2.0, d: .35, h: .7, wall: 1.5, flat: true },
+  freezer: { name: 'Chest freezer', cat: 'kitchen', price: 160000, w: 1.2, d: .7, h: .85 },
+  dispenser: { name: 'Water dispenser', cat: 'kitchen', price: 70000, w: .35, d: .35, h: 1.35, flat: true },
+  washer: { name: 'Washing machine', cat: 'kitchen', price: 280000, w: .6, d: .6, h: .85 },
+  jacuzzi: { name: 'Jacuzzi for four', cat: 'bath', price: 1200000, w: 2.2, d: 2.2, h: .72, live: 'jacuzzi' },
+  dvanity: { name: 'Double vanity and mirror', cat: 'bath', price: 140000, w: 1.5, d: .55, h: 1.9 },
+  heater: { name: 'Water heater', cat: 'bath', price: 45000, w: .45, d: .45, h: .7, wall: 1.7, flat: true },
+  kbed: { name: 'King bed, padded headboard', cat: 'bedroom', price: 260000, w: 2.1, d: 2.3, h: 1.4, col: 'duvet' },
+  dresser: { name: 'Dressing table, mirror and stool', cat: 'bedroom', price: 75000, w: 1.1, d: .8, h: 1.6 },
+  sectional: { name: 'L-shaped sectional sofa', cat: 'living', price: 320000, w: 2.8, d: 2.0, h: .85, col: 'sofa' },
+  art: { name: 'Wall art: Lagos at sunset', cat: 'decor', price: 40000, w: 1.2, d: .05, h: .8, wall: 1.3, flat: true },
+  chandelier: { name: 'Crystal chandelier', cat: 'decor', price: 150000, w: .9, d: .9, h: 0, flat: true, under: true },
 };
-const FURN_CATS = [['living', 'Living room'], ['bedroom', 'Bedroom'], ['kitchen', 'Kitchen, dining and study'], ['bath', 'Bathroom'], ['decor', 'Decor']];
+// switched-on looks, shared by every piece: the TV picture (a match on, drawn a few times a second), warm water, flames
+const FURN_SCR = new THREE.MeshBasicMaterial({ color: 0x14181e }), FURN_JWATER = new THREE.MeshPhongMaterial({ color: 0x5fc4e6, shininess: 120, transparent: true, opacity: .85 });
+const TV_CV = document.createElement('canvas'); TV_CV.width = 256; TV_CV.height = 144;
+const TV_TEX = new THREE.CanvasTexture(TV_CV); TV_TEX.encoding = THREE.sRGBEncoding;
+const TV_ON = new THREE.MeshBasicMaterial({ map: TV_TEX }), JAC_ON = new THREE.MeshPhongMaterial({ color: 0x7fe0ff, emissive: 0x1a6a8a, shininess: 140, transparent: true, opacity: .85 });
+const FLAME_MAT = new THREE.MeshBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: .85, depthWrite: false }), BUBBLE_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .7 });
+const LED_ON = new THREE.MeshBasicMaterial({ color: 0x5aff8a }), FURN_RED = LM(0xb8261e), FURN_BOTTLE = new THREE.MeshPhongMaterial({ color: 0x8fd0ff, transparent: true, opacity: .55, shininess: 120, depthWrite: false });
+const FURN_CRYSTAL = new THREE.MeshPhongMaterial({ color: 0xeaf6ff, emissive: 0x506070, shininess: 160, specular: 0xffffff, transparent: true, opacity: .8 }), FURN_GOLD = LM(0xc9a24a);
+function tvDraw(t) {   // a Lagos derby on every TV that's on: pitch, players, the ball, a score bug and a ticker
+  const g = TV_CV.getContext('2d'), W = 256, H = 144;
+  for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#2f8a3a' : '#3a9a44'; g.fillRect(k * 32, 0, 32, H); }
+  g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 2; g.strokeRect(8, 10, W - 16, H - 30); g.beginPath(); g.moveTo(W / 2, 10); g.lineTo(W / 2, H - 20); g.stroke(); g.beginPath(); g.arc(W / 2, (H - 10) / 2, 16, 0, TAU); g.stroke();
+  const bx = W / 2 + Math.sin(t * .7) * 80 + Math.sin(t * 2.3) * 14, by = 62 + Math.cos(t * .9) * 30;
+  for (let k = 0; k < 10; k++) { const a = k * 1.7, px = bx + Math.sin(t * (.6 + k * .05) + a) * (30 + k * 5), py = by + Math.cos(t * (.5 + k * .04) + a) * (16 + k * 2); g.fillStyle = k < 5 ? '#e8e8e8' : '#d63a2e'; g.fillRect(px - 2, py - 4, 4, 8); }
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(bx, by, 2.2, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(10,14,30,.85)'; g.fillRect(6, 4, 96, 16); g.fillStyle = '#f2c230'; g.font = 'bold 11px sans-serif'; g.fillText(`EKO ${Math.floor(t / 40) % 4} - ${Math.floor(t / 55) % 3} IBA`, 12, 16);
+  g.fillStyle = 'rgba(10,14,30,.9)'; g.fillRect(0, H - 18, W, 18); g.fillStyle = '#fff'; g.font = '11px sans-serif';
+  const tick = 'BREAKING: Third Mainland Bridge traffic moving · Fuel ₦1,050/L · Rain expected in Yaba this evening · Super Eagles squad named · ';
+  g.fillText(tick + tick, -((t * 40) % g.measureText(tick).width), H - 5);
+  TV_TEX.needsUpdate = true;
+}
+tvDraw(0);
+const ART_TEX = (() => {   // the wall art: Lagos at sunset, the bridge and the skyline
+  const c = document.createElement('canvas'); c.width = 240; c.height = 160; const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, 160); sky.addColorStop(0, '#2a1a4a'); sky.addColorStop(.55, '#e8742a'); sky.addColorStop(1, '#f2c230'); g.fillStyle = sky; g.fillRect(0, 0, 240, 160);
+  g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(170, 92, 20, 0, TAU); g.fill();
+  g.fillStyle = '#1a1420'; for (const [x, w, h] of [[10, 18, 50], [30, 12, 70], [44, 20, 44], [66, 10, 84], [78, 22, 58], [102, 14, 66], [118, 26, 40], [148, 12, 52], [196, 18, 46], [216, 20, 62]]) g.fillRect(x, 112 - h, w, h + 4);
+  g.fillStyle = '#1e3a5a'; g.fillRect(0, 114, 240, 46); g.strokeStyle = '#1a1420'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 122); g.quadraticCurveTo(120, 104, 240, 124); g.stroke();
+  for (let x = 6; x < 240; x += 18) { g.beginPath(); g.moveTo(x, 118 - Math.sin(x / 240 * Math.PI) * 8); g.lineTo(x, 134); g.stroke(); }
+  g.fillStyle = 'rgba(255,255,255,.85)'; g.font = 'italic bold 16px Georgia, serif'; g.fillText('Èkó', 14, 150);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+})();
+const ART_MAT = new THREE.MeshBasicMaterial({ map: ART_TEX });
+const FURN_BURNERS = [[-.31, -.13], [-.03, -.13], [-.31, .13], [-.03, .13]];
+const FURN_BUB_GEO = new THREE.SphereGeometry(.03, 6, 4), FURN_FLAME_GEO = new THREE.ConeGeometry(.05, .08, 8), FURN_BLADE_GEO = new THREE.BoxGeometry(.07, .19, .008).translate(0, .1, 0);
+const FURN_CATS = [['living', 'Living room'], ['bedroom', 'Bedroom'], ['kitchen', 'Kitchen, dining and study'], ['bath', 'Bathroom'], ['tech', 'Electronics'], ['decor', 'Decor']];
 // each piece is built in its own frame: width along x, front facing -z, standing on y = 0
 function furnModel(id, ci = 0) {
   const g = new THREE.Group(), B = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; g.add(o); return o; };
@@ -8465,44 +8561,119 @@ function furnModel(id, ci = 0) {
     case 'plant': B(.4, .42, .4, 0, .21, 0, FURN_POT); for (const [x, y, z, s] of [[0, .7, 0, .45], [.12, .95, .05, .3], [-.1, .9, -.08, .32], [.05, 1.05, -.1, .22]]) B(s, s, s, x, y, z, FURN_LEAF); break;
     case 'shelf': B(1.2, 1.9, .05, 0, .95, .15, MM.wood); for (const s of [-1, 1]) B(.04, 1.9, .35, s * .58, .95, 0, MM.wood);
       for (let k = 0; k < 5; k++) { B(1.12, .03, .33, 0, .02 + k * .45, 0, MM.wood); if (k < 4) for (let j = 0; j < 7; j++) B(.08 + (j % 3) * .02, .28 + (j % 2) * .06, .22, -.45 + j * .15, .2 + k * .45, .02, FURN_BOOKS[(j + k) % 5]); } break;
+    // ---- electronics ----
+    case 'tv75': B(1.7, .98, .05, 0, .49, .02, MM.tvFrame); B(1.62, .9, .01, 0, .49, -.01, FURN_SCR); B(.4, .3, .04, 0, .5, .045, MM.dark); break;
+    case 'tv43': B(1.3, .5, .42, 0, .25, 0, MM.wood); B(.02, .4, .01, 0, .25, -.215, MM.dark); for (const sx of [-.12, .12]) B(.1, .02, .02, sx, .4, -.22, MM.steel);
+      B(.25, .03, .18, 0, .515, .05, MM.tvFrame); B(.04, .12, .04, 0, .58, .08, MM.tvFrame); B(.98, .58, .05, 0, .9, .08, MM.tvFrame); B(.93, .53, .01, 0, .9, .053, FURN_SCR); break;
+    case 'theatre': B(1.8, .38, .42, 0, .19, 0, MM.wood); B(1.1, .09, .12, 0, .425, -.1, MM.tvFrame); B(.32, .32, .32, .62, .54, .02, MM.dark); Cy(.09, .02, .62, .54, -.15, MM.steel, false, true);
+      for (const sx of [-1, 1]) { B(.26, 1.1, .3, sx * 1.07, .55, 0, MM.dark); for (const y of [.35, .65, .92]) Cy(y > .8 ? .04 : .075, .02, sx * 1.07, y, -.155, MM.steel, false, true); } break;
+    case 'gaming': Cy(.28, .04, -.2, .03, .05, MM.dark); Cy(.03, .42, -.2, .25, .05, MM.steel);
+      R(.56, .12, .56, -.2, .5, .05, MM.tvFrame, .04); R(.56, .9, .14, -.2, 1.0, .32, MM.tvFrame, .05); R(.34, .62, .02, -.2, 1.0, .245, C, .01); R(.22, .12, .1, -.2, 1.36, .23, C, .03);
+      for (const sx of [-1, 1]) R(.06, .06, .4, -.2 + sx * .3, .72, .05, MM.tvFrame, .02);
+      B(.36, .5, .36, .35, .25, -.1, MM.white); B(.12, .4, .27, .35, .7, -.1, MM.white); B(.045, .4, .28, .35, .7, -.1, MM.tvFrame); B(.16, .05, .1, .35, .525, -.24, MM.white); B(.18, .05, .07, .35, .525, .05, MM.tvFrame); break;
+    case 'ac': R(.9, .3, .2, 0, .15, .01, MM.acWhite, .05); B(.8, .03, .02, 0, .05, -.1, MM.acGrey); B(.86, .01, .19, 0, .3, .01, MM.acGrey); break;
+    case 'fan': Cy(.18, .04, 0, .02, 0, MM.dark); B(.04, 1.07, .04, 0, .56, 0, MM.white); Cy(.07, .16, 0, 1.15, .05, MM.white, true, true);
+      { const ring = new THREE.Mesh(new THREE.TorusGeometry(.22, .008, 6, 28), MM.steel); ring.position.set(0, 1.15, -.06); g.add(ring); } break;
+    case 'inverter': B(.7, .04, .45, 0, .02, 0, MM.dark); B(.7, .03, .45, 0, .33, 0, MM.dark); for (const sx of [-1, 1]) B(.03, .34, .45, sx * .335, .17, 0, MM.dark);
+      for (const sx of [-.17, .17]) { B(.3, .26, .4, sx, .17, 0, MM.tvFrame); B(.03, .03, .03, sx - .08, .315, -.12, FURN_RED); B(.03, .03, .03, sx + .08, .315, -.12, MM.dark); }
+      for (const sx of [-.17, .17]) B(.3, .22, .4, sx, .46, 0, MM.tvFrame);
+      B(.5, .32, .24, 0, .8, .06, MM.white); B(.18, .08, .01, 0, .86, -.065, MM.screen); B(.5, .02, .02, 0, .64, -.06, MM.acGrey); break;
+    // ---- kitchen ----
+    case 'cooker': B(.6, .86, .6, -.17, .43, 0, MM.steel); B(.6, .03, .6, -.17, .875, 0, MM.dark); B(.6, .14, .04, -.17, .96, .28, MM.steel);
+      for (const [x, z] of FURN_BURNERS) { Cy(.07, .02, x, .9, z, MM.dark); B(.16, .015, .015, x, .91, z, MM.dark); B(.015, .015, .16, x, .91, z, MM.dark); }
+      B(.5, .4, .02, -.17, .42, -.305, FURN_OVEN); B(.44, .03, .03, -.17, .68, -.325, MM.steel); for (let k = 0; k < 4; k++) Cy(.022, .03, -.38 + k * .14, .79, -.31, MM.dark, false, true);
+      Cy(.15, .5, .3, .27, .05, FURN_RED); Cy(.1, .06, .3, .55, .05, FURN_RED); Cy(.03, .07, .3, .6, .05, MM.steel); B(.22, .02, .02, .17, .62, .05, MM.dark); break;
+    case 'microwave': B(.9, .88, .6, 0, .44, 0, MM.white); B(.94, .05, .64, 0, .905, 0, MM.counter); B(.02, .5, .02, 0, .44, -.31, MM.dark);
+      B(.52, .3, .36, 0, 1.08, .05, MM.white); B(.34, .22, .01, -.06, 1.08, -.135, FURN_OVEN); B(.1, .24, .01, .19, 1.08, -.135, MM.dark); break;
+    case 'island': B(1.8, .88, .9, 0, .44, .25, MM.wood); R(1.9, .05, 1.0, 0, .905, .25, MM.counter, .02);
+      for (const sx of [-.45, .45]) { Cy(.17, .05, sx, .72, -.48, MM.dark); Cy(.025, .7, sx, .36, -.48, MM.steel); Cy(.16, .02, sx, .02, -.48, MM.steel); } break;
+    case 'cabinets': B(2.0, .7, .35, 0, .35, 0, MM.white); for (const x of [-.5, 0, .5]) B(.01, .66, .01, x, .35, -.176, MM.dark); for (const x of [-.75, -.25, .25, .75]) B(.02, .12, .02, x + (x < 0 ? .2 : -.2), .12, -.19, MM.steel); break;
+    case 'freezer': R(1.2, .85, .7, 0, .425, 0, MM.white, .03); B(1.18, .01, .01, 0, .7, -.351, MM.dark); B(.3, .03, .04, 0, .66, -.37, MM.steel); B(.2, .08, .01, .4, .1, -.351, MM.dark); break;
+    case 'dispenser': B(.32, .9, .32, 0, .45, 0, MM.white); B(.3, .04, .3, 0, .92, 0, MM.dark); Cy(.13, .42, 0, 1.15, 0, FURN_BOTTLE); Cy(.05, .05, 0, .95, 0, FURN_BOTTLE);
+      B(.04, .06, .04, -.06, .75, -.17, FURN_RED); B(.04, .06, .04, .06, .75, -.17, MM.paint[1]); B(.2, .02, .08, 0, .6, -.17, MM.dark); break;
+    case 'washer': B(.6, .85, .6, 0, .425, 0, MM.white); Cy(.21, .03, 0, .45, -.3, MM.steel, true, true); Cy(.17, .035, 0, .45, -.305, FURN_GLASS, false, true);
+      B(.56, .1, .01, 0, .78, -.301, MM.acGrey); Cy(.03, .02, .2, .78, -.31, MM.dark, false, true); break;
+    // ---- bathroom ----
+    case 'jacuzzi': B(2.2, .66, 2.2, 0, .33, 0, MM.wood); B(1.6, .02, 1.6, 0, .665, 0, FURN_JWATER);
+      for (const sz of [-1, 1]) { B(1.96, .08, .18, 0, .7, sz * .89, MM.white); B(.18, .08, 1.6, sz * .89, .7, 0, MM.white); }
+      for (const sx of [-.55, .55]) R(.34, .08, .12, sx, .78, .86, MM.dark, .03);
+      for (const [x, z] of [[-.8, 0], [.8, 0], [0, -.8], [0, .8]]) Cy(.03, .02, x, .745, z, MM.steel); break;
+    case 'dvanity': B(1.5, .8, .5, 0, .4, 0, MM.wood); R(1.54, .06, .54, 0, .83, 0, MM.white, .02); B(.01, .7, .01, 0, .4, -.251, MM.dark);
+      for (const sx of [-.38, .38]) { Cy(.18, .05, sx, .87, -.03, FURN_BASIN); B(.03, .16, .03, sx, .95, .17, MM.steel); B(.03, .03, .1, sx, 1.02, .13, MM.steel); }
+      B(1.3, .7, .03, 0, 1.55, .24, FURN_MIRROR); B(1.36, .76, .02, 0, 1.55, .255, MM.white); break;
+    case 'heater': Cy(.2, .62, 0, .31, 0, MM.white); Cy(.205, .04, 0, .6, 0, MM.acGrey); B(.03, .3, .03, -.08, -.12, 0, MM.steel); B(.03, .3, .03, .08, -.12, 0, FURN_RED); break;
+    // ---- bedroom ----
+    case 'kbed': R(2.0, .32, 2.1, 0, .2, -.05, MM.wood, .04); R(1.94, .24, 2.0, 0, .46, -.07, MM.white, .09); R(1.98, .1, 1.4, 0, .6, -.35, D, .04); R(2.0, .04, .4, 0, .66, -.85, C, .02);
+      R(2.1, 1.0, .16, 0, .9, 1.07, S, .06); for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) Cy(.025, .02, -.6 + i * .4, .85 + j * .3, .985, MM.dark, false, true);
+      for (const sx of [-.5, .5]) { R(.7, .16, .38, sx, .64, .75, linenMat, .07); R(.5, .14, .14, sx, .7, .55, C, .06); } break;
+    case 'dresser': B(1.1, .75, .48, 0, .375, .16, MM.white); for (const y of [.25, .5]) B(1.0, .01, .01, 0, y, -.081, MM.dark); for (const sx of [-.3, .3]) B(.1, .02, .02, sx, .62, -.09, FURN_GOLD);
+      { const o = Cy(.32, .02, 0, 1.2, .38, FURN_MIRROR, false, true); o.scale.y = 1.35; const f = Cy(.34, .015, 0, 1.2, .39, FURN_GOLD, false, true); f.scale.y = 1.35; }
+      for (const [x, h] of [[-.4, .12], [-.32, .08], [.38, .16]]) Cy(.025, h, x, .75 + h / 2, .12, FURN_BOTTLE, false);
+      Cy(.2, .08, 0, .42, -.2, C); Cy(.03, .38, 0, .19, -.2, MM.steel); break;
+    // ---- living and decor ----
+    case 'sectional': R(2.8, .3, .95, 0, .27, .52, S, .07); R(2.8, .52, .26, 0, .62, .87, S, .1); R(.95, .3, 1.05, -.92, .27, -.48, S, .07);
+      R(.24, .55, .95, 1.28, .45, .52, S, .08); R(.24, .55, 2.0, -1.28, .45, 0, S, .08);
+      for (const x of [-.75, .1, .9]) { R(.8, .15, .66, x, .5, .47, S, .07); R(.75, .42, .16, x, .74, .7, S, .08); }
+      R(.86, .15, .95, -.92, .5, -.5, S, .07); R(.36, .3, .1, .55, .7, .58, C, .05); R(.36, .3, .1, -.95, .7, .58, C, .05); break;
+    case 'art': B(1.2, .8, .04, 0, .4, 0, MM.dark); B(1.12, .72, .01, 0, .4, -.021, ART_MAT); break;
+    case 'chandelier': B(.02, .5, .02, 0, 2.6, 0, FURN_GOLD);
+      for (const [rad, y] of [[.38, 2.25], [.22, 2.38]]) { const t = new THREE.Mesh(new THREE.TorusGeometry(rad, .018, 6, 32).rotateX(Math.PI / 2), FURN_GOLD); t.position.y = y; g.add(t); }
+      for (let k = 0; k < 12; k++) { const a = k / 12 * TAU, o = new THREE.Mesh(new THREE.OctahedronGeometry(.045), FURN_CRYSTAL); o.position.set(Math.cos(a) * .38, 2.13 - (k % 2) * .06, Math.sin(a) * .38); o.scale.y = 1.8; g.add(o); }
+      for (let k = 0; k < 6; k++) { const a = k / 6 * TAU, o = new THREE.Mesh(new THREE.SphereGeometry(.045, 8, 6), lampMat); o.position.set(Math.cos(a) * .38, 2.3, Math.sin(a) * .38); g.add(o); } break;
   }
   // one mesh per material: a sofa is two draw calls instead of nine
   g.updateMatrixWorld(true); const byMat = new Map();
   for (const o of g.children) { if (!byMat.has(o.material)) byMat.set(o.material, []); const gg = o.geometry.clone().applyMatrix4(o.matrix); if (!gg.index) gg.setIndex([...Array(gg.attributes.position.count).keys()]); byMat.get(o.material).push(gg); o.geometry.dispose(); }
   const out = new THREE.Group(); for (const [mat, geos] of byMat) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; out.add(m); }
+  // the parts that change when it's switched on
+  const live = FURN[id] && FURN[id].live, U = out.userData;
+  if (live === 'tv') U.scr = out.children.find(m => m.material === FURN_SCR);
+  else if (live === 'jacuzzi') {
+    U.water = out.children.find(m => m.material === FURN_JWATER); U.bub = new THREE.Group(); U.bub.visible = false; out.add(U.bub);
+    for (let k = 0; k < 22; k++) { const b = new THREE.Mesh(FURN_BUB_GEO, BUBBLE_MAT); b.position.set(RM(-.72, .72), .69, RM(-.72, .72)); b.userData.ph = Math.random() * TAU; U.bub.add(b); }
+  } else if (live === 'cooker') { U.flames = new THREE.Group(); U.flames.visible = false; out.add(U.flames); for (const [x, z] of FURN_BURNERS) { const f = new THREE.Mesh(FURN_FLAME_GEO, FLAME_MAT); f.position.set(x, .95, z); U.flames.add(f); } }
+  else if (live === 'fan') { U.blades = new THREE.Group(); U.blades.position.set(0, 1.15, -.05); out.add(U.blades); for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(FURN_BLADE_GEO, MM.white); b.rotation.z = k / 3 * TAU; U.blades.add(b); } }
+  else if (live === 'ac') { U.led = new THREE.Mesh(new THREE.BoxGeometry(.03, .02, .01), MM.dark); if (id === 'ac') U.led.position.set(.36, .2, -.095); else U.led.position.set(.18, .86, -.07); out.add(U.led); }
   return out;
+}
+// switch a placed piece's live parts on or off (the record keeps it, so it's saved and other players see it)
+function furnLiveSet(g, on) {
+  const U = g.userData;
+  if (U.scr) U.scr.material = on ? TV_ON : FURN_SCR;
+  if (U.water) U.water.material = on ? JAC_ON : FURN_JWATER;
+  if (U.bub) U.bub.visible = on;
+  if (U.flames) U.flames.visible = on;
+  if (U.led) U.led.material = on ? LED_ON : MM.dark;
+  U.on = on;
+}
+let tvT = 0;
+function furnLive(dt) {   // what's switched on moves: fans spin, jacuzzis bubble, burners flicker, TVs play
+  let tv = false;
+  for (const p of FURN_LIVE) {
+    const U = p.g.userData; if (!U.on) continue;
+    if (U.blades) U.blades.rotation.z -= dt * 16;
+    if (U.bub) for (const b of U.bub.children) { b.userData.ph += dt * 4; b.position.y = .69 + Math.abs(Math.sin(b.userData.ph)) * .07; }
+    if (U.flames) for (const f of U.flames.children) f.scale.y = .8 + Math.random() * .5;
+    if (U.scr && !tv) tv = Math.abs(p.rec.x - P.pos.x) < 40 && Math.abs(p.rec.z - P.pos.z) < 40;
+  }
+  if (tv && (tvT += dt) > .1) { tvT = 0; tvDraw(S.time); }
 }
 const gridRemove = (G, c) => { for (const l of G.m.values()) { const i = l.indexOf(c); if (i >= 0) l.splice(i, 1); } };
 const FURN_LIVE = [];   // placed pieces: { rec, hs, key, g, col }
 function furnPlace(key, hs, rec) {
   const it = FURN[rec.id]; if (!it) return null;
-  const y = hs.levels ? hs.levels[rec.f] : rec.f ? hs.upper : hs.floorY, g = furnModel(rec.id, rec.c);
-  g.position.set(rec.x, y, rec.z); g.rotation.y = rec.r * Math.PI / 2; scene.add(g);
+  const y = floorYOf(hs, rec.f), g = furnModel(rec.id, rec.c);
+  g.position.set(rec.x, y + (it.wall || 0), rec.z); g.rotation.y = rec.r * Math.PI / 2; scene.add(g);
+  if (rec.on) furnLiveSet(g, true);
   let col = null;
   if (!it.flat) { const odd = rec.r % 2, hw = (odd ? it.d : it.w) / 2, hd = (odd ? it.w : it.d) / 2; col = { x0: rec.x - hw, x1: rec.x + hw, y0: y, y1: y + it.h, z0: rec.z - hd, z1: rec.z + hd, tag: 'inner' }; gridAdd(solidGrid, col); }
   const P_ = { rec, hs, key, g, col }; FURN_LIVE.push(P_);
   if (SIM.mats.size) SIM.seen = -1e9;   // new materials: let the sim view pick them up next time
   return P_;
 }
+const floorYOf = (hs, f) => hs.levels ? hs.levels[f] : f ? hs.upper : hs.floorY;
 function furnUnplace(p) { scene.remove(p.g); if (p.col) gridRemove(solidGrid, p.col); FURN_LIVE.splice(FURN_LIVE.indexOf(p), 1); }
 // where a new piece goes: in front of you, facing you, snapped to a quarter metre and a right angle, kept inside the walls
-function furnSpot(hs, id, skip) {
-  const it = FURN[id], fx = -Math.sin(P.facing), fz = -Math.cos(P.facing), sx = -fz, sz = fx;
-  const r = ((Math.round((P.facing + Math.PI) / (Math.PI / 2)) % 4) + 4) % 4, odd = r % 2;
-  const hw = (odd ? it.d : it.w) / 2, hd = (odd ? it.w : it.d) / 2, along = (Math.abs(fx) > Math.abs(fz) ? hw : hd);
-  const snap = v => Math.round(v * 4) / 4, m = .3, f = floorIdx(hs);
-  // the spot in front of you, or the nearest free one: a little further on, then to either side (rugs go under things)
-  const others = FURN_LIVE.filter(q => q.hs === hs && q.rec.f === f && q !== skip && !FURN[q.rec.id].under && !it.under).map(q => { const o = FURN[q.rec.id], qo = q.rec.r % 2; return [q.rec.x, q.rec.z, (qo ? o.d : o.w) / 2, (qo ? o.w : o.d) / 2]; });
-  let first = null;
-  for (const ahead of [0, .5, 1, 1.5, 2, 2.5]) for (const side of [0, -1, 1, -2, 2, -3, 3]) {
-    const d = .7 + along + ahead;
-    const x = clamp(snap(P.pos.x + fx * d + sx * side), hs.x - hs.w / 2 + m + hw, hs.x + hs.w / 2 - m - hw);
-    const z = clamp(snap(P.pos.z + fz * d + sz * side), hs.z - hs.d / 2 + m + hd, hs.z + hs.d / 2 - m - hd);
-    first ||= { x, z, r, f };
-    if (!others.some(([ox, oz, ow, od]) => Math.abs(ox - x) < ow + hw + .05 && Math.abs(oz - z) < od + hd + .05)) return { x, z, r, f };
-  }
-  return first;
-}
 const myHome = () => {
   if (P.driving) return null;
   const hs = houseAtWorld(P.pos.x, P.pos.z, P.pos.y); if (!hs || !hs.v.mine) return null;
@@ -8510,48 +8681,259 @@ const myHome = () => {
   return null;
 };
 const floorIdx = hs => hs.levels ? hs.levels.reduce((a, l, i) => P.pos.y > l - .5 ? i : a, 0) : hs.two && P.pos.y > hs.upper - .5 ? 1 : 0;
-const nearFurn = (home) => { let best = null, bd = 2.2; const f = floorIdx(home.hs);
-  for (const p of FURN_LIVE) if (p.key === home.key && p.rec.f === f) { const d = Math.hypot(p.rec.x - P.pos.x, p.rec.z - P.pos.z); if (d < bd) { bd = d; best = p; } } return best; };
-function openHomeMenu() {
-  const home = myHome(); if (!home) return; LM_.key = home.key;
-  const n = (home.house.furn || []).length, near = nearFurn(home), items = [];
-  items.push({ label: 'Shop the Lagos Living catalogue…', note: `${NAIRA(LAND.money)} to spend · delivered straight to where you stand`, run: () => openFurnCats(home) });
-  if (near) items.push({ label: `Rearrange: ${FURN[near.rec.id].name.toLowerCase()}`, note: 'turn it, move it in front of you, or sell it back', run: () => openFurnEdit(home, near) });
-  items.push({ label: 'Close', run: menuClose });
-  menuShow('Your home', n ? `${n} piece${n > 1 ? 's' : ''} of furniture · stand next to one to rearrange it` : 'Empty for now. Time to go shopping', items);
-}
-function openFurnCats(home) {
-  LM_.key = home.key;   // keeps the menu open while you stand on this plot
-  const items = FURN_CATS.map(([cat, name]) => ({ label: `${name}…`, note: Object.values(FURN).filter(i => i.cat === cat).map(i => i.name.toLowerCase()).join(', '), run: () => openFurnList(home, cat, name) }));
-  items.push({ label: 'Back', run: openHomeMenu });
-  menuShow('Lagos Living · furniture', `${NAIRA(LAND.money)} to spend`, items);
-}
-function openFurnList(home, cat, name) {
-  LM_.key = home.key;   // keeps the menu open while you stand on this plot
-  const items = Object.entries(FURN).filter(([, i]) => i.cat === cat).map(([id, i]) => ({ label: `${i.name} · ${NAIRA(i.price)}`, note: LAND.money >= i.price ? (i.col ? 'colour chosen for you, buy again for another' : 'delivered in front of you') : 'not enough money', run: () => buyFurn(home, id) }));
-  items.push({ label: 'Back', run: () => openFurnCats(home) });
-  menuShow(name, `${NAIRA(LAND.money)} to spend · it lands where you are facing`, items);
-}
-function buyFurn(home, id) {
-  const it = FURN[id];
-  if (LAND.money < it.price) { toast('', `The ${it.name.toLowerCase()} costs ${NAIRA(it.price)}; you have ${NAIRA(LAND.money)}`); return; }
-  const s = furnSpot(home.hs, id), rec = { id, x: s.x, z: s.z, r: s.r, f: s.f, c: Math.floor(Math.random() * 5) };
-  LAND.money -= it.price; (home.house.furn ||= []).push(rec); furnPlace(home.key, home.hs, rec); saveLand(); sfx('refill');
-  toast(`🛋 ${it.name}`, `${NAIRA(it.price)} · delivered`); openFurnList(home, it.cat, FURN_CATS.find(c => c[0] === it.cat)[1]);
-}
-function openFurnEdit(home, p) {
-  LM_.key = home.key;   // keeps the menu open while you stand on this plot
-  const it = FURN[p.rec.id], back = Math.round(it.price / 2 / 100) * 100;
-  const redo = (fn) => { furnUnplace(p); fn(); const np = furnPlace(home.key, home.hs, p.rec); LAND.changed = true; saveLand(); openFurnEdit(home, np); };
-  menuShow(it.name, 'Rearranging', [
-    { label: 'Turn it 90°', run: () => redo(() => { p.rec.r = (p.rec.r + 1) % 4; }) },
-    { label: 'Move it in front of me', note: 'it turns to face you', run: () => redo(() => Object.assign(p.rec, furnSpot(home.hs, p.rec.id, p))) },
-    { label: `Sell it back · ${NAIRA(back)}`, note: 'half what you paid', run: () => { furnUnplace(p); home.house.furn.splice(home.house.furn.indexOf(p.rec), 1); LAND.money += back; saveLand(); sfx('swap'); toast(`+${NAIRA(back)}`, `${it.name} sold`); openHomeMenu(); } },
-    { label: 'Done', run: menuClose },
-  ]);
-}
 for (const [k, p] of [...LAND.plots, ...LAND.sold]) if (p.house && p.house.furn && HOME_HS.get(k)) for (const rec of p.house.furn) furnPlace(k, HOME_HS.get(k), rec);
 for (const [k, p] of LAND.plots) if (p.house) addBathrooms(k, p.house);   // homes built before bathrooms existed get theirs now
+
+/* ---------- arranging your home, Sims style: a cutaway of the floor you're on, the Lagos Living catalogue along the
+   bottom, and furniture you pick up, drag, turn and put down with the mouse or a finger. New pieces are paid for when
+   you put them down. The footprint shows green where it fits: inside the house, clear of walls and other furniture.
+   Wall pieces (TVs, the AC, cabinets, art) snap to the nearest wall. Room kits walk you through a whole room. ---------- */
+const ARR_KITS = [
+  { name: 'Living room', ids: ['sectional', 'tv75', 'theatre', 'coffee', 'roundrug', 'ac', 'plant', 'art'] },
+  { name: 'Master bedroom', ids: ['kbed', 'nightstand', 'nightstand', 'wardrobe', 'tv43', 'dresser', 'ac'] },
+  { name: 'Naija kitchen', ids: ['counter', 'cooker', 'fridge', 'microwave', 'cabinets', 'dispenser', 'washer'] },
+  { name: 'Spa bathroom', ids: ['jacuzzi', 'dvanity', 'toilet', 'shower', 'heater'] },
+  { name: 'Gamer den', ids: ['gaming', 'tv75', 'theatre', 'ac', 'fan'] },
+  { name: 'Light when NEPA takes it', ids: ['inverter', 'fan'] },
+];
+const ARR_ICON = { sofa: '🛋', armchair: '💺', coffee: '☕', tv: '📺', dbed: '🛏', sbed: '🛏', wardrobe: '🚪', nightstand: '🪔', dining: '🍽', counter: '🚰', fridge: '🧊', desk: '💻', rug: '🟫', lamp: '💡', plant: '🪴', shelf: '📚', roundrug: '⭕', pendant: '💡', agave: '🌵', stove: '🍳', blender: '🥤', shower: '🚿', toilet: '🚽', vanity: '🪞', bathtub: '🛁',
+  tv75: '📺', tv43: '📺', theatre: '🔊', gaming: '🎮', ac: '❄️', fan: '🌀', inverter: '🔋', cooker: '🔥', microwave: '♨️', island: '🍳', cabinets: '🗄', freezer: '🧊', dispenser: '💧', washer: '🧺', jacuzzi: '🫧', dvanity: '🪞', heater: '🌡', kbed: '🛏', dresser: '💄', sectional: '🛋', art: '🖼', chandelier: '✨' };
+const ARR_WHY = { outside: 'Keep it inside the house', furniture: 'Something is in the way', wall: 'A wall or the stairs is in the way', nowall: 'This hangs on a wall: move it close to one' };
+const floorsOf = hs => hs.levels ? hs.levels.length : hs.two ? 2 : 1;
+const furnFoot = (it, r) => { const odd = r % 2; return [(odd ? it.d : it.w) / 2, (odd ? it.w : it.d) / 2]; };
+const furnCols = () => new Set(FURN_LIVE.map(q => q.col).filter(Boolean));
+function simClip(o) { o.traverse(m => { if (m.material) for (const mt of [].concat(m.material)) if (!SIM.mats.has(mt) && !mt.isShaderMaterial) { mt.clippingPlanes = [SIM.cutY, SIM.cutX, SIM.cutZ]; mt.clipIntersection = true; mt.clipShadows = true; mt.needsUpdate = true; SIM.mats.add(mt); } }); }
+// does it fit here? null if it does, else why not
+function arrFits(id, x, z, r, f, skip) {
+  const it = FURN[id], hs = ARR.home.hs, fy = floorYOf(hs, f), [hw, hd] = furnFoot(it, r), m = .25;
+  if (Math.abs(x - hs.x) + hw > hs.w / 2 - m + 1e-6 || Math.abs(z - hs.z) + hd > hs.d / 2 - m + 1e-6) return 'outside';
+  for (const q of FURN_LIVE) {
+    if (q === skip || q.key !== ARR.home.key || q.rec.f !== f) continue;
+    const o = FURN[q.rec.id];
+    if (!!o.wall !== !!it.wall) continue;   // wall pieces only bump into other wall pieces
+    if (!it.wall && (o.under || it.under)) continue;   // rugs and hanging lights go under and over things
+    if (it.wall && (o.wall + o.h <= it.wall || it.wall + it.h <= o.wall)) continue;   // one above the other on the wall
+    const [ow, od] = furnFoot(o, q.rec.r);
+    if (Math.abs(q.rec.x - x) < ow + hw - .02 && Math.abs(q.rec.z - z) < od + hd - .02) return 'furniture';
+  }
+  if (it.wall) return null;
+  const cols = furnCols(), top = fy + Math.max(.3, Math.min(it.h || .3, 2));
+  for (const b of queryGrid(solidGrid, x, z, 3)) {
+    if (cols.has(b) || b.y1 <= fy + .12 || b.y0 >= top) continue;
+    if (b.x1 > x - hw + .03 && b.x0 < x + hw - .03 && b.z1 > z - hd + .03 && b.z0 < z + hd - .03) return 'wall';
+  }
+  return null;
+}
+// the nearest wall face within reach: the piece's back goes against it, centred on the pointer along the wall
+function arrWallSnap(id, x, z, f) {
+  const it = FURN[id], hs = ARR.home.hs, fy = floorYOf(hs, f), cols = furnCols(), hw = it.w / 2, hd = it.d / 2;
+  let best = null;
+  for (const b of queryGrid(solidGrid, x, z, 3)) {
+    if (cols.has(b) || b.y0 > fy + 1 || b.y1 < fy + 2.2) continue;
+    if (Math.abs(b.x0 + b.x1 - 2 * hs.x) / 2 > hs.w / 2 + .3 || Math.abs(b.z0 + b.z1 - 2 * hs.z) / 2 > hs.d / 2 + .3) continue;   // this house's walls only
+    const tx = b.x1 - b.x0 < .6, tz = b.z1 - b.z0 < .6;
+    if (tx && z > b.z0 - .3 && z < b.z1 + .3) {
+      const left = x < b.x0, dist = left ? b.x0 - x : x - b.x1;
+      if (dist >= -.05 && dist < 1.6 && (!best || dist < best.dist)) best = { dist, r: left ? 1 : 3, x: left ? b.x0 - hd - .005 : b.x1 + hd + .005, z: clamp(Math.round(z * 4) / 4, b.z0 + hw, Math.max(b.z0 + hw, b.z1 - hw)) };
+    }
+    if (tz && x > b.x0 - .3 && x < b.x1 + .3) {
+      const near = z < b.z0, dist = near ? b.z0 - z : z - b.z1;
+      if (dist >= -.05 && dist < 1.6 && (!best || dist < best.dist)) best = { dist, r: near ? 0 : 2, z: near ? b.z0 - hd - .005 : b.z1 + hd + .005, x: clamp(Math.round(x * 4) / 4, b.x0 + hw, Math.max(b.x0 + hw, b.x1 - hw)) };
+    }
+  }
+  return best;
+}
+function arrRay(cx, cy) { const r = renderer.domElement.getBoundingClientRect(); ARR.ndc.set((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1); ARR.ray.setFromCamera(ARR.ndc, camera); return ARR.ray.ray; }
+function arrPoint(cx, cy, h = 0) {   // where the pointer meets the floor (or the height a wall piece hangs at)
+  const ray = arrRay(cx, cy), y = floorYOf(ARR.home.hs, ARR.f) + h; if (Math.abs(ray.direction.y) < 1e-4) return null;
+  const t = (y - ray.origin.y) / ray.direction.y; return t > 0 ? ARR.pt.copy(ray.direction).multiplyScalar(t).add(ray.origin) : null;
+}
+function arrPick(cx, cy) {   // the piece of yours under the pointer, on this floor
+  arrRay(cx, cy); const gs = FURN_LIVE.filter(q => q.key === ARR.home.key && q.rec.f === ARR.f);
+  for (const h of ARR.ray.intersectObjects(gs.map(q => q.g), true)) { let o = h.object; while (o && !gs.some(q => q.g === o)) o = o.parent; const q = gs.find(q => q.g === o); if (q) return q; }
+  return null;
+}
+// pick a piece up: a placed one (from) to move, or a new one from the catalogue to buy
+function arrHold(id, from) {
+  if (ARR.hold) arrCancel(true);
+  const it = FURN[id], c = from ? from.rec.c : Math.floor(Math.random() * 5), g = furnModel(id, c);
+  const foot = new THREE.Mesh(new THREE.PlaneGeometry(it.w + .36, it.d + .36).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: .5, depthWrite: false }));
+  foot.position.y = .05 - (it.wall || 0); foot.renderOrder = 2; g.add(foot); simClip(g); scene.add(g);   // the footprint sits just above the floorboards
+  if (from) { from.g.visible = false; if (from.col) gridRemove(solidGrid, from.col); if (from.rec.on) furnLiveSet(g, true); }
+  const hs = ARR.home.hs, start = from ? from.rec : ARR.lastPt || { x: hs.x, z: hs.z };
+  ARR.hold = { id, from, g, foot, c, r: from ? from.rec.r : ARR.lastR || 0, x: start.x, z: start.z, ok: false, why: null };
+  arrMoveHold(start.x, start.z); arrUi();
+}
+function arrMoveHold(x, z) {
+  const h = ARR.hold; if (!h) return;
+  const it = FURN[h.id], hs = ARR.home.hs, fy = floorYOf(hs, ARR.f); let r = h.r, why = null;
+  if (it.wall) { const w = arrWallSnap(h.id, x, z, ARR.f); if (w) { x = w.x; z = w.z; r = w.r; } else why = 'nowall'; }
+  else {
+    const [hw, hd] = furnFoot(it, r), snap = v => Math.round(v * 4) / 4;
+    x = clamp(snap(x), hs.x - hs.w / 2 + .25 + hw, hs.x + hs.w / 2 - .25 - hw); z = clamp(snap(z), hs.z - hs.d / 2 + .25 + hd, hs.z + hs.d / 2 - .25 - hd);
+  }
+  why ||= arrFits(h.id, x, z, r, ARR.f, h.from);
+  Object.assign(h, { x, z, r, ok: !why, why });
+  h.g.position.set(x, fy + (it.wall || 0), z); h.g.rotation.y = r * Math.PI / 2;
+  h.foot.material.color.setHex(h.ok ? 0x4ade80 : 0xf04a4a);
+  arrHoldUi();
+}
+function arrTurn() { const h = ARR.hold; if (!h) return; if (FURN[h.id].wall) { toast('', 'Wall pieces face out from the wall they hang on'); return; } h.r = (h.r + 1) % 4; ARR.lastR = h.r; arrMoveHold(h.x, h.z); sfx('swap'); }
+function arrPut() {
+  const h = ARR.hold; if (!h) return;
+  if (!h.ok) { toast('', ARR_WHY[h.why] || 'It doesn’t fit there'); return; }
+  const it = FURN[h.id], home = ARR.home;
+  if (h.from) {
+    furnUnplace(h.from); Object.assign(h.from.rec, { x: h.x, z: h.z, r: h.r, f: ARR.f }); simClip(furnPlace(home.key, home.hs, h.from.rec).g);
+    LAND.changed = true; saveLand(); sfx('swap');
+  } else {
+    if (LAND.money < it.price) { toast('', `The ${it.name.toLowerCase()} costs ${NAIRA(it.price)}; you have ${NAIRA(LAND.money)}`); return; }
+    const rec = { id: h.id, x: h.x, z: h.z, r: h.r, f: ARR.f, c: h.c };
+    LAND.money -= it.price; (home.house.furn ||= []).push(rec); simClip(furnPlace(home.key, home.hs, rec).g); saveLand(); sfx('refill');
+    toast(`${ARR_ICON[h.id] || '🛋'} ${it.name}`, `${NAIRA(it.price)} · ${NAIRA(LAND.money)} left`);
+  }
+  scene.remove(h.g); ARR.hold = null; ARR.lastPt = { x: h.x, z: h.z };
+  if (ARR.kit) arrKitNext(); else arrUi();
+}
+function arrCancel(quiet) {
+  const h = ARR.hold; if (!h) return;
+  scene.remove(h.g); if (h.from) { h.from.g.visible = true; if (h.from.col) gridAdd(solidGrid, h.from.col); }
+  ARR.hold = null; if (!quiet && ARR.kit) { ARR.kit = null; toast('', 'Room kit stopped. What you placed stays'); }
+  arrUi();
+}
+function arrSell() {
+  const h = ARR.hold; if (!h || !h.from) return;
+  const it = FURN[h.id], back = Math.round(it.price / 2 / 100) * 100, furn = ARR.home.house.furn;
+  scene.remove(h.g); furnUnplace(h.from); furn.splice(furn.indexOf(h.from.rec), 1); ARR.hold = null;
+  LAND.money += back; saveLand(); sfx('swap'); toast(`+${NAIRA(back)}`, `${it.name} sold back (half what it cost)`); arrUi();
+}
+function arrKit(k) { if (ARR.hold) arrCancel(true); ARR.kit = { ...k, i: -1 }; arrKitNext(); }
+function arrKitNext() {
+  const K = ARR.kit; if (!K) return;
+  if (++K.i >= K.ids.length) { ARR.kit = null; toast(`✨ ${K.name}`, 'All set up'); arrUi(); return; }
+  arrHold(K.ids[K.i]);
+}
+function arrFloor(df) {
+  const n = floorsOf(ARR.home.hs), f = clamp(ARR.f + df, 0, n - 1); if (f === ARR.f) return;
+  ARR.f = f; ARR.lastPt = null; if (ARR.hold) arrMoveHold(ARR.hold.x, ARR.hold.z); arrUi();
+}
+// the view: from above and to one side, the near walls cut away as in the sim view
+function arrCamera() {
+  const hs = ARR.home.hs, fy = floorYOf(hs, ARR.f), target = tmpA.set(hs.x, fy + .4, hs.z);
+  const cp = Math.cos(ARR.pitch), hx = -Math.sin(ARR.yaw), hz = -Math.cos(ARR.yaw), d = tmpB.set(hx * cp, Math.sin(ARR.pitch), hz * cp);
+  const dist = clamp(Math.max(hs.w, hs.d) * .95 + 4, 9, 36) * ARR.zoom / Math.sqrt(Math.min(1, camera.aspect));   // a tall phone screen needs to stand further back to fit the house across
+  camera.position.copy(target).addScaledVector(d, -dist); camera.lookAt(target);
+  SIM.room = hs; SIM.t = 1; SIM.cutY.constant = fy + 2.35;   // higher than the sim view's cut, so wall pieces (TVs, the AC, cabinets) show
+  const sx = hx < 0 ? -1 : 1, sz = hz < 0 ? -1 : 1;
+  SIM.cutX.normal.set(sx, 0, 0); SIM.cutX.constant = -(sx * hs.x + (Math.abs(hx) < .35 ? 1e4 : hs.w / 2 - .45));
+  SIM.cutZ.normal.set(0, 0, sz); SIM.cutZ.constant = -(sz * hs.z + (Math.abs(hz) < .35 ? 1e4 : hs.d / 2 - .45));
+}
+// pointer: click (or tap) a piece to pick it up; it follows the mouse, or your finger as you drag; click or Put here to drop it.
+// Right-drag (or dragging empty floor with a finger) turns the view; the wheel zooms
+function arrPointerDown(e) {
+  if (!ARR.on || mode !== 'play') return; e.preventDefault();
+  if (e.button === 2 || e.button === 1) { ARR.orbit = { x: e.clientX, y: e.clientY, id: e.pointerId }; return; }
+  const D = ARR.down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, id: e.pointerId, moved: false, mouse: e.pointerType === 'mouse' };
+  if (!ARR.hold) { const q = arrPick(e.clientX, e.clientY); if (q) { arrHold(q.rec.id, q); D.picked = true; sfx('swap'); } else D.orbit = true; }
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) {}
+}
+function arrPointerMove(e) {
+  if (!ARR.on) return;
+  const O = ARR.orbit && e.pointerId === ARR.orbit.id ? ARR.orbit : ARR.down && ARR.down.orbit && e.pointerId === ARR.down.id ? ARR.down : null;
+  if (O) {
+    const lx = O.lx ?? O.x, ly = O.ly ?? O.y;
+    ARR.yaw -= (e.clientX - lx) * .006; ARR.pitch = clamp(ARR.pitch - (e.clientY - ly) * .004, -1.45, -.5); O.lx = e.clientX; O.ly = e.clientY;
+    if (O === ARR.down && Math.hypot(e.clientX - O.x, e.clientY - O.y) > 6) O.moved = true;
+    return;
+  }
+  const D = ARR.down && e.pointerId === ARR.down.id ? ARR.down : null;
+  if (D && Math.hypot(e.clientX - D.x, e.clientY - D.y) > 6) D.moved = true;
+  if (!ARR.hold || (e.pointerType !== 'mouse' && !D)) return;
+  const it = FURN[ARR.hold.id], p = arrPoint(e.clientX, e.clientY - (e.pointerType === 'mouse' ? 0 : 56), it.wall ? it.wall + it.h / 2 : 0);   // a finger would hide the piece: it rides a little above it
+  if (p) arrMoveHold(p.x, p.z);
+}
+function arrPointerUp(e) {
+  if (!ARR.on) return;
+  if (ARR.orbit && e.pointerId === ARR.orbit.id) { ARR.orbit = null; return; }
+  const D = ARR.down; if (!D || e.pointerId !== D.id) return; ARR.down = null;
+  if (D.orbit) return;
+  if (D.mouse && ARR.hold && (D.moved || !D.picked)) arrPut();   // mouse: click to drop, or drag and let go
+}
+function arrWheel(e) { if (!ARR.on) return; e.preventDefault(); ARR.zoom = clamp(ARR.zoom * (e.deltaY > 0 ? 1.1 : .9), .45, 1.8); }
+function arrKey(e) {
+  switch (e.code) {
+    case 'Escape': if (ARR.hold) arrCancel(); else arrEnd(); break;
+    case 'KeyR': arrTurn(); break;
+    case 'Enter': case 'NumpadEnter': case 'Space': e.preventDefault(); arrPut(); break;
+    case 'Delete': case 'Backspace': arrSell(); break;
+    case 'KeyQ': ARR.yaw += Math.PI / 4; break;
+    case 'KeyE': ARR.yaw -= Math.PI / 4; break;
+    case 'PageUp': case 'BracketRight': arrFloor(1); break;
+    case 'PageDown': case 'BracketLeft': arrFloor(-1); break;
+    case 'KeyB': if (!ARR.hold) arrEnd(); break;
+    case 'KeyH': setHelp(!helpOn); break;
+  }
+}
+// the panel: top bar (money, floor, view, Done), the held piece's bar, and the catalogue with room kits
+function arrUi() {
+  if (!ARR.on) return;
+  const home = ARR.home, n = floorsOf(home.hs);
+  $('arrMoney').textContent = NAIRA(LAND.money);
+  $('arrFloorTxt').textContent = n > 1 ? (ARR.f ? (n > 2 ? `Floor ${ARR.f}` : 'Upstairs') : 'Ground floor') : `${(home.house.furn || []).length} pieces`;
+  $('arrUp').hidden = $('arrDown').hidden = n < 2; $('arrUp').disabled = ARR.f >= n - 1; $('arrDown').disabled = ARR.f <= 0;
+  $('arrTabs').innerHTML = '';
+  for (const [cat, name] of [...FURN_CATS, ['kits', 'Room kits']]) { const b = document.createElement('button'); b.type = 'button'; b.textContent = name; b.className = ARR.tab === cat ? 'on' : ''; b.onclick = () => { ARR.tab = cat; arrUi(); }; $('arrTabs').append(b); }
+  const box = $('arrItems'); box.innerHTML = '';
+  const card = (icon, name, price, poor, fn, note) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'card' + (poor ? ' poor' : ''); b.innerHTML = `<span class="ic"></span><span class="nm"></span><span class="pr"></span>`; b.children[0].textContent = icon; b.children[1].textContent = name; b.children[2].textContent = note || NAIRA(price); b.onclick = fn; box.append(b); };
+  if (ARR.tab === 'kits') for (const k of ARR_KITS) { const total = k.ids.reduce((a, id) => a + FURN[id].price, 0); card('✨', `${k.name} · ${k.ids.length} pieces`, total, LAND.money < total, () => arrKit(k), `${NAIRA(total)} · place each piece`); }
+  else for (const [id, it] of Object.entries(FURN)) if (it.cat === ARR.tab) card(ARR_ICON[id] || '🛋', it.name, it.price, LAND.money < it.price, () => { ARR.kit = null; arrHold(id); }, `${NAIRA(it.price)}${it.wall ? ' · on a wall' : ''}`);
+  arrHoldUi();
+}
+function arrHoldUi() {
+  const h = ARR.hold, bar = $('arrHold'); bar.hidden = !h; if (!h) return;
+  const it = FURN[h.id], K = ARR.kit;
+  $('arrHoldTxt').textContent = `${K ? `${K.name} ${K.i + 1}/${K.ids.length} · ` : ''}${it.name}${h.from ? '' : ' · ' + NAIRA(it.price)}${h.ok ? '' : ' · ' + (ARR_WHY[h.why] || 'doesn’t fit')}`;
+  $('arrPut').textContent = h.from ? 'Put here' : `Buy and put here`; $('arrPut').disabled = !h.ok;
+  $('arrSell').hidden = !h.from; $('arrSell').textContent = `Sell back · ${NAIRA(Math.round(it.price / 2 / 100) * 100)}`;
+  $('arrSkip').hidden = !K; $('arrTurn').hidden = !!it.wall;
+}
+function arrStart() {
+  const home = myHome(); if (!home) { toast('', 'Go inside your own home to arrange it'); return; }
+  menuClose(); talkEnd();
+  Object.assign(ARR, { on: true, home, f: floorIdx(home.hs), yaw, pitch: -1.2, zoom: 1, hold: null, kit: null, lastPt: null, hadLock, down: null, orbit: null });
+  hadLock = false; if (document.pointerLockElement) document.exitPointerLock();
+  for (const k in keys) keys[k] = false;
+  document.body.classList.add('arr'); $('arr').hidden = false; simCollect(); arrUi();
+  toast('Arranging your home', TOUCH.on ? 'Tap a piece to pick it up, drag it, then Put here · drag the floor to turn the view' : 'Click a piece to pick it up, click to put it down · R turns it · right-drag turns the view · wheel zooms · Esc when done');
+}
+function arrEnd(relock = true) {
+  if (!ARR.on) return;
+  arrCancel(true); ARR.kit = null; ARR.on = false; document.body.classList.remove('arr'); $('arr').hidden = true;
+  SIM.room = null; SIM.t = 0; SIM.cutY.constant = 1e5; hadLock = ARR.hadLock;
+  // you were standing somewhere while you shopped: if a new piece landed on you, step clear of it
+  const hs = ARR.home.hs, onIt = (x, z) => FURN_LIVE.some(q => q.col && q.key === ARR.home.key && x > q.col.x0 - .35 && x < q.col.x1 + .35 && z > q.col.z0 - .35 && z < q.col.z1 + .35 && P.pos.y + .5 > q.col.y0 && P.pos.y < q.col.y1);
+  if (onIt(P.pos.x, P.pos.z)) out: for (let r = .5; r < 7; r += .5) for (let a = 0; a < TAU; a += Math.PI / 8) { const x = P.pos.x + Math.cos(a) * r, z = P.pos.z + Math.sin(a) * r; if (Math.abs(x - hs.x) < hs.w / 2 - .5 && Math.abs(z - hs.z) < hs.d / 2 - .5 && !onIt(x, z)) { P.pos.x = x; P.pos.z = z; break out; } }
+  if (relock && mode === 'play' && !TOUCH.on) lockPointer();
+}
+$('arrDone').onclick = () => arrEnd();
+$('arrUp').onclick = () => arrFloor(1); $('arrDown').onclick = () => arrFloor(-1);
+$('arrL').onclick = () => { ARR.yaw += Math.PI / 4; }; $('arrR').onclick = () => { ARR.yaw -= Math.PI / 4; };
+$('arrIn').onclick = () => { ARR.zoom = clamp(ARR.zoom * .85, .45, 1.8); }; $('arrOut').onclick = () => { ARR.zoom = clamp(ARR.zoom * 1.18, .45, 1.8); };
+$('arrTurn').onclick = arrTurn; $('arrPut').onclick = arrPut; $('arrCancel').onclick = () => arrCancel(); $('arrSell').onclick = arrSell; $('arrSkip').onclick = () => { if (ARR.hold) arrCancel(true); arrKitNext(); };
+for (const [ev, fn] of [['pointerdown', arrPointerDown], ['pointermove', arrPointerMove], ['pointerup', arrPointerUp], ['pointercancel', arrPointerUp]]) renderer.domElement.addEventListener(ev, fn);
+renderer.domElement.addEventListener('wheel', arrWheel, { passive: false });
+// switching things on and off (from the home menu): the record keeps it, so it's saved and other players see it
+function furnToggle(q) { if (q.rec.on) delete q.rec.on; else q.rec.on = 1; furnLiveSet(q.g, !!q.rec.on); LAND.changed = true; saveLand(); sfx('swap'); }
+function openHomeMenu() {
+  const home = myHome(); if (!home) return; LM_.key = home.key;
+  const n = (home.house.furn || []).length, f = floorIdx(home.hs), items = [];
+  items.push({ label: 'Arrange and shop (B)…', note: 'pick up, move, turn and sell what you have · buy new pieces · set up a whole room', run: arrStart });
+  const near = FURN_LIVE.filter(q => q.key === home.key && q.rec.f === f && FURN[q.rec.id].live && Math.hypot(q.rec.x - P.pos.x, q.rec.z - P.pos.z) < 4.5)
+    .sort((a, b) => Math.hypot(a.rec.x - P.pos.x, a.rec.z - P.pos.z) - Math.hypot(b.rec.x - P.pos.x, b.rec.z - P.pos.z)).slice(0, 4);
+  for (const q of near) { const it = FURN[q.rec.id]; items.push({ label: `${q.rec.on ? 'Switch off' : 'Switch on'}: ${it.name.split(',')[0].toLowerCase()}`, note: q.rec.on ? '' : it.live === 'tv' ? 'the match is on' : it.live === 'jacuzzi' ? 'warm, with bubbles' : it.live === 'cooker' ? 'light the gas' : '', run: () => { furnToggle(q); openHomeMenu(); } }); }
+  items.push({ label: 'Close', run: menuClose });
+  menuShow('Your home', n ? `${n} piece${n > 1 ? 's' : ''} of furniture · walk up to a TV, the jacuzzi or the cooker to switch it on` : 'Empty for now. Arrange and shop to set it up', items);
+}
 
 /* taxi fares: people wave you down while you drive; stop beside one, take them where they're going */
 const TAXI = { hails: [], job: null, t: 0, tipShown: false };
@@ -8718,7 +9100,7 @@ function landAction() {
   if (nearDealer()) return { label: `E · Buy a bulldozer · ${NAIRA(DOZER_YARD.price)}`, run: buyDozer };
   if (P.driving) return null;
   const [px, pz] = plotAt(P.pos.x, P.pos.z), info = plotInfo(px, pz);
-  if (LAND.plots.has(info.key)) { const hk = bigK(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Furnish your home (Lagos Living catalogue)', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
+  if (LAND.plots.has(info.key)) { const hk = bigK(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Your home: switch things on · B · arrange and shop', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
   if (info.other) { const o = info.other, who = o.npc ? 'Sold' : (o.ownerName || 'Someone') + '’s land'; return { label: `E · ${who}`, run: () => toast(who, o.npc ? 'Bought by a resident. Not for sale' : `This plot belongs to ${o.ownerName || 'another player'}. To buy it, ask them to offer it to you (their land menu → Sell or give to a player)`) }; }
   if (info.lot?.big) return info.ok ? { label: `E · Buy Banana Island · 1.7 acres (12 plots), level and cleared · ${NAIRA(BIG.price)}`, run: buyBig } : null;
   if (info.ok) return { label: info.estate ? `E · Buy plot ${info.lot.n}, ${info.estate.short} · level, on the avenue · ${NAIRA(info.price)}` : `E · Buy this ${PLOT} × ${PLOT} m plot · ${NAIRA(info.price)}`, run: () => buyPlot(info) };
@@ -9552,7 +9934,7 @@ function frame(now) {
   updateGrass();
   updateHUD(dt);
   updateLand(dt);
-  if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } updateClubs(dt); updateOnline(dt);
+  if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
   updateTouch();
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
