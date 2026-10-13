@@ -96,6 +96,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 #board{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:300px;padding:18px 24px;background:rgba(18,25,16,.9);border:1px solid var(--edge);display:grid;grid-template-columns:1fr auto;gap:6px 30px;font-size:17px}
 #bigmap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,7,.62);pointer-events:none}
 #bigmapC{pointer-events:auto;cursor:crosshair}
+body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #bigmap .frame{position:relative;padding:12px;background:rgba(18,25,16,.92);border:1px solid var(--edge);display:flex;flex-direction:column;gap:8px}
 #bigmap .head{display:flex;justify-content:space-between;align-items:baseline;gap:24px}
 #bigmap h3{margin:0;font-family:var(--display);font-size:18px;letter-spacing:.12em;color:var(--ink)}
@@ -349,7 +350,7 @@ body:not(.touch) #odock{display:none}
         <dt>F</dt><dd>Slash the nape (needs speed)</dd>
         <dt>E</dt><dd>Refill at blue depots; help knocked-down villagers up</dd>
       </dl>
-      <div class="btnrow"><button class="go" id="goBtn" type="button">Deploy</button><button class="alt" id="peaceBtn" type="button" aria-pressed="true">Titans: Off</button></div>
+      <div class="btnrow"><button class="go" id="goBtn" type="button">Deploy</button><button class="alt" id="peaceBtn" type="button" aria-pressed="true">Titans: Off</button><button class="alt" id="photoBtn" type="button" hidden>📷 Photo mode</button></div>
       <div class="online" id="online"><div><b>Play online</b> · <span id="onStatus">checking the server…</span></div><div class="btnrow onbtns" id="onBtns"></div></div>
       <div class="best num" id="cBest"></div>
       <div class="note">Plays with a keyboard and mouse, or touch.</div>
@@ -7459,6 +7460,7 @@ function setMode(m) {
     $('cEyebrow').textContent = 'Paused'; $('cTitle').textContent = 'Holding position';
     $('cText').textContent = 'The titans will wait. Click Resume to grab the mouse again.';
     $('goBtn').textContent = 'Resume'; st.hidden = true;
+    $('cText').textContent += ' Photo mode hides everything on screen for a screenshot; Esc or a click brings this back.';
   } else if (m === 'dead') {
     if (S.score > best) { best = S.score; try { localStorage.setItem('giantwood-best', best); } catch (e) {} }
     $('cEyebrow').textContent = 'Expedition over'; $('cTitle').textContent = 'You were caught';
@@ -7467,6 +7469,7 @@ function setMode(m) {
     st.hidden = false; $('goBtn').textContent = 'Deploy again';
   }
   $('cBest').textContent = best ? `Best score on this device: ${best.toLocaleString()}` : '';
+  $('photoBtn').hidden = m !== 'pause';
 }
 $('goBtn').addEventListener('click', () => {
   initAudio();
@@ -7475,6 +7478,11 @@ $('goBtn').addEventListener('click', () => {
   lockPointer();
 });
 $('cBest').textContent = best ? `Best score on this device: ${best.toLocaleString()}` : '';
+// photo mode (from the pause screen): hide the panel and the HUD over a still view; any key, click or tap ends it
+$('photoBtn').addEventListener('click', e => { e.stopPropagation(); document.body.classList.add('photo'); if (!looping) renderer.render(scene, camera); });
+for (const ev of ['keydown', 'pointerdown']) addEventListener(ev, e => {   // Esc, a click or a tap ends it; other keys (the screenshot shortcut) don't
+  if (!document.body.classList.contains('photo') || e.target === $('photoBtn') || (ev === 'keydown' && e.key !== 'Escape')) return;
+  document.body.classList.remove('photo'); e.stopPropagation(); e.preventDefault(); }, true);
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); if (!looping) renderer.render(scene, camera); });
 
 $('pips').innerHTML = '<i></i>'.repeat(AMMO_MAX);
