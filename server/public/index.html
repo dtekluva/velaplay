@@ -4912,7 +4912,7 @@ function loftCar(M) {
       else if (R === 'y') { disc(wr * .76, '#121315'); spokes(5, wr * .74, .045, '#2e3135', .09); disc(wr * .14, '#3a3d42', .035); }
       else { disc(wr * .74, '#17181b'); spokes(5, wr * .72, .08, '#3a3d42'); disc(wr * .15, '#3a3d42', .035); }
       if (M.calipers) D(BX(.04, .14, .1, x + sx * (tw / 2 - .03), wr + .12, z - .1), M.calipers);
-      if (M.lips) { const g = new THREE.TorusGeometry(ar + .01, .03, 5, 18, Math.PI).rotateY(Math.PI / 2).translate(sx * (W - .006), wr + .03, z); if (M.lips === 'P') P(g); else D(g, M.lips); }
+      if (M.lips) { const g = new THREE.TorusGeometry(ar + .01, M.lipT ?? .03, 5, 18, Math.PI).rotateY(Math.PI / 2).translate(sx * (W - .006), wr + .03, z); if (M.lips === 'P') P(g); else D(g, M.lips); }
     });
   }
   if (M.rails) both(sx => { const rl = roofFX - roofRX - .3, cx = -(roofFX + roofRX) / 2, w = Math.min(roofW, glassW(0)) - .1; D(BX(.05, .05, rl, sx * w, roofY + .1, cx), '#2a2c30'); for (const s of [-1, 1]) D(BX(.06, .08, .1, sx * w, roofY + .06, cx + s * rl / 2), '#2a2c30'); });
@@ -5110,6 +5110,59 @@ carModel2('hilux19', 'Toyota Hilux', 2019, 'pickup',
       wrap('r', -.92, .92, .56, .56, .16, .1, 'D', CHR, false);              // chrome step bumper
       D(BX(.52, .13, .02, 0, .74, rx(.74, 0) + .012), '#e6e9ec');
       both(sx => D(BX(.06, .5, .06, sx * .82, 1.5, .98), '#15171a')); D(BX(1.7, .06, .06, 0, 1.75, .98), '#15171a');   // sports bar
+    } });
+
+// the G 63 and the Range Rover Sport keep their old keys ('gwagon', 'lux') so homes, the rare-car find and online players still match
+carModel2('gwagon', 'Mercedes-AMG G 63', 2021, 'luxsuv',
+  { hl: 2.36, W: .96, yb: .46, wr: .4, wxF: 1.45, wxR: -1.44, ar: .46, noseY: 1.18, noseRake: .03, hoodY: 1.32, cowlX: .78, roofFX: .56, roofY: 1.96, roofRX: -2.3, deckX: -2.36, deckY: 1.32, tailY: 1.3, tailRake: 0, roofW: .87, rcF: .09, rcR: .09, shoulder: .04, hoodP: 4, deckP: 1, crown: .012, roofBulge: .006, rearP: 1, tw: .3 },
+  { col: [0x121417, 0xeeeeea, 0x4b5320, 0x6c7073, 0x1d3b5c, 0x7a1e24], rim: 'y', pillars: [-.3, -1.32], cW: .16, doors: [.74, -.3, -1.3], handles: [-.08, -1.16], beltC: BLK, handleC: CHR, lips: '#15171a', lipT: .065, veh: { maxF: 40, acc: 13, brk: 24 }, beam: [1.04, -2.4, [-.66, .66]],
+    build: ({ wrap, D, L, BX, CZ, fx, rx, both, planW }) => {
+      const zf = y => -fx(y, 0);
+      D(BX(.86, .34, .05, 0, 1.02, zf(1.02) - .02), '#121315');                       // Panamericana grille: dark, with upright chrome bars
+      for (let k = -7; k <= 7; k++) D(BX(.018, .32, .06, k * .055, 1.02, zf(1.02) - .035), CHR);
+      D(BX(.9, .03, .07, 0, 1.2, zf(1.2) - .03), CHR); D(BX(.9, .03, .07, 0, .84, zf(.84) - .03), CHR);
+      both(sx => {
+        D(CZ(.14, .05, sx * .68, 1.02, zf(1.02) - .02, 24), CHR); L(CZ(.12, .06, sx * .68, 1.02, zf(1.02) - .03, 24), '#eef4ff');   // round lamps, LED rings
+        D(CZ(.075, .065, sx * .68, 1.02, zf(1.02) - .04, 18), '#2a3036');
+        L(BX(.16, .05, .1, sx * .8, 1.29, -2.05), '#f0a020');                          // the indicators on the wings
+        for (const y of [1.1, 1.5]) D(BX(.04, .1, .06, sx * (planW(.74) + .012), y, -.72), '#15171a');   // door hinges
+        for (const x of [-.82, -.94]) D(new THREE.CylinderGeometry(.045, .045, .14, 12).rotateZ(Math.PI / 2).translate(sx * (planW(x) + .02), .62, -x), CHR);   // side pipes
+        D(BX(.03, .03, 2.9, sx * (.87 + .01), 1.97, .9), '#15171a');                   // roof gutters
+        L(BX(.16, .3, .05, sx * .82, 1.12, rx(1.12, .82) + .02), TLC);                 // tail lamps
+      });
+      wrap('f', -.96, .96, .66, .66, .26, .07, 'D', '#1c1d20', false);                // bumper with its intakes
+      for (const s2 of [-.62, 0, .62]) D(BX(.34, .14, .06, s2, .68, zf(.68) - .07), '#0c0d0f');
+      wrap('f', -.46, .46, .55, .55, .08, .08, 'D', '#9aa0a6', false);
+      D(BX(.5, .12, .02, 0, .86, zf(.86) - .12), '#e6e9ec');
+      D(new THREE.CylinderGeometry(.42, .42, .26, 26).rotateX(Math.PI / 2).translate(-.12, 1.25, 2.52), '#1a1a1a');   // the spare on the back door
+      D(new THREE.CylinderGeometry(.36, .36, .28, 26).rotateX(Math.PI / 2).translate(-.12, 1.25, 2.53), '#2a2c30');
+      D(new THREE.CylinderGeometry(.12, .12, .29, 18).rotateX(Math.PI / 2).translate(-.12, 1.25, 2.535), CHR);
+      wrap('r', -.96, .96, .64, .64, .24, .07, 'D', '#1c1d20', false);
+      D(BX(.52, .13, .02, 0, .86, rx(.86, 0) + .08), '#e6e9ec');
+    } });
+carModel2('lux', 'Range Rover Sport', 2024, 'luxsuv',
+  { hl: 2.47, W: .99, yb: .42, wr: .41, wxF: 1.5, wxR: -1.5, ar: .47, noseY: 1.06, noseRake: .22, hoodY: 1.2, cowlX: .85, roofFX: -.05, roofY: 1.8, roofRX: -1.85, deckX: -2.36, deckY: 1.25, tailY: 1.2, tailRake: .1, roofW: .78, rcF: .32, rcR: .3, shoulder: .09, hoodP: 2.2, crown: .03, roofBulge: .025, rearP: 1.4, tw: .3 },
+  { col: [0x121417, 0x4a4e52, 0x6c7073, 0xeeeeea, 0x1d3b5c, 0x2e3b2e], rim: 'y', pillars: [-.62], cW: .3, pillarC: '#121315', roofBlack: true, doors: [.82, -.62, -1.06], handles: [-.1, -.98], beltC: BLK, handleC: '#3a3d42', veh: { maxF: 44, acc: 15, brk: 26 }, beam: [1.0, -2.5, [-.7, .7]],
+    build: ({ wrap, D, L, BX, CZ, fx, rx, roof, both, planW }) => {
+      wrap('f', .5, .96, .99, 1.04, .075, .05, 'D', '#0d0e10');                       // slim headlamps
+      wrap('f', .52, .94, 1.0, 1.035, .02, .056, 'L', '#ffffff'); wrap('f', .56, .9, .975, 1.0, .016, .056, 'L', '#ffffff');
+      wrap('f', -.46, .46, .97, .97, .14, .045, 'D', '#101113', false);                // the dark grille
+      for (const y of [.93, .97, 1.01]) wrap('f', -.44, .44, y, y, .008, .05, 'D', '#3a3d42', false);
+      wrap('f', -.64, .64, .62, .62, .22, .045, 'D', '#0d0e10', false);                // lower intake
+      wrap('f', .7, .9, .64, .7, .28, .045, 'D', '#0d0e10');
+      wrap('f', -.92, .92, .46, .46, .05, .06, 'D', '#2a2c30', false);
+      D(BX(.5, .12, .02, 0, .78, -fx(.78, 0) - .07), '#e6e9ec');
+      both(sx => {
+        D(BX(.03, .07, .32, sx * (planW(.95) + .006), .98, -.95), CHR);               // the vent on the front wing
+        D(BX(.04, .14, 2 * (1.5 - .47) - .12, sx * (planW(0) + .006), .56, 0), '#15171a');   // lower cladding
+        L(BX(.18, .2, .05, sx * .88, 1.08, rx(1.08, .88) + .02), TLC);
+      });
+      wrap('r', -.98, .98, 1.12, 1.12, .15, .045, 'D', '#0d0e10', false);              // the black band and full-width light bar
+      wrap('r', -.98, .98, 1.12, 1.12, .035, .052, 'L', TLC, false);
+      D(BX(.52, .13, .02, 0, .86, rx(.86, 0) + .012), '#e6e9ec');
+      wrap('r', -.62, .62, .56, .56, .14, .06, 'D', '#15171a', false);
+      both(sx => D(BX(.22, .07, .06, sx * .55, .54, rx(.54, .55) + .04), CHR));
+      D(BX(1.42, .035, .3, 0, roof(-1.9) + .02, 1.98), '#121315');                     // roof spoiler
     } });
 
 function modelGeos(id) {
@@ -5333,7 +5386,7 @@ function makeKeke(color = rp([0xf2c230, 0x2f8a4a, 0x2f5f9a])) {
 
 // what drives around town: common Lagos cars most often, the rare ones now and then
 const TRAFFIC_MIX = { corolla05: 5, camry08: 5, accord05: 4, sienna10: 4, corolla21: 3, camry23: 2, es350_12: 3, highlander15: 2, danfo: 3, hilux19: 2, rav4_20: 2, elantra17: 2, picanto18: 2,
-  civic98: 2, sunny93: 2, peugeot504: 2, w123: 1, corolla88: 2, golf2: 1, beetle72: 1, accord22: 1.5, c300_16: 1, es350_23: 1, rx350_17: 1.5, lc200: 1.5, lx570: .6, bmw5_21: .8, huracan: .25, cullinan: .2, keke: 3 };
+  civic98: 2, sunny93: 2, peugeot504: 2, w123: 1, corolla88: 2, golf2: 1, beetle72: 1, accord22: 1.5, c300_16: 1, es350_23: 1, rx350_17: 1.5, lc200: 1.5, lx570: .6, bmw5_21: .8, gwagon: .4, huracan: .25, cullinan: .2, keke: 3 };
 const PARK_MIX = { ...TRAFFIC_MIX, danfo: 1, keke: 1, tipper: .3, gwagon: .4 };   // only used once LUX exists (the G 63 is built from it)
 function pickMix(mix) { let t = 0; for (const k in mix) t += mix[k]; let r = Math.random() * t; for (const k in mix) if ((r -= mix[k]) <= 0) return k; return 'corolla05'; }
 const makeMixed = (mix = TRAFFIC_MIX) => { const id = pickMix(mix); return id === 'keke' ? makeKeke() : id === 'tipper' ? makeTipper() : makeModel(id); };
@@ -5519,7 +5572,7 @@ const CLASS_VEH = { econ: { maxF: 27, acc: 9, steer: .58, base: 50 }, family: { 
   luxsuv: { maxF: 38, acc: 12.5, steer: .52, base: 38 }, super: { maxF: 62, acc: 22, brk: 32, steer: .5, base: 56 }, van: { maxF: 26, acc: 8, steer: .5, base: 36 }, pickup: { maxF: 32, acc: 10.5, steer: .5, base: 36 } };
 for (const id of MODEL_IDS) {
   const M = CAR_MODELS[id], p = M.p, hl = p.hl + .15, hw = p.depth / 2 + .1;
-  VEH[id] = { ...VEH.car, ...CLASS_VEH[M.cls], hw, hl, wb: p.wx * 2, circles: [-(hl - .8), 0, hl - .8], rad: hw + .08, cam: 8 + hl * .75, camY: p.roofY + .7 };
+  VEH[id] = { ...VEH.car, ...CLASS_VEH[M.cls], ...(M.veh || {}), hw, hl, wb: p.wx * 2, circles: [-(hl - .8), 0, hl - .8], rad: hw + .08, cam: 8 + hl * .75, camY: p.roofY + .7 };
   LUX[id] = { name: M.name, make: c => makeModel(id, c), beam: null, model: true };
 }
 VEH.tractor = { ...VEH.car, hw: 1.2, hl: 1.7, maxF: 11, maxR: 4, acc: 4.5, brk: 12, steer: .6, wb: 2.15, circles: [-1.0, 0, 1.0], rad: 1.2, cam: 10, camY: 3.4, base: 28 };
@@ -5529,7 +5582,7 @@ for (const [k, name, make] of [['tractor', 'farm tractor', () => makeTractor()],
 for (const k of ['gwagon', 'lux']) LUX[k].name = EXTRA_NAMES[k].name;
 LUX.sport.name = 'sports coupé'; LUX.saloon.name = 'luxury saloon';
 // driving feel: every road vehicle (not the bulldozer, boats or planes) at half the top speed, half the acceleration and half the steering
-for (const k of ['car', 'bus', 'truck', 'bike', 'lux', 'gwagon', 'sport', 'saloon', ...MODEL_IDS, 'tractor', 'tipper', 'tanker', 'keke']) { const V = VEH[k]; V.maxF *= .5; V.maxR *= .5; V.acc *= .5; V.steer *= .5; }
+for (const k of new Set(['car', 'bus', 'truck', 'bike', 'lux', 'gwagon', 'sport', 'saloon', ...MODEL_IDS, 'tractor', 'tipper', 'tanker', 'keke'])) { const V = VEH[k]; V.maxF *= .5; V.maxR *= .5; V.acc *= .5; V.steer *= .5; }
 makeLux('corolla21', 9.6, 0, 0);   // the car by the start
 /* the airport car park's ground floor holds one of every model, oldest first, and all of them can be driven.
    The utility vehicles live where they work: a tractor and a tipper at the farm, a tanker at the filling station. */
@@ -8202,7 +8255,9 @@ async function peerOpen(id, initiator) {
   if (VOICE.peers.get(id) !== p) { p.pc.close(); return null; }
   p.pc.onicecandidate = e => { if (e.candidate && NET.room) NET.room.send('rtc', { to: id, data: { ice: e.candidate } }); };
   p.pc.ontrack = e => peerAudio(p, e.streams[0] || new MediaStream([e.track]));
-  p.pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(p.pc.connectionState)) peerClose(id); };
+  const linked = () => { if (p.linked) return; p.linked = true; const r = NET.others.get(id); toast('', `🔊 Voice linked with ${r && r.name || 'a scout'}`); };
+  p.pc.onconnectionstatechange = () => { const st = p.pc.connectionState; if (st === 'connected') linked(); if (['failed', 'closed'].includes(st)) { if (st === 'failed') toast('', 'Voice couldn’t connect to a scout nearby. It will try again'); peerClose(id); } };
+  p.pc.oniceconnectionstatechange = () => { if (['connected', 'completed'].includes(p.pc.iceConnectionState)) linked(); };   // older Safari has no connectionState
   if (initiator) {
     const tr = p.pc.addTransceiver('audio', { direction: 'sendrecv' }); p.sender = tr.sender;
     if (VOICE.mic) tr.sender.replaceTrack(VOICE.mic.getAudioTracks()[0]).catch(() => {});
@@ -8211,18 +8266,33 @@ async function peerOpen(id, initiator) {
   }
   return p;
 }
+// phones and tablets play each voice straight through an <audio> element: Web Audio from a call stream is silent on many of them
+// (iOS Safari especially). Computers route it through a 3D panner so voices come from where the scout stands.
+const voiceOnPhone = () => (typeof TOUCH !== 'undefined' && TOUCH.on) || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 function peerAudio(p, stream) {
-  if (!AC || p.src) return;
-  p.el = new Audio(); p.el.muted = true; p.el.srcObject = stream; p.el.play().catch(() => {});   // keeps the stream flowing in Chrome
-  p.src = AC.createMediaStreamSource(stream); p.panner = AC.createPanner(); p.gain = AC.createGain();
-  Object.assign(p.panner, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 4, maxDistance: 60, rolloffFactor: 1.3 });
-  p.src.connect(p.panner).connect(p.gain).connect(AC.destination);
+  if (p.el) return;
+  const el = p.el = document.createElement('audio'); el.autoplay = true; el.playsInline = true; el.setAttribute('playsinline', ''); el.hidden = true;
+  el.srcObject = stream; document.body.appendChild(el);
+  if (AC && !voiceOnPhone()) {
+    el.muted = true;   // the element only keeps the stream flowing in Chrome; the sound comes out of the panner
+    p.src = AC.createMediaStreamSource(stream); p.panner = AC.createPanner(); p.gain = AC.createGain();
+    Object.assign(p.panner, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 4, maxDistance: 60, rolloffFactor: 1.3 });
+    p.src.connect(p.panner).connect(p.gain).connect(AC.destination);
+  } else el.muted = false;
+  el.play().catch(() => { if (!VOICE.blocked) { VOICE.blocked = true; toast('🔊 Tap the screen', 'to hear the scouts near you'); } });
 }
+// browsers only start sound after a tap: any tap retries the voices and wakes the audio (iOS suspends it when the mic starts)
+function voiceUnlock() {
+  if (!VOICE.on) return;
+  if (AC && AC.state !== 'running' && mode === 'play') AC.resume?.();
+  for (const p of VOICE.peers.values()) if (p.el && p.el.paused) p.el.play().then(() => { VOICE.blocked = false; }).catch(() => {});
+}
+for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, voiceUnlock, { capture: true, passive: true });
 function peerClose(id) {
   const p = VOICE.peers.get(id); if (!p) return; VOICE.peers.delete(id);
   try { p.pc && p.pc.close(); } catch (e) {}
   try { p.src && p.src.disconnect(); p.panner && p.panner.disconnect(); p.gain && p.gain.disconnect(); } catch (e) {}
-  if (p.el) { p.el.srcObject = null; p.el = null; }
+  if (p.el) { p.el.pause(); p.el.srcObject = null; p.el.remove(); p.el = null; }
 }
 // one player's handshake messages are handled strictly in order: an offer finishes setting up before its ICE candidates arrive
 function onRtc(m) {
@@ -8249,7 +8319,12 @@ async function handleRtc(m) {
   } catch (e) { peerClose(from); }
 }
 function updateVoice(dt) {
-  const room = NET.room; if (!room || !VOICE.on || !AC) return;
+  const room = NET.room; if (!room || !VOICE.on) return;
+  for (const p of VOICE.peers.values()) if (p.el && !p.panner) { const r = NET.others.get(p.id); if (r) p.el.volume = clamp(1.25 - Math.hypot(r.x - P.pos.x, r.z - P.pos.z) / 32, 0, 1); }   // phones: louder up close (iOS ignores this)
+  if (AC) placeVoices();
+  voiceScan(dt);
+}
+function placeVoices() {
   // place each voice where its scout is, and the listener at the camera
   const L = AC.listener, f = camDir(tmpC), t = AC.currentTime;
   if (L.positionX) { L.positionX.setTargetAtTime(camera.position.x, t, .05); L.positionY.setTargetAtTime(camera.position.y, t, .05); L.positionZ.setTargetAtTime(camera.position.z, t, .05);
@@ -8261,6 +8336,9 @@ function updateVoice(dt) {
     else p.panner.setPosition(r.x, r.y + 1.6, r.z);
     const d = Math.hypot(r.x - P.pos.x, r.z - P.pos.z); p.gain.gain.setTargetAtTime(d > 40 ? 0 : 1, t, .2);
   }
+}
+function voiceScan(dt) {
+  const room = NET.room;
   // twice a second: call scouts who came close, hang up on ones who wandered off (the lower session id makes the call)
   if ((VOICE.scanT -= dt) > 0) return; VOICE.scanT = .5;
   const me = room.state.players.get(room.sessionId); if (!me) return;

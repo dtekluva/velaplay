@@ -77,7 +77,10 @@ The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). I
   - **Sound:** each voice plays through a 3D panner at the speaker's head, so it fades with distance and comes from their direction.
   - **Off by default:** **J** joins voice (listen only). **Hold Z** to talk, which uses push-to-talk and asks for the microphone on first use. Touch gets a hold-to-talk button and *Voice chat* in the ••• menu.
   - **Speaking indicator:** players who are talking show a 🔊 above their heads.
-  - **Network fallback:** Google's public STUN, then our TURN relay.
+  - **Network fallback:** Google's public STUN, then our TURN relay, addressed by IP (`46.101.63.217`) so phones don't need a DNS lookup.
+  - **Phones and tablets** play each voice straight through an `<audio>` element. Web Audio from a call stream is silent on many of them, iOS Safari especially. Volume follows distance where the browser allows it (iOS doesn't), and there's no 3D panning. Computers keep the 3D panner.
+  - **Silent until a tap:** if the browser blocks sound, the game says *Tap the screen*, and any tap restarts the voices and wakes the audio.
+  - **Status:** a toast says when your voice links with a nearby scout, or if it couldn't connect.
 - **Shared land:** your land syncs to the server, and the server's copy wins (`landSync`, `adoptLand`).
 - **Other people's land:** their homes are built in your world when you load (`loadWorld`) and as they change (`applyOther`). Their plots can't be bought; standing on one says whose it is. They show on the big map in blue with the owner's name.
 - **Guests** can visit but can't buy land.

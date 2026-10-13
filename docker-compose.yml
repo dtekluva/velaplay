@@ -21,7 +21,7 @@ services:
       ALLOW_GUESTS: ${ALLOW_GUESTS:-true}
       PORT: 2567
       TURN_SECRET: ${TURN_SECRET}
-      TURN_HOST: ${TURN_HOST:-46-101-63-217.sslip.io}
+      TURN_HOST: ${TURN_HOST:-46.101.63.217}   # the bare IP: no DNS lookup needed on phones
     depends_on:
       db: { condition: service_healthy }
   caddy:
