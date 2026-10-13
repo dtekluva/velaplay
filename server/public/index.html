@@ -7210,20 +7210,67 @@ if (AP && IBAIR) {
   b.build();
 }
 function flightDeskNear() { if (P.driving) return null; return FLIGHT_DESKS.find(d => Math.hypot(d.x - P.pos.x, d.z - P.pos.z) < 9 && Math.abs(P.pos.y - d.y) < 4) || null; }   // anywhere by the booth
+// the trip: you board an Oyo Skylink airliner on the runway; a chase camera follows the roll, the climb, the cruise up the
+// expressway (or down it), the approach and the landing; you step out by the other airport's arrivals. Space skips to the approach.
+const FLY = { on: false, g: null, R: null, s: 0, v: 0, yaw: 0, pitch: 0, roll: 0, to: null, d: null };
+function airRoute(pts, skipAt) {   // [x, height above the runway, z, speed] waypoints, measured along the ground
+  const Y = TOWN.y, P2 = pts.map(([x, h, z, v]) => ({ x, y: Y + h, z, v })); let L = 0; P2[0].s = 0;
+  for (let k = 1; k < P2.length; k++) { L += Math.hypot(P2[k].x - P2[k - 1].x, P2[k].z - P2[k - 1].z); P2[k].s = L; }
+  return { P: P2, L, skip: P2[skipAt].s };
+}
+function airAt(R, s) {
+  const P2 = R.P; let k = 1; while (k < P2.length - 1 && P2[k].s < s) k++;
+  const a = P2[k - 1], b = P2[k], L = b.s - a.s || 1, t = clamp((s - a.s) / L, 0, 1);
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, v: a.v + (b.v - a.v) * t, tx: (b.x - a.x) / L, tz: (b.z - a.z) / L, ty: (b.y - a.y) / L };
+}
+const AIR_ROUTES = (AP && IBAIR) ? (() => { const rz = Wp(212, 0)[1], X = IBAIR.rx; return {
+  // Lagos → Ibadan: roll east down the Murtala Muhammed runway, lift off, swing north over the city and up the expressway, land northbound at Alakia
+  ibadan: airRoute([[20, 0, rz, 4], [150, 0, rz, 62], [262, 48, rz - 34, 80], [X, 100, -420, 165], [X, 100, -3480, 165], [X, 22, -4230, 72], [X, 0, IBAIR.rz1 - 18, 62], [X, 0, IBAIR.rz1 - 250, 6]], 5),
+  // Ibadan → Lagos: roll south down the Alakia runway, climb out over the toll plaza, cruise south, turn in over the sea and land westbound in Lagos
+  lagos: airRoute([[X, 0, IBAIR.rz0 + 16, 4], [X, 0, IBAIR.rz0 + 240, 62], [X, 40, IBAIR.rz1 + 60, 82], [X, 100, -3900, 165], [X, 100, -420, 165], [332, 52, -150, 95], [326, 22, rz + 8, 72], [214, 0, rz, 62], [60, 0, rz, 6]], 5),
+}; })() : null;
 function flyFrom(d) {
-  if (FLIGHT.busy) return;
-  const to = FLIGHT_DESKS.find(q => q !== d), city = d.to === 'ibadan' ? 'Ibadan' : 'Lagos';
-  if (!to) return;
+  if (FLIGHT.busy || FLY.on || !AIR_ROUTES) return;
+  const city = d.to === 'ibadan' ? 'Ibadan' : 'Lagos';
   if (LAND.money < FLIGHT.fare) { toast('', `A seat to ${city} is ${NAIRA(FLIGHT.fare)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= FLIGHT.fare; saveLand(); FLIGHT.busy = true; sfx('refill');
   const fade = $('fade'); fade.style.transition = 'opacity .6s'; fade.style.opacity = '1';
-  toast(`✈ Oyo Skylink OS ${FLIGHT.no} · ${d.to === 'ibadan' ? 'Lagos → Ibadan' : 'Ibadan → Lagos'}`, `${NAIRA(FLIGHT.fare)} · boarding… 35 minutes in the air`);
+  toast(`✈ Oyo Skylink OS ${FLIGHT.no} · ${d.to === 'ibadan' ? 'Lagos → Ibadan' : 'Ibadan → Lagos'}`, `${NAIRA(FLIGHT.fare)} · boarding now · Space skips to the landing`);
   setTimeout(() => {
-    const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0);
-    yaw = d.to === 'ibadan' ? Math.PI / 2 : -Math.PI / 2;
-  }, 1300);
-  setTimeout(() => { fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90); toast(`Welcome to ${city}`, d.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : 'Murtala Muhammed International · flights to Ibadan: the red Oyo Skylink booth beside you (E)'); }, 2600);
+    if (!FLY.g) { FLY.g = makeAirliner(); const tail = FLY.g.children[1]; if (tail) { tail.material = tail.material.clone(); tail.material.color.setHex(0xb8261e); } scene.add(FLY.g); }
+    Object.assign(FLY, { on: true, R: AIR_ROUTES[d.to], s: 0, v: 0, to: d.to, d, pitch: 0, roll: 0 }); FLY.g.visible = true;
+    const p = airAt(FLY.R, 0); FLY.yaw = Math.atan2(-p.tx, -p.tz); flightStep(0); FLY.snap = true;
+    fade.style.opacity = '0';
+  }, 700);
 }
+function flightSkip() { if (FLY.on && FLY.s < FLY.R.skip) { FLY.s = FLY.R.skip; FLY.v = airAt(FLY.R, FLY.s).v; flightStep(0); FLY.snap = true; } }
+function flightStep(dt) {
+  const F = FLY, R = F.R; let p = airAt(R, F.s);
+  F.v += clamp(p.v - F.v, -10 * dt, 9 * dt); F.s += Math.max(.5, F.v) * dt;
+  if (F.s >= R.L) return flightArrive();
+  p = airAt(R, F.s);
+  const want = Math.atan2(-p.tx, -p.tz); let dy = want - F.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  F.yaw += dy * Math.min(1, dt * 1.1); F.roll += (clamp(-dy * 1.8, -.55, .55) - F.roll) * Math.min(1, dt * 2); F.pitch += (Math.atan(p.ty) - F.pitch) * Math.min(1, dt * 2);
+  F.g.position.set(p.x, p.y, p.z); F.g.rotation.set(F.pitch, F.yaw, F.roll);
+  P.pos.set(p.x, p.y + 1, p.z); P.vel.set(0, 0, 0);   // you're aboard: the world loads around the plane
+}
+function flightArrive() {
+  const F = FLY, fade = $('fade'), city = F.to === 'ibadan' ? 'Ibadan' : 'Lagos', to = FLIGHT_DESKS.find(q => q !== F.d);
+  F.on = false; fade.style.opacity = '1';
+  setTimeout(() => {
+    F.g.visible = false; const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0); yaw = F.to === 'ibadan' ? Math.PI / 2 : -Math.PI / 2;
+    fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90);
+    toast(`Welcome to ${city}`, F.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : 'Murtala Muhammed International · flights to Ibadan: the red Oyo Skylink booth beside you (E)');
+  }, 650);
+}
+function flightCamera(dt) {   // a chase camera, off the plane's tail and a little to one side
+  const g = FLY.g, fx = -Math.sin(FLY.yaw), fz = -Math.cos(FLY.yaw), want = tmpC.set(g.position.x - fx * 38 - fz * 10, g.position.y + 11, g.position.z - fz * 38 + fx * 10);
+  want.y = Math.max(want.y, groundAt(want.x, want.z) + 2);
+  if (FLY.snap) { camera.position.copy(want); FLY.snap = false; } else camera.position.lerp(want, Math.min(1, dt * 2.5)); camera.lookAt(g.position.x, g.position.y + 2, g.position.z);
+  SIM.cutY.constant = 1e5; SIM.t = 0;
+}
+const flightPrompt = () => { const F = FLY, ground = F.g ? F.g.position.y - TOWN.y : 0, ph = F.s < 40 ? 'boarding complete, rolling' : ground < 1 && F.s < F.R.L / 2 ? 'take-off roll' : ground < 1 ? 'landed · rolling out' : F.s > F.R.skip ? 'final approach' : ground < 90 ? 'climbing' : 'cruising';
+  return `✈ Oyo Skylink OS ${FLIGHT.no} · ${F.to === 'ibadan' ? 'Lagos → Ibadan' : 'Ibadan → Lagos'} · ${ph} · ${Math.round(Math.max(0, ground) * 3.28 / 10) * 10} ft · ${Math.round(F.v * 3.6)} km/h${F.s < F.R.skip ? ' · Space: skip to the landing' : ''}`; };
 
 /* ---------- the Lekki Deep Sea Port: the causeway (railings, lamps, the sign at the coast road), the port gate, quays with
    ship-to-shore gantry cranes, the container yard with its gantries, a warehouse and the port authority, floodlight masts,
@@ -7757,6 +7804,7 @@ function updateCamera(dt) {
     return;
   }
   if (ARR.on) { arrCamera(); return; }
+  if (FLY.on) { flightCamera(dt); return; }
   const d = camDir(tmpC);
   if (firstPerson) { SIM.t = 0; SIM.cutY.constant = 1e5; camera.position.set(P.pos.x, P.pos.y + 1.65, P.pos.z); camera.lookAt(tmpA.copy(camera.position).add(d)); return; }
   const target = tmpA.set(P.pos.x, P.pos.y + (P.driving ? vehOf(P.driving).camY : 1.7), P.pos.z);
@@ -7792,6 +7840,7 @@ $('helpTab').addEventListener('click', e => { e.stopPropagation(); setHelp(true)
 addEventListener('keydown', e => {
   if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing in a box (chat, sign-in) never drives the game
   if (ARR.on && mode === 'play') { arrKey(e); return; }   // arranging your home: its own keys
+  if (FLY.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); flightSkip(); } return; }   // aboard a flight: Space skips to the landing
   if (['Tab', 'F5', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF'].includes(e.code) && mode === 'play') e.preventDefault();
   const was = keys[e.code]; keys[e.code] = true;
   if (was || mode !== 'play') return;
@@ -8051,7 +8100,7 @@ function playerTimers(dt) {
 }
 function updatePlayerModel(dt) {
   const bike = P.driving && P.driving.kind === 'bike' ? P.driving : null;
-  playerModel.visible = !firstPerson && mode !== 'title' && !ARR.on && (!P.driving || !!bike);
+  playerModel.visible = !firstPerson && mode !== 'title' && !ARR.on && !FLY.on && (!P.driving || !!bike);
   const aiming = mode === 'play' && (S.time - (P.lastShot ?? -9) < 1.2 || keys.KeyX || midHeld);
   const hs = Math.hypot(P.vel.x, P.vel.z);
   if (bike) {
@@ -8204,7 +8253,8 @@ function updateHUD(dt) {
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
   $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !JOBS.del || !!TC.conv || LM_.open;
-  if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
+  if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
+  else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
   else if (P.driving && JOBS.del) $('prompt').textContent = delPrompt();
   else if (P.driving && P.driving.kind === 'boat' && JETTY_DOCK && !busy() && Math.hypot(P.driving.x - JETTY_DOCK.x, P.driving.z - JETTY_DOCK.z) < 40) $('prompt').textContent = '🚤 Stop at the end of the jetty to take tourists on a tour';
@@ -8364,6 +8414,7 @@ function drawBigMap() {
     label('LAGOS–IBADAN EXPRESSWAY', expX(-2800) + 80, -2800, 14, '#f2c230'); label('IBADAN', 0, -4930, 24, '#f2c230'); label('OYO', 0, OYO.z1 + 14, 22, '#f2c230');
     for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
     for (const [n, x, z] of OYO_PLACES) label(n, x, z, 11, '#ffd3a8');
+    if (PORT) { label('LEKKI DEEP SEA PORT', (PORT.x0 + PORT.x1) / 2, (PORT.z0 + PORT.z1) / 2, 20, '#f2c230'); label('Causeway', PORT.rx + 30, 380, 12, '#f2c230'); label('Breakwater', 230, 920, 11, '#e8e6df'); }
     for (const d of FLIGHT_DESKS) { const [bx, by] = toB(d.x, d.z); bg2.fillStyle = '#d8342c'; bg2.strokeStyle = '#fff'; bg2.lineWidth = 2; bg2.beginPath(); bg2.arc(bx, by, 7, 0, TAU); bg2.fill(); bg2.stroke(); label(`✈ Oyo Skylink: fly to ${d.to === 'ibadan' ? 'Ibadan' : 'Lagos'}`, d.x, d.z, 12, '#ffb0b0', -14); }
     label('IKEJA', GRA.ave, GRA.z1 - 6, 18, '#f2c230'); label('Lagos State Government House', GOVH.bx0 + 18, GOVH.cz - 70, 11, '#ffd3a8');
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
@@ -10816,7 +10867,7 @@ function frame(now) {
   if (mode === 'play') {
     updateAim();
     S.time += dt;
-    if (P.driving) (isAir(P.driving) ? flyStep : P.driving.kind === 'boat' ? boatStep : driveStep)(dt); else for (let i = 0; i < 3; i++) stepPlayer(dt / 3);
+    if (FLY.on) flightStep(dt); else if (P.driving) (isAir(P.driving) ? flyStep : P.driving.kind === 'boat' ? boatStep : driveStep)(dt); else for (let i = 0; i < 3; i++) stepPlayer(dt / 3);
     playerTimers(dt);
     autoPan(dt);
   }
