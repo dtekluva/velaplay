@@ -6478,9 +6478,9 @@ function driveStep(dt) {
   // walls, trees, houses and water stop the car; kerbs and steps up to a block high do not
   let ok = carGround(nx, nz, c.yaw, V) <= c.y + 1.05 && heightAt(nx, nz) > 1;
   if (ok) for (const k of V.circles) {
-    const px = nx + fx * k, pz = nz + fz * k;
+    const px = nx + fx * k, pz = nz + fz * k, step = Math.min(c.y, groundAt(px, pz) + .65) + .65;   // measured from the ground too, so a car perched on a kerb can't hop a barrier
     for (const b of queryGrid(solidGrid, px, pz, 2)) {
-      if (b.y1 <= c.y + .65 || b.y0 >= c.y + (V.top || 1.7)) continue;
+      if (b.y1 <= step || b.y0 >= c.y + (V.top || 1.7)) continue;
       if (Math.hypot(px - clamp(px, b.x0, b.x1), pz - clamp(pz, b.z0, b.z1)) < V.rad) { ok = false; break; }
     }
     if (!ok) break;
@@ -6495,8 +6495,8 @@ function driveStep(dt) {
     if (d < 2.3 && d > .01) { p.g.position.x += dx / d * (2.3 - d); p.g.position.z += dz / d * (2.3 - d); }
   }
   // ride up onto low things (slabs, porches), fall off edges
-  let target = carGround(c.x, c.z, c.yaw, V);
-  for (const b of queryGrid(solidGrid, c.x, c.z, 1.5)) if (b.y1 <= c.y + .65 && c.x > b.x0 - .5 && c.x < b.x1 + .5 && c.z > b.z0 - .5 && c.z < b.z1 + .5) target = Math.max(target, b.y1);
+  let target = carGround(c.x, c.z, c.yaw, V); const gnd = target;
+  for (const b of queryGrid(solidGrid, c.x, c.z, 1.5)) if (b.y1 <= Math.min(c.y, gnd + .65) + .65 && b.y1 <= gnd + 1.3 && c.x > b.x0 + .15 && c.x < b.x1 - .15 && c.z > b.z0 + .15 && c.z < b.z1 - .15) target = Math.max(target, b.y1);   // only when the car's middle is over it: no hovering beside kerbs and medians
   if (target >= c.y) { c.y += (target - c.y) * Math.min(1, dt * 12); c.vy = 0; }
   else { c.vy -= 22 * dt; c.y = Math.max(target, c.y + c.vy * dt); if (c.y === target) c.vy = 0; }
   placeCar(c);
@@ -9226,8 +9226,12 @@ function drvCost(i, j, tight) {   // the cost of driving through a cell, or Infi
   const k = kindAt(x, z), road = k === 6 || k === 8 || k === 9;
   if (k === 1 || k === 2 || k === 3) return Infinity;
   const cl = tight ? .9 : road ? 1.2 : 3.2;   // room for the car: walls, trees and buildings block every kind of ground, paved floors included
-  for (const b of queryGrid(solidGrid, x, z, cl)) if (b.y1 > h + .65 && b.y0 < h + 2 && x > b.x0 - cl && x < b.x1 + cl && z > b.z0 - cl && z < b.z1 + cl) return Infinity;
-  return road ? 1 : k === 7 ? 3.5 : 14;   // asphalt, then pavement, then open ground (only to reach a road)
+  let low = 0;
+  for (const b of queryGrid(solidGrid, x, z, cl)) {
+    if (b.y1 > h + .65 && b.y0 < h + 2 && x > b.x0 - cl && x < b.x1 + cl && z > b.z0 - cl && z < b.z1 + cl) return Infinity;
+    if (b.y1 > h + .12 && b.y1 <= h + .65 && b.y0 < h + .3 && x > b.x0 - 1.4 && x < b.x1 + 1.4 && z > b.z0 - 1.4 && z < b.z1 + 1.4) low = 60;   // a kerb or median: only if there's no other way
+  }
+  return (road ? 1 : k === 7 ? 3.5 : 14) + low;   // asphalt, then pavement, then open ground (only to reach a road)
 }
 function drvRoute(x0, z0, x1, z1) {
   const NI = DRV_NI, NJ = DRV_NJ, cell = (x, z) => [clamp(Math.floor((x + HALF) / DRV_CELL), 0, NI - 1), clamp(Math.floor((z - DRV_Z0) / DRV_CELL), 0, NJ - 1)];
