@@ -1551,6 +1551,23 @@ function smallTree(b, x, z, y) {
 function bench(b, x, z, y, alongX) { b.box(alongX ? 1.8 : .5, .1, alongX ? .5 : 1.8, x, y + .45, z, M.oak, 1, true, 'roof'); b.box(alongX ? 1.8 : .1, .5, alongX ? .1 : 1.8, x + (alongX ? 0 : .25), y + .75, z + (alongX ? .25 : 0), M.oak, 1, false); }
 
 /* single-storey bungalow: porch, hip roof, open-plan living room and kitchen, bedroom behind a partition */
+/* buildings must never stand on a road. roadUnder: does a w × d footprint centred on (x, z) touch any road outside the city grids
+   (the airport expressway, the coast road, the estate and Banana Island roads, the link road to Yaba and the mainland roads)?
+   dropBuild runs a build and then takes it back out (colliders, doors, scene objects, the house list), so a skipped
+   building still uses up its random numbers and everything placed after it keeps its place. */
+function roadUnder(x, z, w, d) {
+  for (let u = -.5; u <= .5; u += .25) for (let v = -.5; v <= .5; v += .25) {
+    const px = x + u * w, pz = z + v * d;
+    if (nearRoad(px, pz) || nearCoastRoad(px, pz) || estateRoadDist(px, pz) < 4.5 || (YB && (linkDist(px, pz) < 4.5 || yRoadDist(px, pz) < 4.5))) return true;
+  }
+  return false;
+}
+function dropBuild(v, fn) {
+  const nc = colliders.length, nd = DOORS.length, nh = v.houses.length, kids = new Set(scene.children);
+  fn();
+  colliders.length = nc; DOORS.length = nd; v.houses.length = nh;
+  for (const o of [...scene.children]) if (!kids.has(o)) scene.remove(o);
+}
 function buildBungalow(hs, b) {
   const v = hs.v, y = v.y, fl = y + .3, F = mkFrame(hs, b), { L, WL, DL, pt } = F;
   const T = .25, DW = 1.3, DH = 2.4, wallH = 3.5, dX = -1.5, top = fl + wallH;
@@ -1708,12 +1725,12 @@ if (TOWN) {
     }
     b.build();
   }
-  // bungalow strips outside the ring road, facing in
+  // bungalow strips outside the ring road, facing in; a lot that would sit on a road (to Banana Island, to Yaba) is built and dropped, so the random stream is unchanged
   for (const s2 of [-1, 1]) {
-    const b = new Builder();
+    const b = new Builder(), lot = hs => roadUnder(hs.x, hs.z, hs.w + 1, hs.d + 1) ? dropBuild(T0, () => buildBungalow(hs, new Builder())) : buildBungalow(hs, b);
     for (const a of [-70, -50, -30, -10, 10, 30, 50, 70]) {
-      if (!(ESTATES.length && s2 < 0 && Math.abs(a - 10) < 12)) buildBungalow(mkLot(a, s2 * 89, 12, 8, s2 < 0 ? 'pz' : 'nz'), b);   // a gap for the road north to Lekki Gardens
-      if (!(AP && s2 === AP.sx && Math.abs(a + 38 * AP.sz) < 20) && !(COAST && s2 < 0 && Math.abs(a) < 20)) buildBungalow(mkLot(s2 * 89, a, 8, 12, s2 < 0 ? 'px' : 'nx'), b);
+      if (!(ESTATES.length && s2 < 0 && Math.abs(a - 10) < 12)) lot(mkLot(a, s2 * 89, 12, 8, s2 < 0 ? 'pz' : 'nz'));   // a gap for the road north to Lekki Gardens
+      if (!(AP && s2 === AP.sx && Math.abs(a + 38 * AP.sz) < 20) && !(COAST && s2 < 0 && Math.abs(a) < 20)) lot(mkLot(s2 * 89, a, 8, 12, s2 < 0 ? 'px' : 'nx'));
     }
     b.build();
   }
@@ -3084,6 +3101,23 @@ if (YB) {
   for (const key of touched) { const [ci, cj] = key.split(',').map(Number); TERRAIN_CHUNK(ci, cj); }
 }
 hookRoot.updateMatrixWorld(true);
+// a last check once the world is built: no wall or building may stand on a road tile. Anything found is listed in the console
+// (fix the layout that placed it: see roadUnder and dropBuild). Pillars and posts (up to 1.5 m square), low barriers (under 1.5 m),
+// anything raised above the road, and the estates' boundary walls (where their avenues end) are allowed
+const ROAD_CLASHES = [];
+{
+  const road = (x, z) => { const k = kindAt(x, z); return k === 6 || k === 8 || k === 9; };
+  const boundary = b => ESTATES.some(E => b.x1 > E.x0 - 4 && b.x0 < E.x1 + 4 && b.z1 > E.z0 - 4 && b.z0 < E.z1 + 4 && Math.min(Math.abs(b.z0 - E.z0), Math.abs(b.z1 - E.z0), Math.abs(b.z0 - E.z1), Math.abs(b.z1 - E.z1), Math.abs(b.x0 - E.x0), Math.abs(b.x1 - E.x0), Math.abs(b.x0 - E.x1), Math.abs(b.x1 - E.x1)) < 3.5);
+  for (const b of colliders) {
+    if (b.tag !== 'house' && b.tag !== 'base') continue;
+    const w = b.x1 - b.x0, d = b.z1 - b.z0; if (w <= 1.5 && d <= 1.5) continue;
+    const h = heightAt((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2); if (b.y1 - h < 1.5 || b.y0 - h > 1 || boundary(b)) continue;
+    let n = 0;
+    for (let u = .1; u < 1; u += .2) for (let v = .1; v < 1; v += .2) if (road(b.x0 + u * w, b.z0 + v * d)) n++;
+    if (n >= 3) ROAD_CLASHES.push(b);
+  }
+  if (ROAD_CLASHES.length) console.warn(`${ROAD_CLASHES.length} wall(s) stand on a road:`, ROAD_CLASHES.slice(0, 20).map(b => `${b.tag} x ${b.x0.toFixed(1)}…${b.x1.toFixed(1)} z ${b.z0.toFixed(1)}…${b.z1.toFixed(1)}`));
+}
 
 /* ---------- particles (steam, gas) ---------- */
 const puffTex = (() => {
