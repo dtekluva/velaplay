@@ -3010,16 +3010,23 @@ const shadeOf = (hex, k) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexS
    on top. 64 painted variants (gender x eye colour x brow colour x lip tone) share one texture atlas; the skin
    colour comes from the head mesh underneath, so the paint only adds eyes, brows, shading and lips. ---------- */
 const FACE = { cell: 192, cols: 8, X0: -.12, X1: .12, Y0: 0, Y1: .28 };
-const HEADS = [null, null];
-function headGeo(fem) {   // the sculpted skull for a man (0) or a woman (1), in head-local units, front toward -z
-  if (HEADS[fem]) return HEADS[fem];
+const HEADS = new Map();
+// face shapes: how fast the jaw narrows, a defined jaw corner, cheekbone width, and length below the eyes
+const FACE_SHAPES = { oval: { nar: .3, jaw: 0, cheek: .01, len: 0, chin: 1 }, round: { nar: .14, jaw: .03, cheek: .03, len: -.03, chin: .8 }, square: { nar: .12, jaw: .11, cheek: .01, len: .02, chin: 1.35 },
+  heart: { nar: .4, jaw: -.02, cheek: .055, len: 0, chin: .9 }, long: { nar: .24, jaw: .04, cheek: 0, len: .08, chin: 1.1 }, jaw: { nar: .18, jaw: .08, cheek: .03, len: .03, chin: 1.25 } };
+const faceShapeOf = (fem, shape) => FACE_SHAPES[shape] ? shape : fem ? 'oval' : 'jaw';
+function headGeo(fem, shape, feat = 0) {   // the sculpted skull for a man (0) or a woman (1), in head-local units, front toward -z
+  shape = faceShapeOf(fem, shape); feat = feat ? 1 : 0;
+  const key = fem + '|' + shape + '|' + feat; if (HEADS.has(key)) return HEADS.get(key);
+  const F = FACE_SHAPES[shape];
   const g = new THREE.SphereGeometry(1, 44, 34), p = g.attributes.position;
   const rx = fem ? .103 : .11, ry = .134, rz = .12, cy = .15;
   const G = (a, b, sa, sb) => Math.exp(-(a * a) / (sa * sa) - (b * b) / (sb * sb));
   for (let i = 0; i < p.count; i++) {
     const dx = p.getX(i), dy = p.getY(i), dz = p.getZ(i);
     let x = dx * rx, y = dy * ry, z = dz * rz;
-    if (dy < 0) { const t = -dy; x *= 1 - (fem ? .3 : .22) * t * t; y *= 1 + .1 * t; if (dz < 0) z *= 1 - .12 * t * t; }   // the jaw narrows toward the chin
+    x *= 1 + F.cheek * G(dy + .08, 0, .25, 1) * (dz < .2 ? 1 : .4);                       // cheekbone width
+    if (dy < 0) { const t = -dy; x *= (1 - F.nar * t * t) * (1 + F.jaw * G(t - .58, 0, .2, 1) * (dz < .35 ? 1 : .3)); y *= 1 + (.1 + F.len) * t; if (dz < 0) z *= 1 - .12 * t * t; }   // the jaw: narrowing to the chin, with a corner
     if (dz > 0) z *= 1 + .07 * Math.max(0, dy + .3);                                                                         // a fuller back of the skull
     const Y = cy + y, ax = Math.abs(x), w = clamp((-dz - .2) / .45, 0, 1);
     if (w > 0) {
@@ -3028,27 +3035,28 @@ function headGeo(fem) {   // the sculpted skull for a man (0) or a woman (1), in
       off += .01 * G(ax - .042, Y - .156, .019, .012);                       // eye sockets
       off -= .006 * G(x, Y - .182, .055, .009);                              // brow ridge
       off -= .008 * G(ax - .058, Y - .118, .02, .016);                       // cheekbones
-      off -= (fem ? .016 : .02) * G(x, 0, .0095, 1) * nose;                  // nose bridge
-      off -= (fem ? .01 : .013) * G(x, Y - .106, .013, .01);                 // nose tip
-      off -= .005 * G(ax - .013, Y - .1, .006, .006);                        // nostril wings
-      off += .004 * G(ax - .02, Y - .09, .01, .012);                         // the dip beside the nose
-      off -= (fem ? .007 : .005) * G(x, Y - .074, .022, .006);               // upper lip
-      off -= (fem ? .007 : .005) * G(x, Y - .062, .02, .007);                // lower lip
-      off += .003 * G(x, Y - .049, .02, .005);                               // the fold under the lip
-      off -= .008 * G(x, Y - .028, fem ? .02 : .026, .016);                  // chin
+      // feat 1: a broader, rounder nose and fuller lips
+      off -= (fem ? .016 : .02) * (feat ? .8 : 1) * G(x, 0, feat ? .012 : .0095, 1) * nose;     // nose bridge
+      off -= (fem ? .01 : .013) * G(x, Y - .106, feat ? .017 : .013, .01);                     // nose tip
+      off -= (feat ? .007 : .005) * G(ax - (feat ? .018 : .013), Y - .1, feat ? .008 : .006, .007);   // nostril wings
+      off += .004 * G(ax - (feat ? .026 : .02), Y - .09, .01, .012);                           // the dip beside the nose
+      off -= (fem ? .008 : .005) * (feat ? 1.35 : 1) * G(x, Y - .075, feat ? .026 : .022, .0065);   // upper lip
+      off -= (fem ? .008 : .005) * (feat ? 1.35 : 1) * G(x, Y - .061, feat ? .024 : .02, .0075);    // lower lip
+      off += .003 * G(x, Y - .049, .02, .005);                                                 // the fold under the lip
+      off -= .008 * F.chin * G(x, Y - .028, (fem ? .02 : .026) * (F.chin > 1.2 ? 1.3 : 1), .016);   // chin
       z += off * w;
     }
     p.setXYZ(i, x, Y, z);
   }
   g.computeVertexNormals();
-  HEADS[fem] = g.toNonIndexed();
-  return HEADS[fem];
+  const out = g.toNonIndexed(); HEADS.set(key, out);
+  return out;
 }
 // hair that hugs the skull: the sculpted head's triangles above a hairline, pushed out a little
 const HAIRCAPS = new Map();
-function hairCap(fem, style) {
-  const key = fem + style; if (HAIRCAPS.has(key)) return HAIRCAPS.get(key);
-  const src = headGeo(fem), P = src.attributes.position, N = src.attributes.normal, pos = [], nor = [];
+function hairCap(fem, style, shape, feat) {
+  const key = fem + style + faceShapeOf(fem, shape) + (feat ? 1 : 0); if (HAIRCAPS.has(key)) return HAIRCAPS.get(key);
+  const src = headGeo(fem, shape, feat), P = src.attributes.position, N = src.attributes.normal, pos = [], nor = [];
   const longBack = style === 'long' || style === 'bob' || style === 'braids' || style === 'locs', thick = style === 'fade' ? 1.022 : style === 'curly' || style === 'messy' ? 1.06 : 1.042;
   const line = (x, y, z) => {
     const f = clamp(-z / .11, 0, 1), side = clamp(Math.abs(x) / .1, 0, 1);
@@ -3067,9 +3075,9 @@ function hairCap(fem, style) {
 }
 // the painted layer: the front triangles of the sculpted head, mapped into one cell of the atlas
 const DECALS = new Map();
-function faceDecalGeo(fem, cell) {
-  const key = fem * 100 + cell; if (DECALS.has(key)) return DECALS.get(key);
-  const src = headGeo(fem), P = src.attributes.position, N = src.attributes.normal, pos = [], nor = [], uv = [];
+function faceDecalGeo(fem, cell, shape, feat) {
+  const key = fem * 100 + cell + '|' + faceShapeOf(fem, shape) + (feat ? 1 : 0); if (DECALS.has(key)) return DECALS.get(key);
+  const src = headGeo(fem, shape, feat), P = src.attributes.position, N = src.attributes.normal, pos = [], nor = [], uv = [];
   const col = cell % FACE.cols, row = Math.floor(cell / FACE.cols), du = 1 / FACE.cols;
   for (let t = 0; t < P.count; t += 3) {
     let front = true;
@@ -3100,12 +3108,14 @@ const faceAtlas = (() => {
     radial(0, .093, .012, 'rgba(60,30,25,.2)'); if (!fem) radial(0, .052, .014, 'rgba(60,30,25,.08)');   // the dip under the lower lip: men only (on women it read as a goatee)
     if (fem) for (const sx of [-1, 1]) radial(sx * .062, .115, .026, 'rgba(215,95,105,.14)');
     radial(0, .108, .01, 'rgba(255,255,255,.12)');   // a highlight on the tip of the nose
+    for (const sx of [-1, 1]) radial(sx * .062, .128, .028, 'rgba(255,236,214,.11)');   // light on the cheekbones
+    radial(0, .14, .006, 'rgba(255,255,255,.08)');   // down the bridge of the nose
     // eyes
     for (const sx of [-1, 1]) {
-      const ex = sx * .042, ey = .156, inner = ex - sx * .02, outer = ex + sx * .022;
+      const ex = sx * .042, ey = .156, ew = fem ? 1.1 : 1, inner = ex - sx * .02 * ew, outer = ex + sx * .022 * ew;
       g.strokeStyle = 'rgba(70,40,30,.35)'; g.lineWidth = L(.0018); curve([[inner, ey + .006], [ex, ey + .022], [outer, ey + .008]]); g.stroke();   // lid crease
-      if (fem) { g.fillStyle = 'rgba(120,80,90,.16)'; curve([[inner, ey + .004], [ex, ey + .024], [outer + sx * .003, ey + .007]]); g.lineTo(...P(outer, ey + .002)); g.closePath(); g.fill(); }
-      const almond = () => curve([[inner, ey], [ex, ey + .017], [outer, ey + .003], [ex, ey - .011], [inner, ey]]);
+      if (fem) { g.fillStyle = 'rgba(120,70,60,.24)'; curve([[inner, ey + .004], [ex, ey + .026], [outer + sx * .004, ey + .008]]); g.lineTo(...P(outer, ey + .002)); g.closePath(); g.fill(); }   // a warm lid shade
+      const almond = () => curve([[inner, ey], [ex, ey + .017 * ew], [outer, ey + .003], [ex, ey - .011 * ew], [inner, ey]]);
       almond(); g.fillStyle = '#f2ece4'; g.fill();
       g.save(); almond(); g.clip();
       const [ix, iy] = P(ex, ey + .001), ir = L(.0098), gi = g.createRadialGradient(ix, iy, ir * .2, ix, iy, ir);
@@ -3134,12 +3144,15 @@ const faceAtlas = (() => {
     // nostrils
     for (const sx of [-1, 1]) { const [nx, ny] = P(sx * .0085, .0975); g.fillStyle = 'rgba(40,20,15,.6)'; g.beginPath(); g.ellipse(nx, ny, L(.0045), L(.0024), sx * .4, 0, TAU); g.fill(); }
     // lips
-    const lc = fem ? (lip ? '#6e2a36' : '#b84e5c') : (lip ? 'rgba(85,45,42,.55)' : 'rgba(160,90,85,.5)');
+    const lc = fem ? (lip ? '#7a2c3a' : '#b84e5c') : (lip ? 'rgba(85,45,42,.55)' : 'rgba(160,90,85,.5)');
+    const lw = fem ? .027 : .024, up = fem ? .0815 : .0795, lo = fem ? .0555 : .0585;   // women: wider, fuller lips
     g.fillStyle = lc;
-    curve([[-.024, .0712], [-.014, .0735], [-.0065, .079], [-.003, .0795], [0, .0768], [.003, .0795], [.0065, .079], [.014, .0735], [.024, .0712], [0, .0705], [-.024, .0712]]); g.fill();   // upper lip with a cupid's bow
-    curve([[-.024, .0712], [-.014, .061], [0, .0585], [.014, .061], [.024, .0712], [0, .0705], [-.024, .0712]]); g.fill();                                                     // lower lip
-    g.strokeStyle = 'rgba(40,15,15,.65)'; g.lineWidth = L(.0016); curve([[-.024, .0712], [0, .0698], [.024, .0712]]); g.stroke();
-    radial(0, .0635, .007, fem ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.12)');
+    curve([[-lw, .0712], [-.015, .0745], [-.0068, up], [-.003, up + .0005], [0, up - .0028], [.003, up + .0005], [.0068, up], [.015, .0745], [lw, .0712], [0, .0705], [-lw, .0712]]); g.fill();   // upper lip with a cupid's bow
+    curve([[-lw, .0712], [-.016, lo + .003], [0, lo], [.016, lo + .003], [lw, .0712], [0, .0705], [-lw, .0712]]); g.fill();                                                     // lower lip
+    if (fem) { g.strokeStyle = 'rgba(70,20,28,.45)'; g.lineWidth = L(.0012); curve([[-lw, .0712], [-.016, lo + .003], [0, lo], [.016, lo + .003], [lw, .0712]]); g.stroke(); }   // liner
+    g.strokeStyle = 'rgba(40,15,15,.65)'; g.lineWidth = L(.0016); curve([[-lw, .0712], [0, .0698], [lw, .0712]]); g.stroke();
+    radial(0, lo + .0055, fem ? .009 : .007, fem ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.12)');   // gloss on the lower lip
+    if (fem) radial(-.007, up - .004, .004, 'rgba(255,255,255,.22)');
     for (const sx of [-1, 1]) radial(sx * .025, .071, .004, 'rgba(50,25,20,.3)');   // mouth corners
     g.restore();
   }
@@ -3198,33 +3211,45 @@ function ringGeo(rings, seg, bump, cuts) {   // rings: [y, half-width, half-dept
 }
 const gauss2 = (a, b, sa, sb) => Math.exp(-(a * a) / (sa * sa) - (b * b) / (sb * sb));
 Seg.prototype.raw = function (geo) { this.g.push(geo); return this; };
+// body types: multipliers for shoulders, chest, waist, hips, glutes, bust (or pecs), thighs, arms, and a belly
+const BODY_F = { slim: { sh: .97, chest: .96, waist: .93, hip: .97, glute: 1.1, bust: .9, thigh: .95, arm: .94 }, curvy: { chest: 1.02, waist: .9, hip: 1.13, glute: 1.9, bust: 1.35, thigh: 1.1 },
+  thick: { sh: 1.05, chest: 1.1, waist: 1.06, hip: 1.22, glute: 2.2, bust: 1.55, thigh: 1.2, arm: 1.12, belly: .008 }, athletic: { sh: 1.05, chest: 1.02, waist: .93, hip: 1.04, glute: 1.5, thigh: 1.07, arm: 1.07 } };
+const BODY_M = { slim: { sh: .96, chest: .94, waist: .94, hip: .96, thigh: .94, arm: .92 }, fit: { sh: 1.1, chest: 1.1, waist: .93, hip: .98, glute: 1.25, pec: 2.2, thigh: 1.07, arm: 1.16 },
+  big: { sh: 1.06, chest: 1.12, waist: 1.22, hip: 1.12, glute: 1.2, thigh: 1.1, arm: 1.1, belly: .045 } };
+function bodyType(S, fem) { const d = { sh: 1, chest: 1, waist: 1, hip: 1, glute: 1, bust: 1, pec: 1, thigh: 1, arm: 1, belly: 0 }; return S.child || S.titan ? d : { ...d, ...((fem ? BODY_F : BODY_M)[S.body] || {}) }; }
 function buildFigure(S) { FIG_LOD = !!S.lod; try { return buildFigureParts(S); } finally { FIG_LOD = false; } }
 function buildFigureParts(S) {
   const W = S.build || 1, cast = !!S.cast, skin = S.skin, shade = S.shade || shadeOf(skin, .82);
   const Fm = S.female && !S.child && !S.titan ? 1 : 0;   // a woman's build: narrower shoulders and waist, fuller hips, a bust
+  const B = bodyType(S, Fm), lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
   const root = new THREE.Group(); root.rotation.order = 'YXZ';
   const pelvis = new THREE.Group(); pelvis.position.y = .885; root.add(pelvis);
   const torso = new THREE.Group(); torso.position.y = .1; pelvis.add(torso);
   const head = new THREE.Group(); head.position.y = .58; torso.add(head);
   const top = S.shirt || skin, legC = S.pants || skin;
   const sleeve = S.tank ? skin : S.sleeve || top;
-  const lowerTop = S.gown || S.kaftan || S.skirt;      // what covers the hips and legs
+  const lowerTop = S.gown || S.kaftan || S.skirt || S.robe;      // what covers the hips and legs
   let shinC = S.boots || S.stockings || (S.shorts ? skin : legC);
-  if (S.gown) shinC = S.gown;                          // legs inside a gown read as fabric if they peek out
+  if (S.gown || S.robe) shinC = S.gown || S.robe;                          // legs inside a gown read as fabric if they peek out
 
   // hips
   const hipC = S.shorts || S.pants || lowerTop || legC;   // under a skirt or gown the hips are the skirt's colour, never bare
-  const hipRings = (Fm ? [[-.15, .03, .03, 1], [-.13, .11, .08, .9], [-.09, .172, .114, .85], [-.03, .19, .124, .85], [.05, .18, .114, .88], [.14, .158, .102, .9]]
-    : [[-.15, .03, .03, 1], [-.13, .1, .07, .9], [-.09, .15, .1, .85], [-.03, .165, .11, .85], [.05, .162, .106, .88], [.14, .152, .1, .9]]).map(([y, a, b, e]) => [y, a * W, b * W, e]);
-  const hp = new Seg().raw(paintGeo(ringGeo(hipRings, 24, (x, y, z) => z > 0 ? (.012 + .012 * Fm) * gauss2(Math.abs(x) - .06, y + .05, .06, .05) : 0), () => hipC));
+  const hipRings = (Fm ? [[-.15, .03, .03, 1], [-.13, .115, .078, .9], [-.09, .18, .106, .85], [-.04, .198, .112, .85], [.03, .186, .108, .87], [.1, .16, .1, .89], [.14, .146, .096, .9]]
+    : [[-.15, .03, .03, 1], [-.13, .1, .068, .9], [-.09, .15, .094, .85], [-.03, .165, .102, .85], [.05, .162, .102, .88], [.14, .152, .1, .9]]).map(([y, a, b, e]) => { const m = lerp(B.hip, B.waist, (y + .03) / .17); return [y, a * W * m, b * W * m, e]; });
+  const hp = new Seg().raw(paintGeo(ringGeo(hipRings, 24, (x, y, z) => z > 0 ? (.012 + .012 * Fm) * B.glute * gauss2(Math.abs(x) - .06 * B.hip, y + .05, .06, .05) : 0), () => hipC)), WH = W * B.hip;
   if (S.gown) {   // a long gown, flared to the ankles; ankara prints are bands of colour
     const P = S.print || [S.gown], n = P.length > 1 ? 7 : 1;
-    hp.raw(paintGeo(limbGeo([[.17, .07], [.195, -.04], [.21, -.2], [.25, -.48], [.3, -.78], [.34, -.93], [.335, -.95]], W, .82, 20, [...Array(n - 1)].map((_, k) => .07 - (k + 1) * 1.02 / n).concat(-.91)), (x, y) => y < -.91 ? shadeOf(P[0], .7) : P[clamp(Math.floor((.07 - y) / (1.02 / n)), 0, n - 1) % P.length]));
+    hp.raw(paintGeo(limbGeo([[.17, .07], [.195, -.04], [.21, -.2], [.25, -.48], [.3, -.78], [.34, -.93], [.335, -.95]], WH, .82, 20, [...Array(n - 1)].map((_, k) => .07 - (k + 1) * 1.02 / n).concat(-.91)), (x, y) => y < -.91 ? shadeOf(P[0], .7) : P[clamp(Math.floor((.07 - y) / (1.02 / n)), 0, n - 1) % P.length]));
   } else if (S.kaftan) {
-    hp.raw(paintGeo(limbGeo([[.17, .08], [.19, -.1], [.22, -.3], [.25, -.48], [.252, -.52]], W, .78, 18, [-.48]), (x, y) => y < -.48 ? (S.trim || '#d6ae5f') : S.kaftan));
+    hp.raw(paintGeo(limbGeo([[.17, .08], [.19, -.1], [.22, -.3], [.25, -.48], [.252, -.52]], WH, .78, 18, [-.48]), (x, y) => y < -.48 ? (S.trim || '#d6ae5f') : S.kaftan));
+  } else if (S.robe) {   // a jalabiya (and the robe under an agbada): straight and loose, down to the ankles
+    hp.raw(paintGeo(limbGeo([[.168, .07], [.188, -.1], [.2, -.4], [.21, -.7], [.222, -.9], [.218, -.93]], WH, .8, 18, [-.87]), (x, y) => y < -.87 ? (S.trim || shadeOf(S.robe, .82)) : S.robe));
   } else if (S.skirt) {
-    const L = S.skirtLen || .5, fl = S.pencil ? .01 : .09;
-    hp.raw(paintGeo(limbGeo([[.168 + .02 * Fm, .06], [.19 + .01 * Fm, -.04], [.2 + fl * .5, -L * .5], [.205 + fl + L * .06, .02 - L], [.2 + fl + L * .06, .0 - L]], W, .8, 18, [.04 - L]), (x, y) => y < .04 - L ? shadeOf(S.skirt, .75) : S.skirt));
+    // the skirt follows the waist and the hips, then hangs: a pencil skirt tapers to the knee, others flare
+    const L = S.skirtLen || .5, fl = S.pencil ? 0 : .09, hip = .19 + .012 * Fm;
+    const prof = S.pencil ? [[.146 + .006 * Fm, .14], [.178 + .008 * Fm, .04], [hip + .004, -.05], [hip - .004, -L * .55], [hip - .03, .02 - L], [hip - .034, -L]]
+      : [[.148 + .006 * Fm, .14], [.18 + .008 * Fm, .04], [hip + .006, -.05], [hip + .01 + fl * .5, -L * .5], [hip + .015 + fl + L * .06, .02 - L], [hip + .01 + fl + L * .06, -L]];
+    hp.raw(paintGeo(limbGeo(prof, WH, .74, 20, [.04 - L]), (x, y) => y < .04 - L ? shadeOf(S.skirt, .75) : S.skirt));
   }
   if (S.titan) hp.sph(.08 * W, .05, .02, 0, -.03, -.1, shade);
   hp.mesh(pelvis, cast);
@@ -3232,9 +3257,9 @@ function buildFigureParts(S) {
   // torso: waist, rib cage, shoulder line, neck
   const waistC = S.crop ? skin : (S.overalls || top);
   // the torso: waist, rib cage and chest, a rounded shoulder line, the base of the neck
-  const torsoRings = (Fm ? [[-.03, .158, .102, .9], [.06, .132, .094, .9], [.16, .136, .097, .88], [.26, .16, .106, .84], [.34, .172, .11, .8], [.41, .182, .108, .78], [.455, .186, .098, .76], [.49, .145, .08, .82], [.515, .08, .06, 1], [.54, .05, .05, 1]]
-    : [[-.03, .152, .1, .9], [.06, .148, .098, .9], [.16, .158, .102, .86], [.26, .182, .114, .82], [.34, .196, .12, .79], [.41, .206, .118, .76], [.455, .21, .106, .73], [.49, .165, .085, .8], [.515, .09, .066, 1], [.54, .056, .056, 1]]).map(([y, a, b, e]) => [y, y > .5 ? a : a * W, b * (y > .5 ? 1 : W), e]);
-  const shapeT = (x, y, z) => z < 0 ? -(Fm ? .032 * gauss2(Math.abs(x) - .05, y - .325, .042, .042) + .004 * gauss2(x, y - .3, .06, .03) : .007 * gauss2(Math.abs(x) - .065, y - .34, .05, .04))
+  const torsoRings = (Fm ? [[-.03, .146, .098, .9], [.04, .124, .09, .9], [.12, .12, .09, .9], [.2, .136, .096, .88], [.28, .158, .104, .84], [.35, .166, .106, .82], [.41, .166, .102, .8], [.455, .162, .092, .8], [.49, .126, .076, .84], [.515, .075, .058, 1], [.54, .048, .048, 1]]
+    : [[-.03, .152, .1, .9], [.06, .148, .098, .9], [.16, .158, .102, .86], [.26, .182, .114, .82], [.34, .196, .12, .79], [.41, .206, .118, .76], [.455, .21, .106, .73], [.49, .165, .085, .8], [.515, .09, .066, 1], [.54, .056, .056, 1]]).map(([y, a, b, e]) => { if (y > .5) return [y, a, b, e]; const m = y < .1 ? B.waist : y < .26 ? lerp(B.waist, B.chest, (y - .1) / .16) : y < .41 ? B.chest : lerp(B.chest, B.sh, (y - .41) / .08), md = y < .41 ? m : B.chest; return [y, a * W * m, b * W * md, e]; });
+  const shapeT = (x, y, z) => z < 0 ? -((Fm ? .046 * B.bust * gauss2(Math.abs(x) - .054 * B.chest, y - .318, .044 * Math.sqrt(B.bust), .042 * Math.sqrt(B.bust)) + .004 * gauss2(x, y - .3, .06, .03) : .007 * B.pec * gauss2(Math.abs(x) - .065 * B.chest, y - .34, .05, .04)) + B.belly * gauss2(x, y - .1, .13, .11))
     : .006 * gauss2(Math.abs(x) - .07, y - .38, .04, .05);
   const torsoC = (x, y, z) => y > .505 ? skin : S.crop && y < .2 ? skin
     : S.tank && ((y > .44 && Math.abs(x) > .085) || (y > .41 && z < 0 && Math.abs(x) < .06)) ? skin
@@ -3250,7 +3275,7 @@ function buildFigureParts(S) {
   } else {
     if (!S.tank && !S.hood) t.cyl(.074 - .008 * Fm, .088 - .008 * Fm, .045, 0, .515, 0, S.collar || '#e9e4d6', 0, .9);
     if (S.buttons) for (const y of [.2, .28, .36]) t.sph(.011, .011, .007, 0, y, -.118, shadeOf(top, .55), 0);
-    if (!lowerTop && !S.crop) t.cyl((.156 - .022 * Fm) * W, (.158 - .022 * Fm) * W, .045, 0, .01, 0, S.belt || shadeOf(legC, .6), 0, .68).box(.045, .035, .012, 0, .01, -.108, '#b38a3e', 0);
+    if (!lowerTop && !S.crop) t.cyl((.156 - .022 * Fm) * W * B.waist, (.158 - .022 * Fm) * W * B.waist, .045, 0, .01, 0, S.belt || shadeOf(legC, .6), 0, .68).box(.045, .035, .012, 0, .01, -.108, '#b38a3e', 0);
     if (S.tank) for (const sx of [-1, 1]) t.box(.035, .06, .2, sx * .09, .5, 0, top, 0);
     if (S.hood) t.sph(.13, .085, .085, 0, .5, .105, S.hood).box(.2, .1, .012, 0, .12, -.12, shadeOf(S.hood, .85), 0).box(.008, .1, .006, -.03, .44, -.13, '#f2f0ea', 0).box(.008, .1, .006, .03, .44, -.13, '#f2f0ea', 0);
     if (S.blazer) t.box(.07, .2, .012, 0, .4, -.122, S.inner || '#f2f0ea', 0).box(.05, .24, .014, -.06, .38, -.124, shadeOf(top, .8), 0).box(.05, .24, .014, .06, .38, -.124, shadeOf(top, .8), 0);
@@ -3258,6 +3283,12 @@ function buildFigureParts(S) {
     if (S.cardigan) for (const sx of [-1, 1]) t.box(.085, .42, .014, sx * .075, .25, -.122, S.cardigan, 0);
     if (S.overalls) { t.box(.2, .22, .02, 0, .28, -.12, S.overalls, 0); for (const sx of [-1, 1]) t.box(.035, .35, .02, sx * .085, .38, -.11, S.overalls, 0).box(.035, .35, .02, sx * .085, .38, .11, S.overalls, 0).sph(.012, .012, .008, sx * .085, .37, -.132, '#d6ae5f', 0); }
     if (S.kaftan) t.box(.05, .18, .012, 0, .4, -.122, S.trim || '#d6ae5f', 0).cyl(.08, .09, .03, 0, .5, 0, S.trim || '#d6ae5f', 0, .9);
+    if (S.robe && !S.agbada) t.box(.04, .22, .012, 0, .38, -.12 * W * B.chest, S.trim || shadeOf(S.robe, .8), 0).cyl(.078, .088, .028, 0, .5, 0, S.trim || shadeOf(S.robe, .8), 0, .9);   // the jalabiya's placket
+    if (S.agbada) {   // the agbada: a wide robe from the shoulders to the knees, with a big embroidered panel on the chest
+      const A = S.agbada, tr = S.trim || '#d6ae5f';
+      t.raw(paintGeo(new THREE.CylinderGeometry(.25 * W * B.sh, .5 * W, .98, FIG_LOD ? 8 : 20, 1, true).scale(1, 1, .5).translate(0, .005, 0), (x, y) => y < -.45 ? shadeOf(A, .8) : A));
+      t.box(.17, .25, .012, 0, .31, -.172 * W, tr, 0).box(.22, .03, .012, 0, .45, -.14 * W, tr, 0).cyl(.08, .09, .03, 0, .5, 0, tr, 0, .9);
+    }
     if (S.gown && S.print) t.cyl((.192 - .02 * Fm) * W, (.19 - .02 * Fm) * W, .05, 0, .3, 0, S.print[1], 0, .63);
     if (S.backpack) t.box(.26, .32, .12, 0, .3, .17, S.backpack).box(.2, .1, .03, 0, .2, .235, shadeOf(S.backpack, .8), 0);
     if (S.reflect) t.cyl(.158 * W, .16 * W, .04, 0, .1, 0, '#d8f04a', 0, .7).cyl(.196 * W, .19 * W, .04, 0, .34, 0, '#d8f04a', 0, .64);
@@ -3283,7 +3314,15 @@ function buildFigureParts(S) {
     .sph(.016, .03, .022, -.111, .14, .005, skin).sph(.016, .03, .022, .111, .14, .005, skin);
   else {
     if (S.lod) h.sph(.11 - .006 * Fm, .134, .12, 0, .15, 0, skin, .02).sph(.085, .06, .09, 0, .07, -.015, skin, .02);
-    else h.add(headGeo(Fm).clone(), 0, 0, 0, skin, .02);
+    else if (S.stubble && !Fm) {   // a shadow of stubble on the jaw, chin and upper lip, painted into the skin itself
+      const sc = shadeOf(new THREE.Color(skin).lerp(new THREE.Color(S.hair || '#1a1410'), S.stubble === 'heavy' ? .5 : .3).getHexString().replace(/^/, '#'), 1);
+      h.raw(paintGeo(headGeo(Fm, S.face, S.feat).clone(), (x, y, z) => {
+        const lips = Math.abs(x) < .027 && y > .053 && y < .083 && z < -.09;
+        const jaw = z < .045 && ((y < .098 && !lips && (z < -.02 || y < .075)) || (Math.abs(x) > .085 && y < .14 && z > -.06));
+        return jaw ? sc : skin;
+      }, .02));
+    }
+    else h.add(headGeo(Fm, S.face, S.feat).clone(), 0, 0, 0, skin, .02);
     for (const sx of [-1, 1]) h.sph(.011, .027, .019, sx * (.107 - .006 * Fm), .142, .012, skin, .02, { w: 10, h: 8 }).sph(.006, .016, .01, sx * (.113 - .006 * Fm), .142, .008, shadeOf(skin, .8), 0, { w: 8, h: 6 });   // ears
   }
   if (S.titan) {
@@ -3301,7 +3340,7 @@ function buildFigureParts(S) {
   if (st && st !== 'bald') {
     if (S.titan) h.sph(.123, .146, .133, 0, .156, .006, hair, .04, { w: 16, h: 10, tl: Math.PI * .42 }).sph(.121, .141, .131, 0, .15, .008, hair, .04, { w: 14, h: 8, ps: 0, pl: Math.PI, ts: Math.PI * .3, tl: Math.PI * .42 });
     else if (S.lod) h.sph(.118 - .006 * Fm, .142, .128, 0, .156, .006, hair, .04, { tl: Math.PI * .45 });
-    else h.add(hairCap(Fm, st).clone(), 0, 0, 0, hair, .04);
+    else h.add(hairCap(Fm, st, S.face, S.feat).clone(), 0, 0, 0, hair, .04);
     if (st === 'long') h.sph(.1, .16, .05, 0, .04, .095, hair).sph(.025, .1, .035, -.1, .07, .025, hair).sph(.025, .1, .035, .1, .07, .025, hair);
     if (st === 'bun') h.sph(.05, .045, .045, 0, .25, .11, hair);
     if (st === 'ponytail') h.sph(.04, .04, .04, 0, .2, .13, hair).cyl(.03, .018, .22, 0, .08, .15, hair, .04, 1, 8);
@@ -3317,12 +3356,15 @@ function buildFigureParts(S) {
     h.sph(.14, .1, .145, 0, .22, .01, hw, .03, { w: 14, h: 10 }).sph(.17, .06, .07, 0, .3, .06, h2, .03, { w: 12, h: 8 }).sph(.12, .05, .06, 0, .33, -.03, hw, .03, { w: 12, h: 8 }).box(.2, .03, .02, 0, .2, -.13, h2, 0);
   }
   if (S.fila) h.cyl(.112, .122, .1, 0, .265, .01, S.fila, .03, 1, 14).cyl(.113, .113, .02, 0, .315, .01, shadeOf(S.fila, .75), 0, 1, 14);
+  if (S.kufi) {   // a round cap (hula), embroidered round the band
+    h.cyl(.112, .118, .075, 0, .262, .006, S.kufi, .02, 1, 16).cyl(.112, .112, .012, 0, .3, .006, shadeOf(S.kufi, .9), 0, 1, 16).cyl(.119, .119, .018, 0, .236, .006, S.kufiBand || shadeOf(S.kufi, .7), 0, 1, 16);
+  }
   if (S.hat === 'police') h.sph(.128, .07, .14, 0, .27, -.005, '#1a2236', 0, { w: 14, h: 8 }).cyl(.127, .127, .05, 0, .235, 0, '#0e0e10', 0, 1, 16).sph(.105, .014, .075, 0, .222, -.135, '#0e0e10', 0).box(.035, .035, .01, 0, .27, -.142, '#d6ae5f', 0);
   if (S.helmet) h.sph(.138, .152, .148, 0, .16, .006, S.helmet, 0, { w: 16, h: 10, tl: Math.PI * .62 }).box(.19, .06, .012, 0, .155, -.142, '#141618', 0);
   if (S.hat === 'cap') h.sph(.127, .12, .137, 0, .18, 0, S.hatColor, 0, { w: 14, h: 8, tl: Math.PI * .5 }).sph(.1, .012, .075, 0, .185, -.15, S.hatColor, 0);
   if (S.hat === 'straw') h.cyl(.22, .22, .015, 0, .255, 0, '#d9c27a', 0, 1, 18).cyl(.115, .125, .09, 0, .3, 0, '#d9c27a', 0, 1, 14).cyl(.127, .127, .022, 0, .27, 0, '#8a3a30', 0, 1, 14);
   h.mesh(head, cast);
-  if (!S.titan && !S.lod) head.add(new THREE.Mesh(faceDecalGeo(Fm, faceCell(S, Fm, skin)), faceMat));   // the painted face
+  if (!S.titan && !S.lod) head.add(new THREE.Mesh(faceDecalGeo(Fm, faceCell(S, Fm, skin), S.face, S.feat), faceMat));   // the painted face
   if (S.titan) {   // pin-prick eyes that stay bright in shadow and fog
     const glow = new THREE.MeshBasicMaterial({ color: S.glow || 0xf4ecc8 });
     for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(.011, 8, 6), glow); e.position.set(sx * .045, .16, -.113); head.add(e); }
@@ -3331,31 +3373,39 @@ function buildFigureParts(S) {
   // arms: shoulder ball, tapered upper arm, elbow, forearm, hand with thumb
   const uArm = [], fArm = [], aw = 1 - .12 * Fm;
   for (const sx of [-1, 1]) {
-    const sh = new THREE.Group(); sh.position.set(sx * (.24 - .02 * Fm) * W, .44, 0); torso.add(sh);
+    const sh = new THREE.Group(); sh.position.set(sx * (.24 - .038 * Fm) * W * B.sh, .44 - .012 * Fm, 0); torso.add(sh);
     const bare = (S.longSleeve === false || S.tank) && !S.titan, foreC = bare ? skin : sleeve;
     // upper arm: a rounded shoulder cap, the deltoid and bicep tapering to the elbow; short sleeves end above the elbow
     const upC = (x, y) => S.tank ? skin : bare && y < -.14 ? skin : bare && y < -.12 ? shadeOf(sleeve, .85) : sleeve;
-    new Seg().raw(paintGeo(limbGeo([[0, .06], [.034, .052], [.052, .03], [.058, -.01], [.056, -.06], [.052, -.12], [.047, -.18], [.042, -.24], [.04, -.27], [.026, -.295], [0, -.3]], W * aw, 1, 14, [-.12, -.14]), upC)).mesh(sh, cast);
+    new Seg().raw(paintGeo(limbGeo([[0, .06 - .016 * Fm], [.034, .05 - .014 * Fm], [.052 - .006 * Fm, .028 - .01 * Fm], [.058 - .006 * Fm, -.01], [.056, -.06], [.052, -.12], [.047, -.18], [.042, -.24], [.04, -.27], [.026, -.295], [0, -.3]], W * aw * B.arm, 1, 14, [-.12, -.14]), upC)).mesh(sh, cast);
+    if (S.wide) new Seg().cyl(.07, .14, .3, 0, -.15, 0, S.wide, .02, 1, FIG_LOD ? 6 : 14).mesh(sh, cast);   // wide flowing sleeves (agbada, boubou)
     const el = new THREE.Group(); el.position.y = -.27; sh.add(el);
     // forearm: fuller below the elbow, slim at the wrist; then the hand and thumb
-    const fa = new Seg().raw(paintGeo(limbGeo([[0, .035], [.03, .03], [.043, .005], [.047, -.04], [.045, -.09], [.038, -.16], [.031, -.22], [.029, -.245], [0, -.255]], W * aw, 1, 14, [-.205]), (x, y) => !bare && !S.titan && y < -.205 ? shadeOf(sleeve, .8) : foreC))
+    const fa = new Seg().raw(paintGeo(limbGeo([[0, .035], [.03, .03], [.043, .005], [.047, -.04], [.045, -.09], [.038, -.16], [.031, -.22], [.029, -.245], [0, -.255]], W * aw * B.arm, 1, 14, [-.205]), (x, y) => !bare && !S.titan && y < -.205 ? shadeOf(sleeve, .8) : foreC))
       .sph(.036 * W * aw, .056, .024, 0, -.29, 0, skin, .04, { w: 12, h: 10 }).sph(.014, .03, .014, -sx * .032, -.272, -.018, skin, .04, { w: 8, h: 6 });
+    if (S.wide) fa.cyl(.14, .17, .2, 0, -.1, 0, S.wide, .02, 1, FIG_LOD ? 6 : 14);
     fa.mesh(el, cast);
     uArm.push(sh); fArm.push(el);
   }
   // legs: hip ball, tapered thigh, knee, shin, shoe
   const thigh = [], shinG = [];
   for (const sx of [-1, 1]) {
-    const hp2 = new THREE.Group(); hp2.position.set(sx * (.09 + .006 * Fm) * W, -.02, 0); pelvis.add(hp2);
-    const thC = S.gown || (S.skirt ? (S.stockings || skin) : legC);
+    const hp2 = new THREE.Group(); hp2.position.set(sx * (.09 + .01 * Fm) * W * B.hip, -.02, 0); pelvis.add(hp2);
+    const thC = S.gown || S.robe || (S.skirt ? (S.stockings || skin) : legC);
     // thigh: full at the hip, tapering to the knee; shorts and cut-off jeans end mid-thigh with a hem
-    const thighCol = (x, y) => !S.shorts ? thC : y > -.2 ? S.shorts : y > -.218 ? (S.cut ? '#c9d6e6' : shadeOf(S.shorts, .8)) : skin;
-    const tg = new Seg().raw(paintGeo(limbGeo([[0, .06], [.05, .05], [.08, .02], [.085, -.03], [.08, -.1], [.073, -.2], [.064, -.3], [.057, -.38], [.052, -.42], [.035, -.45], [0, -.46]], W * (1 + .06 * Fm), 1, 14, S.shorts ? [-.2, -.218] : null), thighCol));
+    // ripped jeans: frayed slits across the front of the thighs and knees (pale threads at the edges, skin between)
+    const rips = S.ripped && !S.shorts && !lowerTop, R1 = sx > 0 ? [-.165, -.13] : [-.215, -.185], R2 = sx > 0 ? [-.296, -.27] : [-.33, -.305];
+    const rip = (x, y, z, [a, b], base) => z < -.02 && Math.abs(x) < .07 && y > a && y < b ? (y > a + .007 && y < b - .007 ? skin : '#e9eef4') : base;
+    const thighCol = (x, y, z) => !S.shorts ? (rips ? rip(x, y, z, R2, rip(x, y, z, R1, thC)) : thC) : y > -.2 ? S.shorts : y > -.218 ? (S.cut ? '#c9d6e6' : shadeOf(S.shorts, .8)) : skin;
+    const tCuts = S.shorts ? [-.2, -.218] : rips ? [...R1, R1[0] + .007, R1[1] - .007, ...R2, R2[0] + .007, R2[1] - .007] : null;
+    const tg = new Seg().raw(paintGeo(limbGeo([[0, .06], [.05, .05], [.08, .02], [.085, -.03], [.08, -.1], [.073, -.2], [.064, -.3], [.057, -.38], [.052, -.42], [.035, -.45], [0, -.46]], W * (1 + .1 * Fm) * B.thigh, 1, 14, tCuts), thighCol));
     if (S.jeans && !S.shorts && !lowerTop) tg.box(.008, .4, .008, sx * .074 * W, -.2, 0, shadeOf(legC, .7), 0);
     tg.mesh(hp2, cast);
     const kn = new THREE.Group(); kn.position.y = -.42; hp2.add(kn);
     // shin: the knee, a calf that swells and narrows to the ankle
-    const sg = new Seg().raw(paintGeo(limbGeo([[0, .04], [.04, .03], [.056, 0], [.06, -.06], [.058, -.11], [.05, -.18], [.04, -.26], [.035, -.32], [.034, -.37], [.03, -.39], [0, -.4]], W * (1 - .04 * Fm), 1, 14, S.socks ? [-.26] : null), (x, y) => S.socks && y < -.26 ? S.socks : shinC));
+    const K1 = [-.04, .012], sCuts = [...(S.socks ? [-.26] : []), ...(rips ? [...K1, K1[0] + .007, K1[1] - .007] : [])];
+    const sg = new Seg().raw(paintGeo(limbGeo([[0, .04], [.04, .03], [.056, 0], [.06, -.06], [.058, -.11], [.05, -.18], [.04, -.26], [.035, -.32], [.034, -.37], [.03, -.39], [0, -.4]], W * (1 - .04 * Fm) * (.5 + .5 * B.thigh), 1, 14, sCuts.length ? sCuts : null),
+      (x, y, z) => S.socks && y < -.26 ? S.socks : rips ? rip(x, y, z, K1, shinC) : shinC));
     if (S.titan) sg.sph(.042, .036, .02, 0, -.01, -.055, shade).sph(.062, .045, .13, 0, -.43, -.035, skin, .04, { w: 12, h: 8 }).sph(.055, .03, .04, 0, -.445, -.13, shade);
     else if (S.heels) sg.sph(.045, .04, .11, 0, -.43, -.045, S.shoes, .02, { w: 10, h: 8 }).box(.05, .012, .17, 0, -.452, -.06, '#141010', 0).box(.025, .06, .025, 0, -.43, .03, S.shoes, 0);
     else if (S.sandal) sg.sph(.052, .03, .115, 0, -.442, -.035, skin, .02, { w: 10, h: 6 }).box(.11, .016, .24, 0, -.458, -.035, S.shoes, 0).box(.1, .012, .02, 0, -.44, -.07, S.shoes, 0);
@@ -3364,7 +3414,7 @@ function buildFigureParts(S) {
     sg.mesh(kn, cast);
     thigh.push(hp2); shinG.push(kn);
   }
-  return { root, pelvis, torso, head, uArm, fArm, thigh, shin: shinG, nape, baseY: .885, stride: S.gown ? .55 : S.pencil ? .7 : 1 };
+  return { root, pelvis, torso, head, uArm, fArm, thigh, shin: shinG, nape, baseY: .885, stride: S.gown ? .55 : S.pencil ? .7 : S.robe ? .75 : 1 };
 }
 const LIPS_LIGHT = ['#c4626a', '#b84a5a', '#d4847e', '#a8505e'], LIPS_DARK = ['#7a3a3e', '#8a3a4a', '#6a2e34', '#9a4a50'];
 function pickLip(skin) { const l = new THREE.Color(skin).getHSL({}).l; const a = l > .55 ? LIPS_LIGHT : LIPS_DARK; return a[Math.floor(Math.random() * a.length)]; }
@@ -3729,6 +3779,13 @@ function outfitFor(pl, F, kid, old, ng) {
   const hoodie = c => { longTop(c); o.hood = c; };
   const kaftan = c => { longTop(c); Object.assign(o, { kaftan: c, pants: c, trim: ri(['#d6ae5f', '#f2f0ea', '#1b1608']) }); };
   const suit = c => { longTop(c, '#f2f0ea'); Object.assign(o, { pants: c, blazer: true, tie: ri(['#b8261e', '#2f5f9a', '#1b1608', '#3fae5a']) }); shoes('#141010'); };
+  const ripped = c => { jeans(c); o.ripped = true; };
+  const crop = c => { (Math.random() < .5 ? tee : tank)(c); o.crop = true; };
+  const jalabiya = c => { longTop(c, c); Object.assign(o, { robe: c, pants: c, trim: shadeOf(c, .78) }); };
+  const agbada = c => { longTop(c, c); Object.assign(o, { robe: c, agbada: c, wide: c, pants: c, trim: ri(['#d6ae5f', '#f2f0ea', '#1b1608']) }); };
+  const boubou = (p = ri(ANKARA)) => { gown(p, true); o.wide = p[0]; };
+  const kufi = () => Object.assign(o, { kufi: ri(['#f2f0ea', '#f2f0ea', '#1b1608', '#2f5f9a', '#8a2a2a']), kufiBand: ri(['#d6ae5f', '#3fae5a', '#b8261e']) });
+  const NATIVE = ['#f2f0ea', '#e6e1d3', '#2f5f9a', '#1b1608', '#3fae5a', '#8a2a2a', '#c9e0f4', '#6a5a8a', '#d6c8a0'];
   if (kid) {
     if (pl === 'school' || pl === 'cityschool') {   // uniforms: white shirt, navy shorts or pinafore, white socks
       tee('#f2f0ea', '#f2f0ea'); if (F) { skirt('#22305a', .42); o.shirt = '#22305a'; o.sleeve = '#f2f0ea'; } else shorts('#22305a');
@@ -3739,7 +3796,9 @@ function outfitFor(pl, F, kid, old, ng) {
   }
   if (old) {
     if (F) { if (ng) { gown(); o.headwrap = o.print ? o.print[1] : ri(BRIGHT); } else { longTop(ri(PASTEL)); skirt(ri(MUTED), .78); o.cardigan = ri(MUTED); } shoes(); }
-    else { longTop(ri(['#e6e1d3', '#c9e0f4', '#a89a7a'])); o.pants = ri(MUTED); if (r < .4) o.cardigan = ri(MUTED); if (ng && r > .6) { kaftan(ri(['#f2f0ea', '#e6e1d3', '#2f5f9a'])); o.fila = ri(['#8a2a2a', '#1f2f6a', '#2a2c30']); } shoes(); }
+    else { longTop(ri(['#e6e1d3', '#c9e0f4', '#a89a7a'])); o.pants = ri(MUTED); if (r < .4) o.cardigan = ri(MUTED);
+      if (ng && r > .82) { agbada(ri(NATIVE)); o.fila = ri(['#8a2a2a', '#1f2f6a', '#2a2c30']); } else if (ng && r > .66) { jalabiya(ri(NATIVE)); kufi(); } else if (ng && r > .5) { kaftan(ri(['#f2f0ea', '#e6e1d3', '#2f5f9a'])); o.fila = ri(['#8a2a2a', '#1f2f6a', '#2a2c30']); }
+      shoes(); }
     return o;
   }
   if (pl === 'security') { longTop('#1f2f4a', '#1f2f4a'); Object.assign(o, { pants: '#1a2236', badge: true, buttons: true }); boots('#141010'); return o; }
@@ -3799,25 +3858,28 @@ function outfitFor(pl, F, kid, old, ng) {
     else { (Math.random() < .6 ? longTop : tee)(ri(earth)); o.pants = hx(ri(PANTS)); if (Math.random() < .3) o.vest = ri(['#4a3424', '#2f3a4a', '#5a2a2a']); boots('#4a3424'); }
     return o;
   }
-  // the city, the seafront, the airport
+  // the city, the seafront, the airport: streetwear, office wear and native wear
   const smart = pl === 'seafront';
   if (F) {
-    if (r < .2 && !smart) { hoodie(ri([...MUTED, ...BRIGHT])); jeans(); sneakers(); }
-    else if (r < .36) { longTop(ri(MUTED.slice(0, 3)), '#f2f0ea'); o.blazer = true; o.inner = '#f2f0ea'; skirt(o.shirt, .5, true); heels(); }
-    else if (r < .52) { longTop(ri(PASTEL)); o.buttons = true; jeans(); (Math.random() < .5 ? heels : sneakers)(); }
-    else if (r < .66) { dress(ri(BRIGHT), .5); heels(); }
-    else if (r < .76 && !smart) { hoodie(ri(BRIGHT)); o.pants = '#1b1b1f'; sneakers(); }
-    else if (r < .86) { tank(ri(BRIGHT)); cutJeans(); sandals(); }
-    else if (ng) { gown(); if (Math.random() < .6) o.headwrap = o.print ? o.print[1] : ri(BRIGHT); heels(); }
+    if (r < .14 && !smart) { crop(ri([...BRIGHT, '#141014', '#f2f0ea'])); (Math.random() < .7 ? ripped : jeans)(); (Math.random() < .6 ? sneakers : heels)(); }
+    else if (r < .25 && !smart) { hoodie(ri([...MUTED, ...BRIGHT])); (Math.random() < .5 ? ripped : jeans)(); sneakers(); }
+    else if (r < .37) { longTop(ri(MUTED.slice(0, 3)), '#f2f0ea'); o.blazer = true; o.inner = '#f2f0ea'; skirt(o.shirt, .5, true); heels(); }
+    else if (r < .48) { longTop(ri(PASTEL)); o.buttons = true; (Math.random() < .3 ? ripped : jeans)(); (Math.random() < .5 ? heels : sneakers)(); }
+    else if (r < .6) { dress(ri([...BRIGHT, '#141014']), .46); o.pencil = true; heels(); }
+    else if (r < .68 && !smart) { tank(ri(BRIGHT)); cutJeans(); sandals(); }
+    else if (r < .8 && ng) { gown(); if (Math.random() < .6) o.headwrap = o.print ? o.print[1] : ri(BRIGHT); heels(); }
+    else if (r < .88 && ng) { boubou(); if (Math.random() < .5) o.headwrap = o.print ? o.print[1] : ri(BRIGHT); sandals(); }
     else { tee(ri(BRIGHT)); skirt(ri(MUTED), .78); sneakers(); }
   } else {
-    if (r < .24 && !smart) { hoodie(ri([...MUTED, ...BRIGHT])); jeans(); sneakers(); }
-    else if (r < .42) { longTop(ri(['#f2f0ea', '#c9e0f4', '#e6e1d3']), '#f2f0ea'); o.buttons = true; o.pants = ri(['#a89a7a', '#2f3a4a', '#5a6370']); shoes(); }
-    else if (r < .55) suit(ri(['#1b1f2a', '#2a2c30', '#3e4652']));
-    else if (r < .7) { tee(ri(BRIGHT)); jeans(); sneakers(); }
-    else if (r < .8 && !smart) { tee(ri(MUTED)); o.pants = '#2a2c30'; sneakers(); }
-    else if (r < .9) { tee(ri(BRIGHT), '#f2f0ea'); o.pants = ri(['#a89a7a', '#2f3a4a']); shoes(); }
-    else if (ng) { kaftan(ri(['#f2f0ea', '#2f5f9a', '#3fae5a', '#8a2a2a', '#1b1608'])); o.fila = ri(['#8a2a2a', '#1f2f6a', '#2a2c30']); shoes(); }
+    if (r < .17 && !smart) { hoodie(ri([...MUTED, ...BRIGHT])); (Math.random() < .4 ? ripped : jeans)(); sneakers(); }
+    else if (r < .31) { longTop(ri(['#f2f0ea', '#c9e0f4', '#e6e1d3']), '#f2f0ea'); o.buttons = true; o.pants = ri(['#a89a7a', '#2f3a4a', '#5a6370']); shoes(); }
+    else if (r < .41) suit(ri(['#1b1f2a', '#2a2c30', '#3e4652']));
+    else if (r < .54) { tee(ri([...BRIGHT, '#141014', '#f2f0ea'])); (Math.random() < .5 ? ripped : jeans)(); sneakers(); }
+    else if (r < .61 && !smart) { tee(ri(MUTED)); o.pants = '#2a2c30'; sneakers(); }
+    else if (r < .68) { tee(ri(BRIGHT), '#f2f0ea'); o.pants = ri(['#a89a7a', '#2f3a4a']); shoes(); }
+    else if (r < .79 && ng) { kaftan(ri(NATIVE)); if (Math.random() < .5) o.fila = ri(['#8a2a2a', '#1f2f6a', '#2a2c30']); shoes(); }
+    else if (r < .88 && ng) { jalabiya(ri(NATIVE)); kufi(); sandals(); }
+    else if (r < .93 && ng) { agbada(ri(NATIVE)); if (Math.random() < .6) o.fila = ri(['#8a2a2a', '#1f2f6a', '#2a2c30']); else kufi(); shoes(); }
     else { tee(ri(BRIGHT)); shorts(ri(['#a89a7a', '#2f5f9a'])); sneakers(); }
   }
   if (pl === 'airport' && Math.random() < .45) o.backpack = ri(['#2a2c30', '#d8342c', '#2f5f9a', '#3fae5a', '#8a8f94']);
@@ -3837,16 +3899,18 @@ function makeCivilian(v, opts = {}) {
   const ng = pl === 'beach' || pl === 'seafront' || (['city', 'airport', 'kid', 'cityschool', 'club', 'bartender', 'bouncer', 'security', 'chef', 'housekeeper', 'gardener', 'driver', 'pool'].includes(pl) || opts.cop || opts.fire) && Math.random() < .5;
   const skin = ng ? ri(NG_SKIN) : pick(SKIN_TONES);
   const base = { skin, hair: elder ? ri(['#9a9a9a', '#c8c4bc', '#7a7a7a']) : ng ? ri(NG_HAIR) : hx(pick(HAIRS)), eye: ng ? ri(['#2a1a10', '#1a1210', '#3b2a1e']) : pick(EYES),
-    female, child, build: female ? RM(.9, 1.02) : RM(.95, 1.15), earrings: female && !child && Math.random() < .6 ? ri(['#d6ae5f', '#d6ae5f', '#c9d0d4']) : null };
+    female, child, build: female ? RM(.9, 1.02) : RM(.95, 1.15), earrings: female && !child && Math.random() < .6 ? ri(['#d6ae5f', '#d6ae5f', '#c9d0d4']) : null,
+    face: ri(female ? ['oval', 'oval', 'heart', 'round', 'long'] : ['jaw', 'jaw', 'square', 'oval', 'round', 'long']), feat: Math.random() < (ng ? .8 : .2) ? 1 : 0,
+    body: child ? '' : elder ? (!female && Math.random() < .4 ? 'big' : '') : ri(female ? ['', 'slim', 'curvy', 'curvy', 'thick', 'athletic'] : ['', 'slim', 'fit', 'fit', 'big']) };
   let spec;
   if (opts.fire) spec = { ...base, hairStyle: female ? 'bun' : 'short', shirt: '#c9a640', sleeve: '#c9a640', collar: '#2a2c30', belt: '#2a2c30', pants: '#c9a640', boots: '#1a1a1a', shoes: '#1a1a1a', helmet: '#b8261e', reflect: true, earrings: null };
   else if (opts.cop) spec = { ...base, hairStyle: female ? 'bun' : ri(['short', 'fade', 'bald']), shirt: '#1e2a44', sleeve: '#1e2a44', longSleeve: Math.random() < .5, collar: '#1e2a44', belt: '#111111', pants: '#1a2236', shoes: '#101010', hat: 'police', badge: true, buttons: true };
   else {
     const o = outfitFor(pl, female, child, elder, ng), rural = pl === 'country' || pl === 'village';
     spec = { ...base, ...o, hairStyle: hairFor(pl, female, ng, elder),
-      beard: !female && !child && Math.random() < (pl === 'village' ? .25 : .1), stubble: !female && !child && Math.random() < .3, moustache: !female && !child && Math.random() < .12,
+      beard: !female && !child && Math.random() < (pl === 'village' ? .25 : .1), stubble: !female && !child && Math.random() < .35 ? ri([true, 'heavy']) : false, moustache: !female && !child && Math.random() < .12,
       glasses: Math.random() < (elder ? .45 : .12),
-      hat: o.fila || o.headwrap ? null : rural ? (Math.random() < (v.straw ?? .18) ? 'straw' : Math.random() < .1 ? 'cap' : null) : !female && Math.random() < .12 ? 'cap' : null,
+      hat: o.fila || o.headwrap || o.kufi ? null : rural ? (Math.random() < (v.straw ?? .18) ? 'straw' : Math.random() < .1 ? 'cap' : null) : !female && Math.random() < .12 ? 'cap' : null,
       hatColor: ri(['#2a2c30', '#b83a2e', '#2f5f9a', '#e6e1d3']) };
   }
   const rig = buildFigure({ ...spec, lod: true });
@@ -8069,14 +8133,24 @@ async function api(path, method = 'GET', body) {
 }
 
 // ---- your look: what the character creator sets; buildFigure turns it into a scout ----
-const BASE_LOOK = { female: false, build: 1, skin: '#e2b08f', hair: '#4a3020', eye: '#3a5a2a', hairStyle: 'messy', outfit: 'jacket', shirt: '#8a5a34', pants: '#e4dcc4', boots: '#3a2a1e' };
+const BASE_LOOK = { female: false, build: 1, skin: '#e2b08f', hair: '#4a3020', eye: '#3a5a2a', hairStyle: 'messy', outfit: 'jacket', shirt: '#8a5a34', pants: '#e4dcc4', boots: '#3a2a1e', face: '', feat: 0, body: '', legs: 'trousers', cap: 'none', facial: 'none' };
 const LOOK_STORE = 'giantwood-character';
 let MY_LOOK = (() => { try { return { ...BASE_LOOK, ...JSON.parse(localStorage.getItem(LOOK_STORE) || '{}') }; } catch (e) { return { ...BASE_LOOK }; } })();
 function lookSpec(L0) {
   const L = { ...BASE_LOOK, ...(L0 || {}) };
+  const o = L.outfit, robe = ['kaftan', 'jalabiya', 'agbada', 'boubou'].includes(o);
   const s = { female: !!L.female, build: L.build, skin: L.skin, hair: L.hair, eye: L.eye, hairStyle: L.hairStyle, shirt: L.shirt, sleeve: L.shirt, collar: '#e8e2d2',
-    pants: L.pants, boots: L.boots, shoes: L.boots, belt: '#2c211a', harness: L.outfit !== 'dress', longSleeve: L.outfit !== 'tee' };
-  if (L.outfit === 'dress') { s.skirt = L.shirt; s.skirtLen = .56; s.pants = L.skin; s.boots = null; }
+    pants: L.pants, boots: L.boots, shoes: L.boots, belt: '#2c211a', harness: o === 'jacket' || o === 'tee', longSleeve: o !== 'tee' && o !== 'crop',
+    face: L.face, feat: L.feat, body: L.body };
+  if (o === 'crop') { s.crop = true; s.collar = L.shirt; }
+  if (o === 'dress') { s.skirt = L.shirt; s.skirtLen = .56; s.pants = L.skin; s.boots = null; }
+  if (o === 'kaftan') Object.assign(s, { kaftan: L.shirt, pants: L.shirt, collar: L.shirt, trim: '#d6ae5f' });
+  if (o === 'jalabiya') Object.assign(s, { robe: L.shirt, pants: L.shirt, collar: L.shirt, trim: shadeOf(L.shirt, .78) });
+  if (o === 'agbada') Object.assign(s, { robe: L.shirt, agbada: L.shirt, wide: L.shirt, pants: L.shirt, collar: L.shirt, trim: '#d6ae5f' });
+  if (o === 'boubou') Object.assign(s, { gown: L.shirt, wide: L.shirt, pants: L.shirt, collar: L.shirt, longSleeve: true });
+  if (!robe && o !== 'dress') { if (L.legs === 'jeans' || L.legs === 'ripped') { s.jeans = true; s.ripped = L.legs === 'ripped'; } else if (L.legs === 'shorts') s.shorts = L.pants; }
+  if (L.cap === 'kufi') Object.assign(s, { kufi: robe ? '#f2f0ea' : L.shirt, kufiBand: '#d6ae5f' }); else if (L.cap === 'fila') s.fila = robe ? shadeOf(L.shirt, .7) : '#8a2a2a';
+  if (!L.female && L.facial && L.facial !== 'none') { if (L.facial === 'beard') s.beard = true; else s.stubble = L.facial === 'heavy' ? 'heavy' : true; }
   if (L.female) s.earrings = '#d6ae5f';
   return s;
 }
@@ -8509,6 +8583,7 @@ const SHOES = ['#3a2a1e', '#141010', '#6b4a30', '#f2f2f2', '#8a2a2a'];
 const STYLES = ['short', 'fade', 'messy', 'curly', 'bald', 'afro', 'locs', 'long', 'ponytail', 'bob', 'bun', 'braids'];
 const PREV = { r: null, scene: null, cam: null, fig: null, raf: 0 };
 function previewFigure(L) {
+  if (PREV.r && PREV.r.domElement !== $('vpPrev')) { PREV.r.dispose(); PREV.r = null; }   // the panel was rebuilt with a new canvas
   if (!PREV.r) {
     PREV.r = new THREE.WebGLRenderer({ canvas: $('vpPrev'), antialias: true, alpha: true }); PREV.r.outputEncoding = THREE.sRGBEncoding; PREV.r.setPixelRatio(Math.min(2, devicePixelRatio));
     PREV.scene = new THREE.Scene(); PREV.scene.add(new THREE.HemisphereLight(0xfff4e0, 0x404838, .9)); const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(2, 4, 3); PREV.scene.add(dl);
@@ -8521,22 +8596,32 @@ function previewFigure(L) {
   if (!PREV.raf) { const spin = () => { if (!PREV.fig) { PREV.raf = 0; return; } PREV.fig.root.rotation.y += .012; animFigure(PREV.fig, 0, 0, 'walk'); PREV.r.render(PREV.scene, PREV.cam); PREV.raf = requestAnimationFrame(spin); }; PREV.raf = requestAnimationFrame(spin); }
 }
 function stopPreview() { if (PREV.fig) { PREV.scene.remove(PREV.fig.root); PREV.fig = null; } }
-function openCreator() {
-  const L = { ...MY_LOOK, hat: LOOK.hat, shades: LOOK.shades };
+function openCreator(L0) {
+  const L = L0 && L0.skin ? L0 : { ...MY_LOOK, hat: LOOK.hat, shades: LOOK.shades };   // (buttons pass their click event)
+  const bodies = L.female ? [['', 'Average'], ['slim', 'Slim'], ['curvy', 'Curvy'], ['thick', 'Thick'], ['athletic', 'Athletic']] : [['', 'Average'], ['slim', 'Slim'], ['fit', 'Fit'], ['big', 'Big']];
+  const outfits = L.female ? [['jacket', 'Jacket'], ['tee', 'T-shirt'], ['crop', 'Crop top'], ['dress', 'Dress'], ['boubou', 'Boubou'], ['kaftan', 'Kaftan']]
+    : [['jacket', 'Jacket'], ['tee', 'T-shirt'], ['crop', 'Crop top'], ['kaftan', 'Senator kaftan'], ['jalabiya', 'Jalabiya'], ['agbada', 'Agbada']];
   const sw = (key, cols) => `<div class="sw" data-k="${key}">${cols.map(c => `<button type="button" data-v="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>`;
   const ch = (key, opts) => `<div class="chips" data-k="${key}">${opts.map(([v, t]) => `<button type="button" data-v="${v}">${t}</button>`).join('')}</div>`;
   const d = dialog(`<h2>Make your scout</h2><div class="vpcreator"><canvas id="vpPrev" width="200" height="260"></canvas><div class="vpopts">
     <label>Body</label>${ch('female', [['false', 'Man'], ['true', 'Woman']])}
-    <label>Build</label>${ch('build', [['0.92', 'Slim'], ['1', 'Regular'], ['1.12', 'Broad']])}
+    <label>Build</label>${ch('build', [['0.92', 'Small'], ['1', 'Regular'], ['1.12', 'Broad']])}${ch('body', bodies)}
     <label>Skin</label>${sw('skin', SKINS)}
+    <label>Face</label>${ch('face', [['', 'Default'], ['oval', 'Oval'], ['round', 'Round'], ['jaw', 'Jawline'], ['square', 'Square'], ['heart', 'Heart'], ['long', 'Long']])}${ch('feat', [['0', 'Fine nose & lips'], ['1', 'Full nose & lips']])}
     <label>Hair</label>${ch('hairStyle', STYLES.map(s => [s, s[0].toUpperCase() + s.slice(1)]))}${sw('hair', HAIRCOLS)}
-    <label>Outfit</label>${ch('outfit', [['jacket', 'Jacket'], ['tee', 'T-shirt'], ['dress', 'Dress']])}${sw('shirt', TOPS)}
-    <label>Trousers</label>${sw('pants', BOTTOMS)}<label>Shoes</label>${sw('boots', SHOES)}
-    <label>Extras</label>${ch('hat', [['true', 'Hat on'], ['false', 'No hat']])}${ch('shades', [['true', 'Sunglasses'], ['false', 'No sunglasses']])}
+    <label>Outfit</label>${ch('outfit', outfits)}${sw('shirt', TOPS)}
+    <label>Bottoms</label>${ch('legs', [['trousers', 'Trousers'], ['jeans', 'Jeans'], ['ripped', 'Ripped jeans'], ['shorts', 'Shorts']])}${sw('pants', BOTTOMS)}<label>Shoes</label>${sw('boots', SHOES)}
+    ${L.female ? '' : `<label>Facial hair</label>${ch('facial', [['none', 'Clean'], ['stubble', 'Stubble'], ['heavy', 'Heavy stubble'], ['beard', 'Beard']])}`}
+    <label>Extras</label>${ch('cap', [['none', 'No cap'], ['kufi', 'Kufi cap'], ['fila', 'Fila']])}${ch('hat', [['true', 'Hat on'], ['false', 'No hat']])}${ch('shades', [['true', 'Sunglasses'], ['false', 'No sunglasses']])}
     </div></div><div class="btnrow"><button class="go" type="button" id="vpSave">Save my scout</button><button class="alt" type="button" id="vpCancel">Cancel</button></div>`);
   const mark = () => d.querySelectorAll('[data-k]').forEach(g => g.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(L[g.dataset.k]) === b.dataset.v)));
   d.querySelectorAll('[data-k] button').forEach(b => b.onclick = () => {
     const k = b.parentElement.dataset.k, v = b.dataset.v; L[k] = v === 'true' ? true : v === 'false' ? false : /^[\d.]+$/.test(v) ? +v : v;
+    if (k === 'cap' && v !== 'none') L.hat = false; if (k === 'hat' && v === 'true') L.cap = 'none';   // one thing on the head at a time
+    if (k === 'female') {   // a different set of body types and outfits: rebuild the panel
+      if (L.female && ['jalabiya', 'agbada'].includes(L.outfit)) L.outfit = 'boubou'; if (!L.female && ['dress', 'boubou'].includes(L.outfit)) L.outfit = 'jalabiya';
+      if (!(L.female ? BODY_F : BODY_M)[L.body]) L.body = ''; return openCreator(L);
+    }
     mark(); previewFigure(L);
   });
   d.querySelector('#vpCancel').onclick = closeDialog;
