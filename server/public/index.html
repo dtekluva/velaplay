@@ -1092,13 +1092,38 @@ if (YB) {
     NKIND[k] = kd;
   }
 }
-const kindAt = (x, z) => z < -HALF ? NKIND[nIdx(x, z)] : KIND[idxAt(x, z)];
+/* ---------- the sea south of the old map, out to 720 m past its edge, and the Lekki Deep Sea Port on land reclaimed from it:
+   a causeway off the coast road (east of Elegushi beach, the jetty and Bluewave), quays on the west and south sides, a rock
+   breakwater sheltering the basin. Its own grid (SHm / SKIND, rows j = N..N+SD-1), like the mainland's. ---------- */
+const SD = COAST ? 720 : 0, ZHI = HALF + SD - 14;   // the south limit: out past the port
+const SHm = new Int16Array(N * Math.max(1, SD)), SKIND = new Uint8Array(N * Math.max(1, SD));
+const sIdx = (x, z) => clamp(Math.floor(x + HALF), 0, N - 1) * SD + clamp(Math.floor(z - HALF), 0, SD - 1);
+const PORT = COAST ? { x0: 40, x1: 346, z0: 480, z1: 780, y: COAST.y, rx: 240, gateZ: 492, crossZ: 524, yard: [[82, 214, 548, 740], [262, 334, 548, 740]] } : null;
+const BREAKWATER = PORT ? [[346, 884], [250, 902], [170, 900], [110, 876]] : [];
+const PROADS = PORT ? [[PORT.rx, PORT.z0 - 2, PORT.rx, PORT.z1 - 34, 5], [PORT.x0 + 34, PORT.crossZ, PORT.x1 - 6, PORT.crossZ, 5], [PORT.x0 + 34, PORT.crossZ, PORT.x0 + 34, PORT.z1 - 34, 4.5], [PORT.x0 + 34, PORT.z1 - 34, PORT.x1 - 6, PORT.z1 - 34, 4.5]] : [];
+const portRoadDist = (x, z) => { let b = 99; for (const r of PROADS) b = Math.min(b, segDist(x, z, r) - r[4] + 4.5); return b; };
+if (PORT) {
+  const P0 = PORT;
+  for (let i = 0; i < N; i++) for (let js = 0; js < SD; js++) {
+    const x = i - HALF + .5, z = js + HALF + .5, k = i * SD + js;
+    let h = 0, kd = 1;   // the sea bed
+    const dc = Math.abs(x - P0.rx);
+    if (z < P0.z0 + 2 && dc < 8) { h = P0.y; kd = dc < 4.5 ? 6 : 7; }   // the causeway
+    if (x > P0.x0 && x < P0.x1 && z > P0.z0 && z < P0.z1) {   // the reclaimed land: concrete, roads, the quay aprons
+      h = P0.y; kd = 7; const rd = portRoadDist(x, z); if (rd < 4.5) kd = 6;
+    }
+    let bw = 99; for (let q = 0; q + 1 < BREAKWATER.length; q++) bw = Math.min(bw, segDist(x, z, [...BREAKWATER[q], ...BREAKWATER[q + 1]]));
+    if (bw < 6) { h = bw < 3.5 ? 6 : 3; kd = 3; }   // the breakwater: a mound of rock
+    SHm[k] = h; SKIND[k] = kd;
+  }
+}
+const kindAt = (x, z) => z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
 // the coastal road's smooth surface where you're on it (else -Infinity); groundAt is the terrain or the road, whichever is higher
 function roadSurf(x, z) {
   if (!COAST || !(x < COAST.xw + 24 || z > COAST.rz - 24 || Math.abs(z - TOWN.z) < 24 || x > COAST.xe - 24)) return -Infinity;
   const p = crProject(x, z); return p.dist > crHW(p.s) + 1.55 ? -Infinity : COAST.surf(p.s) + .03;
 }
-const colH = (i, j) => (i < 0 || i >= N || j >= N || j < -ND) ? EDGE_H : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip
+const colH = (i, j) => (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
 const heightAt = (x, z) => colH(Math.floor(x + HALF), Math.floor(z + HALF));
 const groundAt = (x, z) => Math.max(heightAt(x, z), roadSurf(x, z));
 const WATER_Y = 1.5;
@@ -1110,7 +1135,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   const KMATS = [[M.grassTop, M.grassSide, M.dirt], [M.sand, M.sand, M.dirt], [M.snowTop, M.snowSide, M.rock], [M.rock, M.rock, M.rock], [M.wheat, M.grassSide, M.dirt], [M.path, M.path, M.dirt],
     [M.asphalt, M.concrete, M.dirt], [M.concrete, M.concrete, M.dirt], [M.lineX, M.concrete, M.dirt], [M.lineZ, M.concrete, M.dirt]];
   const CHUNKS = new Map();
-  const HH = (i, j) => j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j], KK = (i, j) => j < 0 ? NKIND[i * ND + j + ND] : KIND[i * N + j];   // the old grid or the mainland strip
+  const HH = (i, j) => j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid or the mainland strip
   TERRAIN_CHUNK = (ci, cj) => {
     const ckey = ci + ',' + cj, made = [];
     for (const m of CHUNKS.get(ckey) || []) { scene.remove(m); m.geometry.dispose(); }
@@ -1124,7 +1149,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
       B.ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
     };
     // tops: grow rectangles over cells of the same height and ground kind (one quad instead of hundreds on flat ground)
-    const i1 = Math.min(N, ci + CH), j1 = Math.min(N, cj + CH), used = new Uint8Array(CH * CH), U = (i, j) => (i - ci) * CH + (j - cj);
+    const i1 = Math.min(N, ci + CH), j1 = Math.min(N + SD, cj + CH), used = new Uint8Array(CH * CH), U = (i, j) => (i - ci) * CH + (j - cj);
     for (let i = ci; i < i1; i++) for (let j = cj; j < j1; j++) {
       if (used[U(i, j)]) continue;
       const h = HH(i, j), kd = KK(i, j), same = (a, b) => !used[U(a, b)] && HH(a, b) === h && KK(a, b) === kd;
@@ -1163,7 +1188,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     }
     CHUNKS.set(ckey, made);
   };
-  for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N; cj += CH) TERRAIN_CHUNK(ci, cj);
+  for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N + SD; cj += CH) TERRAIN_CHUNK(ci, cj);
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
   const nE = HALF + (YB ? ND : 0);
@@ -3249,6 +3274,15 @@ if (YB) {
   // the boulders along it, on the new ground; any that would sit on the road or pavement are left out
   for (const [x, z, s, sh, sd] of LINK_ROCKS) if (linkDist(x, z) - s * .6 > 6.5) buildBoulder(x, z, heightAt(x, z), s, sh, sd);
 }
+// the port causeway's first stretch, on the old map: off the coast road, over the promenade, the sand and the shallows (graded now, after the forest)
+if (PORT) {
+  const touched = new Set();
+  for (let i = Math.floor(PORT.rx - 9 + HALF); i <= PORT.rx + 9 + HALF; i++) for (let j = Math.floor(COAST.rz + 4 + HALF); j < N; j++) {
+    const d = Math.abs(i - HALF + .5 - PORT.rx), k = i * N + j; if (d >= 8) continue;
+    Hm[k] = PORT.y; KIND[k] = d < 4.5 ? 6 : 7; touched.add(Math.floor(i / 96) * 96 + ',' + Math.floor(j / 96) * 96);
+  }
+  for (const key of touched) { const [ci, cj] = key.split(',').map(Number); TERRAIN_CHUNK(ci, cj); }
+}
 hookRoot.updateMatrixWorld(true);
 // a last check once the world is built: no wall or building may stand on a road tile. Anything found is listed in the console
 // (fix the layout that placed it: see roadUnder and dropBuild). Pillars and posts (up to 1.5 m square), low barriers (under 1.5 m),
@@ -4028,7 +4062,7 @@ function spawnTitan(x, z) {
 function spawnFar(minD = 55) {
   for (let k = 0; k < 60; k++) {
     const a = RM(0, TAU), d = RM(minD, minD + 80);
-    const x = clamp(P.pos.x + Math.sin(a) * d, -BOUND, BOUND), z = clamp(P.pos.z + Math.cos(a) * d, ZLO, BOUND);
+    const x = clamp(P.pos.x + Math.sin(a) * d, -BOUND, BOUND), z = clamp(P.pos.z + Math.cos(a) * d, ZLO, ZHI);
     if (heightAt(x, z) >= 2 && Math.hypot(x - P.pos.x, z - P.pos.z) > minD && !nearVillage(x, z, VR + 25)) return spawnTitan(x, z);
   }
   return spawnTitan(clamp(P.pos.x + 80, -BOUND, BOUND), P.pos.z);
@@ -4147,7 +4181,7 @@ function updateTitans(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, d = Math.hypot(ex, ez);
       if (d < r && d > 1e-4) { g.position.x += ex / d * (r - d); g.position.z += ez / d * (r - d); }
     }
-    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, BOUND);
+    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, ZHI);
     const gy = Math.max(heightAt(g.position.x, g.position.z), WATER_Y - 1) - .3;
     g.position.y += (gy - g.position.y) * Math.min(1, dt * 6);
     // limbs
@@ -4602,7 +4636,7 @@ function updateCivilians(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, dd = Math.hypot(ex, ez), r = .35;
       if (dd < r) { if (dd > 1e-4) { g.position.x += ex / dd * (r - dd); g.position.z += ez / dd * (r - dd); } else g.position.x += r; if (c.state === 'walk') c.path.length = 0; }
     }
-    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, BOUND);
+    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, ZHI);
     const inH = houseAt(c.v, g.position.x, g.position.z);
     g.position.y = c.fixedY ?? (inH ? inH.floorY : groundAt(g.position.x, g.position.z));
     g.rotation.x = 0;
@@ -5993,7 +6027,7 @@ function mixAt(x, z) {   // which cars park and drive here
   return PARK_MIX;
 }
 function pickMix(mix) { let t = 0; for (const k in mix) t += mix[k]; let r = Math.random() * t; for (const k in mix) if ((r -= mix[k]) <= 0) return k; return 'corolla05'; }
-const makeMixed = (mix = TRAFFIC_MIX) => { const id = pickMix(mix); return id === 'keke' ? makeKeke() : id === 'tipper' ? makeTipper() : makeModel(id); };
+const makeMixed = (mix = TRAFFIC_MIX) => { const id = pickMix(mix); return id === 'keke' ? makeKeke() : id === 'tipper' ? makeTipper() : id === 'ctruck' ? makeContainerTruck() : makeModel(id); };
 const makeTaxi = () => makeModel(pick(['corolla05', 'camry08', 'corolla05', 'sienna10']), 0xf2c230);
 
 /* ---------- traffic: cars cruise the grid, turn at junctions and stop for anything in their lane ---------- */
@@ -7007,7 +7041,7 @@ if (YB) withSeed(9494, () => {
     colliders.push({ x0: A.tx1 + 14, x1: A.tx1 + 50, y0: Y, y1: Y + 6, z0: tcz - 26, z1: tcz - 14, tag: 'house' });
     sign('OYO SKYLINK', 'IBADAN ⇄ LAGOS', '#7a1a2a', 10, 1.6, A.tx1 + 8, Y + 3, tcz + 34, 0);
     makeDrivable(A.tx1 + 30, tcz + 24, -Math.PI / 2, 'plane');
-    FLIGHT_DESKS.push({ x: A.tx0 - 7, z: tcz + 16, y: Y, to: 'lagos', name: 'Ibadan Airport', out: [A.tx0 - 10, tcz] });   // the airline's booth on the kerb by arrivals
+    FLIGHT_DESKS.push({ x: A.tx0 - 8, z: tcz + 3, y: Y, to: 'lagos', name: 'Ibadan Airport', out: [A.tx0 - 12, tcz - 1] });   // the airline's booth on the kerb, a few steps from where you arrive
     people('airport', 10, [A.tx0 - 14, A.tx0 - 6, tcz - 30, tcz + 30]);
     OYO_PLACES.push(['Ibadan Airport', A.tx0 - 10, tcz]); YABA_MAP.push([tcx, tcz, A.tx1 - A.tx0, A.tz1 - A.tz0, '#7fd3e8']);
   }
@@ -7163,7 +7197,7 @@ if (YB) {
    while you fly, and you walk out by the other airport's arrivals. ---------- */
 const FLIGHT = { fare: 15000, busy: false, no: 117 };
 if (AP && IBAIR) {
-  const [x, z] = Wp(119, 117), [ox, oz] = Wp(117, 105);
+  const [x, z] = Wp(119, 109), [ox, oz] = Wp(117, 105);
   FLIGHT_DESKS.push({ x, z, y: TOWN.y, to: 'ibadan', name: 'Lagos', out: [ox, oz] });
   const b = new Builder(), Y = TOWN.y, red = LM(0x7a1a2a);
   for (const d of FLIGHT_DESKS) {   // the booth: a counter under a red canopy, with the airline's board
@@ -7175,7 +7209,7 @@ if (AP && IBAIR) {
   }
   b.build();
 }
-function flightDeskNear() { if (P.driving) return null; return FLIGHT_DESKS.find(d => Math.hypot(d.x - P.pos.x, d.z - P.pos.z) < 3.6 && Math.abs(P.pos.y - d.y) < 3) || null; }
+function flightDeskNear() { if (P.driving) return null; return FLIGHT_DESKS.find(d => Math.hypot(d.x - P.pos.x, d.z - P.pos.z) < 9 && Math.abs(P.pos.y - d.y) < 4) || null; }   // anywhere by the booth
 function flyFrom(d) {
   if (FLIGHT.busy) return;
   const to = FLIGHT_DESKS.find(q => q !== d), city = d.to === 'ibadan' ? 'Ibadan' : 'Lagos';
@@ -7188,7 +7222,130 @@ function flyFrom(d) {
     const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0);
     yaw = d.to === 'ibadan' ? Math.PI / 2 : -Math.PI / 2;
   }, 1300);
-  setTimeout(() => { fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90); toast(`Welcome to ${city}`, d.to === 'ibadan' ? 'Ibadan Airport, Alakia · taxis and the city are out front' : 'Murtala Muhammed International · Lagos'); }, 2600);
+  setTimeout(() => { fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90); toast(`Welcome to ${city}`, d.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : 'Murtala Muhammed International · flights to Ibadan: the red Oyo Skylink booth beside you (E)'); }, 2600);
+}
+
+/* ---------- the Lekki Deep Sea Port: the causeway (railings, lamps, the sign at the coast road), the port gate, quays with
+   ship-to-shore gantry cranes, the container yard with its gantries, a warehouse and the port authority, floodlight masts,
+   the breakwater's light; container ships at the berths and two more coming and going with their tugs; container trucks ---------- */
+const SHIPS = [];   // moving ships: they sail in from the open sea, berth for a while and sail out again
+function makeShip(hullC = 0x1f3a5a, len = 96, beam = 16) {
+  const g = new THREE.Group(), parts = new Map(), add = (geo, mat) => { if (!parts.has(mat)) parts.set(mat, []); parts.get(mat).push(geo); };
+  const B = (w, h, d, x, y, z, mat) => add(new THREE.BoxGeometry(w, h, d).translate(x, y, z), mat);
+  const hb = beam / 2, L2 = len / 2, hull = LM(hullC), red = LM(0x8a2a22), deck = LM(0x6a7078), white = MM.white, dark = MM.dark;
+  // the hull: a pointed bow (toward -z, the way models face), the topsides in the hull colour over red below the waterline
+  const sh = new THREE.Shape(); sh.moveTo(-hb, L2); sh.lineTo(hb, L2); sh.lineTo(hb, -L2 + 16); sh.quadraticCurveTo(hb * .75, -L2 + 2, 0, -L2); sh.quadraticCurveTo(-hb * .75, -L2 + 2, -hb, -L2 + 16); sh.lineTo(-hb, L2);
+  add(new THREE.ExtrudeGeometry(sh, { depth: 5, bevelEnabled: false }).rotateX(Math.PI / 2), hull);
+  add(new THREE.ExtrudeGeometry(sh, { depth: 4, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, -5, 0), red);
+  add(new THREE.ShapeGeometry(sh).rotateX(Math.PI / 2).translate(0, .02, 0), deck);
+  // containers in bays along the deck, two to four high
+  const boxCols = [0xb8261e, 0x1f5fa8, 0x2f8a4a, 0xe8a020, 0xe8742a, 0xe8e6df, 0x5a6066, 0x2a9ad8, 0x8a2a5a].map(c => LM(c));
+  let n = 0; for (let z = -L2 + 20; z < L2 - 26; z += 12.6) for (let x = -hb + 1.6; x < hb - 1.4; x += 2.5) { const tiers = 2 + ((n * 7 + Math.floor(z)) % 3); n++; for (let t = 0; t < tiers; t++) B(2.4, 2.5, 12.2, x + 1.2, 1.3 + t * 2.55, z + 6.1, boxCols[(n * 3 + t * 5) % boxCols.length]); }
+  // the accommodation and bridge at the stern, bridge wings, the funnel
+  B(beam - 3, 13, 11, 0, 6.5, L2 - 15, white); B(beam + 1.6, 1.2, 3.4, 0, 12.6, L2 - 20, white);
+  for (let k = 0; k < 4; k++) B(beam - 2.9, .9, .1, 0, 3 + k * 2.8, L2 - 20.55, dark);
+  B(4, 6, 5, 0, 16, L2 - 10, LM(hullC)); B(4.1, 1, 5.1, 0, 17.5, L2 - 10, white); B(3.6, .6, 4.6, 0, 19.1, L2 - 10, dark);
+  for (const s of [-1, 1]) B(.2, 1.1, len - 30, s * (hb - .3), .55, -6, MM.steel);
+  for (const [mat, geos] of parts) { const m = new THREE.Mesh(mergeGeos(geos.map(q => { if (!q.index) q.setIndex([...Array(q.attributes.position.count).keys()]); return q; })), mat); m.castShadow = true; m.receiveShadow = true; g.add(m); }
+  return g;
+}
+function makeContainerTruck(color = pick([0xd8342c, 0x1f5fa8, 0xf2f0ea, 0x2f8a4a, 0xe8a020])) {
+  const g = new THREE.Group(), B = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); };
+  B(2.5, 2.4, 2.6, 0, 1.9, -6.6, LM(color)); B(2.3, .9, .1, 0, 2.4, -7.95, MM.carGlass || MM.glass); B(2.4, .5, 14.6, 0, .9, .6, MM.dark);
+  B(2.44, 2.6, 12.2, 0, 2.5, 1.6, LM(pick([0xb8261e, 0x1f5fa8, 0x2f8a4a, 0xe8a020, 0x2a9ad8, 0x5a6066])));
+  for (const z of [-6.4, -1, 4.6, 6.2]) for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(.5, .5, .4, 12).rotateZ(Math.PI / 2), MM.tire); w.position.set(s * 1.1, .5, z); g.add(w); }
+  g.userData.beam = [1.0, -8]; return g;
+}
+if (PORT) withSeed(9595, () => {
+  const Y = PORT.y, P0 = PORT, b = new Builder(), ri2 = a => a[Math.floor(rng() * a.length)];
+  const white = MM.white, steel = MM.steel, darkM = MM.dark, conc = M.concrete, yel = LM(0xf2c230), craneR = LM(0xd8342c), craneW = LM(0xf2f0ea), blue = LM(0x1f5fa8);
+  const sign = (text, sub, bg, w, h, x, y, z, ry) => ySign(ySignMat(text, bg, '#ffffff', sub), w, h, x, y, z, ry);
+  const lamp = (x, z, ax) => { b.box(.22, 7.5, .22, x, Y + 3.75, z, darkM, 1, true, 'house'); b.box(Math.abs(ax) * 1.4 + .12, .1, .12, x + ax * .7, Y + 7.45, z, darkM, 1, false); b.box(.45, .14, .45, x + ax * 1.3, Y + 7.35, z, lampMat, 1, false); LAMPS.push([x + ax * 1.3, z, Y]); };
+  /* ---- the causeway: railings over the water, lamps, the sign at the coast road ---- */
+  for (let z = COAST.shore - 2; z < P0.z0; z += 2) for (const s of [-1, 1]) { b.box(.25, 1.1, 2.02, P0.rx + s * 7.7, Y + .55, z + 1, steel, 1, true, 'house'); }
+  for (let z = COAST.rz + 30, k = 0; z < P0.z0 - 6; z += 30, k++) lamp(P0.rx + (k % 2 ? 7.4 : -7.4), z, k % 2 ? -1 : 1);
+  sign('LEKKI DEEP SEA PORT', 'CONTAINER TERMINAL · TRUCKS ONLY BEYOND THE GATE', '#0d3a6a', 9, 1.8, P0.rx + 11, Y + 4.5, COAST.rz + 9, -Math.PI / 2);   // facing traffic along the coast road from the beach
+  for (const o of [-3.6, 3.6]) b.box(.25, 4.5, .25, P0.rx + 11.1, Y + 2.25, COAST.rz + 9 + o, darkM, 1, true, 'house');
+  /* ---- the gate: a canopy over both lanes, booths and barriers, the port's name ---- */
+  { const gz = P0.gateZ, gx = P0.rx;
+    for (const [ox, oz] of [[-12, -4], [12, -4], [-12, 4], [12, 4]]) b.box(.8, 6.5, .8, gx + ox, Y + 3.25, gz + oz, white, 1, true, 'house');
+    b.box(26, .8, 10, gx, Y + 6.8, gz, blue, 1, true, 'roof'); b.box(26.4, .3, 10.4, gx, Y + 7.35, gz, white, 1, false);
+    for (const ox of [-7, 0, 7]) { b.box(1.6, 2.6, 3, gx + ox, Y + 1.3, gz, white, 1, true, 'house'); b.box(1.8, .2, 3.2, gx + ox, Y + 2.7, gz, blue, 1, false); }
+    for (const ox of [-3.5, 3.5]) { const bar = new THREE.Mesh(new THREE.BoxGeometry(5, .14, .14), LM(0xd8342c)); bar.position.set(gx + ox, Y + 1.1, gz - 1.6); scene.add(bar); }
+    sign('LEKKI DEEP SEA PORT', 'LEKKI FREE TRADE ZONE · LAGOS', '#0d3a6a', 20, 1.6, gx, Y + 6.8, gz - 5.05, Math.PI);
+    for (let k = 0; k < 4; k++) { const c = makeCivilian({ x: gx, z: gz, y: Y, houses: [], civs: [], sand: [gx - 9, gx + 9, gz - 3, gz + 3], place: 'security' }, { adult: true }); c.guard = true; }
+  }
+  /* ---- the quays: the edge, fenders, bollards, a yellow line; crane rails ---- */
+  const quay = (x0, z0, x1, z1, nx, nz) => {   // an edge from (x0, z0) to (x1, z1), water on the (nx, nz) side
+    const along = Math.abs(x1 - x0) > Math.abs(z1 - z0), L = along ? x1 - x0 : z1 - z0, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    b.box(along ? L : 1.4, 5, along ? 1.4 : L, mx + nx * .7, Y - 2.5, mz + nz * .7, conc, 2, false);
+    b.box(along ? L : .3, .02, along ? .3 : L, mx - nx * 2.2, Y + .03, mz - nz * 2.2, yel, 1, false);
+    for (let t = 6; t < L - 4; t += 12) { const x = along ? x0 + t : mx, z = along ? mz : z0 + t; b.box(.6, .7, .6, x - nx * .9, Y + .35, z - nz * .9, darkM, 1, true, 'house'); b.box(along ? 2.4 : .5, 1.6, along ? .5 : 2.4, x + nx * 1.6, Y - 1, z + nz * 1.6, MM.tire, 1, false); }
+    for (const o of [6, 28]) b.box(along ? L : .25, .12, along ? .25 : L, mx - nx * o, Y + .06, mz - nz * o, steel, 1, false);
+  };
+  quay(P0.x0, P0.z1, P0.x1, P0.z1, 0, 1); quay(P0.x0, P0.z0, P0.x0, P0.z1, -1, 0);
+  /* ---- ship-to-shore gantry cranes: four legs on the rails, the boom out over the water, the machinery house, red and white ---- */
+  const crane = (x, z, nx, nz) => {   // standing at (x, z) on the quay, reaching out toward (nx, nz)
+    const tx = -nz, tz = nx, H = 34, at = (a, o) => [x + nx * a + tx * o, z + nz * a + tz * o];
+    for (const a of [-6, -28]) for (const o of [-8, 8]) { const [px, pz] = at(a, o); b.box(1.4, H, 1.4, px, Y + H / 2, pz, (a + o) % 2 ? craneR : craneW, 2, true, 'house'); }
+    for (const a of [-6, -28]) { const [px, pz] = at(a, 0); b.box(Math.abs(tx) * 17.4 + Math.abs(nx) * 1.6, 1.6, Math.abs(tz) * 17.4 + Math.abs(nz) * 1.6, px, Y + 4, pz, craneR, 1, false); b.box(Math.abs(tx) * 17.4 + Math.abs(nx) * 1.6, 1.6, Math.abs(tz) * 17.4 + Math.abs(nz) * 1.6, px, Y + H, pz, craneR, 1, true, 'roof'); }
+    for (const o of [-8, 8]) { const [px, pz] = at(-17, o); b.box(Math.abs(nx) * 24 + Math.abs(tx) * 1.6, 1.6, Math.abs(nz) * 24 + Math.abs(tz) * 1.6, px, Y + H, pz, craneR, 1, false); }
+    { const [px, pz] = at(10, 0); b.box(Math.abs(nx) * 74 + Math.abs(tx) * 3, 2.2, Math.abs(nz) * 74 + Math.abs(tz) * 3, px, Y + H + 2, pz, craneW, 1, false); }   // the boom, out over the ship
+    { const [px, pz] = at(-17, 0); b.box(Math.abs(nx) * 12 + Math.abs(tx) * 9, 6, Math.abs(nz) * 12 + Math.abs(tz) * 9, px, Y + H + 4.2, pz, craneW, 1, false); b.box(1.2, 14, 1.2, px, Y + H + 14, pz, craneR, 1, false); }
+    { const [px, pz] = at(8, 0); b.box(3, 2, 3, px, Y + H - 1, pz, darkM, 1, false); b.box(.12, 14, .12, px, Y + H - 9, pz, steel, 1, false); b.box(2.6, .6, 12.4, px, Y + H - 16.3, pz, yel, 1, false); }   // trolley, cables, spreader
+    for (const [a, o] of [[-6, -8], [-28, 8]]) { const [px, pz] = at(a, o); b.box(.6, .6, .6, px, Y + H + 1.2, pz, lampMat, 1, false); }
+  };
+  for (const x of [96, 156, 216, 296]) crane(x, P0.z1 - 2, 0, 1);
+  for (const z of [566, 636, 706]) crane(P0.x0 + 2, z, -1, 0);
+  /* ---- the container yard: stacks of boxes (instanced), rubber-tyred gantries over the blocks ---- */
+  { const geo = new THREE.BoxGeometry(12.2, 2.6, 2.44), mats = [], cols = [0xb8261e, 0x1f5fa8, 0x2f8a4a, 0xe8a020, 0xe8742a, 0xe8e6df, 0x5a6066, 0x2a9ad8, 0x8a2a5a, 0x3a3a40].map(c => new THREE.Color(c)), m4 = new THREE.Matrix4();
+    for (const [x0, x1, z0, z1] of P0.yard) for (let x = x0 + 7; x < x1 - 6; x += 13.6) for (let z = z0 + 2, r = 0; z < z1 - 2; z += 2.9, r++) {
+      if (r % 7 === 6) continue;   // a lane through the block every six rows
+      const tiers = 1 + Math.floor(rng() * 4); for (let t = 0; t < tiers; t++) { m4.makeTranslation(x, Y + 1.3 + t * 2.62, z); mats.push([m4.clone(), cols[Math.floor(rng() * cols.length)]]); }
+      colliders.push({ x0: x - 6.1, x1: x + 6.1, y0: Y, y1: Y + tiers * 2.62, z0: z - 1.22, z1: z + 1.22, tag: 'house' });
+    }
+    const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff }), mats.length); mats.forEach(([mm, c], k) => { im.setMatrixAt(k, mm); im.setColorAt(k, c); }); im.castShadow = true; im.receiveShadow = true; scene.add(im);
+    for (const [x0, x1, z0, z1] of P0.yard) for (let z = z0 + 30; z < z1 - 20; z += 70) {   // RTG cranes straddling the block
+      for (const x of [x0 - 1, x1 + 1]) for (const dz of [-3, 3]) b.box(.8, 16, .8, x, Y + 8, z + dz, yel, 1, true, 'house');
+      for (const x of [x0 - 1, x1 + 1]) b.box(.8, .8, 7, x, Y + 1, z, yel, 1, false);
+      b.box(x1 - x0 + 2.8, 1.4, 7, (x0 + x1) / 2, Y + 16.2, z, yel, 1, false); b.box(3, 2, 3, (x0 + x1) / 2 + 10, Y + 14.6, z, darkM, 1, false);
+    }
+    YABA_MAP.push(...P0.yard.map(([x0, x1, z0, z1]) => [(x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, '#b8705a']));
+  }
+  /* ---- a warehouse, the port authority, floodlight masts, the breakwater's light ---- */
+  b.box(84, 12, 26, 112, Y + 6, 502, LM(0xc8cdd2), 3, true, 'house'); b.box(86, .8, 28, 112, Y + 12.4, 502, blue, 1, true, 'roof');
+  for (let x = 76; x < 150; x += 12) b.box(8, 6, .1, x, Y + 3, 515.05, darkM, 1, false);
+  sign('BONDED WAREHOUSE 1', '', '#0d3a6a', 14, 1.4, 112, Y + 9.5, 515.1, 0);
+  b.box(42, 16, 22, 304, Y + 8, 504, LM(0xe8eef2), 3, true, 'house');
+  for (let f = 0; f < 4; f++) for (const s of [-1, 1]) b.box(40, 2.2, .1, 304, Y + 2 + f * 4, 504 + s * 11.05, new THREE.MeshLambertMaterial({ color: 0x5a8aa8, emissive: 0x0c1c2a }), 1, false);
+  b.box(43, .8, 23, 304, Y + 16.4, 504, white, 1, true, 'roof'); sign('LEKKI PORT AUTHORITY', 'LEKKI FREEPORT TERMINAL', '#0d3a6a', 18, 1.6, 304, Y + 13, 515.1, 0);
+  for (const [x, z] of [[76, 545], [220, 545], [76, 745], [220, 745], [258, 545], [338, 745]]) { b.box(.9, 30, .9, x, Y + 15, z, steel, 1, true, 'house'); b.box(4, 1.6, 1.6, x, Y + 30.4, z, lampMat, 1, false); LAMPS.push([x, z, Y]); }
+  { const [lx, lz] = BREAKWATER[BREAKWATER.length - 1]; for (let k = 0; k < 4; k++) b.box(2.6 - k * .2, 2.4, 2.6 - k * .2, lx, 6 + 1.2 + k * 2.4, lz, k % 2 ? white : craneR, 1, true, 'house'); b.box(1.6, 1.4, 1.6, lx, 6 + 10.4, lz, lampMat, 1, false); }
+  /* ---- ships: two berthed, two coming and going, each with a tug; container trucks parked by the warehouse ---- */
+  const berth = (x, z, yaw, col) => { const s = makeShip(col); s.position.set(x, WATER_Y + 3, z); s.rotation.y = yaw; scene.add(s); const ax = Math.abs(Math.sin(yaw)) > .5; colliders.push({ x0: x - (ax ? 48 : 8), x1: x + (ax ? 48 : 8), y0: 0, y1: WATER_Y + 18, z0: z - (ax ? 8 : 48), z1: z + (ax ? 8 : 48), tag: 'house' }); };
+  berth(150, P0.z1 + 11, Math.PI / 2, 0x1f3a5a); berth(P0.x0 - 11, 600, 0, 0x8a2a22);
+  for (const [path, col, wait0] of [[[[-300, 1066], [-40, 960], [60, 852], [180, 814], [262, P0.z1 + 11]], 0x2a5a2a, 0], [[[-320, 1000], [-150, 860], [-60, 760], [P0.x0 - 11, 720]], 0x3a3a6a, 40]]) {
+    const g = makeShip(col); scene.add(g); const R = routeOf(path), tug = makeBoat(0xd8342c, 0xf2f0ea); tug.scale.setScalar(1.6); scene.add(tug);
+    SHIPS.push({ g, R, tug, s: 0, dir: 1, wait: wait0, speed: 0 });
+  }
+  for (const [x, z] of [[164, 539], [182, 539], [200, 539]]) { const t = makeContainerTruck(); t.position.set(x, Y + .02, z); t.rotation.y = Math.PI; addStatic(t); colliders.push({ x0: x - 1.4, x1: x + 1.4, y0: Y, y1: Y + 4, z0: z - 8, z1: z + 8, tag: 'house' }); }
+  for (let k = 0; k < 10; k++) makeCivilian({ x: 150, z: 760, y: Y, houses: [], civs: [], sand: [P0.x0 + 8, P0.x1 - 8, P0.z1 - 26, P0.z1 - 8], place: 'yaba' }, { adult: true });
+  for (let k = 0; k < 6; k++) makeCivilian({ x: 304, z: 520, y: Y, houses: [], civs: [], sand: [284, 326, 518, 526], place: 'seafront' }, { adult: true });
+  b.build();
+  YABA_MAP.push([112, 502, 84, 26, '#c8cdd2'], [304, 504, 42, 22, '#e8eef2']);
+  OYO_PLACES.push(['Lekki Deep Sea Port', P0.rx - 10, P0.gateZ - 14]);
+  addRouteCars([[P0.rx, COAST.rz + 6], [P0.rx, P0.z1 - 34], [P0.x1 - 8, P0.z1 - 34]], 4, { mix: { ctruck: 5, tipper: 1, hilux19: 1, lc200: .5 }, cruise: 9, lane: 2.3, y: Y });
+  addRouteCars([[P0.x0 + 34, P0.crossZ], [P0.x1 - 8, P0.crossZ]], 2, { mix: { ctruck: 1 }, cruise: 7, lane: 2.3, y: Y });
+});
+function updatePort(dt) {   // ships: wait at the berth (or out at sea), then sail the route at harbour speed, easing in at each end
+  for (const S of SHIPS) {
+    if (S.wait > 0) { S.wait -= dt; if (S.wait <= 0) S.dir = S.s > S.R.L / 2 ? -1 : 1; }
+    else { const left = S.dir > 0 ? S.R.L - S.s : S.s; S.speed += (Math.min(6, .15 + left * .08) - S.speed) * Math.min(1, dt * .5); S.s += S.dir * S.speed * dt; if (S.s >= S.R.L || S.s <= 0) { S.s = clamp(S.s, 0, S.R.L); S.speed = 0; S.wait = S.s > 0 ? 45 : 25; } }
+    const p = routeAt(S.R, S.s); S.g.position.set(p.x, WATER_Y + 3, p.z);
+    if (S.wait <= 0) { const want = Math.atan2(-p.tx * S.dir, -p.tz * S.dir); let dy = want - S.g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); S.g.rotation.y += dy * Math.min(1, dt * .4); }   // waiting, it keeps its heading
+    const yw = S.g.rotation.y, ox = Math.sin(yw) * 56 + Math.cos(yw) * 6, oz = Math.cos(yw) * 56 - Math.sin(yw) * 6;   // the tug pushes at the stern quarter
+    S.tug.position.set(p.x + ox, WATER_Y - .45, p.z + oz); S.tug.rotation.y = yw;
+  }
 }
 
 // cars parked at homes all over the world, the kind that fits the neighbourhood (placed now, once Yaba and Ikeja are built too)
@@ -7260,7 +7417,7 @@ function driveStep(dt) {
   c.yaw += (c.speed / V.wb) * Math.tan(c.steer) * dt;
   if (c.kind === 'bike') c.lean += (clamp(c.steer * Math.min(1, Math.abs(c.speed) / 12) * 1.1, -.55, .55) - c.lean) * Math.min(1, dt * 6);
   const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
-  const nx = clamp(c.x + fx * c.speed * dt, -BOUND, BOUND), nz = clamp(c.z + fz * c.speed * dt, ZLO, BOUND);
+  const nx = clamp(c.x + fx * c.speed * dt, -BOUND, BOUND), nz = clamp(c.z + fz * c.speed * dt, ZLO, ZHI);
   // walls, trees, houses and water stop the car; kerbs and steps up to a block high do not
   let ok = carGround(nx, nz, c.yaw, V) <= c.y + 1.05 && heightAt(nx, nz) > 1;
   if (ok) for (const k of V.circles) {
@@ -7422,7 +7579,7 @@ const seaBoats = [];
 if (COAST) for (const [z, col, can, sp] of [[334, 0xf2c230, 0x2f8fd0, 7], [346, 0x3fae5a, 0xf2f0ea, 5]]) { const g = makeBoat(col, can); scene.add(g); seaBoats.push({ g, x: RM(-250, 250), z, dir: Math.random() < .5 ? 1 : -1, sp, t: RM(0, 9) }); }
 function updateBoats(dt) {
   for (const b of seaBoats) {
-    b.t += dt; b.x += b.dir * b.sp * dt; if (Math.abs(b.x) > 320) { b.dir = -Math.sign(b.x); b.x = Math.sign(b.x) * 320; }
+    b.t += dt; b.x += b.dir * b.sp * dt; const xr = PORT ? PORT.rx - 22 : 320; if (b.x > xr || b.x < -320) { b.dir = b.x > 0 ? -1 : 1; b.x = clamp(b.x, -320, xr); }   // west of the port's causeway
     b.g.position.set(b.x, WATER_Y - .45 + Math.sin(b.t * 1.6) * .08, b.z); b.g.rotation.set(.04 + Math.sin(b.t * 2.1) * .02, b.dir > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(b.t * 1.3) * .03);
   }
   for (const c of DRIVABLES) if (c.kind === 'boat' && P.driving !== c) { c.t = (c.t || 0) + dt; c.y = WATER_Y - .45 + Math.sin(c.t * 1.7) * .08; c.pitch = Math.sin(c.t * 2.3) * .02; c.roll = Math.sin(c.t * 1.3) * .03; placePlane(c); }
@@ -7646,7 +7803,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -7878,7 +8035,7 @@ function stepPlayer(dt) {
     else { p.z -= pz0; if (P.vel.z > 0) P.vel.z = 0; }
   }
   if (Math.abs(p.x) > BOUND) { p.x = Math.sign(p.x) * BOUND; P.vel.x = 0; }
-  if (p.z > BOUND || p.z < ZLO) { p.z = clamp(p.z, ZLO, BOUND); P.vel.z = 0; }
+  if (p.z > ZHI || p.z < ZLO) { p.z = clamp(p.z, ZLO, ZHI); P.vel.z = 0; }
   if (p.y < WATER_Y - .6) { P.vel.multiplyScalar(Math.exp(-4 * dt)); P.vel.y += 30 * dt; }
 }
 function playerTimers(dt) {
@@ -8045,7 +8202,8 @@ function updateHUD(dt) {
   cc.classList.toggle('on', !!cue);
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
-  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !JOBS.del || !!TC.conv || LM_.open;
+  const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
+  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !JOBS.del || !!TC.conv || LM_.open;
   if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
   else if (P.driving && JOBS.del) $('prompt').textContent = delPrompt();
@@ -8059,6 +8217,7 @@ function updateHUD(dt) {
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
   else if (bar) $('prompt').textContent = `E · Buy a drink at the bar · from ${NAIRA(1200)}`;
   else if (lift) $('prompt').textContent = lift.up ? `E · Take the lift to ${lift.L.name}` : 'E · Take the lift down';
+  else if (desk) $('prompt').textContent = `E · Oyo Skylink: fly to ${desk.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`;
   else if (who) $('prompt').textContent = who.persona?.met ? `E · Talk to ${who.persona.name}` : 'E · Say hello';
   else if (car) $('prompt').textContent = car.lux ? `E · Drive the ${car.luxName || 'Range Rover Sport'} ✦` : (car.kind === 'bike') ? 'E · Ride this motorbike' : car.police ? 'E · Drive the police car' : car.ambulance ? 'E · Drive the ambulance' : car.kind === 'truck' ? 'E · Drive the fire truck' : car.kind === 'bus' ? 'E · Drive the school bus' : car.kind === 'plane' ? 'E · Fly this plane' : car.kind === 'jet' ? 'E · Fly the airliner' : car.kind === 'boat' ? 'E · Take the speedboat' : 'E · Drive this car';
   else if (landA && !JOBS.del) $('prompt').textContent = landA.label;
@@ -8074,11 +8233,11 @@ function updateHUD(dt) {
 const mm = $('minimap'), mg = mm.getContext('2d');
 const MAP_OY = YB ? ND : 0;   // the map image carries the mainland strip above the old map
 const mapImg = (() => {
-  const c = document.createElement('canvas'); c.width = N; c.height = N + MAP_OY; const g = c.getContext('2d'); const img = g.createImageData(N, N + MAP_OY);
-  for (let i = 0; i < N; i++) for (let j = -MAP_OY; j < N; j++) {
-    const h = j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j], o = ((j + MAP_OY) * N + i) * 4;
+  const c = document.createElement('canvas'); c.width = N; c.height = N + MAP_OY + SD; const g = c.getContext('2d'); const img = g.createImageData(N, N + MAP_OY + SD);
+  for (let i = 0; i < N; i++) for (let j = -MAP_OY; j < N + SD; j++) {
+    const h = j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], o = ((j + MAP_OY) * N + i) * 4;
     let r, gg, b;
-    const kd = j < 0 ? NKIND[i * ND + j + ND] : KIND[i * N + j], k = h / 36;
+    const kd = j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
     if (h <= 1) { r = 58; gg = 120; b = 190; }
     else if (kd === 2) { r = 236; gg = 240; b = 242; }
     else if (kd === 3) { r = 120 + k * 40; gg = 122 + k * 40; b = 124 + k * 40; }
@@ -8138,10 +8297,10 @@ const bmC = $('bigmapC'), bg2 = bmC.getContext('2d');
 let bigMapT = 0;
 const MAPCUR = { x: 0, y: 0, dirty: false };   // a crosshair on the big map, moved by the captured mouse
 // the big map shows a square window onto the world (BMV: its centre and width in metres): it opens on you, zooms and pans
-const BMV = { cx: 0, cz: 0, span: 1100, down: null, dragged: false }, BM_MIN = 240, BM_MAX = N + MAP_OY + 40;
+const BMV = { cx: 0, cz: 0, span: 1100, down: null, dragged: false }, BM_MIN = 240, BM_MAX = N + MAP_OY + SD + 40;
 const bmToB = (x, z) => { const sc = bmC.width / BMV.span; return [bmC.width / 2 + (x - BMV.cx) * sc, bmC.height / 2 + (z - BMV.cz) * sc]; };
 const bmFromB = (px, py) => { const sc = bmC.width / BMV.span; return [BMV.cx + (px - bmC.width / 2) / sc, BMV.cz + (py - bmC.height / 2) / sc]; };
-function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(0, -HALF + h), Math.max(0, HALF - h)); BMV.cz = clamp(BMV.cz, Math.min((HALF - HALF - MAP_OY) / 2, -HALF - MAP_OY + h), Math.max((HALF - HALF - MAP_OY) / 2, HALF - h)); }
+function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(0, -HALF + h), Math.max(0, HALF - h)); const mid = (SD - MAP_OY) / 2; BMV.cz = clamp(BMV.cz, Math.min(mid, -HALF - MAP_OY + h), Math.max(mid, HALF + SD - h)); }
 function bmZoom(f, px = bmC.width / 2, py = bmC.height / 2) {   // keep the spot under (px, py) where it is
   const [x, z] = bmFromB(px, py); BMV.span *= f; bmClamp(); const [x2, z2] = bmFromB(px, py); BMV.cx += x - x2; BMV.cz += z - z2; bmClamp(); MAPCUR.dirty = true;
 }
@@ -8205,6 +8364,7 @@ function drawBigMap() {
     label('LAGOS–IBADAN EXPRESSWAY', expX(-2800) + 80, -2800, 14, '#f2c230'); label('IBADAN', 0, -4930, 24, '#f2c230'); label('OYO', 0, OYO.z1 + 14, 22, '#f2c230');
     for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
     for (const [n, x, z] of OYO_PLACES) label(n, x, z, 11, '#ffd3a8');
+    for (const d of FLIGHT_DESKS) { const [bx, by] = toB(d.x, d.z); bg2.fillStyle = '#d8342c'; bg2.strokeStyle = '#fff'; bg2.lineWidth = 2; bg2.beginPath(); bg2.arc(bx, by, 7, 0, TAU); bg2.fill(); bg2.stroke(); label(`✈ Oyo Skylink: fly to ${d.to === 'ibadan' ? 'Ibadan' : 'Lagos'}`, d.x, d.z, 12, '#ffb0b0', -14); }
     label('IKEJA', GRA.ave, GRA.z1 - 6, 18, '#f2c230'); label('Lagos State Government House', GOVH.bx0 + 18, GOVH.cz - 70, 11, '#ffd3a8');
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
     label('UNIVERSITY OF LAGOS', (UNILAG.x0 + UNILAG.lagoonX) / 2, UNILAG.z0 + 30, 15, '#ffb0b0'); label('Senate', 160, -514, 11, '#ffffff'); label('Lagoon', UNILAG.lagoonX + 30, -560, 12, '#bfe3ff');
@@ -9779,7 +9939,7 @@ function startBoatRide(boat) {
   }
   // three buoys out at sea, a loop that comes back toward the jetty
   const pts = []; let a = RM(-1, 1);
-  for (let k = 0; k < 3; k++) { a += RM(.6, 1.1) * (Math.random() < .5 ? 1 : -1); pts.push([clamp(JETTY_DOCK.x + Math.sin(a) * RM(70, 120) + (k - 1) * 60, -300, 330), JETTY_DOCK.z + 40 + Math.abs(Math.cos(a)) * RM(40, 90)]); }
+  for (let k = 0; k < 3; k++) { a += RM(.6, 1.1) * (Math.random() < .5 ? 1 : -1); pts.push([clamp(JETTY_DOCK.x + Math.sin(a) * RM(70, 120) + (k - 1) * 60, -300, PORT ? PORT.rx - 30 : 330), JETTY_DOCK.z + 40 + Math.abs(Math.cos(a)) * RM(40, 90)]); }
   pts.forEach(([x, z], k) => { const b = BUOYS[k]; b.g.position.set(x, WATER_Y, z); b.g.visible = true; });
   let route = 0, prev = [JETTY_DOCK.x, JETTY_DOCK.z]; for (const p of pts) { route += Math.hypot(p[0] - prev[0], p[1] - prev[1]); prev = p; } route += Math.hypot(prev[0] - JETTY_DOCK.x, prev[1] - JETTY_DOCK.z);
   JOBS.boat = { boat, riders, pts, next: 0, pay: n * 2000, t0: S.time, limit: route / 14 + 30, n };
@@ -10483,7 +10643,7 @@ function updateOnline(dt) {
    allowed where nothing solid stands. The driver keeps right, slows for bends, stops for cars, people and you, backs out of
    trouble, and is paid on arrival (N1,500 plus N8 a metre, pro rata if you take the wheel early). W/S/A/D or E takes over. ---------- */
 const DRIVER = { on: false, path: null, i: 0, dest: null, dist: 0, done: 0, stuckT: 0, revT: 0, name: '' };
-const DRV_CELL = 2, DRV_NI = Math.ceil(2 * HALF / DRV_CELL), DRV_Z0 = typeof ZN === 'number' && YB ? ZN : -HALF, DRV_NJ = Math.ceil((HALF - DRV_Z0) / DRV_CELL);
+const DRV_CELL = 2, DRV_NI = Math.ceil(2 * HALF / DRV_CELL), DRV_Z0 = typeof ZN === 'number' && YB ? ZN : -HALF, DRV_NJ = Math.ceil((HALF + SD - DRV_Z0) / DRV_CELL);
 const drvW = (i, j) => [-HALF + (i + .5) * DRV_CELL, DRV_Z0 + (j + .5) * DRV_CELL];
 function drvCost(i, j, tight) {   // the cost of driving through a cell, or Infinity (tight: less room needed, for getting away from where you parked)
   const [x, z] = drvW(i, j), h = heightAt(x, z); if (h <= 1) return Infinity;
@@ -10618,7 +10778,7 @@ bmC.addEventListener('pointermove', e => { const D = BMV.down; if (!D || e.point
 for (const ev of ['pointerup', 'pointercancel']) bmC.addEventListener(ev, e => { if (BMV.down && e.pointerId === BMV.down.id) BMV.down = null; setTimeout(() => { BMV.dragged = false; }, 0); });
 addEventListener('wheel', e => { if ($('bigmap').hidden) return; const locked = !!document.pointerLockElement; if (!locked && e.target !== bmC) return; e.preventDefault(); const [px, py] = locked ? [MAPCUR.x, MAPCUR.y] : bmPx(e); bmZoom(e.deltaY > 0 ? 1.2 : 1 / 1.2, px, py); }, { passive: false });
 $('bmIn').addEventListener('click', e => { e.stopPropagation(); bmZoom(1 / 1.5); }); $('bmOut').addEventListener('click', e => { e.stopPropagation(); bmZoom(1.5); });
-$('bmMe').addEventListener('click', e => { e.stopPropagation(); bmCentreOnMe(); }); $('bmAll').addEventListener('click', e => { e.stopPropagation(); BMV.span = BM_MAX; BMV.cx = 0; BMV.cz = (HALF - HALF - MAP_OY) / 2; bmClamp(); MAPCUR.dirty = true; });
+$('bmMe').addEventListener('click', e => { e.stopPropagation(); bmCentreOnMe(); }); $('bmAll').addEventListener('click', e => { e.stopPropagation(); BMV.span = BM_MAX; BMV.cx = 0; BMV.cz = (SD - MAP_OY) / 2; bmClamp(); MAPCUR.dirty = true; });
 function drawDriverRoute(ctx, toP, lw) {
   if (!DRIVER.on || !DRIVER.path) return;
   ctx.save(); ctx.strokeStyle = 'rgba(242,194,48,.9)'; ctx.lineWidth = lw; ctx.setLineDash([lw * 2, lw * 1.5]); ctx.beginPath();
@@ -10650,7 +10810,7 @@ function frame(now) {
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
   updateTitans(mode === 'pause' ? 0 : dt);
-  if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); } updateRouteTraffic(dt); }
+  if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); }
   updateTalk(dt);
   titanRoot.updateMatrixWorld(true);
   if (mode === 'play') {

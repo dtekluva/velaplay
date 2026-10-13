@@ -166,7 +166,7 @@ Players can sell or give land to each other and send money (`src/trade.ts`, tabl
 
 ## The map's extent
 
-The server clamps positions to x ±346 and z from −5866 (the north edge, past Yaba, Ikeja, Ibadan and Oyo) to 346, in `rooms/WorldRoom.ts` (`BOUND`, `ZLO`). When the game's map grows, move these with it. `data/plots.json` lists 291 plots: the 227 on the old map, the 40 Ikeja GRA lots (kind `e`, ₦40,000) and 24 lots in the expressway hamlets Magboro, Ibafo and Mowe (kind `e`, ₦8,000), with negative z keys.
+The server clamps positions to x ±346 and z from −5866 (the north edge, past Yaba, Ikeja, Ibadan and Oyo) to 1066 (the south edge, out at sea past the Lekki Deep Sea Port), in `rooms/WorldRoom.ts` (`BOUND`, `ZLO`, `ZHI`). When the game's map grows, move these with it. `data/plots.json` lists 291 plots: the 227 on the old map, the 40 Ikeja GRA lots (kind `e`, ₦40,000) and 24 lots in the expressway hamlets Magboro, Ibafo and Mowe (kind `e`, ₦8,000), with negative z keys.
 
 ## Next steps
 
