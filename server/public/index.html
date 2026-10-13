@@ -1142,6 +1142,117 @@ const potMats = [0x9a5a3a, 0x6a7a8a, 0xc9b27a].map(LM);
 const linenMat = LM(0xece6d6), darkMat = LM(0x1e1612);
 const fireMat = new THREE.MeshBasicMaterial({ color: 0xff8a2a }), lampMat = new THREE.MeshBasicMaterial({ color: 0xffe2a0 });
 for (const v of VILLAGES) { v.houses = []; v.civs = []; }
+/* ---------- roofs: real slopes instead of stepped boxes. Stone-coated "Gerard" tile roofs (barrel tiles in courses, with a gritty
+   stone finish) on the houses; slate, thatch and tin elsewhere. Hips and gables with overhanging eaves, soffits, fascia boards,
+   gutters, ridge and hip caps. Colliders are invisible steps under the slopes, so roofs can still be climbed and stood on.
+   Nothing here draws from the world's random sequence: colours come from the house's position. ---------- */
+const GERARD = [0x2b2c30, 0x8e3523, 0x5e1c20, 0x2c4a32, 0x203d70, 0x55361f, 0x3e4146, 0x7a2a1e];
+const ROOF_MATS = new Map();
+function gerardMat(hex) {
+  if (ROOF_MATS.has(hex)) return ROOF_MATS.get(hex);
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), base = new THREE.Color(hex);
+  const rgb = k => { const q = base.clone().multiplyScalar(k); return `rgb(${Math.min(255, q.r * 255) | 0},${Math.min(255, q.g * 255) | 0},${Math.min(255, q.b * 255) | 0})`; };
+  const rows = 3, rh = S / rows, tiles = 4, tw = S / tiles;
+  for (let row = 0; row < rows; row++) {
+    const y0 = row * rh;
+    for (let x = 0; x < S; x++) { const ph = (x % tw) / tw, k = .58 + .55 * Math.pow(Math.sin(ph * Math.PI), .7); g.fillStyle = rgb(k); g.fillRect(x, y0, 1, rh); }   // barrel tiles: light crests, dark troughs
+    for (let y = 0; y < rh; y++) { g.fillStyle = `rgba(0,0,0,${.22 * (y / rh) ** 2})`; g.fillRect(0, y0 + y, S, 1); }                                                  // each course darkens toward its lip
+    g.fillStyle = rgb(1.35); g.fillRect(0, y0 + rh - 7, S, 3); g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, y0 + rh - 4, S, 4);                                   // the lip and its shadow
+  }
+  const img = g.getImageData(0, 0, S, S), d = img.data; let s = (hex * 7919 + 13) >>> 0;
+  for (let i = 0; i < d.length; i += 4) { s = (s * 1103515245 + 12345) >>> 0; const n = (((s >>> 16) & 255) / 255 - .5) * 44; d[i] = clamp(d[i] + n, 0, 255); d[i + 1] = clamp(d[i + 1] + n, 0, 255); d[i + 2] = clamp(d[i + 2] + n, 0, 255); }   // stone chips
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  const m = new THREE.MeshLambertMaterial({ map: t, side: THREE.DoubleSide }); m.userData.tile = [1.6, 1.05]; ROOF_MATS.set(hex, m); return m;
+}
+const roofColour = (x, z) => GERARD[Math.abs(Math.floor(x * 7.31 + z * 13.17)) % GERARD.length];
+const ROOF_TRIM = { fascia: LM(0xf2f0ea), fasciaDark: LM(0x3a2a1e), soffit: LM(0xe8e4da), gutter: LM(0x2a2c30) };
+// a flat polygon (3 or 4 points), lit from the outside (its normal turned upward), UVs in tile units along the eave and up the slope
+function roofFace(pts, tile = [2, 2]) {
+  const v = pts.map(p => new THREE.Vector3(...p));
+  let n = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0])).normalize();
+  if (n.y < 0) { v.reverse(); n.negate(); }
+  const e = new THREE.Vector3().subVectors(v[1], v[0]); e.y = 0; if (e.lengthSq() < 1e-6) e.set(1, 0, 0); e.normalize();
+  const up = new THREE.Vector3().crossVectors(n, e).normalize(); if (up.y < 0) up.negate();
+  const pos = [], nor = [], uv = [];
+  for (const p of v) { pos.push(p.x, p.y, p.z); nor.push(n.x, n.y, n.z); const q = p.clone().sub(v[0]); uv.push(q.dot(e) / tile[0], q.dot(up) / tile[1]); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(v.length === 4 ? [0, 1, 2, 0, 2, 3] : [0, 1, 2]); return g;
+}
+function lineBox(a, c, w, h) {   // a box from a to c ([x, y, z]), w wide and h deep across it
+  const A = new THREE.Vector3(...a), C = new THREE.Vector3(...c), d = C.clone().sub(A), len = d.length(); d.normalize();
+  const side = new THREE.Vector3(0, 1, 0).cross(d); if (side.lengthSq() < 1e-6) side.set(1, 0, 0); side.normalize(); const up = d.clone().cross(side).normalize();
+  return boxGeo(w, h, len, 1).applyMatrix4(new THREE.Matrix4().makeBasis(side, up, d)).translate((A.x + C.x) / 2, (A.y + C.y) / 2, (A.z + C.z) / 2);
+}
+Builder.prototype.geo = function (g, mat) { if (!this.parts.has(mat)) this.parts.set(mat, []); this.parts.get(mat).push(g); return this; };
+// invisible stepped colliders under a roof: (half-length, half-width) shrinking with height
+function roofColliders(x, z, alongX, a, c, r, H, y, hip) {
+  const n = Math.max(2, Math.ceil(H / .5));
+  for (let k = 0; k < n; k++) {
+    const f = 1 - (k + .5) / n, hu = hip ? r + (a - r) * f : a, hv = c * f, y0 = y + k * H / n, y1 = y + (k + 1) * H / n;
+    const hx = alongX ? hu : hv, hz = alongX ? hv : hu; colliders.push({ x0: x - hx, x1: x + hx, y0, y1, z0: z - hz, z1: z + hz, tag: 'roof' });
+  }
+}
+/* a hip roof over a w x d footprint centred at (x, z), eaves at height y.
+   o: ov (overhang), pitch (rise per run), trim (fascia, soffit, gutters), fasciaM, ceil (a flat ceiling at the wall top), caps */
+function hipRoof(b, mat, x, z, w, d, y, o = {}) {
+  const ov = o.ov ?? .6, pitch = o.pitch ?? .5, W = w / 2 + ov, D = d / 2 + ov, alongX = W >= D, a = alongX ? W : D, c = alongX ? D : W, r = Math.max(0, a - c), H = c * pitch;
+  const wy = y; y -= ov * pitch;   // the eaves hang below the wall top, so the slope meets the walls right at it
+  const P = (u, v, h) => alongX ? [x + u, y + h, z + v] : [x + v, y + h, z + u], tile = mat.userData.tile || [2, 2];
+  const A = P(-a, -c, 0), B = P(a, -c, 0), C = P(a, c, 0), Dd = P(-a, c, 0), R1 = P(-r, 0, H), R2 = P(r, 0, H);
+  b.geo(roofFace([A, B, R2, R1], tile), mat).geo(roofFace([C, Dd, R1, R2], tile), mat).geo(roofFace([Dd, A, R1], tile), mat).geo(roofFace([B, C, R2], tile), mat);
+  if (o.caps !== false) {
+    const cap = o.capM || mat, lift = .06;
+    if (r > .05) b.geo(lineBox(P(-r - .1, 0, H + lift), P(r + .1, 0, H + lift), .3, .14), cap);
+    for (const [E, R] of [[A, R1], [Dd, R1], [B, R2], [C, R2]]) b.geo(lineBox([E[0], E[1] + lift, E[2]], [R[0], R[1] + lift, R[2]], .24, .1), cap);
+  }
+  if (o.trim !== false) {
+    const fM = o.fasciaM || ROOF_TRIM.fascia;
+    for (const s of [-1, 1]) {
+      b.geo(lineBox(P(-a, s * c, -.12), P(a, s * c, -.12), .06, .26), fM).geo(lineBox(P(-a, s * (c + .08), -.24), P(a, s * (c + .08), -.24), .14, .12), ROOF_TRIM.gutter);   // fascia and gutter on the long sides
+      b.geo(lineBox(P(s * a, -c, -.12), P(s * a, c, -.12), .06, .26), fM);                                                                                             // fascia on the ends
+      b.geo(lineBox(P(-a, s * (c - ov / 2), -.06), P(a, s * (c - ov / 2), -.06), ov, .04), ROOF_TRIM.soffit).geo(lineBox(P(s * (a - ov / 2), -c + ov, -.06), P(s * (a - ov / 2), c - ov, -.06), ov, .04), ROOF_TRIM.soffit);
+    }
+    const cw = c - ov, aw = a - ov, low = (o.ground ?? wy - 3) - y;
+    for (const s of [-1, 1]) { b.geo(lineBox(P(s * (aw - .25), c + .08, -.3), P(s * (aw - .25), cw + .1, -.5), .1, .1), ROOF_TRIM.gutter).geo(lineBox(P(s * (aw - .25), cw + .1, -.5), P(s * (aw - .25), cw + .1, low), .1, .1), ROOF_TRIM.gutter); }   // downpipes down the wall
+  }
+  if (o.ceil) b.box(w, .08, d, x, wy - .04, z, o.ceilM || MM.white, 1, false);
+  roofColliders(x, z, alongX, a, c, r, H, y, true);
+  return y + H;
+}
+/* a gable roof: the ridge runs the full length along `axis`; the gable ends are triangles of wall */
+function gableRoof(b, mat, wallM, x, z, w, d, y, o = {}) {
+  const axis = o.axis || (w >= d ? 'x' : 'z'), alongX = axis === 'x', ov = o.ov ?? .5, oe = o.end ?? .35, pitch = o.pitch ?? .6;
+  const a = (alongX ? w : d) / 2, c = (alongX ? d : w) / 2 + ov, H = c * pitch, aw = a, ae = a + oe;
+  const wy = y; y -= ov * pitch;
+  const P = (u, v, h) => alongX ? [x + u, y + h, z + v] : [x + v, y + h, z + u], tile = mat.userData.tile || [2, 2];
+  b.geo(roofFace([P(-ae, -c, 0), P(ae, -c, 0), P(ae, 0, H), P(-ae, 0, H)], tile), mat).geo(roofFace([P(ae, c, 0), P(-ae, c, 0), P(-ae, 0, H), P(ae, 0, H)], tile), mat);
+  const cw = c - ov;   // the gable triangles sit on the walls
+  if (wallM) for (const s of [-1, 1]) { const tri = [P(s * aw, -cw, ov * pitch), P(s * aw, cw, ov * pitch), P(s * aw, 0, H)]; b.geo(roofFace(tri, [2, 2]), wallM).geo(roofFace(tri.slice().reverse(), [2, 2]), wallM); }   // both faces
+  if (o.caps !== false) b.geo(lineBox(P(-ae - .05, 0, H + .06), P(ae + .05, 0, H + .06), .3, .14), o.capM || mat);
+  if (o.trim !== false) {
+    const fM = o.fasciaM || ROOF_TRIM.fascia;
+    for (const s of [-1, 1]) {
+      b.geo(lineBox(P(-ae, s * c, -.12), P(ae, s * c, -.12), .06, .26), fM).geo(lineBox(P(-ae, s * (c + .08), -.24), P(ae, s * (c + .08), -.24), .14, .12), ROOF_TRIM.gutter);
+      for (const t of [-1, 1]) b.geo(lineBox(P(s * ae, t * c, .02), P(s * ae, 0, H + .02), .08, .3), fM);   // barge boards along the gable edges
+    }
+  }
+  if (o.ceil) b.box(w, .08, d, x, wy - .04, z, o.ceilM || MM.white, 1, false);
+  roofColliders(x, z, alongX, ae, c, ae, H, y, false);
+  return y + H;
+}
+// a roof in a building's own frame (mkFrame): local width, depth and centre, turned with the building
+function frameRoof(F, b, kind, mat, wallM, lw, ld, lx, lz, y, o = {}) {
+  const p = F.pt(lx, lz), w = F.fx ? ld : lw, d = F.fx ? lw : ld, ax = o.axis ? (F.fx ? (o.axis === 'x' ? 'z' : 'x') : o.axis) : undefined;
+  return kind === 'gable' ? gableRoof(b, mat, wallM, p.x, p.z, w, d, y, { ...o, axis: ax }) : hipRoof(b, mat, p.x, p.z, w, d, y, o);
+}
+// finishing touches round a house: a plinth band at the foot of the walls, and an AC unit or two on the side walls
+function houseTrim(b, x, z, w, d, y, o = {}) {
+  b.box(w + .1, .45, d + .1, x, y + .22, z, o.plinth || LM(0x6a6660), 1, false);
+  const h = Math.abs(Math.floor(x * 3.7 + z * 5.3));
+  if (o.ac !== false) for (let k = 0; k < 1 + h % 2; k++) { const sx = (h + k) % 2 ? 1 : -1, zz = z + (k ? -d / 4 : d / 5); b.box(.3, .6, .9, x + sx * (w / 2 + .16), y + 2.3 + k * .2, zz, MM.acGrey, 1, false); b.box(.02, .4, .4, x + sx * (w / 2 + .32), y + 2.3 + k * .2, zz, MM.dark, 1, false); }
+}
+const THATCH = LM(0xc9a35a), THATCH_D = LM(0xa8853f);
 function buildVillageHouse(hs) {
   const { v, x, z, w, d } = hs, y = v.y, fl = y + .4, b = new Builder();
   v.houses.push(hs);
@@ -1166,8 +1277,8 @@ function buildVillageHouse(hs) {
   L(DW, wallH - DH, T, 0, fl + DH + (wallH - DH) / 2, -DL / 2 + T / 2, wallM, 2, true, 'lintel');
   L(DW + .3, .2, T + .1, 0, fl + DH + .1, -DL / 2 + T / 2, M.bark, 1, false);
   for (const s of [-1, 1]) L(.15, DH, T + .1, s * (DW / 2 + .07), fl + DH / 2, -DL / 2 + T / 2, M.bark, 1, false);
-  let ry = fl + wallH + .5;
-  for (let rw = w + 1.2; rw > 1; rw -= 2.4, ry += 1) b.box(rw, 1, d + 1.2, x, ry, z, roofM, 2, true, 'roof');
+  gableRoof(b, roofM, wallM, x, z, w, d, fl + wallH, { axis: 'z', pitch: .75, ov: .55, fasciaM: ROOF_TRIM.fasciaDark });
+  b.box(w + .1, .4, d + .1, x, fl + .2, z, M.stone, 1, false);   // a stone footing
   b.box(1, 3, 1, x + w / 2 - 1.2, y + wallH + 1.8, z + d / 2 - 1.5, M.brick, 1, true, 'roof');
   // windows go right through the wall so they read from inside and out
   for (const ly of two ? [1.7, 5.1] : [1.9]) for (const s of [-1, 1]) {
@@ -1303,11 +1414,14 @@ function buildModernHouse(hs, shared) {
   WIN(1.4, 1.0, 2.0, fl + 1.6, DL / 2 - T / 2); WIN(2.2, 1.4, -3.0, ft + 1.6, DL / 2 - T / 2);
   WIN(1.8, 1.4, WL / 2 - T / 2, fl + 1.6, -2.4, true); WIN(1.8, 1.4, WL / 2 - T / 2, ft + 1.6, -2.6, true);
   WIN(1.8, 1.4, -WL / 2 + T / 2, ft + 1.6, -3.6, true);
-  // flat roof with parapet, solar panels and a rooftop condenser
-  b.box(w + .6, .35, d + .6, x, top + .175, z, M.concrete, 2, true, 'roof');
-  for (const s2 of [-1, 1]) { b.box(w + .6, .45, .2, x, top + .55, z + s2 * (d / 2 + .2), M.concrete, 2, true, 'roof'); b.box(.2, .45, d + .6, x + s2 * (w / 2 + .2), top + .55, z, M.concrete, 2, true, 'roof'); }
-  for (let k = -1; k <= 1; k++) b.box(1.7, .1, 1.1, x + k * 1.9, top + .45, z - 1.5, MM.solar, 1, false);
-  b.box(1.1, .8, 1.1, x + 3, top + .75, z + 2.5, MM.acGrey, 1, true, 'roof');
+  if (Math.abs(Math.floor(x * 1.3 + z * 2.1)) % 5 < 3) hipRoof(b, gerardMat(roofColour(x, z)), x, z, w, d, top, { pitch: .42, ground: y, ceil: true });   // a stone-coated tile hip roof
+  else {   // flat roof with parapet, solar panels and a rooftop condenser
+    b.box(w + .6, .35, d + .6, x, top + .175, z, M.concrete, 2, true, 'roof');
+    for (const s2 of [-1, 1]) { b.box(w + .6, .45, .2, x, top + .55, z + s2 * (d / 2 + .2), M.concrete, 2, true, 'roof'); b.box(.2, .45, d + .6, x + s2 * (w / 2 + .2), top + .55, z, M.concrete, 2, true, 'roof'); }
+    for (let k = -1; k <= 1; k++) b.box(1.7, .1, 1.1, x + k * 1.9, top + .45, z - 1.5, MM.solar, 1, false);
+    b.box(1.1, .8, 1.1, x + 3, top + .75, z + 2.5, MM.acGrey, 1, true, 'roof');
+  }
+  houseTrim(b, x, z, w, d, y + .05, { ac: false });
   // outdoor AC unit on the side wall
   L(.5, .85, 1.0, WL / 2 + .25, fl + .42, 1.6, MM.acGrey); L(.04, .55, .55, WL / 2 + .51, fl + .45, 1.6, MM.dark, 1, false);
 
@@ -1436,10 +1550,11 @@ function buildBungalow(hs, b) {
   b.box(hs.w + .4, .6, hs.d + .4, hs.x, y, hs.z, M.concrete, 2, true, 'base');
   b.box(hs.w - .2, .03, hs.d - .2, hs.x, fl + .015, hs.z, M.oak, 1, false);
   shell(F, fl, wallH, T, DW, DH, dX, wallM);
-  for (let k = 0, rw = hs.w + 1.2, rd = hs.d + 1.2; rw > 2 && rd > 2; k++, rw -= 1.6, rd -= 1.6) b.box(rw, .55, rd, hs.x, top + .28 + k * .55, hs.z, roofM, 2, true, 'roof');
+  const gM = gerardMat(roofColour(hs.x, hs.z));
+  hipRoof(b, gM, hs.x, hs.z, hs.w, hs.d, top, { pitch: .45, ground: y, ceil: true }); houseTrim(b, hs.x, hs.z, hs.w, hs.d, y + .05);
   // porch
   L(6, .1, 2.2, dX + .8, y + .35, -DL / 2 - 1.1, M.oak, 1, true, 'base');
-  L(6.2, .18, 2.4, dX + .8, top - .05, -DL / 2 - 1.2, roofM, 2, true, 'roof');
+  frameRoof(F, b, 'hip', gM, null, 6.2, 2.4, dX + .8, -DL / 2 - 1.2, top - .2, { pitch: .35, ov: .15, trim: false });   // the porch
   for (const sx of [-2.8, 2.8]) L(.16, wallH - .2, .16, dX + .8 + sx, fl + (wallH - .2) / 2, -DL / 2 - 2.2, MM.white, 1, false);
   // windows
   const WIN = (bw, bh, lx, ly, lz, alongZ) => alongZ ? L(T + .05, bh, bw, lx, ly, lz, MM.glass, 1, false) : L(bw, bh, T + .05, lx, ly, lz, MM.glass, 1, false);
@@ -1524,13 +1639,12 @@ function buildChurch(hs, b, big) {
   b.box(hs.w + .8, .8, hs.d + .8, hs.x, y, hs.z, M.stone, 1.5, true, 'base');
   b.box(hs.w - .2, .03, hs.d - .2, hs.x, fl + .015, hs.z, M.concrete, 1, false);
   shell(F, fl, wallH, T, DW, DH, dX, stone, 1.5);
-  for (let k = 0, rw = WL + 1.2; rw > .6; k++, rw -= 1.2) L(rw, .9, DL + 1.0, 0, fl + wallH + .45 + k * .9, 0, M.slate, 2, true, 'roof');
+  frameRoof(F, b, 'gable', M.slate, stone, WL, DL, 0, 0, fl + wallH, { axis: 'z', pitch: 1.05, ov: .5, fasciaM: ROOF_TRIM.fasciaDark, ceil: true });
   // bell tower and spire
   const tx = -WL / 2 + tw / 2, tz = -DL / 2 + tw / 2;
   L(tw, tH, tw, tx, fl + tH / 2, tz, stone, 1.5, true, 'house');
   for (const [a, c, alongZ] of [[tx, -DL / 2 - .05, false], [-WL / 2 - .05, tz, true]]) alongZ ? L(.1, 2.2, tw * .45, a, fl + tH - 3, c, darkMat, 1, false) : L(tw * .45, 2.2, .1, a, fl + tH - 3, c, darkMat, 1, false);
-  let sy = fl + tH;
-  for (let s2 = tw + .2; s2 > .5; s2 -= big ? .55 : .5, sy += 1.1) L(s2, 1.1, s2, tx, sy + .55, tz, M.slate, 2, true, 'roof');
+  const sy = frameRoof(F, b, 'hip', M.slate, null, tw + .2, tw + .2, tx, tz, fl + tH, { pitch: 3.4, ov: .15, trim: false }) - 1.1;   // the spire
   L(.18, 2.2, .18, tx, sy + 1.1, tz, gold, 1, false); L(1.2, .18, .18, tx, sy + 1.5, tz, gold, 1, false);
   // rose window above the door, tall stained glass along the sides
   L(2.4, 2.4, T + .06, dX, fl + DH + 2.0, -DL / 2 + T / 2, stainedMat, 1, false);
@@ -2064,7 +2178,7 @@ if (TOWN && blockAt('school')) {
   b.box(hs.w + .4, .4, hs.d + .4, hs.x, fl + LH + UH + .2, hs.z, M.concrete, 2, true, 'roof');
   // clock gable over the entrance
   b.box(3.4, 2.6, 1.2, hs.x, fl + LH + UH + 1.7, frontZ - .5, M.brick, 1, true, 'roof');
-  for (let k = 0, w2 = 3.6; w2 > .4; k++, w2 -= .7) b.box(w2, .35, 1.4, hs.x, fl + LH + UH + 3.15 + k * .35, frontZ - .5, M.slate, 1, true, 'roof');
+  hipRoof(b, M.slate, hs.x, frontZ - .5, 3.4, 1.2, fl + LH + UH + 3.0, { pitch: .9, ov: .15, trim: false });
   const cc = document.createElement('canvas'); cc.width = cc.height = 128; { const g = cc.getContext('2d'); g.fillStyle = '#f4efe2'; g.beginPath(); g.arc(64, 64, 60, 0, TAU); g.fill(); g.strokeStyle = '#1b1608'; g.lineWidth = 6; g.stroke(); for (let k = 0; k < 12; k++) { const a = k * TAU / 12; g.fillStyle = '#1b1608'; g.fillRect(64 + Math.cos(a) * 48 - 3, 64 + Math.sin(a) * 48 - 3, 6, 6); } g.lineWidth = 7; g.beginPath(); g.moveTo(64, 64); g.lineTo(64, 26); g.moveTo(64, 64); g.lineTo(96, 64); g.stroke(); }
   const clockTex = new THREE.CanvasTexture(cc); clockTex.encoding = THREE.sRGBEncoding;
   const clock = new THREE.Mesh(new THREE.CircleGeometry(.95, 24), new THREE.MeshBasicMaterial({ map: clockTex })); clock.position.set(hs.x, fl + LH + UH + 1.7, frontZ + .11); scene.add(clock);
@@ -2476,7 +2590,7 @@ if (COAST) withSeed(31337, () => {
   textSign('ELEGUSHI BEACH · LEKKI', '#0d4a8a', '#f2c230', 11, 1.5, gx, cy + 6.2, 275.55, 0, '#f2c230');
   const cabana = (x, z) => {
     for (const [ox, oz] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]]) bB.box(.18, 2.7, .18, x + ox, sy + 1.35, z + oz, M.bark, 1, true, 'roof');
-    for (let k = 0, s = 4.6; s > .6; k++, s -= 1.0) bB.box(s, .34, s, x, sy + 2.8 + k * .3, z, k % 2 ? thatchD : thatch, 1, k === 0, 'roof');
+    hipRoof(bB, thatch, x, z, 3.2, 3.2, sy + 2.75, { pitch: .85, ov: .7, trim: false, capM: thatchD });
     bB.box(2.4, .4, .6, x, sy + .2, z - 1.1, M.oak, 1, true, 'roof'); bB.box(.9, .7, .9, x, sy + .35, z + .3, M.oak, 1, false);
   };
   const bar = (x, z, name, col) => {
@@ -2486,7 +2600,7 @@ if (COAST) withSeed(31337, () => {
     bB.box(6.4, 1.1, .6, x, sy + .8, z + 1.2, M.oak, 1, true, 'house'); bB.box(6.6, .08, .8, x, sy + 1.38, z + 1.2, MM.white, 1, false);
     for (const sh of [1.4, 2.0]) { bB.box(6, .06, .3, x, sy + sh, z - 2.15, M.oak, 1, false); for (let k = 0; k < 12; k++) bB.box(.12, .3, .12, x - 2.7 + k * .5, sy + sh + .18, z - 2.15, brights[k % brights.length], 1, false); }
     for (const s of [-1, 1]) bB.box(.6, 1, .6, x + s * 2.9, sy + .75, z - 1.8, MM.dark, 1, false);   // speakers: Elegushi plays loud
-    for (let k = 0, s = 7.8; s > 1; k++, s -= 1.3) bB.box(s, .3, s * .8, x, sy + 3 + k * .28, z - .2, k % 2 ? thatchD : thatch, 1, k === 0, 'roof');
+    hipRoof(bB, thatch, x, z - .2, 6.4, 5.1, sy + 2.95, { pitch: .55, ov: .7, trim: false, capM: thatchD });
     bB.box(7, .08, 3, x, sy + 2.6, z + 3.9, col, 1, false); for (const s of [-1, 1]) bB.box(.1, 2.6, .1, x + s * 3.4, sy + 1.3, z + 5.3, MM.steel, 1, false);
     for (const [tx, tz] of [[-2.2, 5.2], [0, 6.4], [2.2, 5.2]]) {
       const ty = heightAt(x + tx, z + tz);
@@ -2610,7 +2724,7 @@ if (COAST) withSeed(31337, () => {
   { const gx2 = 264, gz2 = 192.5, y = cy;
     bC.box(6, .4, 6, gx2, y + .2, gz2, M.stone, 1, true, 'base');
     for (const [ox, oz] of [[-2.6, -2.6], [2.6, -2.6], [-2.6, 2.6], [2.6, 2.6]]) bC.box(.25, 3, .25, gx2 + ox, y + 1.9, gz2 + oz, fence, 1, true, 'roof');
-    for (let k = 0, s = 7; s > .8; k++, s -= 1.4) bC.box(s, .35, s, gx2, y + 3.55 + k * .35, gz2, k % 2 ? M.slate : LM(0xa8402f), 1, k === 0, 'roof');
+    hipRoof(bC, LM(0xa8402f), gx2, gz2, 5.2, 5.2, y + 3.4, { pitch: .6, ov: .9, trim: false, capM: M.slate });
     for (const [ox, oz, ax] of [[-6, 0, false], [6, 0, false], [0, -5, true], [0, 5, true]]) bench(bC, gx2 + ox, gz2 + oz, y, ax);
     for (const [ox, oz] of [[-7, -4], [7, 4], [-7, 4], [7, -4]]) smallTree(bC, gx2 + ox, gz2 + oz, y); }
   // the farm on the west edge: a red barn, a silo, hay bales and a paddock of cows
@@ -2619,7 +2733,7 @@ if (COAST) withSeed(31337, () => {
     for (const s of [-1, 1]) bC.box(.3, 5, 4.5, bx + 5, y + 2.5, bz + s * 4.75, red, 1, true, 'house');
     bC.box(.32, 1.4, 5, bx + 5, y + 4.3, bz, red, 1, true, 'lintel');
     for (const s of [-1, 1]) { bC.box(.1, 3.6, .2, bx + 5.2, y + 1.8, bz + s * 1.2, fence, 1, false); }
-    for (let k = 0, rw = 11; rw > 1; k++, rw -= 2.2) bC.box(rw, 1, 15, bx, y + 5.5 + k, bz, M.slate, 2, true, 'roof');
+    gableRoof(bC, M.slate, red, bx, bz, 10, 14, y + 5, { axis: 'z', pitch: .95, ov: .55, fasciaM: ROOF_TRIM.fasciaDark });
     for (const [ox, oz] of [[1, -4], [-2, 3], [2, 4], [3, -1]]) bC.box(1.6, 1.1, 1.1, bx + ox + 8, y + .55, bz + oz, M.wheat, 1, true, 'house');
     for (const [ox, oz] of [[-2, -4.5], [-2.8, 4.5]]) bC.box(1.6, 1.1, 1.1, bx + ox, y + .55, bz + oz, M.wheat, 1, false);
     const silo = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 11, 16), LM(0xc9cdd0)); silo.position.set(bx - 1, y + 5.5, bz - 11); silo.castShadow = true; scene.add(silo);
@@ -2649,17 +2763,17 @@ if (COAST) withSeed(31337, () => {
     shell(F, fl, H, T, 2, 2.8, 0, red, 1);
     for (const lx of [-WL / 2, WL / 2]) for (const lz of [-DL / 2, DL / 2]) L(.35, H, .35, lx, fl + H / 2, lz, fence, 1, false);
     L(WL + .3, .3, DL + .3, 0, fl + H, 0, fence, 1, false);
-    for (let k = 0, rd = DL + 1.6; rd > 1; k++, rd -= 2.2) L(WL + 1.2, .9, rd, 0, fl + H + .45 + k * .9, 0, M.slate, 2, true, 'roof');
+    frameRoof(F, bC, 'gable', M.slate, red, WL, DL, 0, 0, fl + H, { axis: 'x', pitch: .8, ov: .6 });
     for (const lx of [-7.5, -4, 4, 7.5]) { L(1.5, 1.7, T + .05, lx, fl + 2, -DL / 2 + T / 2, MM.glass, 1, false); L(1.5, 1.7, T + .05, lx, fl + 2, DL / 2 - T / 2, MM.glass, 1, false); }
     for (const s of [-1, 1]) L(T + .05, 1.7, 1.6, s * (WL / 2 - T / 2), fl + 2, 0, MM.glass, 1, false);
     // bell tower over the door
-    L(2.2, 2.6, 2.2, 0, fl + H + 3.2, -DL / 2 + 1.6, fence, 1, true, 'roof');
+    L(2.2, 3.8, 2.2, 0, fl + H + 2.6, -DL / 2 + 1.6, fence, 1, true, 'roof');
     L(1.2, 1.2, 2.3, 0, fl + H + 3.4, -DL / 2 + 1.6, MM.dark, 1, false);
     for (let k = 0, s = 2.8; s > .4; k++, s -= .6) L(s, .4, s, 0, fl + H + 4.7 + k * .4, -DL / 2 + 1.6, red, 1, false);
     L(.7, .7, .7, 0, fl + H + 3.3, -DL / 2 + 1.6, gold, 1, false);
     // porch
     L(6, .25, 2.4, 0, y + .5, -DL / 2 - 1.2, M.oak, 1, true, 'base');
-    L(6.4, .2, 2.8, 0, fl + 3.3, -DL / 2 - 1.3, M.slate, 1, true, 'roof');
+    frameRoof(F, bC, 'hip', M.slate, null, 6.4, 2.8, 0, -DL / 2 - 1.3, fl + 3.3, { pitch: .35, ov: .1, trim: false });
     for (const s of [-2.8, 2.8]) L(.2, 3.1, .2, s, fl + 1.55, -DL / 2 - 2.3, fence, 1, false);
     // one big classroom: chalkboard, teacher's desk, rows of desks, a bookshelf, a stove
     L(6, 1.5, .06, 0, fl + 1.7, inZ1 - .04, LM(0x2f4a3a), 1, false); L(6, .06, .14, 0, fl + .95, inZ1 - .1, M.oak, 1, false);
@@ -2828,7 +2942,7 @@ if (COAST) {
   const bxC = x1 - 3;
   b.box(1, 1.1, 8, bxC - 1.2, y0 + .55, (z0 + z1) / 2, LM(0x6b4a2a), 1, true, 'house'); b.box(1.2, .08, 8.2, bxC - 1.2, y0 + 1.14, (z0 + z1) / 2, LM(0xd6ae5f), 1, false);
   for (const [ox, oz] of [[-2.5, -4.5], [2, -4.5], [-2.5, 4.5], [2, 4.5]]) b.box(.2, 3, .2, bxC + ox, y0 + 1.5, (z0 + z1) / 2 + oz, MM.wood, 1, false);
-  for (let k = 0, s = 6.5; s > 1; k++, s -= 1.2) b.box(s, .3, s * 1.6, bxC, y0 + 3.1 + k * .28, (z0 + z1) / 2, k % 2 ? LM(0xa8853f) : LM(0xc9a35a), 1, k === 0, 'roof');
+  hipRoof(b, THATCH, bxC, (z0 + z1) / 2, 5.2, 8.6, y0 + 3.05, { pitch: .5, ov: .7, trim: false, capM: THATCH_D });
   for (let k = 0; k < 4; k++) { b.box(.45, .08, .45, bxC - 2.4, y0 + .78, (z0 + z1) / 2 - 3 + k * 2, LM(0x8a1a2a), 1, false); b.box(.08, .76, .08, bxC - 2.4, y0 + .38, (z0 + z1) / 2 - 3 + k * 2, MM.steel, 1, false); }
   for (let k = 0; k < 12; k++) b.box(.12, .32, .12, bxC + .4, y0 + 1.4, (z0 + z1) / 2 - 3.3 + k * .6, LM([0x2f8a4a, 0x8a2a2a, 0xd6ae5f, 0x2f5f9a][k % 4]), 1, false);
   // DJ stage on the west end
@@ -6026,8 +6140,10 @@ if (YABA) withSeed(9191, () => {
       for (let k = 0; k < nz; k++) { const wz = z - d / 2 + (k + .5) * d / nz; for (const s of [-1, 1]) b.box(.08, 1.4, 1.3, x + s * (w / 2 + .03), wy, wz, winM, 1, false); }
       if (opts.balconies && f > 0) for (let k = 0; k < nx; k += 2) { const wx = x - w / 2 + (k + .5) * w / nx; b.box(2.2, .12, 1, wx, fy + .06, z - d / 2 - .5, bandM, 1, false); b.box(2.2, .9, .06, wx, fy + .5, z - d / 2 - 1, darkM, 1, false); }
     }
-    b.box(w + .3, .5, d + .3, x, Y + H + .25, z, bandM, 1, true, 'roof');
-    if (!opts.noTank) b.box(1.6, 1.4, 1.6, x + w / 4, Y + H + 1.2, z + d / 4, tankM, 1, false);
+    const hh = Math.abs(Math.floor(x * 3.1 + z * 1.7));
+    if (!opts.flat && hh % 3) hipRoof(b, hh % 2 ? gerardMat(roofColour(x, z)) : hh % 4 < 2 ? rustM : zincM, x, z, w, d, Y + H, { pitch: .32, ov: .5, ground: Y });   // pitched: stone-coated tiles, or zinc
+    else { b.box(w + .3, .5, d + .3, x, Y + H + .25, z, bandM, 1, true, 'roof'); if (!opts.noTank) b.box(1.6, 1.4, 1.6, x + w / 4, Y + H + 1.2, z + d / 4, tankM, 1, false); }
+    houseTrim(b, x, z, w, d, Y, { ac: !opts.flat, plinth: LM(0x5e5a54) });
     YABA_MAP.push([x, z, w, d, opts.mapC || '#e8e6df']);
     return Y + H;
   }
@@ -6064,7 +6180,7 @@ if (YABA) withSeed(9191, () => {
         shopfront(b, cx + ox + nx * w / 2, cz + oz + nz * d / 2, nx ? d : w, nx, nz);
       }
       if (kind === 'bank') {   // a bank on the north side with a glass front and an ATM
-        block(b, cx, cz - 7, 24, 10, 3, { wall: LM(0xe8e6df), noTank: true, mapC: '#c9d6e6' });
+        block(b, cx, cz - 7, 24, 10, 3, { wall: LM(0xe8e6df), noTank: true, flat: true, mapC: '#c9d6e6' });
         b.box(20, 3, .1, cx, Y + 1.6, cz - 12.06, winM, 1, false); b.box(1, 1.8, .4, cx + 8, Y + .9, cz - 12.3, MM.steel, 1, true, 'house');
         ySign(ySignMat('UNITY TRUST BANK', '#1f2f6a', '#f2c230', 'BANKING · LOANS · FOREX'), 14, 2.2, cx, Y + 8.4, cz - 12.08, Math.PI);
       }
@@ -6094,10 +6210,10 @@ if (YABA) withSeed(9191, () => {
       b.box(16, .5, 10, cx, Y + 5.2, cz, LM(0xf2f0ea), 1, true, 'roof'); b.box(16.2, .8, 10.2, cx, Y + 5.6, cz, LM(0xd8342c), 1, false);
       for (const sx of [-6, 6]) for (const sz of [-3.5, 3.5]) b.box(.4, 5, .4, cx + sx, Y + 2.5, cz + sz, whiteM, 1, true, 'house');
       for (const sx of [-3, 3]) b.box(1, 1.6, .6, cx + sx, Y + .8, cz, LM(0xd8342c), 1, true, 'house');
-      block(b, cx, cz + 9, 10, 5, 1, { wall: LM(0xf2f0ea), noTank: true });
+      block(b, cx, cz + 9, 10, 5, 1, { wall: LM(0xf2f0ea), noTank: true, flat: true });
       ySign(ySignMat('MAINLAND FUELS', '#d8342c', '#ffffff', 'PMS · AGO · GAS'), 8, 1.6, cx, Y + 5.6, cz - 5.12, Math.PI);
     } else if (kind === 'mosque') {   // white walls, a green dome and a minaret
-      block(b, cx, cz, 16, 16, 2, { wall: LM(0xf2f0ea), noTank: true, mapC: '#e8f4e8' });
+      block(b, cx, cz, 16, 16, 2, { wall: LM(0xf2f0ea), noTank: true, flat: true, mapC: '#e8f4e8' });
       const dome = new THREE.Mesh(new THREE.SphereGeometry(5, 18, 10, 0, TAU, 0, Math.PI / 2), greenM); dome.position.set(cx, Y + 6.9, cz); dome.castShadow = true; scene.add(dome);
       b.box(2.2, 16, 2.2, cx + 9.5, Y + 8, cz - 9.5, whiteM, 1, true, 'house'); b.box(3, .5, 3, cx + 9.5, Y + 13, cz - 9.5, greenM, 1, false);
       const top = new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 8), greenM); top.position.set(cx + 9.5, Y + 16.6, cz - 9.5); scene.add(top);
@@ -6137,10 +6253,10 @@ if (YABA) withSeed(9191, () => {
     b.box(1.2, 1.6, 16, gx, Y + 6.8, gz, LM(0x2f5f9a), 1, false);
     ySign(ySignMat('YABA COLLEGE OF TECHNOLOGY', '#1f2f6a', '#f2c230', 'YABATECH · EST. 1947'), 15, 1.5, gx + .62, Y + 6.8, gz, Math.PI / 2);
     b.box(3, 2.6, 3, gx - 4, Y + 1.3, gz + 11, whiteM, 1, true, 'house');   // the gatehouse
-    block(b, -262, -530, 50, 14, 4, { wall: LM(0xf2f0ea), mapC: '#e8c84a' });                 // administration
+    block(b, -262, -530, 50, 14, 4, { wall: LM(0xf2f0ea), flat: true, mapC: '#e8c84a' });                 // administration
     ySign(ySignMat('ADMINISTRATION', '#1f2f6a', '#ffffff'), 10, 1.2, -262, Y + 4, -522.9, 0);
     block(b, -300, -570, 40, 14, 3, { wall: LM(0xf4ecc0), mapC: '#e8c84a' }); block(b, -248, -570, 30, 14, 3, { wall: LM(0xc9e0f4), mapC: '#e8c84a' });   // lecture blocks
-    for (const [x, w] of [[-298, 44], [-246, 30]]) { block(b, x, -630, w, 18, 1, { wall: LM(0xb9c0c6), noTank: true, mapC: '#c9d0d4' }); for (let k = 0; k < Math.floor(w / 6); k++) b.box(5.4, 1.4, 18, x - w / 2 + 3 + k * 6, Y + 3.9, -630, zincM, 1, false); }   // engineering workshops
+    for (const [x, w] of [[-298, 44], [-246, 30]]) { block(b, x, -630, w, 18, 1, { wall: LM(0xb9c0c6), noTank: true, flat: true, mapC: '#c9d0d4' }); for (let k = 0; k < Math.floor(w / 6); k++) b.box(5.4, 1.4, 18, x - w / 2 + 3 + k * 6, Y + 3.9, -630, zincM, 1, false); }   // engineering workshops
     block(b, -320, -470, 24, 36, 3, { balconies: true, mapC: '#e8c84a' });                   // a hostel
     for (const fx2 of [-292, -264, -236]) { b.box(.15, 8, .15, fx2, Y + 4, -506, darkM, 1, false); b.box(1.6, 1, .05, fx2 + .85, Y + 7.4, -506, LM(0x2f8a4a), 1, false); }   // flagpoles
     for (let k = 0; k < 6; k++) palm(b, -300 + k * 14, -476);
@@ -6154,11 +6270,11 @@ if (YABA) withSeed(9191, () => {
     ySign(ySignMat('UNIVERSITY OF LAGOS', '#7a1a2a', '#f2c230', 'AKOKA · IN DEED AND IN TRUTH'), 17, 2, gx - .82, Y + 8.6, gz, -Math.PI / 2);
     b.box(3, 2.6, 3, gx + 5, Y + 1.3, gz - 12, whiteM, 1, true, 'house');
     // the Senate building: a tall white tower over a paved plaza
-    block(b, 160, -514, 26, 14, 14, { wall: LM(0xf4f2ec), mapC: '#f2f0ea' });
+    block(b, 160, -514, 26, 14, 14, { wall: LM(0xf4f2ec), flat: true, mapC: '#f2f0ea' });
     ySign(ySignMat('SENATE BUILDING', '#7a1a2a', '#ffffff'), 10, 1.3, 160, Y + 4.4, -506.9, 0);
     for (const sx of [-14, 0, 14]) { b.box(.15, 9, .15, 160 + sx, Y + 4.5, -488, darkM, 1, false); b.box(1.8, 1.1, .05, 160 + sx + .95, Y + 8.4, -488, LM(0x2f8a4a), 1, false); }
     // the library, the faculties, the halls of residence
-    block(b, 238, -492, 44, 22, 3, { wall: LM(0xe6e1d3), mapC: '#f2f0ea' }); for (let k = 0; k < 9; k++) b.box(.8, 9.6, .8, 218 + k * 5, Y + 4.8, -480.4, whiteM, 1, true, 'house');
+    block(b, 238, -492, 44, 22, 3, { wall: LM(0xe6e1d3), flat: true, mapC: '#f2f0ea' }); for (let k = 0; k < 9; k++) b.box(.8, 9.6, .8, 218 + k * 5, Y + 4.8, -480.4, whiteM, 1, true, 'house');
     ySign(ySignMat('UNIVERSITY LIBRARY', '#7a1a2a', '#ffffff'), 12, 1.3, 238, Y + 10.4, -480.6, 0);
     block(b, 238, -552, 44, 16, 4, { wall: LM(0xf4ecc0), mapC: '#f2f0ea' }); ySign(ySignMat('FACULTY OF ARTS', '#7a1a2a', '#ffffff'), 9, 1.1, 238, Y + 4, -543.9, 0);
     block(b, 166, -560, 40, 16, 4, { wall: LM(0xc9e0f4), mapC: '#f2f0ea' }); ySign(ySignMat('FACULTY OF SCIENCE', '#7a1a2a', '#ffffff'), 9, 1.1, 166, Y + 4, -551.9, 0);
@@ -7666,7 +7782,7 @@ function buildOutbuilding(hs, b, { rooms = 2, H = 2.8, beds = true } = {}) {
   b.box(hs.w + .3, .6, hs.d + .3, hs.x, y, hs.z, M.concrete, 2, true, 'base');
   b.box(hs.w - .2, .03, hs.d - .2, hs.x, fl + .015, hs.z, M.oak, 1, false);
   shell(F, fl, H, T, 1.0, 2.2, 0, wallM);
-  b.box(hs.w + .7, .25, hs.d + .7, hs.x, fl + H + .12, hs.z, M.slate, 1, true, 'roof');
+  hipRoof(b, gerardMat(roofColour(hs.x + 3, hs.z)), hs.x, hs.z, hs.w, hs.d, fl + H, { pitch: .4, ov: .45, ground: y, ceil: true }); houseTrim(b, hs.x, hs.z, hs.w, hs.d, y + .05);
   const inX0 = -WL / 2 + T, inX1 = WL / 2 - T, inZ0 = -DL / 2 + T, inZ1 = DL / 2 - T, { wallZ, wallX } = partitions(L, wallM, H);
   // a passage from the door to the back, rooms either side of it
   if (rooms >= 2) { wallZ(-.7, inZ0 + .9, inZ1, fl, rooms > 2 ? [(inZ0 + inZ1) / 2 - (inZ1 - inZ0) / 4, (inZ0 + inZ1) / 2 + (inZ1 - inZ0) / 4] : [(inZ0 + inZ1) / 2]); if (rooms > 2) { wallZ(.7, inZ0 + .9, inZ1, fl, [(inZ0 + inZ1) / 2 - (inZ1 - inZ0) / 4, (inZ0 + inZ1) / 2 + (inZ1 - inZ0) / 4]); wallX((inZ0 + inZ1) / 2, inX0, -.7, fl); wallX((inZ0 + inZ1) / 2, .7, inX1, fl); } }
@@ -7717,7 +7833,7 @@ function buildMansionette(hs, b) {
   for (const lx of [-4.6, 4.6]) { WIN(2.4, 1.5, lx, fl + 1.5, -DL / 2 + T / 2); WIN(2.0, 1.4, lx, ft + 1.6, -DL / 2 + T / 2); WIN(1.8, 1.3, lx, fl + 1.6, DL / 2 - T / 2); WIN(1.8, 1.3, lx, ft + 1.6, DL / 2 - T / 2); }
   for (const sx of [-1, 1]) for (const lz of [-2.6, 2.6]) { WIN(1.6, 1.3, sx * (WL / 2 - T / 2), fl + 1.6, lz, true); WIN(1.6, 1.3, sx * (WL / 2 - T / 2), ft + 1.6, lz, true); }
   for (const [lx, lz] of [[-4.5, -2.5], [4.5, 2.5], [4.5, -3]]) { L(.6, .04, .6, lx, ft - .3, lz, lampMat, 1, false); L(.6, .04, .6, lx, top - .05, lz, lampMat, 1, false); }
-  for (let k = 0, rw = hs.w + 1.4, rd = hs.d + 1.4; rw > 2 && rd > 2; k++, rw -= 1.6, rd -= 1.6) b.box(rw, .55, rd, hs.x, top + .28 + k * .55, hs.z, roofM, 2, true, 'roof');
+  hipRoof(b, gerardMat(roofColour(hs.x, hs.z)), hs.x, hs.z, hs.w, hs.d, top, { pitch: .45, ground: y, ceil: true }); houseTrim(b, hs.x, hs.z, hs.w, hs.d, y + .05);
   L(3.4, .04, 6, -4.8, y + .02, -DL / 2 - 3.4, M.concrete, 2, false);   // the drive
   addDoor(F, 0, -DL / 2 + T / 2, fl, DW, DH, MM.wood, v);
   Object.assign(hs, { doorOut: pt(0, -DL / 2 - 2.6), doorIn: pt(0, inZ0 + .9), inside: pt(-3.5, -2.4), floorY: fl, two: true, upper: ft, top });
@@ -7780,7 +7896,7 @@ function buildMansion(v, b) {
     for (const [lx, lz] of [[-12, -5], [-12, 5], [0, -6], [8, -5], [16, -5], [12, 5]]) L(.7, .04, .7, lx, yy + FH - .3, lz, lampMat, 1, false);
   }
   L(WL + 1, .45, DL + 1, 0, top + .22, 0, trim, 1, true, 'roof');
-  for (let k = 0, rw = hs.w + .6, rd = hs.d + .6; rw > 4 && rd > 2; k++, rw -= 2.2, rd -= 2.2) b.box(rw, .6, rd, hs.x, top + .75 + k * .6, hs.z, M.slate, 2, true, 'roof');
+  hipRoof(b, gerardMat(roofColour(hs.x, hs.z)), hs.x, hs.z, hs.w, hs.d, top + .45, { pitch: .4, ov: .8, ground: y, ceil: true }); houseTrim(b, hs.x, hs.z, hs.w, hs.d, y + .05, { ac: false });
   addDoor(F, -DW / 4, front + T / 2, fl, DW / 2, DH, MM.wood, v); addDoor(F, DW / 4, front + T / 2, fl, DW / 2, DH, MM.wood, v);
   Object.assign(hs, { doorOut: pt(0, front - 3.2), doorIn: pt(0, inZ0 + 1), inside: pt(0, -6), floorY: fl, two: true, upper: lv[1], levels: lv, top, mansion: true });
   v.houses.push(hs);
@@ -7819,7 +7935,7 @@ function buildMansion(v, b) {
     for (let x = px0 + 1.5; x < px1 - 1; x += 3) { b.box(.75, .22, 1.9, x, y0 + .3, z1 - 2.2, MM.white, 1, false); b.box(.75, .5, .12, x, y0 + .55, z1 - 1.3, MM.white, 1, false); }
     for (const x of [px0 - 3, px1 + 3]) { b.box(.1, 2.6, .1, x, y0 + 1.3, z1 - 3, MM.white, 1, false); b.box(2.8, .14, 2.8, x, y0 + 2.6, z1 - 3, LM(0xf2f0ea), 1, false); }
     for (const [ox, oz] of [[-1.6, -2], [1.6, -2], [-1.6, 2], [1.6, 2]]) b.box(.2, 2.8, .2, x1 - 3 + ox, y0 + 1.4, (pz0 + pz1) / 2 + oz, MM.wood, 1, false);
-    for (let k = 0, s = 4.4; s > 1; k++, s -= 1) b.box(s, .3, s * 1.3, x1 - 3, y0 + 2.9 + k * .26, (pz0 + pz1) / 2, k % 2 ? LM(0xa8853f) : LM(0xc9a35a), 1, k === 0, 'roof');
+    hipRoof(b, THATCH, x1 - 3, (pz0 + pz1) / 2, 3.4, 4.4, y0 + 2.9, { pitch: .7, ov: .5, trim: false, capM: THATCH_D });   // the cabana's thatch
     b.box(.8, 1.1, 3, x1 - 4.6, y0 + .55, (pz0 + pz1) / 2, MM.wood, 1, true, 'house');
     v.poolDeck = { x: x1 - 3, z: (pz0 + pz1) / 2, y: y0 }; }
   // palms and lamps round the grounds
