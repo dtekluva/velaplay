@@ -31,6 +31,12 @@ The DigitalOcean firewall `giantwood-fw` (tag `giantwood`) allows only ports 22,
 | `GET /api/world` | | Every owned or sold-on plot: owner name, house (type, side, furniture, fence), bulldozer edits |
 | `GET /api/land/state` | Bearer | Your money, bulldozer, plots and edits, plus the `version` you're on |
 | `POST /api/land/sync` | Bearer | `{ base, state }`: your land record after a change (see below) |
+| `GET /api/trade/offers` | Bearer | Your open land offers, `incoming` and `outgoing`, plus `limits` `{ cap, left, canPay }` |
+| `POST /api/trade/offers` | Bearer | `{ key, to, price }`: offer your plot (with its house) to a player by name. `price` 0 is a gift |
+| `POST /api/trade/offers/:id/accept` | Bearer | `{ base }`: the buyer takes it. Land and money move in one transaction |
+| `POST /api/trade/offers/:id/decline` | Bearer | The buyer turns it down |
+| `POST /api/trade/offers/:id/cancel` | Bearer | The seller withdraws it |
+| `POST /api/trade/pay` | Bearer | `{ to, amount, base }`: send money to a player |
 | `GET/PUT /api/save` | Bearer | The old raw cloud save (no longer used by the game) |
 
 Tokens are JWTs that last 30 days. Passwords are hashed with bcrypt.
@@ -46,7 +52,7 @@ Tokens are JWTs that last 30 days. Passwords are hashed with bcrypt.
   - `chat` `{ text }`, up to 160 characters and one message a second.
   - `voice` `{ on, talk }`: in voice chat, and holding push-to-talk. These are the `voice` and `talk` fields in the state.
   - `rtc` `{ to, data }`: a WebRTC offer, answer or ICE candidate for another player. It is passed on only if you're in voice and within 60 m of them.
-- **Messages you get:** `chat` `{ from, id, text, x, z }`, `plot` (land news), and `rtc` `{ from, data }`.
+- **Messages you get:** `chat` `{ from, id, text, x, z }`, `plot` (land news), `rtc` `{ from, data }`, and `trade`, sent only to the player it concerns: `{ kind: 'offer' | 'sold' | 'paid' | 'declined' | 'withdrawn', … }`.
 - Up to 100 players fit in a room; more open new rooms automatically.
 
 ## Shared ownership
@@ -139,9 +145,28 @@ Database migrations are the `.sql` files in `server/src/migrations`. They apply 
 
 For the DigitalOcean API, `ops/doapi.sh GET droplets` reads the token from `.env.local`, which is never committed. It works around routers whose DNS can't resolve `api.digitalocean.com`.
 
+## Trading between players
+
+Players can sell or give land to each other and send money (`src/trade.ts`, tables in `migrations/003_trade.sql`).
+
+- **Offers:** the owner offers a plot to a player by display name, for a price or as a gift (price 0). The house and everything in it go with the land, and the Banana Island lot moves whole. There is one open offer per plot (a new one replaces the old), and at most 10 open offers per seller.
+- **Price cap:** you can't ask more than `2 × value + ₦50,000`. Value is the land, the house, its furnishing and fence, and the furniture bought; bathroom fittings are free, so they don't count.
+- **Accepting:** the buyer's game first syncs, then sends `base`. In one transaction the server:
+  - locks both wallets in a fixed order;
+  - checks the seller still owns the land and the buyer can pay;
+  - moves the plots, debits the buyer and credits the seller;
+  - bumps both wallet versions and voids other offers on that land.
+
+  The buyer gets their new state back and reloads. The seller gets a `trade` `sold` message; their next sync is stale (`409`), and the reply lists `received` payments, so they reload knowing who bought what.
+- **Money:** the payer's wallet is debited at once (version bumped, and the game takes the new version). The payee's `inbox` is credited and added on their next sync, so a sync that doesn't know about it can't overwrite it. Every sync reply includes `received`: who paid you since you were last told (stored in `payments.seen`).
+- **Limits.** Every account starts with ₦10,000,000, so to stop new accounts being emptied into one:
+  - an account must be 24 hours old before it can pay anyone;
+  - what leaves an account is capped at ₦1,000,000 a day: money sent, money paid for land, and the value of land handed over below its worth. All of it is recorded in `payments`.
+- **Tested** end to end against a local Postgres (two accounts: offers, refusals, sale, stale seller, gifts, declines, payments, inbox, caps).
+
 ## Next steps
 
 1. **Wire the game in:** sign-in and a character creator screen; send your position and draw other players with the game's own figures, wearing their look; chat bubbles; cloud saves instead of browser saves.
 2. **Domain and HTTPS:** point a subdomain at `46.101.63.217`, set `SITE_ADDRESS` in the server `.env`, and redeploy.
-3. **Shared ownership:** the server becomes the authority for land, building, furniture and money, so everyone sees everyone's homes and a plot can only be bought once. The cloud save then stops being trusted as sent.
+3. **Shared ownership** and **trading** are done (see above). Next ideas: owned cars that can be sold, and visiting other players' homes with a doorbell.
 4. **Later:** proximity voice (LiveKit on its own Droplet), moderation tools, nightly database backups to Spaces.

@@ -3,7 +3,7 @@ import { Schema, MapSchema, type } from "@colyseus/schema";
 import { verifyToken } from "../auth";
 import { pool } from "../db";
 import { Character } from "../schemas";
-import { onPlotNews } from "../land";
+import { onPlotNews, onTell } from "../land";
 
 // what everyone sees of a player: position, facing, animation, vehicle, and their look
 export class Player extends Schema {
@@ -32,12 +32,15 @@ export class WorldRoom extends Room<WorldState> {
   private lastWarp = new Map<string, number>();
   private lastLook = new Map<string, number>();
   private stopNews?: () => void;
+  private stopTell?: () => void;
 
   onCreate() {
     this.setState(new WorldState());
     this.setPatchRate(50);   // send changes 20 times a second
     // land news (someone bought, built, furnished, fenced, levelled or sold) goes to everyone here
     this.stopNews = onPlotNews((news) => this.broadcast("plot", news));
+    // offers, payments and sales for one player go only to them
+    this.stopTell = onTell((userId, type, data) => { for (const c of this.clients) if ((c as any).userData?.id === userId) c.send(type, data); });
 
     this.onMessage("move", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p || !m) return;
@@ -115,7 +118,7 @@ export class WorldRoom extends Room<WorldState> {
     console.log(`${auth.name} joined (${this.clients.length} in the world)`);
   }
 
-  onDispose() { this.stopNews?.(); }
+  onDispose() { this.stopNews?.(); this.stopTell?.(); }
 
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);

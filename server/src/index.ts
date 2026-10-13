@@ -6,6 +6,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { migrate } from "./db";
 import { api } from "./api";
 import { land } from "./land";
+import { trade } from "./trade";
 import { WorldRoom } from "./rooms/WorldRoom";
 
 async function main() {
@@ -22,6 +23,7 @@ async function main() {
   });
   app.use("/api", api);
   app.use("/api", land);
+  app.use("/api", trade);
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);

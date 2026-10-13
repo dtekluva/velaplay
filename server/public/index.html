@@ -201,6 +201,10 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 #vp input{font:16px var(--ui);padding:9px 10px;background:#0e130d;color:var(--ink);border:1px solid var(--edge);text-transform:none;letter-spacing:0}
 .vperr{color:#ff9a8a!important;font-size:15px!important;min-height:1em}
 .vpnote{font-size:14px!important;color:#bdb6a2!important}
+#vp>.vplist{background:rgba(20,28,18,.96);padding:6px 22px;border-left:1px solid var(--edge);border-right:1px solid var(--edge);display:flex;flex-direction:column;gap:8px}
+.vplist h3{margin:8px 0 0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass)}
+.offer{border:1px solid var(--edge);padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:15px}
+.offer .btnrow{margin:0}
 .vpnote a{color:var(--brass)}
 .vpcreator{display:flex;gap:16px;flex-wrap:wrap}
 .vpcreator canvas{width:200px;height:260px;background:radial-gradient(circle at 50% 35%,#2a3526,#121810);border:1px solid var(--edge);flex:none}
@@ -8339,6 +8343,7 @@ function openLandMenu(key) {
   if (!p.house) items.push({ label: 'Build a house…', note: p.big ? 'the 11-bedroom mansion, with its grounds and staff' : 'a cabin, bungalow, family house, duplex or 5-bed mansionette', run: () => openBuildMenu(key) });
   if (p.house) items.push({ label: 'Change the fence…', note: p.house.fence && FENCE_KINDS[p.house.fence.kind] ? fenceLabel(p.house.fence.kind, p.house.fence.area, houseType(p.house.type)) : p.house.fence ? 'no fence at the moment' : 'the one it came with', run: () => openFenceMenu(key, houseType(p.house.type), p.house.side, false, true) });
   items.push({ label: `${p.big ? 'Sell Banana Island' : 'Sell this plot'} · ${NAIRA(val.total)}`, note: `you paid ${NAIRA(p.big ? BIG.price : p.paid)} · ${Math.round(val.flat * 100)}% level${val.house ? ` · house ${NAIRA(val.house)}` : ''}`, run: () => menuShow('Sell this plot?', `${NAIRA(val.total)} · the buyer keeps anything built on it`, [{ label: `Yes, sell for ${NAIRA(val.total)}`, run: () => p.big ? sellBig(val.total) : sellPlot(key, val.total) }, { label: 'No, keep it', run: () => openLandMenu(key) }]) });
+  if (sharedOn()) items.push({ label: 'Sell or give to a player…', note: 'they get it when they accept: for the price you set, or free', run: () => openSellTo(key) });
   items.push({ label: 'Close', run: menuClose });
   menuShow(p.house ? `Your ${houseType(p.house.type).name.toLowerCase()}` : p.big ? 'Banana Island' : 'Your land', `${p.big ? '1.7 acres' : 'Plot ' + key} · ${NAIRA(LAND.money)} in the bank`, items);
 }
@@ -8714,7 +8719,7 @@ function landAction() {
   if (P.driving) return null;
   const [px, pz] = plotAt(P.pos.x, P.pos.z), info = plotInfo(px, pz);
   if (LAND.plots.has(info.key)) { const hk = bigK(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Furnish your home (Lagos Living catalogue)', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
-  if (info.other) { const o = info.other, who = o.npc ? 'Sold' : (o.ownerName || 'Someone') + '’s land'; return { label: `E · ${who}`, run: () => toast(who, o.npc ? 'Bought by a resident. Not for sale' : `This plot belongs to ${o.ownerName || 'another player'}`) }; }
+  if (info.other) { const o = info.other, who = o.npc ? 'Sold' : (o.ownerName || 'Someone') + '’s land'; return { label: `E · ${who}`, run: () => toast(who, o.npc ? 'Bought by a resident. Not for sale' : `This plot belongs to ${o.ownerName || 'another player'}. To buy it, ask them to offer it to you (their land menu → Sell or give to a player)`) }; }
   if (info.lot?.big) return info.ok ? { label: `E · Buy Banana Island · 1.7 acres (12 plots), level and cleared · ${NAIRA(BIG.price)}`, run: buyBig } : null;
   if (info.ok) return { label: info.estate ? `E · Buy plot ${info.lot.n}, ${info.estate.short} · level, on the avenue · ${NAIRA(info.price)}` : `E · Buy this ${PLOT} × ${PLOT} m plot · ${NAIRA(info.price)}`, run: () => buyPlot(info) };
   return null;
@@ -8732,6 +8737,7 @@ NET.base = (() => {
 const NET_STORE = 'velaplay';
 try { Object.assign(NET, JSON.parse(localStorage.getItem(NET_STORE) || '{}')); } catch (e) {}
 NET.room = null; NET.others = new Map(); NET.joining = false; NET.chatLog = [];
+const TRADE = { incoming: [], outgoing: [], limits: null };   // land offers to and from you, and how much more you can pay others today (see openOffers)
 const netSave = () => { try { localStorage.setItem(NET_STORE, JSON.stringify({ token: NET.token, user: NET.user, guest: NET.guest })); } catch (e) {} };
 async function api(path, method = 'GET', body) {
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 8000);
@@ -8879,6 +8885,7 @@ async function netJoin() {
     NET.room = room; NET.retry = 0; NET.sent = null;
     room.onMessage('chat', m => chatIn(m));
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
+    room.onMessage('trade', tradeNews);
     room.onMessage('rtc', m => onRtc(m));
     room.onLeave(code => {
       NET.room = null; for (const r of [...NET.others.values()]) dropRemote(r); for (const id of [...VOICE.peers.keys()]) peerClose(id); VOICE.on = false; VOICE.talking = false; renderOnline(); chatStatus();
@@ -9113,8 +9120,13 @@ async function landSync(first = false) {
     if (plotsSig(r.state.plots) !== plotsSig(Object.fromEntries(LAND.plots))) return adoptLand(r.state, r.imported ? 'Your land and homes are now in the shared world' : (r.notes && r.notes.join(' · ')) || 'Updated from the server');
     if (Math.round(LAND.money) !== r.state.money) { LAND.money = r.state.money; NET.quiet = true; saveLand(); NET.quiet = false; if (r.corrected) toast('', 'The server corrected your balance'); }
     if (r.imported) toast('☁ Shared world', 'Your land and homes are now part of the shared world');
+    for (const g of r.received || []) toast('💸 ' + NAIRA(g.amount), g.kind === 'land' ? `${g.from} paid you for plot ${g.ref}` : `from ${g.from}`);
   } catch (e) {
-    if (e.status === 409 && e.body && e.body.state) { LAND_VER = e.body.state.version; adoptLand(e.body.state, 'Your land changed on another device. Loading it'); }
+    if (e.status === 409 && e.body && e.body.state) {
+      LAND_VER = e.body.state.version;
+      const got = (e.body.received || []).map(g => g.kind === 'land' ? `${g.from} bought plot ${g.ref} for ${NAIRA(g.amount)}` : `${g.from} sent you ${NAIRA(g.amount)}`);
+      adoptLand(e.body.state, got.length ? got.join(' · ') : 'Your land changed on another device. Loading it');
+    }
   } finally {
     NET.syncing = false; if (NET.syncAgain) { NET.syncAgain = false; landSyncSoon(300); }
   }
@@ -9141,11 +9153,113 @@ function applyOther(p) {
 async function loadWorld() {
   try { const w = await api('/world'); for (const p of w.plots) applyOther(p); if (w.plots.length) { const n = new Set(w.plots.filter(p => p.ownerName && !(NET.user && p.owner === NET.user.id)).map(p => p.ownerName)).size; if (n) toast('🏘 Shared world', `${n} other scout${n > 1 ? 's own' : ' owns'} land here. Their homes are on the map (P)`); }; } catch (e) {}
 }
+// ---- dealing with other players: offer your land (with its house) for a price or as a gift, and send money.
+// The server moves land and money; this side asks, shows offers, and reloads your land when it changes hands ----
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const landName = o => o.big ? 'Banana Island' : `plot ${o.key}`;
+async function flushLand() {   // send any unsaved land changes first, so the server deals on what you really have
+  clearTimeout(NET.syncT);
+  while (NET.syncing) await new Promise(r => setTimeout(r, 100));
+  await landSync();
+  return !NET.adopting;
+}
+async function tradeRefresh(greet = false) {
+  if (!sharedOn()) return;
+  try {
+    Object.assign(TRADE, await api('/trade/offers')); renderOnline();
+    if (greet && TRADE.incoming.length) toast('🏠 Offers waiting', `${TRADE.incoming.length} offer${TRADE.incoming.length > 1 ? 's' : ''} of land for you. Pause → Offers`);
+  } catch (e) {}
+}
+function tradeNews(m) {
+  if (!m) return;
+  if (m.kind === 'offer') { toast(`🏠 ${m.from} offers you ${landName(m)}`, `${m.house ? 'with a ' + m.house + ' · ' : ''}${m.price ? NAIRA(m.price) : 'a gift'}. Pause → Offers to accept`); sfx('refill'); tradeRefresh(); }
+  else if (m.kind === 'sold') { toast(`💸 ${m.to} took ${landName(m)}`, m.price ? `${NAIRA(m.price)} is yours. Updating your land…` : 'Your gift was accepted. Updating your land…'); landSyncSoon(200); }
+  else if (m.kind === 'paid') landSyncSoon(200);   // the sync adds it and says who it's from
+  else if (m.kind === 'declined') { toast('', `${m.by} turned down your offer of plot ${m.key}`); tradeRefresh(); }
+  else if (m.kind === 'withdrawn') { toast('', `${m.by} withdrew their offer of plot ${m.key}`); tradeRefresh(); }
+}
+function tradeDialog(html) { if (mode === 'play') setMode('pause'); return dialog(html); }
+function openSellTo(key) {
+  const p = LAND.plots.get(key); if (!p) return;
+  menuClose();
+  const d = tradeDialog(`<h2>${p.big ? 'Sell or give Banana Island' : 'Sell or give plot ' + esc(key)}</h2>
+    <form id="vpForm"><label>Player's name<input name="to" maxlength="24" required autocomplete="off" spellcheck="false"></label>
+    <label>Price in naira (0 gives it away)<input name="price" type="number" min="0" step="100" required value="0" inputmode="numeric"></label>
+    <p class="vperr" id="vpErr"></p><div class="btnrow"><button class="go" type="submit">Send offer</button><button class="alt" type="button" id="vpCancel">Cancel</button></div></form>
+    <p class="vpnote">They get the land${p.house ? ', the house and everything in it' : ''} when they accept, and it stays yours until then. You can ask up to twice what it's worth. Players need an account, not a guest name.</p>`);
+  d.querySelector('#vpCancel').onclick = closeDialog;
+  d.querySelector('#vpForm').onsubmit = async e => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), err = d.querySelector('#vpErr'); err.textContent = '';
+    try {
+      if (!(await flushLand())) return;
+      const r = await api('/trade/offers', 'POST', { key, to: String(f.to).trim(), price: Math.round(+f.price || 0) });
+      closeDialog(); toast('Offer sent', `${r.to} can accept it from Pause → Offers${+f.price ? '' : ' (a gift)'}. Worth about ${NAIRA(r.value)}`); tradeRefresh();
+    } catch (x) { err.textContent = x.message || String(x); }
+  };
+  d.querySelector('input').focus();
+}
+async function openOffers() {
+  await tradeRefresh();
+  const row = (o, inc) => `<div class="offer"><div><b>${esc(inc ? o.from : 'To ' + o.to)}</b> · ${esc(landName(o))}${o.house ? ' with a ' + esc(o.house) : ''} · <b>${o.price ? NAIRA(o.price) : 'a gift'}</b><br><span class="vpnote">worth about ${NAIRA(o.value)}</span></div>
+    <div class="btnrow">${inc ? `<button class="go" type="button" data-a="accept" data-id="${esc(o.id)}">${o.price ? 'Pay and take it' : 'Accept'}</button><button class="alt" type="button" data-a="decline" data-id="${esc(o.id)}">Decline</button>` : `<button class="alt" type="button" data-a="cancel" data-id="${esc(o.id)}">Withdraw</button>`}</div></div>`;
+  const L = TRADE.limits;
+  const d = tradeDialog(`<h2>Offers</h2><div class="vplist">
+    <h3>For you</h3>${TRADE.incoming.length ? TRADE.incoming.map(o => row(o, true)).join('') : '<p class="vpnote">No offers for you. To buy someone\'s plot, ask them to offer it to you.</p>'}
+    <h3>Yours</h3>${TRADE.outgoing.length ? TRADE.outgoing.map(o => row(o, false)).join('') : '<p class="vpnote">To offer land, stand on your plot, press E, then Sell or give to a player.</p>'}
+    ${L ? `<p class="vpnote">You can pay other players ${NAIRA(L.left)} more today (up to ${NAIRA(L.cap)} a day)${L.canPay ? '' : '. New accounts can pay others after their first day'}.</p>` : ''}
+    <p class="vperr" id="vpErr"></p></div>
+    <div class="btnrow"><button class="alt" type="button" id="vpPay">Send money</button><button class="alt" type="button" id="vpCancel">Close</button></div>`);
+  d.querySelector('#vpCancel').onclick = closeDialog;
+  d.querySelector('#vpPay').onclick = () => openPay();
+  const err = d.querySelector('#vpErr');
+  for (const b of d.querySelectorAll('[data-a]')) b.onclick = async () => {
+    const id = b.dataset.id, a = b.dataset.a, o = [...TRADE.incoming, ...TRADE.outgoing].find(q => q.id === id); err.textContent = '';
+    for (const x of d.querySelectorAll('[data-a]')) x.disabled = true;
+    try {
+      if (a === 'accept') {
+        if (!(await flushLand())) return;
+        const r = await api(`/trade/offers/${id}/accept`, 'POST', { base: LAND_VER });
+        LAND_VER = r.state.version; closeDialog();
+        adoptLand(r.state, `${landName(o)} is yours${r.price ? ' · paid ' + NAIRA(r.price) : ''}. Loading it`);
+        return;
+      }
+      await api(`/trade/offers/${id}/${a}`, 'POST', {});
+      openOffers();
+    } catch (x) {
+      if (x.status === 409 && x.body && x.body.state) { LAND_VER = x.body.state.version; closeDialog(); adoptLand(x.body.state, 'Your land changed. Loading it, then try again'); return; }
+      err.textContent = x.message || String(x); for (const y of d.querySelectorAll('[data-a]')) y.disabled = false;
+    }
+  };
+}
+function openPay(to = '') {
+  if (!sharedOn()) { toast('Sign in to send money', 'Money moves between accounts on the online server'); return; }
+  const d = tradeDialog(`<h2>Send money</h2>
+    <form id="vpForm"><label>Player's name<input name="to" maxlength="24" required autocomplete="off" spellcheck="false" value="${esc(to)}"></label>
+    <label>Amount in naira<input name="amount" type="number" min="100" step="100" required inputmode="numeric"></label>
+    <p class="vperr" id="vpErr"></p><div class="btnrow"><button class="go" type="submit">Send</button><button class="alt" type="button" id="vpCancel">Cancel</button></div></form>
+    <p class="vpnote">You have ${NAIRA(LAND.money)}. It reaches them straight away if they're online, otherwise next time they play. Up to ${NAIRA(1000000)} a day; new accounts can send after their first day.</p>`);
+  d.querySelector('#vpCancel').onclick = closeDialog;
+  d.querySelector('#vpForm').onsubmit = async e => {
+    e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), err = d.querySelector('#vpErr'); err.textContent = '';
+    try {
+      if (!(await flushLand())) return;
+      const r = await api('/trade/pay', 'POST', { to: String(f.to).trim(), amount: Math.round(+f.amount || 0), base: LAND_VER });
+      LAND_VER = r.version; try { localStorage.setItem('velaplay-land-version', String(LAND_VER)); } catch (x) {}
+      LAND.money = r.money; NET.quiet = true; saveLand(); NET.quiet = false;
+      closeDialog(); sfx('swap'); toast('💸 Sent', `${NAIRA(r.amount)} to ${r.to} · ${NAIRA(r.money)} left`); tradeRefresh();
+    } catch (x) {
+      if (x.status === 409 && x.body && x.body.state) { LAND_VER = x.body.state.version; closeDialog(); adoptLand(x.body.state, 'Your land changed. Loading it, then try again'); return; }
+      err.textContent = x.message || String(x);
+    }
+  };
+  d.querySelector(to ? '[name=amount]' : 'input').focus();
+}
 async function cloudSync() {   // after signing in: take the cloud save if it's newer, or upload this device's save if the cloud has none
   try {
     const me = await api('/me'); if (me.character && Object.keys(me.character).length) { const { hat, shades, ...rest } = me.character; MY_LOOK = { ...BASE_LOOK, ...rest }; if (hat !== undefined) LOOK.hat = hat; if (shades !== undefined) LOOK.shades = shades; pm.hat.visible = LOOK.hat; pm.shades.visible = LOOK.shades; setPlayerLook(MY_LOOK); try { localStorage.setItem(LOOK_STORE, JSON.stringify(MY_LOOK)); localStorage.setItem('giantwood-look', JSON.stringify(LOOK)); } catch (e) {} }
     else api('/character', 'PUT', lookOut()).catch(() => {});
     await landSync(true);   // your land: imported the first time, then the server's copy is the truth
+    tradeRefresh(true);
   } catch (e) { toast('', 'Cloud save unavailable: ' + (e.message || e)); }
   return true;
 }
@@ -9158,7 +9272,7 @@ function renderOnline() {
     st.textContent = 'not available from this page.';
     const a = document.createElement('a'); a.href = NET.base; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Play online at ' + NET.base.replace(/^https?:\/\//, ''); bt.append(a); return;
   }
-  if (NET.user) { st.textContent = NET.room ? `signed in as ${NET.user.name} · in the world` : `signed in as ${NET.user.name}. Deploy to join the world`; btn('Edit your scout', openCreator); btn('Sign out', () => { netLeave(); NET.token = NET.user = null; netSave(); renderOnline(); }); }
+  if (NET.user) { st.textContent = NET.room ? `signed in as ${NET.user.name} · in the world` : `signed in as ${NET.user.name}. Deploy to join the world`; btn('Edit your scout', openCreator); if (NET.reachable) { const n = TRADE.incoming.length; btn(n ? `Offers (${n})` : 'Offers', openOffers, n ? 'go' : 'alt'); btn('Send money', () => openPay()); } btn('Sign out', () => { netLeave(); NET.token = NET.user = null; netSave(); renderOnline(); }); }
   else if (NET.guest) { st.textContent = NET.room ? `playing as ${NET.guest} (guest) · in the world` : `playing as ${NET.guest} (guest). Deploy to join`; btn('Edit your scout', openCreator); btn('Create an account', () => openAccount('register')); btn('Stop', () => { netLeave(); NET.guest = null; netSave(); renderOnline(); }); }
   else { st.textContent = 'share the world with other players.'; btn('Sign in', () => openAccount('login'), 'go'); btn('Create account', () => openAccount('register')); btn('Play as a guest', () => openAccount('guest')); btn('Make your scout', openCreator); }
 }

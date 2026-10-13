@@ -16,7 +16,11 @@ export interface PlotNews { key: string; owner: string | null; ownerName: string
 // rooms register a listener so every change reaches everyone online
 const listeners = new Set<(news: PlotNews[]) => void>();
 export const onPlotNews = (fn: (news: PlotNews[]) => void) => { listeners.add(fn); return () => listeners.delete(fn); };
-const announce = (news: PlotNews[]) => { if (news.length) for (const fn of listeners) fn(news); };
+export const announce = (news: PlotNews[]) => { if (news.length) for (const fn of listeners) fn(news); };
+// a message for one player (an offer, a payment, a sale), delivered by whichever room they're in
+const tellers = new Set<(userId: string, type: string, data: unknown) => void>();
+export const onTell = (fn: (userId: string, type: string, data: unknown) => void) => { tellers.add(fn); return () => tellers.delete(fn); };
+export const tell = (userId: string, type: string, data: unknown) => { for (const fn of tellers) fn(userId, type, data); };
 
 // everything that is owned or sold on, for drawing other people's homes
 land.get("/world", async (_req, res) => {
@@ -25,16 +29,21 @@ land.get("/world", async (_req, res) => {
   res.json({ plots: q.rows.map((r) => ({ key: r.key, owner: r.owner, ownerName: r.owner_name, npc: r.npc, big: r.big, house: r.house, edits: r.edits })) });
 });
 
-async function wallet(c: PoolClient | typeof pool, id: string, lock = false) {
+export async function wallet(c: PoolClient | typeof pool, id: string, lock = false) {
   await c.query("INSERT INTO wallets (user_id, money) VALUES ($1, $2) ON CONFLICT DO NOTHING", [id, START_MONEY]);
-  return (await c.query(`SELECT money::float8 AS money, dozer, version, synced_at, updated_at FROM wallets WHERE user_id = $1${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
+  return (await c.query(`SELECT money::float8 AS money, inbox::float8 AS inbox, dozer, version, synced_at, updated_at FROM wallets WHERE user_id = $1${lock ? " FOR UPDATE" : ""}`, [id])).rows[0];
 }
-async function stateOf(c: PoolClient | typeof pool, id: string) {
+export async function stateOf(c: PoolClient | typeof pool, id: string) {
   const w = await wallet(c, id);
   const q = await c.query("SELECT key, paid, big, house, edits FROM plots WHERE owner = $1", [id]);
   const plots: Record<string, Plot> = {}, edits: Edits = {};
   for (const r of q.rows) { plots[r.key] = { paid: r.paid, big: r.big || undefined, house: r.house }; Object.assign(edits, r.edits); }
   return { money: Math.round(w.money), dozer: w.dozer, version: w.version, imported: !!w.synced_at, plots, edits };
+}
+// who paid you (money sent, land they bought from you) since you were last told
+async function takeReceived(c: PoolClient | typeof pool, id: string) {
+  return (await c.query(`UPDATE payments p SET seen = true FROM users u WHERE p.payee = $1 AND NOT p.seen AND u.id = p.payer
+    RETURNING u.display_name AS from, p.amount::float8 AS amount, p.kind, p.ref`, [id])).rows;
 }
 land.get("/land/state", requireUser, async (req, res) => res.json(await stateOf(pool, userOf(req).id)));
 
@@ -53,7 +62,10 @@ land.post("/land/sync", requireUser, async (req, res) => {
     await c.query("BEGIN");
     const w = await wallet(c, me.id, true), importing = !w.synced_at;
     // someone else (another device) changed things since this client last looked: send the truth back instead
-    if (!importing && body.base !== w.version) { await c.query("ROLLBACK"); return res.status(409).json({ stale: true, state: await stateOf(pool, me.id) }); }
+    if (!importing && body.base !== w.version) {
+      await c.query("ROLLBACK");
+      return res.status(409).json({ stale: true, state: await stateOf(pool, me.id), received: await takeReceived(pool, me.id) });
+    }
     const old = await stateOf(c, me.id);
     let cost = 0, credit = 0, refund = 0;   // refund: what the game already deducted for things the server turned down
     const keep: Record<string, Plot> = {};
@@ -128,19 +140,22 @@ land.post("/land/sync", requireUser, async (req, res) => {
     let dozer = old.dozer;
     if (!old.dozer && s.dozer) { dozer = true; if (!importing) cost += DOZER_PRICE; }
     // 5. money: what you had, minus what you bought, plus sales, plus what you could have earned since
+    //    and anything other players sent you since (the inbox), which the game doesn't know about yet
     let money: number, corrected = false;
-    if (importing) money = Math.max(0, Math.min(Math.round(s.money), START_MONEY));
+    const inbox = Math.round(w.inbox || 0);
+    if (importing) money = Math.max(0, Math.min(Math.round(s.money), START_MONEY)) + inbox;
     else {
       const base = old.money - cost + credit, cap = earnCap(new Date(w.updated_at));
-      money = Math.round(s.money) + refund;
-      if (money > base + cap) { money = Math.round(base + cap); corrected = true; }
+      money = Math.round(s.money) + refund + inbox;
+      if (money > base + cap + inbox) { money = Math.round(base + cap + inbox); corrected = true; }
       if (money < 0) { money = 0; corrected = true; }
     }
-    const v = await c.query("UPDATE wallets SET money = $2, dozer = $3, version = version + 1, synced_at = COALESCE(synced_at, now()), updated_at = now() WHERE user_id = $1 RETURNING version", [me.id, money, dozer]);
+    const v = await c.query("UPDATE wallets SET money = $2, dozer = $3, inbox = 0, version = version + 1, synced_at = COALESCE(synced_at, now()), updated_at = now() WHERE user_id = $1 RETURNING version", [me.id, money, dozer]);
+    const received = await takeReceived(c, me.id);
     await c.query("COMMIT");
     const state = await stateOf(pool, me.id);
     announce(news);
-    res.json({ ok: true, version: v.rows[0].version, state, conflicts, corrected, notes, imported: importing });
+    res.json({ ok: true, version: v.rows[0].version, state, conflicts, corrected, notes, imported: importing, received });
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});
     throw e;
