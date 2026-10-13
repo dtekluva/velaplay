@@ -1,0 +1,34 @@
+// what things cost, copied from the game so the server can check every purchase
+import plotsJson from "./data/plots.json";
+
+// every plot that can be bought: price and kind (o open land, e estate lot, b part of the Banana Island lot)
+export const PLOTS: Record<string, [number, "o" | "e" | "b"]> = plotsJson as any;
+export const BIG_KEYS = Object.keys(PLOTS).filter((k) => PLOTS[k][1] === "b");
+export const START_MONEY = 10_000_000;
+export const DOZER_PRICE = 35_000;
+export const PLOT = 24;
+
+export interface HouseType { cost: number; furnish: number; w: number; d: number; site?: [number, number]; big?: boolean }
+export const HOUSES: Record<string, HouseType> = {
+  cabin: { cost: 25000, furnish: 0, w: 8, d: 7 },
+  bungalow: { cost: 45000, furnish: 15000, w: 12, d: 8 },
+  family: { cost: 70000, furnish: 25000, w: 11, d: 10 },
+  duplex: { cost: 95000, furnish: 30000, w: 11, d: 10 },
+  mansionette: { cost: 150000, furnish: 45000, w: 16, d: 12, site: [19, 22] },
+  mansion: { cost: 650000, furnish: 120000, w: 40, d: 22, big: true },
+};
+export const FURN: Record<string, number> = {
+  sofa: 85000, armchair: 35000, coffee: 18000, tv: 120000, dbed: 95000, sbed: 45000, wardrobe: 60000, nightstand: 12000,
+  dining: 70000, counter: 90000, fridge: 150000, desk: 40000, rug: 15000, lamp: 9000, plant: 6000, shelf: 30000,
+  roundrug: 20000, pendant: 25000, agave: 9000, stove: 75000, blender: 35000, shower: 120000, toilet: 45000, vanity: 60000, bathtub: 140000,
+};
+export const BATH_ITEMS = new Set(["shower", "toilet", "vanity", "bathtub"]);
+const FENCE_RATE: Record<string, number> = { rail: 80, wall: 120, high: 180 };
+// the same sums as the game's fenceQuote()
+export function fenceCost(type: HouseType, fence: any): number {
+  const rate = fence && FENCE_RATE[fence.kind]; if (!rate) return 0;
+  const per = type.big ? 2 * (96 + 72) : fence.area === "compound" ? 2 * ((type.site ? type.site[0] : type.w) + 5 + (type.site ? type.site[1] : type.d) + 7) : 4 * PLOT;
+  return Math.round(per * rate / 100) * 100;
+}
+// which plot a bulldozer cell belongs to (cell index = i * 720 + j, i and j in metres from the map corner)
+export const plotOfCell = (idx: number) => `${Math.floor(Math.floor(idx / 720) / PLOT)},${Math.floor((idx % 720) / PLOT)}`;

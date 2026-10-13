@@ -6070,6 +6070,9 @@ function drawBigMap() {
   for (const i of forSale()) if (i.ok && !LAND.plots.has(i.key)) { const [a, b] = toB(i.r.x0, i.r.z0); bg2.fillRect(a, b, PLOT * sc, PLOT * sc); bg2.strokeRect(a + .5, b + .5, PLOT * sc - 1, PLOT * sc - 1); }
   bg2.fillStyle = 'rgba(232,116,42,.55)'; bg2.strokeStyle = '#e8742a'; bg2.lineWidth = 1.5;
   for (const k of LAND.plots.keys()) { const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz), [a, b] = toB(r.x0, r.z0); bg2.fillRect(a, b, PLOT * sc, PLOT * sc); bg2.strokeRect(a, b, PLOT * sc, PLOT * sc); }
+  bg2.fillStyle = 'rgba(80,150,230,.45)'; bg2.strokeStyle = '#5aa0ee';
+  for (const [k, o] of OTHERS) { if (LAND.plots.has(k)) continue; const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz), [a, b] = toB(r.x0, r.z0); bg2.fillRect(a, b, PLOT * sc, PLOT * sc); bg2.strokeRect(a, b, PLOT * sc, PLOT * sc); }
+  for (const [k, o] of OTHERS) if (o.house && o.ownerName && !LAND.plots.has(k)) { const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz); label(o.ownerName, r.cx, r.cz, 11, '#bfe0ff', -PLOT * sc / 2 - 6); }
   if (LAND.plots.size) { const [k0] = LAND.plots.keys(), [qx, qz] = k0.split(',').map(Number), r = plotRect(qx, qz); label('Your land', r.cx, r.cz, 13, '#ffd3a8', -PLOT * sc / 2 - 8); }
   if (DOZER_YARD) label('Machinery', DOZER_YARD.x, DOZER_YARD.z, 12, '#f2c230', -12);
   for (const C of CLUBS) label('♪ ' + C.name, C.at[0], C.at[1], 11, '#ff9ae0', -8);
@@ -6298,6 +6301,7 @@ const plotRect = (px, pz) => { const x0 = px * PLOT - HALF, z0 = pz * PLOT - HAL
 const ownedAt = (x, z) => LAND.plots.has(plotKey(...plotAt(x, z)));
 // is this plot for sale, and at what price? open country only: no towns, roads, water, beach, ruins or buildings (trees are fine)
 const ESTATE_LOTS = new Map(); for (const E of ESTATES) for (const L of E.lots) ESTATE_LOTS.set(L.key, { E, L });
+const OTHERS = new Map();   // the shared world: plots other players own (or have sold on), filled in by the online module
 // raising the mansion on Banana Island: the house, its grounds, the perimeter fence and the staff
 function raiseMansion(key, house) {
   const y = TOWN.y, v = { x: (BI.x0 + BI.x1) / 2, z: (BI.z0 + BI.z1) / 2, hw: (BI.x1 - BI.x0) / 2, hd: (BI.z1 - BI.z0) / 2, y, houses: [], civs: [], modern: true, mine: true };
@@ -6324,6 +6328,7 @@ if (BI) {
   BIG.key = plotKey(...plotAt(BI.gateX + 1, BI.z0 + PLOT / 2)); BIG.price = BI.price * BIG.keys.length;
 }
 function buyBig() {
+  if (sharedBlocked()) return;
   if (LAND.money < BIG.price) { toast('', `Banana Island costs ${NAIRA(BIG.price)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= BIG.price; for (const k of BIG.keys) LAND.plots.set(k, { paid: BI.price, house: null, big: true });
   saveLand(); sfx('refill'); toast('Banana Island is yours!', '1.7 acres, level and cleared. Press E on it to build your mansion');
@@ -6379,6 +6384,7 @@ function finishBuild(key, t, side, furnished, fence, fencePrice) {
 }
 function plotInfo(px, pz) {
   const key = plotKey(px, pz); if (LAND.info.has(key)) return LAND.info.get(key);
+  if (OTHERS.has(key) && !LAND.plots.has(key)) { const info = { ok: false, price: 0, lo: 0, hi: 0, r: plotRect(px, pz), key, other: OTHERS.get(key) }; LAND.info.set(key, info); return info; }
   const el = ESTATE_LOTS.get(key);
   if (el) { const info = { ok: !el.L.taken && !LAND.sold.has(key), price: el.E.price, lo: TOWN.y, hi: TOWN.y, r: plotRect(px, pz), key, estate: el.E, lot: el.L }; LAND.info.set(key, info); return info; }
   const r = plotRect(px, pz); let ok = !LAND.sold.has(key), lo = 99, hi = -99;
@@ -6423,6 +6429,7 @@ function forSale() {
   return FOR_SALE;
 }
 function buyPlot(info) {
+  if (sharedBlocked()) return;
   if (LAND.money < info.price) { toast('', `Not enough money: this plot costs ${NAIRA(info.price)}, you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= info.price; LAND.plots.set(info.key, { paid: info.price, house: null }); flagPlot(info.key); drawOutline(info); saveLand(); sfx('refill');
   toast('Plot bought!', `${PLOT} × ${PLOT} m for ${NAIRA(info.price)} · ${NAIRA(LAND.money)} left`);
@@ -6448,6 +6455,7 @@ if (DOZER_YARD && !LAND.dozer) { dozerShow = makeDozer(); dozerShow.position.set
 if (LAND.dozer) makeDrivable(LAND.dozer.x, LAND.dozer.z, LAND.dozer.yaw, 'dozer');
 const nearDealer = () => !!dozerShow && !P.driving && P.pos.x > 176 && P.pos.x < 210 && P.pos.z > 233 && P.pos.z < 260;   // anywhere in the yard
 function buyDozer() {
+  if (sharedBlocked()) return;
   if (LAND.money < DOZER_YARD.price) { toast('', `A bulldozer costs ${NAIRA(DOZER_YARD.price)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= DOZER_YARD.price; scene.remove(dozerShow); dozerShow = null;
   LAND.dozer = { x: DOZER_YARD.x, z: DOZER_YARD.z, yaw: 0 }; makeDrivable(DOZER_YARD.x, DOZER_YARD.z, 0, 'dozer'); saveLand(); sfx('refill');
@@ -7325,6 +7333,7 @@ function landAction() {
   if (P.driving) return null;
   const [px, pz] = plotAt(P.pos.x, P.pos.z), info = plotInfo(px, pz);
   if (LAND.plots.has(info.key)) { const hk = bigK(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Furnish your home (Lagos Living catalogue)', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
+  if (info.other) { const o = info.other, who = o.npc ? 'Sold' : (o.ownerName || 'Someone') + '’s land'; return { label: `E · ${who}`, run: () => toast(who, o.npc ? 'Bought by a resident. Not for sale' : `This plot belongs to ${o.ownerName || 'another player'}`) }; }
   if (info.lot?.big) return info.ok ? { label: `E · Buy Banana Island · 1.7 acres (12 plots), level and cleared · ${NAIRA(BIG.price)}`, run: buyBig } : null;
   if (info.ok) return { label: info.estate ? `E · Buy plot ${info.lot.n}, ${info.estate.short} · level, on the avenue · ${NAIRA(info.price)}` : `E · Buy this ${PLOT} × ${PLOT} m plot · ${NAIRA(info.price)}`, run: () => buyPlot(info) };
   return null;
@@ -7349,7 +7358,7 @@ async function api(path, method = 'GET', body) {
     const r = await fetch(NET.base + '/api' + path, { method, signal: ctl.signal, headers: { 'Content-Type': 'application/json', ...(NET.token ? { Authorization: 'Bearer ' + NET.token } : {}) }, body: body ? JSON.stringify(body) : undefined });
     const j = await r.json().catch(() => ({}));
     if (r.status === 401 && NET.token && path !== '/auth/login') { NET.token = null; NET.user = null; netSave(); renderOnline(); }
-    if (!r.ok) throw new Error(j.error || 'Server error ' + r.status);
+    if (!r.ok) { const err = new Error(j.error || 'Server error ' + r.status); err.status = r.status; err.body = j; throw err; }
     return j;
   } finally { clearTimeout(to); }
 }
@@ -7475,6 +7484,7 @@ async function netJoin() {
     const room = await new Colyseus.Client(NET.base.replace(/^http/, 'ws')).joinOrCreate('world', opts);
     NET.room = room; NET.retry = 0; NET.sent = null;
     room.onMessage('chat', m => chatIn(m));
+    room.onMessage('plot', news => { for (const p of news) applyOther(p); });
     room.onLeave(code => {
       NET.room = null; for (const r of [...NET.others.values()]) dropRemote(r); renderOnline(); chatStatus();
       if (code !== 1000 && code !== 4000 && (NET.token || NET.guest) && NET.retry < 6) setTimeout(() => { NET.retry++; netJoin(); }, 2000 + NET.retry * 2000);
@@ -7513,21 +7523,70 @@ $('chatIn').addEventListener('keydown', e => {
 });
 // ---- cloud saves: your land, homes, furniture and money follow your account ----
 function cloudSaveSoon() {
-  try { if (!NET.token) return; } catch (e) { return; }   // called before the online module has loaded (a save during start-up)
-  clearTimeout(NET.saveT);
-  NET.saveT = setTimeout(() => { let data = null; try { data = JSON.parse(localStorage.getItem('giantwood-land') || 'null'); } catch (e) {} if (data) api('/save', 'PUT', data).then(r => { try { localStorage.setItem('velaplay-save-version', String(r.version)); } catch (e) {} }).catch(() => {}); }, 2500);
+  try { if (!NET.token || NET.quiet) return; } catch (e) { return; }   // called before the online module has loaded (a save during start-up)
+  landSyncSoon();
+}
+// ---- shared ownership: your land lives on the server, and everyone's homes are part of everyone's world ----
+let LAND_VER = (() => { try { return +localStorage.getItem('velaplay-land-version') || 0; } catch (e) { return 0; } })();
+const sharedOn = () => !!(NET.reachable && NET.token);
+function sharedBlocked() {   // guests in the shared world can look, not buy
+  if (NET.reachable && !NET.token && NET.guest) { toast('Sign in to own land', 'In the shared world, land belongs to accounts. Pause, then Play online → Sign in'); return true; }
+  return false;
+}
+const canon = o => Array.isArray(o) ? '[' + o.map(canon).join(',') + ']' : o && typeof o === 'object' ? '{' + Object.keys(o).filter(k => o[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(o[k])).join(',') + '}' : JSON.stringify(o ?? null);
+const plotsSig = plots => canon(Object.keys(plots).sort().map(k => [k, plots[k].house || null]));
+const landRecord = () => ({ money: Math.round(LAND.money), dozer: !!LAND.dozer, plots: Object.fromEntries([...LAND.plots].map(([k, p]) => [k, { paid: p.paid, big: p.big || undefined, house: p.house || null }])), edits: LAND.edits });
+function adoptLand(st, why) {   // take the server's land as this device's, and reload so the world is rebuilt from it
+  let cur = {}; try { cur = JSON.parse(localStorage.getItem('giantwood-land') || '{}'); } catch (e) {}
+  const save = { ...cur, grant500: true, grant10m: true, money: st.money, plots: st.plots, sold: {}, edits: st.edits || {}, dozer: st.dozer ? (cur.dozer || { x: DOZER_YARD.x, z: DOZER_YARD.z, yaw: 0 }) : null };
+  try { localStorage.setItem('giantwood-land', JSON.stringify(save)); localStorage.setItem('velaplay-land-version', String(LAND_VER)); } catch (e) {}
+  NET.adopting = true; toast('☁ Your land', why); setTimeout(() => location.reload(), 1400);
+}
+function landSyncSoon(ms = 1200) { if (!sharedOn() || NET.adopting) return; clearTimeout(NET.syncT); NET.syncT = setTimeout(() => landSync(), ms); }
+async function landSync(first = false) {
+  if (!sharedOn() || NET.adopting) return;
+  if (NET.syncing) { NET.syncAgain = true; return; }
+  NET.syncing = true;
+  try {
+    const r = await api('/land/sync', 'POST', { base: LAND_VER, state: landRecord() });
+    LAND_VER = r.version; try { localStorage.setItem('velaplay-land-version', String(LAND_VER)); } catch (e) {}
+    if (r.conflicts && r.conflicts.length) return adoptLand(r.state, r.conflicts.map(c => c.owner ? `Plot ${c.key} belongs to ${c.owner} now` : `Plot ${c.key} isn't for sale`).join(' · ') + '. Your money is back.');
+    if (plotsSig(r.state.plots) !== plotsSig(Object.fromEntries(LAND.plots))) return adoptLand(r.state, r.imported ? 'Your land and homes are now in the shared world' : (r.notes && r.notes.join(' · ')) || 'Updated from the server');
+    if (Math.round(LAND.money) !== r.state.money) { LAND.money = r.state.money; NET.quiet = true; saveLand(); NET.quiet = false; if (r.corrected) toast('', 'The server corrected your balance'); }
+    if (r.imported) toast('☁ Shared world', 'Your land and homes are now part of the shared world');
+  } catch (e) {
+    if (e.status === 409 && e.body && e.body.state) { LAND_VER = e.body.state.version; adoptLand(e.body.state, 'Your land changed on another device. Loading it'); }
+  } finally {
+    NET.syncing = false; if (NET.syncAgain) { NET.syncAgain = false; landSyncSoon(300); }
+  }
+}
+// other people's land: their bulldozer work, their houses with fences and furniture, live as they change
+function otherCell(k, h) {
+  Hm[k] = h; KIND[k] = 5; const i = Math.floor(k / N), j = k % N, CH = 96;
+  for (const [a, b] of [[i, j], [i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) if (a >= 0 && b >= 0 && a < N && b < N) LAND.dirty.add(Math.floor(a / CH) * CH + ',' + Math.floor(b / CH) * CH);
+  for (const [im, n] of GRASS_AT.get(k) || []) { im.setMatrixAt(n, GRASS_HIDE); im.instanceMatrix.needsUpdate = true; }
+}
+function placeFurnOf(key, house) { const hs = HOME_HS.get(key); if (hs) for (const rec of house.furn || []) furnPlace(key, hs, rec); }
+function applyOther(p) {
+  if (NET.user && p.owner === NET.user.id) return;   // your own land comes through the sync
+  if (LAND.plots.has(p.key)) return;
+  const was = OTHERS.get(p.key); OTHERS.set(p.key, p);
+  LAND.info.delete(p.key); FOR_SALE = null;
+  for (const [k, h] of Object.entries(p.edits || {})) if (Hm[+k] !== h) otherCell(+k, h);
+  if (!p.house) return;
+  if (!HOME_HS.has(p.key)) { raiseHouse(p.key, p.house); placeFurnOf(p.key, p.house); return; }
+  if (!was || !was.house) return;
+  if (canon(was.house.fence) !== canon(p.house.fence)) buildFence(p.key, p.house);
+  if (canon(was.house.furn) !== canon(p.house.furn)) { for (const q of FURN_LIVE.filter(q => q.key === p.key)) furnUnplace(q); placeFurnOf(p.key, p.house); }
+}
+async function loadWorld() {
+  try { const w = await api('/world'); for (const p of w.plots) applyOther(p); if (w.plots.length) { const n = new Set(w.plots.filter(p => p.ownerName && !(NET.user && p.owner === NET.user.id)).map(p => p.ownerName)).size; if (n) toast('🏘 Shared world', `${n} other scout${n > 1 ? 's own' : ' owns'} land here. Their homes are on the map (P)`); }; } catch (e) {}
 }
 async function cloudSync() {   // after signing in: take the cloud save if it's newer, or upload this device's save if the cloud has none
   try {
     const me = await api('/me'); if (me.character && Object.keys(me.character).length) { const { hat, shades, ...rest } = me.character; MY_LOOK = { ...BASE_LOOK, ...rest }; if (hat !== undefined) LOOK.hat = hat; if (shades !== undefined) LOOK.shades = shades; pm.hat.visible = LOOK.hat; pm.shades.visible = LOOK.shades; setPlayerLook(MY_LOOK); try { localStorage.setItem(LOOK_STORE, JSON.stringify(MY_LOOK)); localStorage.setItem('giantwood-look', JSON.stringify(LOOK)); } catch (e) {} }
     else api('/character', 'PUT', lookOut()).catch(() => {});
-    const cloud = await api('/save'); let localV = 0; try { localV = +localStorage.getItem('velaplay-save-version') || 0; } catch (e) {}
-    const local = localStorage.getItem('giantwood-land');
-    if (cloud.data && cloud.version > localV && JSON.stringify(cloud.data) !== local) {
-      localStorage.setItem('giantwood-land', JSON.stringify(cloud.data)); localStorage.setItem('velaplay-save-version', String(cloud.version));
-      toast('☁ Cloud save', 'Loading your land and homes…'); setTimeout(() => location.reload(), 900); return false;
-    }
-    if (!cloud.data && local) cloudSaveSoon();
+    await landSync(true);   // your land: imported the first time, then the server's copy is the truth
   } catch (e) { toast('', 'Cloud save unavailable: ' + (e.message || e)); }
   return true;
 }
@@ -7616,7 +7675,7 @@ function openCreator() {
   mark(); requestAnimationFrame(() => previewFigure(L));
 }
 // is the server there? (inside the claude.ai page every outside connection is blocked, so this quietly says no)
-(async () => { try { await api('/health'); NET.reachable = true; } catch (e) { NET.reachable = false; } renderOnline(); if (NET.reachable && NET.token) cloudSync(); })();
+(async () => { try { await api('/health'); NET.reachable = true; } catch (e) { NET.reachable = false; } renderOnline(); if (NET.reachable) { await loadWorld(); if (NET.token) cloudSync(); } })();
 renderOnline();
 function updateOnline(dt) {
   if (mode === 'play' && !NET.room && !NET.joining && NET.reachable && (NET.token || NET.guest) && !NET.retry) netJoin();

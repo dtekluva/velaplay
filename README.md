@@ -27,7 +27,10 @@ The DigitalOcean firewall `giantwood-fw` (tag `giantwood`) allows only ports 22,
 | `POST /api/auth/login` | | `{ email, password }` → `{ token, user }` |
 | `GET /api/me` | Bearer | Your account and character |
 | `PUT /api/character` | Bearer | Your look. Only known fields are accepted (colours as `#rrggbb`, `hairStyle`, `build`, `hat`, `shades`…) |
-| `GET /api/save` / `PUT /api/save` | Bearer | Your land, homes, furniture and money, i.e. the game's existing save (max 512 KB) |
+| `GET /api/world` | | Every owned or sold-on plot: owner name, house (type, side, furniture, fence), bulldozer edits |
+| `GET /api/land/state` | Bearer | Your money, bulldozer, plots and edits, plus the `version` you're on |
+| `POST /api/land/sync` | Bearer | `{ base, state }`: your land record after a change (see below) |
+| `GET/PUT /api/save` | Bearer | The old raw cloud save (no longer used by the game) |
 
 Tokens are JWTs that last 30 days. Passwords are hashed with bcrypt.
 
@@ -43,6 +46,22 @@ Tokens are JWTs that last 30 days. Passwords are hashed with bcrypt.
 - **Messages you get:** `chat` `{ from, id, text, x, z }`.
 - Up to 100 players fit in a room; more open new rooms automatically.
 
+## Shared ownership
+
+The server is the truth for land, homes, furniture, fences, the bulldozer, terrain edits and money. Everything lives in `src/land.ts`, with prices in `src/catalog.ts`.
+
+**How a sync works.** The game plays as before, and after every change it sends its whole land record with `base`, the version it last saw.
+- **Stale devices are turned away.** If `base` isn't current (another device changed things), the server replies `409` with the true state and the game reloads from it.
+- **Otherwise the server works out what changed** and prices each change from its own tables:
+  - **New plots** must be in `data/plots.json`, the 227 plots for sale generated from the game's own map with exact prices. They must also be free; claiming is a single atomic `INSERT … ON CONFLICT … WHERE owner IS NULL`. Someone else's plot comes back as a conflict, with their name.
+  - **Houses** cost their type plus furnishing plus fence (`fenceCost` mirrors the game's `fenceQuote`). Mansions are only allowed on the Banana Island lot. A house can't change type or be demolished.
+  - **Furniture** is priced piece by piece. Sales refund half. Bathroom fittings are free when a house first gets its bathrooms.
+  - **Sold plots** become `npc`: the house stays, nobody can buy it, and the seller gets at most `paid × 1.5 + 90%` of the house.
+  - **Bulldozer edits** are kept only where they fall on your own plots.
+  - **Money:** the most it can rise between syncs is 80,000 plus 2,500 a second since your last sync (capped at 2,000,000), which covers jobs, fares, tours and daily pay. Anything above that is corrected. What the game already deducted for things the server refused is refunded.
+- **The first sync of a new account imports the player's existing save free,** keeping plots that are still free, with money capped at 10,000,000.
+- **Accepted changes are broadcast** to every world room as `plot` news, so other players see new houses, fences, furniture and levelled ground live.
+
 ## The game client
 
 The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). Its online module (`NET`, near the end of the script) handles:
@@ -50,7 +69,9 @@ The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). I
 - **Character creator:** body, build, skin, twelve hair styles, hair colour, outfit (jacket, T-shirt or dress) and colours, trousers, shoes, hat and sunglasses, with a turning 3D preview.
 - **In the world:** joining when you Deploy, sending your position 20 times a second (only when it changes), and drawing other players as real figures in their look, with name tags. Their car, boat, plane or motorbike is drawn too, from the same models as yours. Movement is smoothed, and they snap after long jumps.
 - **Chat:** Enter to chat (Chat in the ••• menu on touch), with messages in a log and as speech bubbles.
-- **Cloud saves:** once signed in, the cloud save is loaded if it's newer, and every save is uploaded a few seconds later.
+- **Shared land:** your land syncs to the server, and the server's copy wins (`landSync`, `adoptLand`).
+- **Other people's land:** their homes are built in your world when you load (`loadWorld`) and as they change (`applyOther`). Their plots can't be bought; standing on one says whose it is. They show on the big map in blue with the owner's name.
+- **Guests** can visit but can't buy land.
 
 On pages that can't reach the server (the claude.ai artifact blocks all outside connections), the panel links to the online address and the game stays single-player.
 
