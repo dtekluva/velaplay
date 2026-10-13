@@ -2,6 +2,7 @@ import { Room, Client } from "colyseus";
 import { Schema, MapSchema, type } from "@colyseus/schema";
 import { verifyToken } from "../auth";
 import { pool } from "../db";
+import { Character } from "../schemas";
 
 // what everyone sees of a player: position, facing, animation, vehicle, and their look
 export class Player extends Schema {
@@ -25,6 +26,8 @@ const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Num
 export class WorldRoom extends Room<WorldState> {
   maxClients = 100;
   private lastChat = new Map<string, number>();
+  private lastWarp = new Map<string, number>();
+  private lastLook = new Map<string, number>();
 
   onCreate() {
     this.setState(new WorldState());
@@ -34,10 +37,23 @@ export class WorldRoom extends Room<WorldState> {
       const p = this.state.players.get(client.sessionId); if (!p || !m) return;
       const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, -BOUND, BOUND), ry = num(m.ry, -10, 10);
       if (x === null || y === null || z === null || ry === null) return;
-      if (Math.hypot(x - p.x, z - p.z) > MAX_STEP && p.anim !== "spawn") return;   // ignore teleports
+      // ignore impossible jumps, except the game's own teleports (respawn, lifts, taxis), at most one every 3 s
+      if (Math.hypot(x - p.x, z - p.z) > MAX_STEP && p.anim !== "spawn") {
+        const t = Date.now(), last = this.lastWarp.get(client.sessionId) || 0;
+        if (!m.warp || t - last < 3000) return;
+        this.lastWarp.set(client.sessionId, t);
+      }
       p.x = x; p.y = y; p.z = z; p.ry = ry;
       if (typeof m.anim === "string" && m.anim.length <= 16) p.anim = m.anim;
       if (typeof m.veh === "string" && m.veh.length <= 24) p.veh = m.veh;
+    });
+
+    // a new look (the character creator, or hat and sunglasses on or off)
+    this.onMessage("look", (client, m: any) => {
+      const p = this.state.players.get(client.sessionId); if (!p) return;
+      const t = Date.now(); if (t - (this.lastLook.get(client.sessionId) || 0) < 500) return;
+      const r = Character.safeParse(m); if (!r.success) return;
+      this.lastLook.set(client.sessionId, t); p.look = JSON.stringify(r.data);
     });
 
     this.onMessage("chat", (client, m: any) => {
@@ -64,14 +80,17 @@ export class WorldRoom extends Room<WorldState> {
     throw new Error("Sign in to join the world");
   }
 
-  onJoin(client: Client, _options?: any, authData?: Auth) {
+  onJoin(client: Client, options?: any, authData?: Auth) {
     const auth = authData as Auth;
     // one session per account: a second login replaces the first
     if (!auth.guest) for (const c of this.clients) if (c !== client && (c as any).userData?.id === auth.id) c.leave(4000);
     client.userData = { id: auth.id };
     const p = new Player();
     p.name = auth.name; p.look = auth.look; p.anim = "spawn";
-    p.x = (Math.random() - .5) * 6; p.z = (Math.random() - .5) * 6; p.y = 10;
+    // start where the player already is in their game (clamped to the map), else by the pyramid
+    const ox = num(options?.x, -BOUND, BOUND), oy = num(options?.y, -50, 400), oz = num(options?.z, -BOUND, BOUND);
+    p.x = ox ?? (Math.random() - .5) * 6; p.z = oz ?? (Math.random() - .5) * 6; p.y = oy ?? 10;
+    if (auth.guest && options?.look) { const r = Character.safeParse(options.look); if (r.success) p.look = JSON.stringify(r.data); }
     this.state.players.set(client.sessionId, p);
     setTimeout(() => { if (p.anim === "spawn") p.anim = "idle"; }, 3000);
     console.log(`${auth.name} joined (${this.clients.length} in the world)`);
@@ -79,6 +98,6 @@ export class WorldRoom extends Room<WorldState> {
 
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
-    this.lastChat.delete(client.sessionId);
+    this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId);
   }
 }

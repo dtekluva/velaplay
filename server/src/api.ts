@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { pool } from "./db";
 import { signToken, requireUser, type TokenUser } from "./auth";
+import { Character } from "./schemas";
 
 export const api = Router();
 const userOf = (req: Request) => (req as Request & { user: TokenUser }).user;
@@ -50,17 +51,7 @@ api.get("/me", requireUser, async (req, res) => {
   res.json({ user: u, character: c.rows[0]?.spec ?? {} });
 });
 
-// your scout's look: only known fields, only sensible values
-const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-const Character = z.object({
-  female: z.boolean().optional(),
-  skin: hex.optional(), hair: hex.optional(), eye: hex.optional(),
-  hairStyle: z.enum(["short", "fade", "messy", "bun", "long", "braids", "bald", "afro", "ponytail"]).optional(),
-  build: z.number().min(.85).max(1.25).optional(),
-  shirt: hex.optional(), sleeve: hex.optional(), collar: hex.optional(), pants: hex.optional(), shoes: hex.optional(), boots: hex.optional(), belt: hex.optional(),
-  longSleeve: z.boolean().optional(), skirt: hex.optional(), skirtLen: z.number().min(.3).max(.9).optional(),
-  hat: z.boolean().optional(), shades: z.boolean().optional(), harness: z.boolean().optional(),
-}).strict();
+// your scout's look: only known fields, only sensible values (see schemas.ts)
 api.put("/character", requireUser, async (req, res) => {
   const r = Character.safeParse(req.body);
   if (!r.success) return res.status(400).json({ error: r.error.issues[0]?.message || "Invalid character" });

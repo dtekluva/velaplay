@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VelaPlay test world</title>
+<style>
+  :root { --bg: #10140f; --panel: #1b2219; --ink: #ece6d6; --dim: #9aa38f; --brass: #d6ae5f; --me: #6fe0a0; --them: #8fb8ff; }
+  * { box-sizing: border-box }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; color: var(--brass) }
+  p { margin: 0 0 12px; color: var(--dim) }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start }
+  .card { background: var(--panel); border: 1px solid #2c3628; padding: 12px; border-radius: 6px; min-width: 0 }
+  input, button { font: inherit; padding: 6px 8px; border-radius: 4px; border: 1px solid #3a4634; background: #0f130e; color: var(--ink) }
+  button { background: var(--brass); color: #1b1608; border: 0; font-weight: 700; cursor: pointer }
+  form { display: grid; gap: 6px; margin-bottom: 10px }
+  canvas { background: #172014; border: 1px solid #2c3628; border-radius: 6px; max-width: 100%; height: auto; display: block }
+  #log { height: 220px; overflow: auto; font-size: 13px; margin-bottom: 6px }
+  #status { color: var(--dim) }
+</style>
+</head>
+<body>
+<h1>VelaPlay test world</h1>
+<p>Sign up or log in (or just join as a guest), then move with WASD or the arrow keys. Open this page in two tabs to see each other.</p>
+<div class="row">
+  <div class="card" style="width:260px">
+    <form id="reg"><b>New account</b><input name="name" placeholder="Display name" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password (8+ chars)" required><button>Sign up</button></form>
+    <form id="login"><b>Log in</b><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><button>Log in</button></form>
+    <form id="guest"><b>Or join as a guest</b><input name="name" placeholder="Name"><button>Join as guest</button></form>
+    <div id="status">Not connected</div>
+  </div>
+  <canvas id="map" width="720" height="720"></canvas>
+  <div class="card" style="width:280px">
+    <b>Chat</b><div id="log"></div>
+    <form id="chat"><input name="text" placeholder="Say something" autocomplete="off"><button>Send</button></form>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.15.28/dist/colyseus.js"></script>
+<script>
+const $ = s => document.querySelector(s), status = t => $('#status').textContent = t;
+const wsUrl = location.origin.replace(/^http/, 'ws');
+let token = null, room = null, me = { x: 0, z: 0, ry: 0 };
+async function post(path, body) {
+  const r = await fetch('/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j;
+}
+const data = f => Object.fromEntries(new FormData(f));
+$('#reg').onsubmit = async e => { e.preventDefault(); try { const j = await post('/auth/register', data(e.target)); token = j.token; join({ token }); } catch (err) { status(String(err.message)); } };
+$('#login').onsubmit = async e => { e.preventDefault(); try { const j = await post('/auth/login', data(e.target)); token = j.token; join({ token }); } catch (err) { status(String(err.message)); } };
+$('#guest').onsubmit = e => { e.preventDefault(); join({ name: data(e.target).name }); };
+$('#chat').onsubmit = e => { e.preventDefault(); const t = e.target.text.value.trim(); if (room && t) room.send('chat', { text: t }); e.target.text.value = ''; };
+async function join(opts) {
+  try {
+    if (room) await room.leave();
+    room = await new Colyseus.Client(wsUrl).joinOrCreate('world', opts);
+    status('Connected as ' + (opts.token ? 'your account' : 'a guest') + ' · room ' + room.roomId);
+    room.onMessage('chat', m => { const d = document.createElement('div'); d.textContent = m.from + ': ' + m.text; $('#log').append(d); $('#log').scrollTop = 1e9; });
+    room.onLeave(code => status('Disconnected (' + code + ')'));
+    const p = room.state.players.get(room.sessionId); if (p) { me.x = p.x; me.z = p.z; }
+  } catch (err) { status('Could not join: ' + err.message); }
+}
+const keys = {}; addEventListener('keydown', e => { if (e.target.tagName !== 'INPUT') keys[e.code] = true; }); addEventListener('keyup', e => keys[e.code] = false);
+let last = performance.now(), sendT = 0;
+function frame(t) {
+  const dt = Math.min(.05, (t - last) / 1000); last = t;
+  if (room) {
+    const ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0), iz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
+    if (ix || iz) { me.x = Math.max(-346, Math.min(346, me.x + ix * 30 * dt)); me.z = Math.max(-346, Math.min(346, me.z + iz * 30 * dt)); me.ry = Math.atan2(-ix, -iz); }
+    if ((sendT -= dt) <= 0) { sendT = .05; room.send('move', { x: me.x, y: 3, z: me.z, ry: me.ry, anim: ix || iz ? 'run' : 'idle' }); }
+  }
+  const c = $('#map'), g = c.getContext('2d'); g.fillStyle = '#172014'; g.fillRect(0, 0, 720, 720);
+  g.strokeStyle = '#25301f'; for (let k = 0; k <= 720; k += 60) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 720); g.moveTo(0, k); g.lineTo(720, k); g.stroke(); }
+  if (room) room.state.players.forEach((p, id) => {
+    const mine = id === room.sessionId, x = (mine ? me.x : p.x) + 360, z = (mine ? me.z : p.z) + 360;
+    g.fillStyle = mine ? '#6fe0a0' : '#8fb8ff'; g.beginPath(); g.arc(x, z, 6, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ece6d6'; g.font = '12px system-ui'; g.textAlign = 'center'; g.fillText(p.name, x, z - 10);
+  });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
