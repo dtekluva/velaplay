@@ -3427,7 +3427,7 @@ function bodyType(S, fem) { const d = { sh: 1, chest: 1, waist: 1, hip: 1, glute
 /* ---------- hair with volume: strands, partings and fades painted along the cap, and per style real shape: box braids and locs
    hanging from the scalp, a coily afro, curtains of long hair and bobs, a tapered ponytail, a wrapped bun, a crown of curls.
    Head-local units: the skull is centred at (0, .15, 0), front toward -z. ---------- */
-const HAIR_VOLUME = false;   // the new hair (braids, afro, curtains, ponytail…): on once approved
+const HAIR_VOLUME = true;   // the new hair (braids, afro, curtains, ponytail…): on once approved
 function hairShade(hair, st, skin) {
   const base = new THREE.Color(hair), sk = new THREE.Color(skin || '#6e4a32').multiplyScalar(.7), out = new THREE.Color();
   return (x, y, z) => {
