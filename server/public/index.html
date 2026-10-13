@@ -9247,9 +9247,14 @@ function drvRoute(x0, z0, x1, z1) {
   // every few cells a waypoint, shifted to the right-hand side of wide roads
   const pts = []; for (let n = 0; n < cells.length; n += 3) pts.push(drvW(Math.floor(cells[n] / NJ), cells[n] % NJ));
   pts.push(drvW(Math.floor(goal / NJ), goal % NJ));
+  // keep right: find the road's two edges across each waypoint, then sit in the middle of the right-hand half
+  const isRoad = (x, z) => { const k = kindAt(x, z); return k === 6 || k === 8 || k === 9; };
   const out = pts.map(([x, z], n) => {
-    const [ax, az] = pts[Math.max(0, n - 1)], [bx, bz] = pts[Math.min(pts.length - 1, n + 1)], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz) || 1;
-    const k = kindAt(x, z), sh = k === 6 || k === 8 || k === 9 ? 1.6 : 0; return { x: x - dz / L * sh, z: z + dx / L * sh };   // keep right
+    const [ax, az] = pts[Math.max(0, n - 2)], [bx, bz] = pts[Math.min(pts.length - 1, n + 2)], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz) || 1, rx = -dz / L, rz = dx / L;
+    if (!isRoad(x, z) || n === pts.length - 1) return { x, z };
+    let eR = 0, eL = 0; while (eR < 10 && isRoad(x + rx * (eR + .5), z + rz * (eR + .5))) eR += .5; while (eL < 10 && isRoad(x - rx * (eL + .5), z - rz * (eL + .5))) eL += .5;
+    const width = eR + eL, mid = (eR - eL) / 2, lane = width >= 6 ? width / 4 : 0;   // narrow lanes: just the middle
+    return { x: x + rx * (mid + lane), z: z + rz * (mid + lane) };
   });
   let len = 0; for (let n = 1; n < out.length; n++) len += Math.hypot(out[n].x - out[n - 1].x, out[n].z - out[n - 1].z);
   return { pts: out, len };
