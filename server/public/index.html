@@ -974,6 +974,7 @@ const EXPWY = YB ? [[-60, -1130], [-60, -1450], [10, -1800], [90, -2200], [70, -
 const EXP_HW = 10;   // half-width: two lanes each way (lane centres 2.8 and 6.3 m out), the median, kerbs
 const EXP_SEGS = []; for (let k = 0; k + 1 < EXPWY.length; k++) { const [ax, az] = EXPWY[k], [bx, bz] = EXPWY[k + 1], len = Math.hypot(bx - ax, bz - az); EXP_SEGS.push({ ax, az, bx, bz, tx: (bx - ax) / len, tz: (bz - az) / len, len }); }
 const expX = z => { for (const s of EXP_SEGS) if (z <= s.az && z >= s.bz) return s.ax + (s.bx - s.ax) * (s.az - z) / (s.az - s.bz); return EXPWY.length ? EXPWY[EXPWY.length - 1][0] : 0; };   // where the expressway is at this z
+const expEdge = (z0, z1, side) => { const xs = [z0, (z0 + z1) / 2, z1, ...EXPWY.filter(([, z]) => z > z0 && z < z1).map(([, z]) => z)].map(expX); return side > 0 ? Math.max(...xs) : Math.min(...xs); };
 const expDist = (x, z) => { let b = 1e9; for (const s of EXP_SEGS) b = Math.min(b, segDist(x, z, [s.ax, s.az, s.bx, s.bz])); return b; };
 const RIVERS = YB ? [{ name: 'OGUN RIVER', z: -2380, a: 30, f: 70, ph: 0, w: 9 }, { name: 'ONA RIVER', z: -3950, a: 24, f: 60, ph: 1, w: 8 }] : [];
 const riverZ = (R, x) => R.z + Math.sin(x / R.f + R.ph) * R.a;
@@ -990,7 +991,7 @@ const ROADSIDE = YB ? [
   { kind: 'factory', name: 'OYO FLOUR MILLS', sub: 'SEMOLINA · FLOUR · NOODLES', z: -1920, side: 1 },
   { kind: 'factory', name: 'AFRICEM CEMENT', sub: 'BUILD NIGERIA STRONG', z: -2960, side: -1 },
   { kind: 'factory', name: 'IBAFO BOTTLING CO.', sub: 'SOFT DRINKS · TABLE WATER', z: -3720, side: 1 },
-].map(R => { const ex = expX(R.z), [w, d] = R.kind === 'fuel' ? [38, 32] : [132, 96], xa = ex + R.side * (EXP_HW + 1.5), xb = xa + R.side * w; return { ...R, ex, x0: Math.min(xa, xb), x1: Math.max(xa, xb), z0: R.z - d / 2, z1: R.z + d / 2 }; }) : [];
+].map(R => { const [w, d] = R.kind === 'fuel' ? [38, 32] : [132, 96], ex = expEdge(R.z - d / 2, R.z + d / 2, R.side), xa = ex + R.side * (EXP_HW + 3), xb = xa + R.side * w; return { ...R, ex, x0: Math.min(xa, xb), x1: Math.max(xa, xb), z0: R.z - d / 2, z1: R.z + d / 2 }; }) : [];
 // Redemption City (east of the expressway) and the toll plaza before Ibadan
 const RCCG = YB ? (() => { const z = -3200, ex = expX(z); return { x0: ex + 30, x1: ex + 250, z0: z - 110, z1: z + 70, gz: z, ex }; })() : null;
 const TOLL_Z = -4420;
