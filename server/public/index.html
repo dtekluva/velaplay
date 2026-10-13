@@ -743,6 +743,7 @@ const COUNTRY = COAST ? { name: 'Meadowbrook', x: 288, z: 192, w: 104, d: 112, y
 // the seafront: Lekki-style houses behind the road, the beach in front; beachgoers keep to the Elegushi stretch of sand
 const BEACH = COAST ? { x: -10, z: 266, w: 600, d: 80, y: COAST.y, modern: true, houses: [], civs: [], sand: [-66, 126, 280, 298] } : null;
 const nearCoast = (x, z, m = 0) => !!COAST && (z > 222 - m || inRect(COUNTRY, x, z, m) || nearCoastRoad(x, z, m));
+const PLOT_H0 = new Map();   // ground heights from before the coast road was flattened, by cell: plot prices are worked out on these
 if (COAST) {
   const { shore, y: cy } = COAST, setH = (i, j, h, t) => { const k = i * N + j; Hm[k] = Math.round(Hm[k] + (h - Hm[k]) * t); };
   // land levels off toward the coast road, then the beach steps down to the sea
@@ -756,23 +757,29 @@ if (COAST) {
     const x = i - HALF + .5, z = j - HALF + .5, m = Math.max(Math.abs(x - COUNTRY.x) - COUNTRY.w / 2, Math.abs(z - COUNTRY.z) - COUNTRY.d / 2, 0);
     if (m < 14) setH(i, j, cy, smooth(14, 0, m));
   }
-  // the road: sample the ground, smooth it, limit the gradient, then grade a corridor
-  const n = Math.ceil(CR_L) + 1, raw = new Float32Array(n), prof = new Float32Array(n);
+  // the road is flat: level with the seafront the whole way, after one gentle ramp (a block over 40 m) out of the city; the ground either side is cut or filled to it
+  const n = Math.ceil(CR_L) + 1, prof = new Float32Array(n);
+  for (let k = 0; k < n; k++) prof[k] = k < 24 ? TOWN.y : k < 64 ? TOWN.y + (cy - TOWN.y) * smooth(24, 64, k) : cy;
+  // the old rolling profile (sampled ground, smoothed, gradient-limited) is still worked out, only so plots beside the road keep the prices the server has
+  const raw = new Float32Array(n), prof0 = new Float32Array(n);
   for (let k = 0; k < n; k++) { const p = crAt(k); raw[k] = Math.max(3, Hm[idxAt(p.x, p.z)]); }
-  for (let k = 0; k < n; k++) { let a = 0, c = 0; for (let q = Math.max(0, k - 15); q <= Math.min(n - 1, k + 15); q++) { a += raw[q]; c++; } prof[k] = a / c; }
+  for (let k = 0; k < n; k++) { let a = 0, c = 0; for (let q = Math.max(0, k - 15); q <= Math.min(n - 1, k + 15); q++) { a += raw[q]; c++; } prof0[k] = a / c; }
   const sCoast = CSEG[3].s0 - 10, fixed = k => k < 24 || k >= sCoast;
-  for (let k = 0; k < n; k++) if (fixed(k)) prof[k] = k < 24 ? TOWN.y : cy;
+  for (let k = 0; k < n; k++) if (fixed(k)) prof0[k] = k < 24 ? TOWN.y : cy;
   for (let pass = 0; pass < 3; pass++) {
-    for (let k = 1; k < n; k++) if (!fixed(k)) prof[k] = clamp(prof[k], prof[k - 1] - .15, prof[k - 1] + .15);
-    for (let k = n - 2; k >= 0; k--) if (!fixed(k)) prof[k] = clamp(prof[k], prof[k + 1] - .15, prof[k + 1] + .15);
+    for (let k = 1; k < n; k++) if (!fixed(k)) prof0[k] = clamp(prof0[k], prof0[k - 1] - .15, prof0[k - 1] + .15);
+    for (let k = n - 2; k >= 0; k--) if (!fixed(k)) prof0[k] = clamp(prof0[k], prof0[k + 1] - .15, prof0[k + 1] + .15);
   }
+  const level0 = s => { const k = clamp(s, 0, n - 1.001), k0 = Math.floor(k); return Math.floor(prof0[k0] + (prof0[k0 + 1] - prof0[k0]) * (k - k0) + 1e-4); };
   COAST.prof = prof;
   // the ground under and beside the road sits at or just below the smooth surface laid on top of it
   COAST.surf = s => { const k = clamp(s, 0, n - 1.001), k0 = Math.floor(k); return prof[k0] + (prof[k0 + 1] - prof[k0]) * (k - k0); };
   const level = s => Math.floor(COAST.surf(s) + 1e-4);
   for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
     const x = i - HALF + .5, z = j - HALF + .5, p = crProject(x, z), hw = crHW(p.s);
-    if (p.dist < hw + 1.8) setH(i, j, level(p.s), 1); else if (p.dist < hw + 14) setH(i, j, level(p.s), smooth(hw + 14, hw + 1.5, p.dist));
+    if (p.dist >= hw + 14) continue;
+    const t = p.dist < hw + 1.8 ? 1 : smooth(hw + 14, hw + 1.5, p.dist), k = i * N + j, h0 = Math.round(Hm[k] + (level0(p.s) - Hm[k]) * t);
+    setH(i, j, level(p.s), t); if (Hm[k] !== h0) PLOT_H0.set(k, h0);
   }
 }
 /* ---------- two gated estates in the outer ring, with serviced plots on an avenue and a road to the network:
@@ -817,7 +824,7 @@ for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
   let t = 0;
   for (const E of LEVEL_AREAS) { const m = Math.max(E.x0 - x, x - E.x1, E.z0 - z, z - E.z1, 0); t = Math.max(t, smooth(14, 0, m)); }
   const rd = estateRoadDist(x, z); t = Math.max(t, smooth(18, 6, rd));
-  if (t > 0) { const k = i * N + j; Hm[k] = Math.round(Hm[k] + (TOWN.y - Hm[k]) * t); }
+  if (t > 0) { const k = i * N + j; Hm[k] = Math.round(Hm[k] + (TOWN.y - Hm[k]) * t); if (PLOT_H0.has(k)) PLOT_H0.set(k, Math.round(PLOT_H0.get(k) + (TOWN.y - PLOT_H0.get(k)) * t)); }
 }
 const blockOf = (dx, dz) => { const bi = v => clamp(Math.floor((v + 76) / 38), 0, 3); return [bi(dx), bi(dz)]; };
 function blockAt(kind) {   // world centre of the first block with this use
@@ -832,7 +839,7 @@ const nearVillage = (x, z, r) => MY_HOMES.find(v => Math.abs(x - v.x) < (v.hw ||
 /* terrain kind per column: 0 grass, 1 sand, 2 snow, 3 rock, 4 wheat field, 5 path */
 // land you levelled in earlier sessions: applied before the ground is typed and meshed
 const LAND_SAVE = (() => { try { return JSON.parse(localStorage.getItem('giantwood-land')) || {}; } catch (e) { return {}; } })();
-for (const k in LAND_SAVE.edits || {}) Hm[+k] = LAND_SAVE.edits[k];
+for (const k in LAND_SAVE.edits || {}) { Hm[+k] = LAND_SAVE.edits[k]; PLOT_H0.delete(+k); }
 const KIND = new Uint8Array(N * N);
 for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
   const k = i * N + j, h = Hm[k], x = i - HALF + .5, z = j - HALF + .5;
@@ -7731,7 +7738,7 @@ function plotInfo(px, pz) {
   if (Math.max(Math.abs(r.x0), Math.abs(r.x1), Math.abs(r.z0), Math.abs(r.z1)) > BOUND - 8 || Math.hypot(r.cx, r.cz) < 36) ok = false;
   if (ok && (inTown(r.cx, r.cz, 18) || inAirport(r.cx, r.cz, 16) || nearVillage(r.cx, r.cz, VR + 16) || nearRoad(r.cx, r.cz, 16) || nearCoast(r.cx, r.cz, 12) || inFlightPath(r.cx, r.cz))) ok = false;
   for (let x = r.x0 + .5; ok && x < r.x1; x += 2) for (let z = r.z0 + .5; z < r.z1; z += 2) {
-    const h = heightAt(x, z), k = kindAt(x, z);
+    const h = PLOT_H0.get(idxAt(x, z)) ?? heightAt(x, z), k = kindAt(x, z);
     if (h <= 2 || k === 1 || k >= 6 || (k === 5 && !LAND.edits[idxAt(x, z)])) { ok = false; break; }
     lo = Math.min(lo, h); hi = Math.max(hi, h);
   }
