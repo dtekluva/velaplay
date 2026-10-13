@@ -95,6 +95,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 
 #board{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:300px;padding:18px 24px;background:rgba(18,25,16,.9);border:1px solid var(--edge);display:grid;grid-template-columns:1fr auto;gap:6px 30px;font-size:17px}
 #bigmap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,7,.62);pointer-events:none}
+#bigmapC{pointer-events:auto;cursor:crosshair}
 #bigmap .frame{position:relative;padding:12px;background:rgba(18,25,16,.92);border:1px solid var(--edge);display:flex;flex-direction:column;gap:8px}
 #bigmap .head{display:flex;justify-content:space-between;align-items:baseline;gap:24px}
 #bigmap h3{margin:0;font-family:var(--display);font-size:18px;letter-spacing:.12em;color:var(--ink)}
@@ -122,7 +123,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 #tc{position:absolute;inset:0;touch-action:none;display:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.touch #tc{display:block}
 body.touch #hud *{pointer-events:none}
-body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *{pointer-events:auto}
+body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC{pointer-events:auto}
 body.touch #tc .stick,body.touch #tc .knob{pointer-events:none}
 body.touch #help{display:none!important}
 #helpTab{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:5px 10px;background:var(--panel);border:1px solid var(--edge);color:var(--brass);font:700 12px/1 inherit;letter-spacing:.06em;cursor:pointer;pointer-events:auto;opacity:.75}
@@ -6888,6 +6889,7 @@ addEventListener('keyup', e => {
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; $('board').hidden = true; });
 renderer.domElement.addEventListener('mousedown', e => {
   if (mode !== 'play') return;
+  if (!$('bigmap').hidden && document.pointerLockElement) { if (e.button === 0) mapPick(MAPCUR.x, MAPCUR.y); return; }   // the map is open: a click picks the spot under the crosshair
   if (hadLock && !document.pointerLockElement) { lockPointer(); return; }
   if (e.button === 0) fireHook(0); else if (e.button === 2) fireHook(1);
   else if (e.button === 1) { e.preventDefault(); midHeld = true; }
@@ -6899,6 +6901,7 @@ let lastMouse = -9;
 addEventListener('mousemove', e => {
   if (mode !== 'play') return;
   if (e.movementX || e.movementY) lastMouse = performance.now() / 1000;
+  if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); MAPCUR.x = clamp(MAPCUR.x + e.movementX * k, 0, bmC.width); MAPCUR.y = clamp(MAPCUR.y + e.movementY * k, 0, bmC.height); MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
   yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.35, 1.35);
 });
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
@@ -7342,9 +7345,10 @@ function drawMinimap() {
 /* ---------- big map (P): the whole world with labels, the scout, titans, depots and planes ---------- */
 const bmC = $('bigmapC'), bg2 = bmC.getContext('2d');
 let bigMapT = 0;
+const MAPCUR = { x: 0, y: 0, dirty: false };   // a crosshair on the big map, moved by the captured mouse
 function toggleBigMap(force) {
   const el = $('bigmap'); el.hidden = force === undefined ? !el.hidden : !force;
-  if (!el.hidden) { bigMapT = 0; drawBigMap(); }
+  if (!el.hidden) { const sc = bmC.width / (N + MAP_OY); MAPCUR.x = (bmC.width - N * sc) / 2 + (P.pos.x + HALF) * sc; MAPCUR.y = (P.pos.z + HALF + MAP_OY) * sc; bigMapT = 0; drawBigMap(); }
 }
 function drawBigMap() {
   const W = bmC.width, sc = W / (N + MAP_OY), ox = (W - N * sc) / 2, toB = (x, z) => [ox + (x + HALF) * sc, (z + HALF + MAP_OY) * sc];   // the whole world, mainland included, fitted to the height
@@ -7394,7 +7398,7 @@ function drawBigMap() {
   if (AP && AP.showSlots && AP.showSlots.length) { const q = AP.showSlots[Math.floor(AP.showSlots.length / 4)]; label('🚗 32 cars to drive', q[0], q[1], 12, '#f2c230', -10); }
   if (RR.car && P.driving !== RR.car) { const [bx, by] = toB(RR.car.x, RR.car.z); bg2.fillStyle = '#9fe0ff'; bg2.beginPath(); bg2.arc(bx, by, 4, 0, TAU); bg2.fill(); label('✦ Range Rover', RR.car.x, RR.car.z, 12, '#9fe0ff', 12); }   // the rare car, wherever it was left
   drawDriverRoute(bg2, toB, 2.5);
-  if (P.driving && !DRIVER.on && !isAir(P.driving)) label('Tap a spot: your driver takes you there', 0, -HALF - MAP_OY + 14, 13, '#f2c230');
+  if (P.driving && !DRIVER.on && !isAir(P.driving)) label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', 0, -HALF - MAP_OY + 14, 13, '#f2c230');
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (YB) {   // the mainland
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
@@ -7414,6 +7418,10 @@ function drawBigMap() {
   // scale bar
   const m100 = 100 * sc; bg2.fillStyle = 'rgba(10,14,9,.75)'; bg2.fillRect(W - m100 - 34, W - 40, m100 + 22, 28);
   bg2.fillStyle = '#f1ebda'; bg2.fillRect(W - m100 - 23, W - 22, m100, 3); bg2.fillRect(W - m100 - 23, W - 27, 2, 8); bg2.fillRect(W - 25, W - 27, 2, 8);
+  if (document.pointerLockElement) {   // the mouse is captured: a crosshair to pick a spot with
+    const { x, y } = MAPCUR; bg2.strokeStyle = '#1b1608'; bg2.lineWidth = 4; for (const pass of [0, 1]) { bg2.beginPath(); bg2.moveTo(x - 14, y); bg2.lineTo(x - 4, y); bg2.moveTo(x + 4, y); bg2.lineTo(x + 14, y); bg2.moveTo(x, y - 14); bg2.lineTo(x, y - 4); bg2.moveTo(x, y + 4); bg2.lineTo(x, y + 14); bg2.stroke(); bg2.strokeStyle = '#f2c230'; bg2.lineWidth = 2; }
+    if (P.driving && !DRIVER.on) { bg2.font = "700 13px 'Barlow Condensed', sans-serif"; bg2.textAlign = 'left'; bg2.lineWidth = 3; bg2.strokeStyle = 'rgba(10,14,9,.85)'; bg2.strokeText('Click: hire a driver to here', x + 16, y - 10); bg2.fillStyle = '#f2c230'; bg2.fillText('Click: hire a driver to here', x + 16, y - 10); }
+  }
   bg2.font = "600 13px 'Barlow Condensed', sans-serif"; bg2.textAlign = 'center'; bg2.textBaseline = 'alphabetic'; bg2.fillText('100 m', W - m100 / 2 - 23, W - 26);
 }
 
@@ -9315,12 +9323,12 @@ function driverInputs(c, V, dt) {
   return { thr, st, brake };
 }
 // the big map: pick a spot while in a car; the route and the destination are drawn on both maps
-bmC.addEventListener('click', e => {
-  if (!P.driving) { toast('🚕 Hire a driver', 'Get in a car first, then open the map (P) and tap where to go'); return; }
-  const r = bmC.getBoundingClientRect(), px = (e.clientX - r.left) * bmC.width / r.width, py = (e.clientY - r.top) * bmC.height / r.height;
+function mapPick(px, py) {   // px, py: pixels on the big map's canvas
+  if (!P.driving) { toast('🚕 Hire a driver', 'Get in a car first, then open the map (P) and pick where to go'); return; }
   const sc = bmC.width / (N + MAP_OY), ox = (bmC.width - N * sc) / 2, x = (px - ox) / sc - HALF, z = py / sc - HALF - MAP_OY;
   if (driverHire(x, z)) toggleBigMap(false);
-});
+}
+bmC.addEventListener('click', e => { if (document.pointerLockElement) return; const r = bmC.getBoundingClientRect(); mapPick((e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height); });
 function drawDriverRoute(ctx, toP, lw) {
   if (!DRIVER.on || !DRIVER.path) return;
   ctx.save(); ctx.strokeStyle = 'rgba(242,194,48,.9)'; ctx.lineWidth = lw; ctx.setLineDash([lw * 2, lw * 1.5]); ctx.beginPath();
@@ -9375,7 +9383,7 @@ function frame(now) {
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } updateClubs(dt); updateOnline(dt);
   updateTouch();
   drawMinimap();
-  if (!$('bigmap').hidden && (bigMapT -= rawDt) <= 0) { bigMapT = .1; drawBigMap(); }
+  if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
   renderer.render(scene, camera);
 }
