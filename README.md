@@ -15,8 +15,9 @@ All of it is self-hosted on one DigitalOcean Droplet in London: `giantwood-game`
 | `caddy` | Takes ports 80/443 and forwards everything to the server. When `SITE_ADDRESS` is set to a domain, it fetches HTTPS certificates itself. |
 | `server` | Node 22 + TypeScript. It serves the REST API under `/api`, the Colyseus WebSocket rooms, and the files in `server/public`: the game at `/`, the test page at `/test.html`, and a browser build of `colyseus.js` in `/vendor`. |
 | `db` | PostgreSQL 16 holding users, characters and saves. Its data lives in the `dbdata` volume. |
+| `turn` | coturn, the TURN relay for voice chat, for players whose networks block direct connections. It uses host networking on UDP/TCP 3478 with relay ports 49160–49200, and logins are short-lived HMAC credentials from `/api/turn`. |
 
-The DigitalOcean firewall `giantwood-fw` (tag `giantwood`) allows only ports 22, 80 and 443. SSH accepts only the `INYANG-MAC` key, password login is off, and fail2ban is running.
+The DigitalOcean firewall `giantwood-fw` (tag `giantwood`) allows only ports 22, 80 and 443, plus 3478 and 49160–49200 for the voice relay. SSH accepts only the `INYANG-MAC` key, password login is off, and fail2ban is running.
 
 ## API
 
@@ -43,7 +44,9 @@ Tokens are JWTs that last 30 days. Passwords are hashed with bcrypt.
   - `move` `{ x, y, z, ry, anim, veh, warp? }`. Values are clamped to the map. Jumps of more than 40 m are ignored unless `warp` is set (the game's own respawns and lifts), and at most one warp every 3 s is accepted.
   - `look` `{ … }` sends your character (validated by `schemas.ts`).
   - `chat` `{ text }`, up to 160 characters and one message a second.
-- **Messages you get:** `chat` `{ from, id, text, x, z }`.
+  - `voice` `{ on, talk }`: in voice chat, and holding push-to-talk. These are the `voice` and `talk` fields in the state.
+  - `rtc` `{ to, data }`: a WebRTC offer, answer or ICE candidate for another player. It is passed on only if you're in voice and within 60 m of them.
+- **Messages you get:** `chat` `{ from, id, text, x, z }`, `plot` (land news), and `rtc` `{ from, data }`.
 - Up to 100 players fit in a room; more open new rooms automatically.
 
 ## Shared ownership
@@ -69,6 +72,12 @@ The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). I
 - **Character creator:** body, build, skin, twelve hair styles, hair colour, outfit (jacket, T-shirt or dress) and colours, trousers, shoes, hat and sunglasses, with a turning 3D preview.
 - **In the world:** joining when you Deploy, sending your position 20 times a second (only when it changes), and drawing other players as real figures in their look, with name tags. Their car, boat, plane or motorbike is drawn too, from the same models as yours. Movement is smoothed, and they snap after long jumps.
 - **Chat:** Enter to chat (Chat in the ••• menu on touch), with messages in a log and as speech bubbles.
+- **Proximity voice:**
+  - **Connections:** players' browsers connect directly over WebRTC, with the server only passing the handshake along, to other voice players within 35 m. They hang up past 45 m. Each player's messages are handled in order, so the call is set up before its ICE candidates arrive.
+  - **Sound:** each voice plays through a 3D panner at the speaker's head, so it fades with distance and comes from their direction.
+  - **Off by default:** **J** joins voice (listen only). **Hold Z** to talk, which uses push-to-talk and asks for the microphone on first use. Touch gets a hold-to-talk button and *Voice chat* in the ••• menu.
+  - **Speaking indicator:** players who are talking show a 🔊 above their heads.
+  - **Network fallback:** Google's public STUN, then our TURN relay.
 - **Shared land:** your land syncs to the server, and the server's copy wins (`landSync`, `adoptLand`).
 - **Other people's land:** their homes are built in your world when you load (`loadWorld`) and as they change (`applyOther`). Their plots can't be bought; standing on one says whose it is. They show on the big map in blue with the owner's name.
 - **Guests** can visit but can't buy land.

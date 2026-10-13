@@ -13,7 +13,8 @@ echo "→ secrets (created once on the server, never printed)"
 "${SSH[@]}" "$HOST" 'set -e; cd /opt/velaplay && if [ ! -f .env ]; then
   cp .env.example .env
   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|; s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 48)|" .env
-  chmod 600 .env; echo "   created /opt/velaplay/.env"; else echo "   kept existing .env"; fi'
+  chmod 600 .env; echo "   created /opt/velaplay/.env"; else echo "   kept existing .env"; fi
+  grep -q "^TURN_SECRET=" .env && ! grep -q "^TURN_SECRET=change-me" .env || { sed -i "/^TURN_SECRET=/d" .env; echo "TURN_SECRET=$(openssl rand -hex 32)" >> .env; echo "   added a TURN secret"; }'
 echo "→ building and starting"
 "${SSH[@]}" "$HOST" "cd /opt/velaplay && docker compose up -d --build 2>&1 | tail -5"
 echo "→ health"

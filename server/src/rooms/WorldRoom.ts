@@ -15,6 +15,8 @@ export class Player extends Schema {
   @type("string") anim = "idle";
   @type("string") veh = "";
   @type("string") look = "{}";
+  @type("boolean") voice = false;   // in voice chat
+  @type("boolean") talk = false;    // holding push-to-talk
 }
 export class WorldState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
@@ -58,6 +60,19 @@ export class WorldRoom extends Room<WorldState> {
       const t = Date.now(); if (t - (this.lastLook.get(client.sessionId) || 0) < 500) return;
       const r = Character.safeParse(m); if (!r.success) return;
       this.lastLook.set(client.sessionId, t); p.look = JSON.stringify(r.data);
+    });
+
+    // proximity voice: who's in voice and who's talking, and passing WebRTC offers, answers and ICE between two players
+    this.onMessage("voice", (client, m: any) => {
+      const p = this.state.players.get(client.sessionId); if (!p) return;
+      p.voice = !!m?.on; p.talk = !!m?.on && !!m?.talk;
+    });
+    this.onMessage("rtc", (client, m: any) => {
+      if (!m || typeof m.to !== "string" || !m.data || JSON.stringify(m.data).length > 16000) return;
+      const to = this.clients.find((c) => c.sessionId === m.to); if (!to) return;
+      const a = this.state.players.get(client.sessionId), b = this.state.players.get(m.to);
+      if (!a || !b || !a.voice || Math.hypot(a.x - b.x, a.z - b.z) > 60) return;   // only between nearby players who are both in voice
+      to.send("rtc", { from: client.sessionId, data: m.data });
     });
 
     this.onMessage("chat", (client, m: any) => {

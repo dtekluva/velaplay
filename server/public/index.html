@@ -283,6 +283,7 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
       <dt>V</dt><dd>camera view</dd>
       <dt>K</dt><dd>sim view indoors · on / off</dd>
       <dt>Y / U</dt><dd>hat · sunglasses on / off</dd>
+      <dt>J / Z</dt><dd>voice chat on / off · hold Z to talk</dd>
       <dt>Q / C</dt><dd>alt anchor keys</dd>
       <dt>T</dt><dd>titans on · off (peaceful)</dd>
       <dt>N</dt><dd>skip to day · night</dd>
@@ -3082,7 +3083,7 @@ const faceAtlas = (() => {
     const curve = (pts) => { g.beginPath(); g.moveTo(...P(...pts[0])); for (let i = 1; i < pts.length; i += 2) g.quadraticCurveTo(...P(...pts[i]), ...P(...pts[i + 1])); };
     // soft modelling: sockets, the sides of the nose, under the nose, under the lower lip, cheeks
     for (const sx of [-1, 1]) { radial(sx * .043, .16, .032, 'rgba(70,35,25,.22)'); radial(sx * .016, .125, .014, 'rgba(70,35,25,.12)'); }
-    radial(0, .093, .012, 'rgba(60,30,25,.2)'); radial(0, .052, .016, 'rgba(60,30,25,.14)');
+    radial(0, .093, .012, 'rgba(60,30,25,.2)'); if (!fem) radial(0, .052, .014, 'rgba(60,30,25,.08)');   // the dip under the lower lip: men only (on women it read as a goatee)
     if (fem) for (const sx of [-1, 1]) radial(sx * .062, .115, .026, 'rgba(215,95,105,.14)');
     radial(0, .108, .01, 'rgba(255,255,255,.12)');   // a highlight on the tip of the nose
     // eyes
@@ -5553,6 +5554,8 @@ addEventListener('keydown', e => {
     case 'KeyL': toggleBlade(); break;
     case 'KeyO': renderIdx = (renderIdx + 1) % RENDER_MODES.length; applyRenderScale(); toast('', `Resolution ${RENDER_MODES[renderIdx].name}`); break;
     case 'KeyV': case 'F5': firstPerson = !firstPerson; break;
+    case 'KeyJ': voiceToggle(); break;
+    case 'KeyZ': voiceTalk(true); break;
     case 'Enter': case 'NumpadEnter': if (NET.room && !LM_.open && !TC.conv) { e.preventDefault(); openChat(); } break;
     case 'KeyY': toggleLook('hat'); break;
     case 'KeyU': toggleLook('shades'); break;
@@ -5573,6 +5576,7 @@ addEventListener('keyup', e => {
   keys[e.code] = false;
   if (e.code === 'KeyQ') releaseHook(0);
   if (e.code === 'KeyC') releaseHook(1);
+  if (e.code === 'KeyZ') voiceTalk(false);
   if (e.code === 'Tab') $('board').hidden = true;
 });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; $('board').hidden = true; });
@@ -6172,6 +6176,7 @@ function touchOn() {
     ['THR +', 'KeyW', true, 'fly', 4, 90], ['THR −', 'KeyS', true, 'fly', 76, 76],
     ['BLADE', 'KeyL', false, 'dozer', 88, 2],
     ['USE', 'KeyE', false, 'use', 0, 168, 'pill'],
+    ['🎙 TALK', 'KeyZ', true, 'voice', 0, 280, 'pill sim'],
     ['SIM VIEW', 'KeyK', false, 'indoor', 0, 224, 'pill sim'],
   ];
   for (const [label, key, hold, group, r, b, cls] of B) {
@@ -6201,7 +6206,7 @@ function touchOn() {
   sysB('•••', () => { more.hidden = !more.hidden; });
   const moreB = (label, fn) => { const el = document.createElement('div'); el.className = 'b'; el.textContent = label; el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); fn(); more.hidden = true; }); more.append(el); };
   moreB('Titans on / off', () => tTap('KeyT')); moreB('Day / night', () => tTap('KeyN'));
-  moreB('Camera view', () => tTap('KeyV')); moreB('Sim view on / off', () => tTap('KeyK')); moreB('Chat', () => openChat()); moreB('Hat on / off', () => tTap('KeyY')); moreB('Sunglasses on / off', () => tTap('KeyU')); moreB('Swap blades', () => tTap('KeyR'));
+  moreB('Camera view', () => tTap('KeyV')); moreB('Sim view on / off', () => tTap('KeyK')); moreB('Chat', () => openChat()); moreB('Voice chat on / off', () => voiceToggle()); moreB('Hat on / off', () => tTap('KeyY')); moreB('Sunglasses on / off', () => tTap('KeyU')); moreB('Swap blades', () => tTap('KeyR'));
   moreB('Sound', () => tTap('KeyM')); moreB('Resolution', () => tTap('KeyO'));
   moreB('Scoreboard', () => { $('board').hidden = !$('board').hidden; });
   moreB('Full screen', () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); } catch (e) {} });
@@ -6267,7 +6272,7 @@ function updateTouch() {
   for (const k of ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown']) {   // only release keys the stick pressed, so a real keyboard still works
     if (want.has(k)) { if (!keys[k]) tKey(k, true); TOUCH.dir.add(k); } else if (TOUCH.dir.has(k)) { tKey(k, false); TOUCH.dir.delete(k); }
   }
-  const groups = { dozer: playing && d?.kind === 'dozer', foot: playing && !d, ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, indoor: playing && !d && !firstPerson && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y) };
+  const groups = { dozer: playing && d?.kind === 'dozer', foot: playing && !d, ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: playing && !d && !firstPerson && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y) };
   for (const el of $('tc').querySelectorAll('.pad .b')) { const g = el.dataset.group; if (g !== 'use') el.hidden = !groups[g]; }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
@@ -7456,6 +7461,8 @@ function updateRemotes(dt) {
       else { r.phase += r.speed * dt * (r.speed > 5 ? 1.25 : 1.9); animFigure(r.rig, r.phase, Math.min(1, r.speed / 3), r.speed > 5 ? 'run' : 'walk', S.time); }
     }
     if (r.tag) { r.tag.position.y = p.veh && !bike ? 2.9 : 2.25; r.tag.visible = camera.position.distanceTo(r.g.position) > 3.5; }   /* right next to the camera a tag would fill the screen */
+    if (p.talk && !r.speak) { r.speak = new THREE.Sprite(SPEAK_MAT); r.speak.scale.set(.5, .5, 1); r.speak.renderOrder = 11; r.g.add(r.speak); }
+    if (r.speak) { r.speak.visible = !!p.talk && r.g.visible; r.speak.position.y = (r.tag ? r.tag.position.y : 2.25) + .45; }
     if (r.bubble && (r.bubbleT -= dt) <= 0) { dropSprite(r.bubble); r.bubble = null; }
   });
   for (const [id, r] of NET.others) if (!seen.has(id)) dropRemote(r);
@@ -7485,8 +7492,9 @@ async function netJoin() {
     NET.room = room; NET.retry = 0; NET.sent = null;
     room.onMessage('chat', m => chatIn(m));
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
+    room.onMessage('rtc', m => onRtc(m));
     room.onLeave(code => {
-      NET.room = null; for (const r of [...NET.others.values()]) dropRemote(r); renderOnline(); chatStatus();
+      NET.room = null; for (const r of [...NET.others.values()]) dropRemote(r); for (const id of [...VOICE.peers.keys()]) peerClose(id); VOICE.on = false; VOICE.talking = false; renderOnline(); chatStatus();
       if (code !== 1000 && code !== 4000 && (NET.token || NET.guest) && NET.retry < 6) setTimeout(() => { NET.retry++; netJoin(); }, 2000 + NET.retry * 2000);
       if (code === 4000) toast('', 'You signed in somewhere else, so this game went offline');
     });
@@ -7506,7 +7514,7 @@ function chatIn(m) {
 }
 function renderChat() {
   const el = $('chatLog'); if (!el) return; el.innerHTML = '';
-  const head = document.createElement('div'); head.className = 'chathead'; head.textContent = NET.room ? `🌐 Online · ${NET.room.state.players.size} in this world · Enter to chat` : ''; el.append(head);
+  const head = document.createElement('div'); head.className = 'chathead'; head.textContent = NET.room ? `🌐 Online · ${NET.room.state.players.size} in this world · Enter to chat · ` + (VOICE.on ? (VOICE.talking ? '🔴 talking' : `🎙 voice on (${VOICE.peers.size} near) · hold ${TOUCH.on ? 'TALK' : 'Z'} to talk`) : 'J for voice') : ''; el.append(head);
   for (const m of NET.chatLog) { const d = document.createElement('div'); d.className = 'chatline'; const b = document.createElement('b'); b.textContent = m.from + ': '; d.append(b, document.createTextNode(m.text)); el.append(d); }
   el.hidden = !NET.room;
 }
@@ -7521,6 +7529,117 @@ $('chatIn').addEventListener('keydown', e => {
   if (e.key === 'Enter') { const t = e.target.value.trim(); if (t && NET.room) NET.room.send('chat', { text: t }); closeChat(); e.preventDefault(); }
   else if (e.key === 'Escape') { closeChat(); e.preventDefault(); }
 });
+// ---- proximity voice: WebRTC between nearby players (the game server only passes the handshake along), heard from where
+// they stand. Off by default: J turns it on (you hear scouts near you), hold Z to talk (push-to-talk). ----
+const VOICE = { on: false, mic: null, talking: false, peers: new Map(), ice: null, iceT: 0, scanT: 0, NEAR: 35, FAR: 45 };
+async function voiceIce() {
+  if (VOICE.ice && Date.now() < VOICE.iceT) return VOICE.ice;
+  const list = [{ urls: 'stun:stun.l.google.com:19302' }];
+  try { const t = await api('/turn'); if (t.urls && t.urls.length) list.push({ urls: t.urls, username: t.username, credential: t.credential }); } catch (e) {}
+  VOICE.ice = list; VOICE.iceT = Date.now() + 3 * 3600e3; return list;
+}
+function voiceToggle() {
+  if (!NET.room) { toast('', 'Voice chat is for the shared world: join online first'); return; }
+  if (!window.RTCPeerConnection) { toast('', 'This browser can’t do voice chat'); return; }
+  VOICE.on = !VOICE.on; VOICE.talking = false;
+  NET.room.send('voice', { on: VOICE.on, talk: false });
+  if (!VOICE.on) { for (const id of [...VOICE.peers.keys()]) peerClose(id); if (VOICE.mic) { VOICE.mic.getTracks().forEach(t => t.stop()); VOICE.mic = null; } }
+  toast(VOICE.on ? '🎙 Voice on' : 'Voice off', VOICE.on ? `You hear scouts near you. Hold ${TOUCH.on ? 'TALK' : 'Z'} to talk` : 'Nobody can hear you');
+  renderChat();
+}
+async function ensureMic() {
+  if (VOICE.mic) return VOICE.mic;
+  try { VOICE.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch (e) { toast('', 'Microphone blocked: allow it in your browser to talk'); return null; }
+  const tr = VOICE.mic.getAudioTracks()[0]; tr.enabled = VOICE.talking;
+  for (const p of VOICE.peers.values()) if (p.sender) p.sender.replaceTrack(tr).catch(() => {});
+  return VOICE.mic;
+}
+function voiceTalk(down) {
+  if (!VOICE.on || VOICE.talking === down) return;
+  VOICE.talking = down; NET.room && NET.room.send('voice', { on: true, talk: down });
+  if (down) ensureMic().then(m => { if (m) m.getAudioTracks()[0].enabled = VOICE.talking; });
+  else if (VOICE.mic) VOICE.mic.getAudioTracks()[0].enabled = false;
+  renderChat();
+}
+async function peerOpen(id, initiator) {
+  const p = { id, pc: null, sender: null, pending: [], el: null, src: null, panner: null, gain: null };
+  VOICE.peers.set(id, p);
+  p.pc = new RTCPeerConnection({ iceServers: await voiceIce() });
+  if (VOICE.peers.get(id) !== p) { p.pc.close(); return null; }
+  p.pc.onicecandidate = e => { if (e.candidate && NET.room) NET.room.send('rtc', { to: id, data: { ice: e.candidate } }); };
+  p.pc.ontrack = e => peerAudio(p, e.streams[0] || new MediaStream([e.track]));
+  p.pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(p.pc.connectionState)) peerClose(id); };
+  if (initiator) {
+    const tr = p.pc.addTransceiver('audio', { direction: 'sendrecv' }); p.sender = tr.sender;
+    if (VOICE.mic) tr.sender.replaceTrack(VOICE.mic.getAudioTracks()[0]).catch(() => {});
+    await p.pc.setLocalDescription(await p.pc.createOffer());
+    NET.room && NET.room.send('rtc', { to: id, data: { sdp: p.pc.localDescription } });
+  }
+  return p;
+}
+function peerAudio(p, stream) {
+  if (!AC || p.src) return;
+  p.el = new Audio(); p.el.muted = true; p.el.srcObject = stream; p.el.play().catch(() => {});   // keeps the stream flowing in Chrome
+  p.src = AC.createMediaStreamSource(stream); p.panner = AC.createPanner(); p.gain = AC.createGain();
+  Object.assign(p.panner, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 4, maxDistance: 60, rolloffFactor: 1.3 });
+  p.src.connect(p.panner).connect(p.gain).connect(AC.destination);
+}
+function peerClose(id) {
+  const p = VOICE.peers.get(id); if (!p) return; VOICE.peers.delete(id);
+  try { p.pc && p.pc.close(); } catch (e) {}
+  try { p.src && p.src.disconnect(); p.panner && p.panner.disconnect(); p.gain && p.gain.disconnect(); } catch (e) {}
+  if (p.el) { p.el.srcObject = null; p.el = null; }
+}
+// one player's handshake messages are handled strictly in order: an offer finishes setting up before its ICE candidates arrive
+function onRtc(m) {
+  const from = m && m.from; if (!from) return;
+  VOICE.chain = VOICE.chain || new Map();
+  const next = (VOICE.chain.get(from) || Promise.resolve()).then(() => handleRtc(m));
+  VOICE.chain.set(from, next.catch(() => {}));
+}
+async function handleRtc(m) {
+  const { from, data } = m || {}; if (!from || !data || !VOICE.on) return;
+  let p = VOICE.peers.get(from);
+  try {
+    if (data.sdp && data.sdp.type === 'offer') {
+      if (p) peerClose(from);
+      p = await peerOpen(from, false); if (!p) return;
+      await p.pc.setRemoteDescription(data.sdp);
+      const tr = p.pc.getTransceivers().find(t => t.receiver.track && t.receiver.track.kind === 'audio');
+      if (tr) { tr.direction = 'sendrecv'; p.sender = tr.sender; if (VOICE.mic) tr.sender.replaceTrack(VOICE.mic.getAudioTracks()[0]).catch(() => {}); }
+      await p.pc.setLocalDescription(await p.pc.createAnswer());
+      NET.room && NET.room.send('rtc', { to: from, data: { sdp: p.pc.localDescription } });
+    } else if (data.sdp && p && p.pc) await p.pc.setRemoteDescription(data.sdp);
+    else if (data.ice && p) { if (p.pc && p.pc.remoteDescription) await p.pc.addIceCandidate(data.ice).catch(() => {}); else p.pending.push(data.ice); }
+    if (p && p.pc && p.pc.remoteDescription && p.pending.length) { for (const c of p.pending.splice(0)) await p.pc.addIceCandidate(c).catch(() => {}); }
+  } catch (e) { peerClose(from); }
+}
+function updateVoice(dt) {
+  const room = NET.room; if (!room || !VOICE.on || !AC) return;
+  // place each voice where its scout is, and the listener at the camera
+  const L = AC.listener, f = camDir(tmpC), t = AC.currentTime;
+  if (L.positionX) { L.positionX.setTargetAtTime(camera.position.x, t, .05); L.positionY.setTargetAtTime(camera.position.y, t, .05); L.positionZ.setTargetAtTime(camera.position.z, t, .05);
+    L.forwardX.setTargetAtTime(f.x, t, .05); L.forwardY.setTargetAtTime(f.y, t, .05); L.forwardZ.setTargetAtTime(f.z, t, .05); L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
+  else { L.setPosition(camera.position.x, camera.position.y, camera.position.z); L.setOrientation(f.x, f.y, f.z, 0, 1, 0); }
+  for (const p of VOICE.peers.values()) {
+    const r = NET.others.get(p.id); if (!r || !p.panner) continue;
+    if (p.panner.positionX) { p.panner.positionX.setTargetAtTime(r.x, t, .05); p.panner.positionY.setTargetAtTime(r.y + 1.6, t, .05); p.panner.positionZ.setTargetAtTime(r.z, t, .05); }
+    else p.panner.setPosition(r.x, r.y + 1.6, r.z);
+    const d = Math.hypot(r.x - P.pos.x, r.z - P.pos.z); p.gain.gain.setTargetAtTime(d > 40 ? 0 : 1, t, .2);
+  }
+  // twice a second: call scouts who came close, hang up on ones who wandered off (the lower session id makes the call)
+  if ((VOICE.scanT -= dt) > 0) return; VOICE.scanT = .5;
+  const me = room.state.players.get(room.sessionId); if (!me) return;
+  room.state.players.forEach((p, id) => {
+    if (id === room.sessionId) return;
+    const d = Math.hypot(p.x - me.x, p.z - me.z), has = VOICE.peers.has(id);
+    if (!has && p.voice && d < VOICE.NEAR && room.sessionId < id) peerOpen(id, true);
+    else if (has && (!p.voice || d > VOICE.FAR)) peerClose(id);
+  });
+  for (const id of [...VOICE.peers.keys()]) if (!room.state.players.has(id)) peerClose(id);
+}
+const SPEAK_MAT = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = '44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🔊', 32, 34); const t = new THREE.CanvasTexture(c); return new THREE.SpriteMaterial({ map: t, depthTest: false, depthWrite: false }); })();
 // ---- cloud saves: your land, homes, furniture and money follow your account ----
 function cloudSaveSoon() {
   try { if (!NET.token || NET.quiet) return; } catch (e) { return; }   // called before the online module has loaded (a save during start-up)
@@ -7680,7 +7799,7 @@ renderOnline();
 function updateOnline(dt) {
   if (mode === 'play' && !NET.room && !NET.joining && NET.reachable && (NET.token || NET.guest) && !NET.retry) netJoin();
   if (!NET.room) return;
-  sendMine(dt); updateRemotes(dt);
+  sendMine(dt); updateRemotes(dt); updateVoice(dt);
   if (NET.bubble && (NET.bubbleT -= dt) <= 0) { dropSprite(NET.bubble); NET.bubble = null; }
   if ((NET.headT = (NET.headT || 0) - dt) <= 0) { NET.headT = 2; renderChat(); }
 }

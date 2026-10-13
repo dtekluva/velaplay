@@ -20,6 +20,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ALLOW_GUESTS: ${ALLOW_GUESTS:-true}
       PORT: 2567
+      TURN_SECRET: ${TURN_SECRET}
+      TURN_HOST: ${TURN_HOST:-46-101-63-217.sslip.io}
     depends_on:
       db: { condition: service_healthy }
   caddy:
@@ -32,6 +34,32 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
     depends_on: [server]
+  # TURN relay for voice chat, for players whose networks block direct connections. Host networking so the relay ports work.
+  turn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -n
+      - --log-file=stdout
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=velaplay
+      - --external-ip=${TURN_EXTERNAL_IP:-46.101.63.217}
+      - --fingerprint
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --user-quota=12
+      - --total-quota=600
 volumes:
   dbdata:
   caddydata:

@@ -1,6 +1,7 @@
 import { Router, type Request } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import crypto from "crypto";
 import { pool } from "./db";
 import { signToken, requireUser, type TokenUser } from "./auth";
 import { Character } from "./schemas";
@@ -73,4 +74,17 @@ api.put("/save", requireUser, async (req, res) => {
     "INSERT INTO saves (user_id, data, updated_at) VALUES ($1, $2, now()) ON CONFLICT (user_id) DO UPDATE SET data = $2, version = saves.version + 1, updated_at = now() RETURNING version",
     [userOf(req).id, body]);
   res.json({ ok: true, version: q.rows[0].version });
+});
+
+// short-lived logins for the TURN relay (coturn's shared-secret scheme), so voice works on strict mobile networks
+const turnAsked = new Map<string, number>();
+api.get("/turn", (req, res) => {
+  const secret = process.env.TURN_SECRET, host = process.env.TURN_HOST;
+  if (!secret || !host) return res.json({ urls: [] });
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || ""), t = Date.now();
+  if (t - (turnAsked.get(ip) || 0) < 2000) return res.status(429).json({ error: "Slow down" });
+  turnAsked.set(ip, t); if (turnAsked.size > 5000) turnAsked.clear();
+  const username = `${Math.floor(t / 1000) + 6 * 3600}:${crypto.randomBytes(6).toString("hex")}`;
+  const credential = crypto.createHmac("sha1", secret).update(username).digest("base64");
+  res.json({ urls: [`turn:${host}:3478?transport=udp`, `turn:${host}:3478?transport=tcp`], username, credential, ttl: 6 * 3600 });
 });
