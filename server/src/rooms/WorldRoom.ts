@@ -23,7 +23,7 @@ export class WorldState extends Schema {
 }
 
 interface Auth { id: string; name: string; guest: boolean; look: string }
-const BOUND = 346, MAX_STEP = 40;   // the map edge; the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
+const BOUND = 346, ZLO = -730, MAX_STEP = 40;   // the map edge (ZLO: the north edge, out past Yaba on the mainland); the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
 const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 
 export class WorldRoom extends Room<WorldState> {
@@ -41,7 +41,7 @@ export class WorldRoom extends Room<WorldState> {
 
     this.onMessage("move", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p || !m) return;
-      const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, -BOUND, BOUND), ry = num(m.ry, -10, 10);
+      const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, BOUND), ry = num(m.ry, -10, 10);
       if (x === null || y === null || z === null || ry === null) return;
       // ignore impossible jumps, except the game's own teleports (respawn, lifts, taxis), at most one every 3 s
       if (Math.hypot(x - p.x, z - p.z) > MAX_STEP && p.anim !== "spawn") {
@@ -107,7 +107,7 @@ export class WorldRoom extends Room<WorldState> {
     const p = new Player();
     p.name = auth.name; p.look = auth.look; p.anim = "spawn";
     // start where the player already is in their game (clamped to the map), else by the pyramid
-    const ox = num(options?.x, -BOUND, BOUND), oy = num(options?.y, -50, 400), oz = num(options?.z, -BOUND, BOUND);
+    const ox = num(options?.x, -BOUND, BOUND), oy = num(options?.y, -50, 400), oz = num(options?.z, ZLO, BOUND);
     p.x = ox ?? (Math.random() - .5) * 6; p.z = oz ?? (Math.random() - .5) * 6; p.y = oy ?? 10;
     if (auth.guest && options?.look) { const r = Character.safeParse(options.look); if (r.success) p.look = JSON.stringify(r.data); }
     this.state.players.set(client.sessionId, p);

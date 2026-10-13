@@ -562,6 +562,7 @@ class Builder {
 
 /* ---------- terrain: terraced voxel heightmap ---------- */
 const N = 720, HALF = 360, BOUND = HALF - 14, EDGE_H = 2, Hm = new Int16Array(N * N);
+const ZLO = -(HALF + 384 - 14);   // the north limit: the mainland strip (Yaba) runs 384 m past the old edge
 const OH = 240, OB = OH - 14;   // the original 480 m map: content placed before the coast keeps to it
 const LAKES = [{ x: -44, z: 36, r: 15 }];
 for (let tries = 0; tries < 400 && LAKES.length < 8; tries++) {
@@ -884,13 +885,78 @@ for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
   KIND[k] = kind;
 }
 for (const k in LAND_SAVE.edits || {}) KIND[+k] = 5;   // graded earth
-const kindAt = (x, z) => KIND[idxAt(x, z)];
+/* ---------- the mainland: a 384 m strip added along the north edge for Yaba, Yabatech and UNILAG.
+   It is its own grid (NHm / NKIND, rows j = -ND..-1), so the old map's cell indices, plot keys and bulldozer edits
+   are unchanged. Heights come from the same terrain function; the districts are levelled to the city's height. ---------- */
+const ND = 384, ZN = -HALF - ND, NBOUND = HALF + ND - 14;   // the new north edge, and how far north you can go
+const NHm = new Int16Array(N * ND), NKIND = new Uint8Array(N * ND), YABA_MAP = [];   // YABA_MAP: building footprints for the maps [x, z, w, d, colour]
+const YB = TOWN ? { x: -60, z: -476 } : null;   // the centre of Yaba's street grid (same 4x4 grid as the city)
+const UNILAG = { x0: 46, x1: 336, z0: -738, z1: -414, lagoonX: 298 }, YTECH = { x0: -336, x1: -176, z0: -660, z1: -446 };
+// paved lines in Yaba and on the campuses [ax, az, bx, bz, half-width]; the link road from the city is graded later (after the forest)
+const YROADS = YB ? [
+  [-6, -362, -6, -400, 4.5],                                   // the link road's last stretch, on the new land
+  [YB.x + 76, YB.z, UNILAG.x0 + 74, YB.z, 4.5],                // Yaba to UNILAG's gate and up the main drive
+  [YB.x - 76, YB.z - 38, YTECH.x1 - 30, YB.z - 38, 4.5],       // Yaba to Yabatech's gate and in
+  [120, -446, 280, -446, 4], [120, -446, 120, -716, 4], [280, -446, 280, -716, 4], [120, -716, 280, -716, 4], [120, -580, 280, -580, 4],   // UNILAG's ring road and cross road
+  [-206, -456, -206, -650, 4], [-326, -600, -206, -600, 4],    // Yabatech's drives
+] : [];
+const LINK = YB ? [[TOWN.x + 76, TOWN.z - 76, -6, TOWN.z - 76], [-6, TOWN.z - 76, -6, -362]] : [];   // the link road on the old map
+const segDist = (x, z, [ax, az, bx, bz]) => { const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz || 1, t = clamp(((x - ax) * dx + (z - az) * dz) / L, 0, 1); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
+const yRoadDist = (x, z) => { let b = 99; for (const r of YROADS) b = Math.min(b, segDist(x, z, r) - r[4] + 4.5); return b; };
+const linkDist = (x, z) => { let b = 99; for (const r of LINK) b = Math.min(b, segDist(x, z, r)); return b; };
+const inYabaCore = (x, z, m = 0) => !!YB && Math.abs(x - YB.x) < RING + m && Math.abs(z - YB.z) < RING + m;
+const inR = (R, x, z, m = 0) => x > R.x0 - m && x < R.x1 + m && z > R.z0 - m && z < R.z1 + m;
+const inMainland = (x, z) => z < -HALF;
+// Yaba's blocks, 'column,row' from the north-west corner
+const YABA_PLAN = { '0,0': 'market', '1,0': 'market2', '2,0': 'buspark', '3,0': 'shops', '0,1': 'mosque', '1,1': 'techhub', '2,1': 'shops2', '3,1': 'gas',
+  '0,2': 'flats', '1,2': 'bukas', '2,2': 'techhub2', '3,2': 'bank', '0,3': 'flats2', '1,3': 'church', '2,3': 'shops3', '3,3': 'flats3' };
+const UL_TRACK = { x: 200, z: -650, ax: 44, az: 26, w: 7 }, UL_PLAZA = { x0: 132, x1: 188, z0: -532, z1: -468 }, YT_PLAZA = { x0: -300, x1: -228, z0: -508, z1: -478 };
+const nIdx = (x, z) => clamp(Math.floor(x + HALF), 0, N - 1) * ND + clamp(Math.floor(z - ZN), 0, ND - 1);
+if (YB) {
+  const Y = TOWN.y;
+  for (let i = 0; i < N; i++) for (let jn = 0; jn < ND; jn++) {
+    const x = i - HALF + .5, z = jn + ZN + .5, k = i * ND + jn;
+    let h = 2 + fbm(x / 40 + 3.1, z / 40 - 7.7) * 7.5 + fbm(x / 13, z / 13) * 2.2 - 1.6;
+    h += Math.max(0, fbm(x / 110 + 11, z / 110 - 4) - .52) * 34;
+    const dc = Math.hypot(x, z), hi = smooth(.5, .64, fbm(x / 170 + 40, z / 170 + 40)) * smooth(70, 130, dc);
+    h += hi * (fbm(x / 34 + 5, z / 34 - 3) * 34 + 3);
+    h = Math.max(h, 2);
+    // the districts and their roads are level with the city
+    let m = 99;
+    m = Math.min(m, Math.max(Math.abs(x - YB.x) - RING - 4, Math.abs(z - YB.z) - RING - 4, 0));
+    for (const R of [UNILAG, YTECH]) m = Math.min(m, Math.max(R.x0 - x, x - R.x1, R.z0 - z, z - R.z1, 0));
+    m = Math.min(m, Math.max(0, yRoadDist(x, z) - 6));
+    const t = smooth(16, 0, m); h = h + (Y - h) * t;
+    // the lagoon along UNILAG's east side
+    const lg = x - UNILAG.lagoonX; if (z > UNILAG.z0 - 30 && z < UNILAG.z1 + 20 && lg > -2) h = lg > 6 ? 0 : lg > 2 ? 1 : Math.min(h, 2);
+    NHm[k] = clamp(Math.round(h), 0, 36);
+    // ground kinds: water and sand, rock and snow on the hills, then the districts' paving
+    let kd = 0;
+    if (NHm[k] <= 2 && x > UNILAG.lagoonX - 4 && z < UNILAG.z1 + 20) kd = 1;
+    else if (NHm[k] >= 26) kd = 2; else if (hi > .35 && NHm[k] >= 13) kd = 3;
+    if (inYabaCore(x, z)) {   // the same street pattern as the city: roads with centre lines, sidewalks, paved blocks
+      const dx = x - YB.x, dz = z - YB.z; let ax = 99, az = 99, gx = 0, gz = 0;
+      for (const gv of GRID) { if (Math.abs(dx - gv) < ax) { ax = Math.abs(dx - gv); gx = gv; } if (Math.abs(dz - gv) < az) { az = Math.abs(dz - gv); gz = gv; } }
+      if (az < RH || ax < RH) kd = az < RH && ax >= RH && Math.floor(dz) === gz && Math.floor(dx / 3) % 2 === 0 ? 8 : ax < RH && az >= RH && Math.floor(dx) === gx && Math.floor(dz / 3) % 2 === 0 ? 9 : 6;
+      else if (az < SWE || ax < SWE) kd = 7;
+      else { const bx = clamp(Math.floor((dx + 76) / 38), 0, 3), bz = clamp(Math.floor((dz + 76) / 38), 0, 3), pl = YABA_PLAN[bx + ',' + bz]; kd = /flats|mosque|church/.test(pl) ? 0 : 7; }
+    }
+    if (inR(UNILAG, x, z) && x < UNILAG.lagoonX - 4) {   // lawns, the running track round the sports field, the Senate plaza, the lagoon promenade
+      kd = 0; const T = UL_TRACK, e = ((x - T.x) / T.ax) ** 2 + ((z - T.z) / T.az) ** 2, ei = ((x - T.x) / (T.ax - T.w)) ** 2 + ((z - T.z) / (T.az - T.w)) ** 2;
+      if (e < 1 && ei >= 1) kd = 5; if (inR(UL_PLAZA, x, z)) kd = 7; if (x > UNILAG.lagoonX - 12) kd = 7;
+    }
+    if (inR(YTECH, x, z)) { kd = 0; if (inR(YT_PLAZA, x, z)) kd = 7; }
+    const rd = yRoadDist(x, z); if (rd < 4.5) kd = 6; else if (rd < 6.3 && kd !== 1) kd = 7;
+    NKIND[k] = kd;
+  }
+}
+const kindAt = (x, z) => z < -HALF ? NKIND[nIdx(x, z)] : KIND[idxAt(x, z)];
 // the coastal road's smooth surface where you're on it (else -Infinity); groundAt is the terrain or the road, whichever is higher
 function roadSurf(x, z) {
   if (!COAST || !(x < COAST.xw + 24 || z > COAST.rz - 24 || Math.abs(z - TOWN.z) < 24 || x > COAST.xe - 24)) return -Infinity;
   const p = crProject(x, z); return p.dist > crHW(p.s) + 1.55 ? -Infinity : COAST.surf(p.s) + .03;
 }
-const colH = (i, j) => (i < 0 || j < 0 || i >= N || j >= N) ? EDGE_H : Hm[i * N + j];
+const colH = (i, j) => (i < 0 || i >= N || j >= N || j < -ND) ? EDGE_H : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip
 const heightAt = (x, z) => colH(Math.floor(x + HALF), Math.floor(z + HALF));
 const groundAt = (x, z) => Math.max(heightAt(x, z), roadSurf(x, z));
 const WATER_Y = 1.5;
@@ -902,6 +968,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   const KMATS = [[M.grassTop, M.grassSide, M.dirt], [M.sand, M.sand, M.dirt], [M.snowTop, M.snowSide, M.rock], [M.rock, M.rock, M.rock], [M.wheat, M.grassSide, M.dirt], [M.path, M.path, M.dirt],
     [M.asphalt, M.concrete, M.dirt], [M.concrete, M.concrete, M.dirt], [M.lineX, M.concrete, M.dirt], [M.lineZ, M.concrete, M.dirt]];
   const CHUNKS = new Map();
+  const HH = (i, j) => j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j], KK = (i, j) => j < 0 ? NKIND[i * ND + j + ND] : KIND[i * N + j];   // the old grid or the mainland strip
   TERRAIN_CHUNK = (ci, cj) => {
     const ckey = ci + ',' + cj, made = [];
     for (const m of CHUNKS.get(ckey) || []) { scene.remove(m); m.geometry.dispose(); }
@@ -918,7 +985,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     const i1 = Math.min(N, ci + CH), j1 = Math.min(N, cj + CH), used = new Uint8Array(CH * CH), U = (i, j) => (i - ci) * CH + (j - cj);
     for (let i = ci; i < i1; i++) for (let j = cj; j < j1; j++) {
       if (used[U(i, j)]) continue;
-      const k0 = i * N + j, h = Hm[k0], kd = KIND[k0], same = (a, b) => !used[U(a, b)] && Hm[a * N + b] === h && KIND[a * N + b] === kd;
+      const h = HH(i, j), kd = KK(i, j), same = (a, b) => !used[U(a, b)] && HH(a, b) === h && KK(a, b) === kd;
       let w = 1; while (j + w < j1 && same(i, j + w)) w++;
       let d = 1; grow: while (i + d < i1) { for (let q = 0; q < w; q++) if (!same(i + d, j + q)) break grow; d++; }
       for (let a = 0; a < d; a++) for (let b = 0; b < w; b++) used[U(i + a, j + b)] = 1;
@@ -931,10 +998,10 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
       for (let a = alongJ ? ci : cj; a < (alongJ ? i1 : j1); a++) {
         let b = alongJ ? cj : ci; const bEnd = alongJ ? j1 : i1;
         while (b < bEnd) {
-          const i = alongJ ? a : b, j = alongJ ? b : a, h = Hm[i * N + j], nh = colH(i + di, j + dj), kd = KIND[i * N + j];
+          const i = alongJ ? a : b, j = alongJ ? b : a, h = HH(i, j), nh = colH(i + di, j + dj), kd = KK(i, j);
           if (nh >= h) { b++; continue; }
           let L = 1;
-          while (b + L < bEnd) { const i2 = alongJ ? a : b + L, j2 = alongJ ? b + L : a; if (Hm[i2 * N + j2] !== h || colH(i2 + di, j2 + dj) !== nh || KIND[i2 * N + j2] !== kd) break; L++; }
+          while (b + L < bEnd) { const i2 = alongJ ? a : b + L, j2 = alongJ ? b + L : a; if (HH(i2, j2) !== h || colH(i2 + di, j2 + dj) !== nh || KK(i2, j2) !== kd) break; L++; }
           const [, bandM, lowM] = KMATS[kd], x0 = i - HALF, z0 = j - HALF, x1 = x0 + 1, z1 = z0 + 1;
           if (di === 1) wall(bandM, lowM, h, nh, (lo, dy) => [x1, lo, z0, 0, dy, 0, 0, 0, L, 1, 0, 0], q => q[2]);
           else if (di === -1) wall(bandM, lowM, h, nh, (lo, dy) => [x0, lo, z0, 0, 0, L, 0, dy, 0, -1, 0, 0], q => -q[2]);
@@ -954,10 +1021,11 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     }
     CHUNKS.set(ckey, made);
   };
-  for (let ci = 0; ci < N; ci += CH) for (let cj = 0; cj < N; cj += CH) TERRAIN_CHUNK(ci, cj);
+  for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N; cj += CH) TERRAIN_CHUNK(ci, cj);
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
-  for (const [w, d, x, z] of [[4000, 2000, 0, -HALF - 1000], [2000, south + HALF, -HALF - 1000, (south - HALF) / 2], [2000, south + HALF, HALF + 1000, (south - HALF) / 2]]) {
+  const nE = HALF + (YB ? ND : 0);
+  for (const [w, d, x, z] of [[4000, 2000, 0, -nE - 1000], [2000, south + nE, -HALF - 1000, (south - nE) / 2], [2000, south + nE, HALF + 1000, (south - nE) / 2]]) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), meadowMat); m.rotation.x = -Math.PI / 2; m.position.set(x, EDGE_H - .02, z); scene.add(m);
   }
 
@@ -1036,15 +1104,16 @@ DEPOTS.forEach(([x, z]) => {
 
 /* ---------- the great wall around the district ---------- */
 (function walls() {
-  const W = BOUND + 5, L = 2 * (W + 4), H = 55, T = 8;
+  const W = BOUND + 5, L = 2 * (W + 4), H = 55, T = 8, WN = YB ? NBOUND + 5 : W;   // WN: the north side, out past the mainland
   const zEnd = COAST ? COAST.shore - 4 : W + 4;   // on the coast the wall runs down to the sea and stops
   for (const [ax, sgn] of [['z', -1], ['z', 1], ['x', -1], ['x', 1]]) {
     if (COAST && ax === 'z' && sgn > 0) continue;
-    const b = new Builder(), len = ax === 'z' ? L : zEnd + W + 4, mid = ax === 'z' ? 0 : (zEnd - W - 4) / 2;
-    if (ax === 'z') b.box(L, H, T, 0, H / 2, sgn * W, M.stone, 3); else b.box(T, H, len, sgn * W, H / 2, mid, M.stone, 3);
+    const zw = ax === 'z' && sgn < 0 ? WN : W;
+    const b = new Builder(), len = ax === 'z' ? L : zEnd + WN + 4, mid = ax === 'z' ? 0 : (zEnd - WN - 4) / 2;
+    if (ax === 'z') b.box(L, H, T, 0, H / 2, sgn * zw, M.stone, 3); else b.box(T, H, len, sgn * W, H / 2, mid, M.stone, 3);
     // battlements along the top
-    for (let k = -W + 6; k < (ax === 'z' ? W - 4 : zEnd - 4); k += 8) {
-      if (ax === 'z') b.box(4, 3, T, k, H + 1.5, sgn * W, M.stone, 3); else b.box(T, 3, 4, sgn * W, H + 1.5, k, M.stone, 3);
+    for (let k = ax === 'z' ? -W + 6 : -WN + 6; k < (ax === 'z' ? W - 4 : zEnd - 4); k += 8) {
+      if (ax === 'z') b.box(4, 3, T, k, H + 1.5, sgn * zw, M.stone, 3); else b.box(T, 3, 4, sgn * W, H + 1.5, k, M.stone, 3);
     }
     b.build();
   }
@@ -2854,7 +2923,7 @@ withSeed(4242, () => { for (let tries = 0, added = 0; tries < 9000 && added < 19
 } });
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 for (const t of TREES) {
-  const { x, z } = t, b = new Builder();
+  const { x, z } = t, b = new Builder(), cut = YB && linkDist(x, z) < 16, nc = colliders.length;   // cut: in the way of the road to Yaba (built, then dropped, so the forest keeps its layout)
   const base = heightAt(x, z) - 1.5, w = Math.round(R(4, 6.5)), h = R(52, 84);
   t.w = w;
   b.box(w, h, w, x, base + h / 2, z, M.bark, 2, true, 'trunk');
@@ -2871,7 +2940,25 @@ for (const t of TREES) {
   b.box(R(14, 20), R(4, 6), R(14, 20), x, base + h + 1, z, M.leaves, 2);
   b.box(R(9, 13), R(3, 5), R(9, 13), x + R(-2, 2), base + h + 5.5, z + R(-2, 2), M.leaves, 2);
   for (let k = 0; k < 3; k++) b.box(R(6, 9), R(3, 5), R(6, 9), x + R(-9, 9), base + h + R(-4, 2), z + R(-9, 9), M.leaves, 2);
-  b.build();
+  if (cut) { colliders.length = nc; t.cut = true; } else b.build();
+}
+for (let k = TREES.length - 1; k >= 0; k--) if (TREES[k].cut) TREES.splice(k, 1);
+/* the road to Yaba: from the city's north-east corner, east, then north up to the mainland. Graded now (after the forest),
+   so the forest and the plots for sale keep the layout the server knows. */
+if (YB) {
+  const touched = new Set(), y = TOWN.y;
+  for (const [ax, az, bx, bz] of LINK) {
+    const x0 = Math.min(ax, bx) - 20, x1 = Math.max(ax, bx) + 20, z0 = Math.min(az, bz) - 20, z1 = Math.max(az, bz) + 20;
+    for (let x = x0; x <= x1; x++) for (let z = Math.max(z0, -HALF); z <= Math.min(z1, HALF - 1); z++) {
+      const i = Math.floor(x + HALF), j = Math.floor(z + HALF); if (i < 0 || i >= N || j < 0 || j >= N) continue;
+      const d = linkDist(i - HALF + .5, j - HALF + .5), k = i * N + j; if (d > 18) continue;
+      if (Math.abs(i - HALF + .5 - TOWN.x) < RING && Math.abs(j - HALF + .5 - TOWN.z) < RING) continue;   // the city's own streets
+      const t = smooth(18, 6, d); if (t > 0) Hm[k] = Math.round(Hm[k] + (y - Hm[k]) * t);
+      if (d < 4.5) KIND[k] = 6; else if (d < 6.3) KIND[k] = 7;
+      touched.add(Math.floor(i / 96) * 96 + ',' + Math.floor(j / 96) * 96);
+    }
+  }
+  for (const key of touched) { const [ci, cj] = key.split(',').map(Number); TERRAIN_CHUNK(ci, cj); }
 }
 hookRoot.updateMatrixWorld(true);
 
@@ -2966,7 +3053,7 @@ let peaceful = true; try { const pv = localStorage.getItem('giantwood-peaceful')
 /* ---------- jointed voxel figures: the scout, townspeople and titans share one skeleton ----------
    root > pelvis (hips) > torso (spine) > head, shoulders > upper arm > forearm, hips > thigh > shin.
    Each segment is one merged, vertex-coloured mesh, so a figure costs 11 draw calls. Front is -z. */
-const figMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const figMat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 16, specular: 0x161412 });   // per-pixel light: smooth skin, not faceted plastic
 const _fc = new THREE.Color();
 function mergeColored(geos) {
   const parts = geos.map(g => g.index ? g.toNonIndexed() : g);
@@ -3019,7 +3106,7 @@ function headGeo(fem, shape, feat = 0) {   // the sculpted skull for a man (0) o
   shape = faceShapeOf(fem, shape); feat = feat ? 1 : 0;
   const key = fem + '|' + shape + '|' + feat; if (HEADS.has(key)) return HEADS.get(key);
   const F = FACE_SHAPES[shape];
-  const g = new THREE.SphereGeometry(1, 44, 34), p = g.attributes.position;
+  const g = new THREE.SphereGeometry(1, 60, 46), p = g.attributes.position;
   const rx = fem ? .103 : .11, ry = .134, rz = .12, cy = .15;
   const G = (a, b, sa, sb) => Math.exp(-(a * a) / (sa * sa) - (b * b) / (sb * sb));
   for (let i = 0; i < p.count; i++) {
@@ -3058,17 +3145,20 @@ function hairCap(fem, style, shape, feat) {
   const key = fem + style + faceShapeOf(fem, shape) + (feat ? 1 : 0); if (HAIRCAPS.has(key)) return HAIRCAPS.get(key);
   const src = headGeo(fem, shape, feat), P = src.attributes.position, N = src.attributes.normal, pos = [], nor = [];
   const longBack = style === 'long' || style === 'bob' || style === 'braids' || style === 'locs', thick = style === 'fade' ? 1.022 : style === 'curly' || style === 'messy' ? 1.06 : 1.042;
-  const line = (x, y, z) => {
+  const ylAt = (x, z) => {
     const f = clamp(-z / .11, 0, 1), side = clamp(Math.abs(x) / .1, 0, 1);
     let yl = .105 + .085 * f * (1 - .35 * side);          // high on the forehead, down to the ears at the sides
-    if (z > 0) yl = longBack ? .02 : style === 'fade' ? .12 : .075;   // the back: a short cut stops at the nape, long hair carries on
-    if (style === 'fade') yl += .02;
-    return y > yl;
+    const back = longBack ? .02 : style === 'fade' ? .12 : .075;   // the back: a short cut stops at the nape, long hair carries on
+    yl += (back - yl) * smooth(-.01, .05, z);              // blended round the sides, no step
+    return yl + (style === 'fade' ? .02 : 0);
   };
   for (let t = 0; t < P.count; t += 3) {
-    let keep = true; for (let k = 0; k < 3; k++) if (!line(P.getX(t + k), P.getY(t + k), P.getZ(t + k))) { keep = false; break; }
-    if (!keep) continue;
-    for (let k = 0; k < 3; k++) { pos.push(P.getX(t + k) * thick, .15 + (P.getY(t + k) - .15) * thick, P.getZ(t + k) * thick); nor.push(N.getX(t + k), N.getY(t + k), N.getZ(t + k)); }
+    let above = 0; for (let k = 0; k < 3; k++) if (P.getY(t + k) > ylAt(P.getX(t + k), P.getZ(t + k))) above++;
+    if (!above) continue;
+    for (let k = 0; k < 3; k++) {
+      const x = P.getX(t + k), z = P.getZ(t + k), y = Math.max(P.getY(t + k), ylAt(x, z) + .001);
+      pos.push(x * thick, .15 + (y - .15) * thick, z * thick); nor.push(N.getX(t + k), N.getY(t + k), N.getZ(t + k));
+    }
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   HAIRCAPS.set(key, g); return g;
@@ -3104,8 +3194,8 @@ const faceAtlas = (() => {
     const radial = (x, y, r, rgba0, rgba1 = 'rgba(0,0,0,0)') => { const [px, py] = P(x, y), gr = g.createRadialGradient(px, py, 0, px, py, L(r)); gr.addColorStop(0, rgba0); gr.addColorStop(1, rgba1); g.fillStyle = gr; g.beginPath(); g.arc(px, py, L(r), 0, TAU); g.fill(); };
     const curve = (pts) => { g.beginPath(); g.moveTo(...P(...pts[0])); for (let i = 1; i < pts.length; i += 2) g.quadraticCurveTo(...P(...pts[i]), ...P(...pts[i + 1])); };
     // soft modelling: sockets, the sides of the nose, under the nose, under the lower lip, cheeks
-    for (const sx of [-1, 1]) { radial(sx * .043, .16, .032, 'rgba(70,35,25,.22)'); radial(sx * .016, .125, .014, 'rgba(70,35,25,.12)'); }
-    radial(0, .093, .012, 'rgba(60,30,25,.2)'); if (!fem) radial(0, .052, .014, 'rgba(60,30,25,.08)');   // the dip under the lower lip: men only (on women it read as a goatee)
+    for (const sx of [-1, 1]) { radial(sx * .043, .162, .03, 'rgba(70,35,25,.12)'); radial(sx * .016, .125, .012, 'rgba(70,35,25,.07)'); }
+    radial(0, .093, .011, 'rgba(60,30,25,.12)'); if (!fem) radial(0, .052, .014, 'rgba(60,30,25,.08)');   // the dip under the lower lip: men only (on women it read as a goatee)
     if (fem) for (const sx of [-1, 1]) radial(sx * .062, .115, .026, 'rgba(215,95,105,.14)');
     radial(0, .108, .01, 'rgba(255,255,255,.12)');   // a highlight on the tip of the nose
     for (const sx of [-1, 1]) radial(sx * .062, .128, .028, 'rgba(255,236,214,.11)');   // light on the cheekbones
@@ -3128,7 +3218,7 @@ const faceAtlas = (() => {
       g.strokeStyle = '#1a120c'; g.lineCap = 'round'; g.lineWidth = L(fem ? .0034 : .0024);
       curve([[inner, ey], [ex, ey + .017], [outer, ey + .003]]); g.stroke();                                   // upper lash line
       if (fem) { g.beginPath(); g.moveTo(...P(outer, ey + .003)); g.lineTo(...P(outer + sx * .007, ey + .009)); g.stroke();   // a small wing
-        g.lineWidth = L(.0011); for (let i = 1; i < 6; i++) { const t = i / 6, x = inner + (outer - inner) * t, y = ey + .017 * 4 * t * (1 - t) * .9; g.beginPath(); g.moveTo(...P(x, y)); g.lineTo(...P(x + sx * .002, y + .005)); g.stroke(); } }
+        g.lineWidth = L(.0007); g.globalAlpha = .7; for (let i = 2; i < 6; i += 1.5) { const t = i / 6, x = inner + (outer - inner) * t, y = ey + .017 * 4 * t * (1 - t) * .9; g.beginPath(); g.moveTo(...P(x, y)); g.lineTo(...P(x + sx * .002, y + .004)); g.stroke(); } g.globalAlpha = 1; }
       g.strokeStyle = 'rgba(40,25,20,.35)'; g.lineWidth = L(.0012); curve([[inner, ey], [ex, ey - .011], [outer, ey + .003]]); g.stroke();   // lower lid
       // brows: tapered hair strokes along an arch
       const bc = BROWS[brow], b0 = [ex - sx * .02, .175], b1 = [ex + sx * .004, fem ? .19 : .186], b2 = [ex + sx * .027, fem ? .178 : .179];
@@ -3159,7 +3249,7 @@ const faceAtlas = (() => {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return t;
 })();
-const faceMat = new THREE.MeshLambertMaterial({ map: faceAtlas, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const faceMat = new THREE.MeshPhongMaterial({ map: faceAtlas, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, shininess: 16, specular: 0x161412 });
 function faceCell(S, fem, skin) {
   const e = (S.eye || '').toLowerCase(), eye = e === '#5a4030' ? 1 : e === '#2a4a6a' ? 2 : e === '#3a5a2a' ? 3 : 0;
   const hc = new THREE.Color(S.brow || S.hair || '#2a1d14'), hl = hc.getHSL({}).l, grey = hc.getHSL({}).s < .08 && hl > .35;
@@ -3225,7 +3315,7 @@ function buildFigureParts(S) {
   const root = new THREE.Group(); root.rotation.order = 'YXZ';
   const pelvis = new THREE.Group(); pelvis.position.y = .885; root.add(pelvis);
   const torso = new THREE.Group(); torso.position.y = .1; pelvis.add(torso);
-  const head = new THREE.Group(); head.position.y = .58; torso.add(head);
+  const head = new THREE.Group(); head.position.y = .565; torso.add(head);
   const top = S.shirt || skin, legC = S.pants || skin;
   const sleeve = S.tank ? skin : S.sleeve || top;
   const lowerTop = S.gown || S.kaftan || S.skirt || S.robe;      // what covers the hips and legs
@@ -3236,7 +3326,7 @@ function buildFigureParts(S) {
   const hipC = S.shorts || S.pants || lowerTop || legC;   // under a skirt or gown the hips are the skirt's colour, never bare
   const hipRings = (Fm ? [[-.15, .03, .03, 1], [-.13, .115, .078, .9], [-.09, .18, .106, .85], [-.04, .198, .112, .85], [.03, .186, .108, .87], [.1, .16, .1, .89], [.14, .146, .096, .9]]
     : [[-.15, .03, .03, 1], [-.13, .1, .068, .9], [-.09, .15, .094, .85], [-.03, .165, .102, .85], [.05, .162, .102, .88], [.14, .152, .1, .9]]).map(([y, a, b, e]) => { const m = lerp(B.hip, B.waist, (y + .03) / .17); return [y, a * W * m, b * W * m, e]; });
-  const hp = new Seg().raw(paintGeo(ringGeo(hipRings, 24, (x, y, z) => z > 0 ? (.012 + .012 * Fm) * B.glute * gauss2(Math.abs(x) - .06 * B.hip, y + .05, .06, .05) : 0), () => hipC)), WH = W * B.hip;
+  const hp = new Seg().raw(paintGeo(ringGeo(hipRings, 24, (x, y, z) => z > 0 ? (.012 + .012 * Fm) * B.glute * gauss2(Math.abs(x) - .06 * B.hip, y + .05, .06, .05) : 0, S.bikini ? [.02] : null), (x, y) => S.bikini ? (y < .02 ? S.bikini : skin) : hipC)), WH = W * B.hip;
   if (S.gown) {   // a long gown, flared to the ankles; ankara prints are bands of colour
     const P = S.print || [S.gown], n = P.length > 1 ? 7 : 1;
     hp.raw(paintGeo(limbGeo([[.17, .07], [.195, -.04], [.21, -.2], [.25, -.48], [.3, -.78], [.34, -.93], [.335, -.95]], WH, .82, 20, [...Array(n - 1)].map((_, k) => .07 - (k + 1) * 1.02 / n).concat(-.91)), (x, y) => y < -.91 ? shadeOf(P[0], .7) : P[clamp(Math.floor((.07 - y) / (1.02 / n)), 0, n - 1) % P.length]));
@@ -3261,11 +3351,11 @@ function buildFigureParts(S) {
     : [[-.03, .152, .1, .9], [.06, .148, .098, .9], [.16, .158, .102, .86], [.26, .182, .114, .82], [.34, .196, .12, .79], [.41, .206, .118, .76], [.455, .21, .106, .73], [.49, .165, .085, .8], [.515, .09, .066, 1], [.54, .056, .056, 1]]).map(([y, a, b, e]) => { if (y > .5) return [y, a, b, e]; const m = y < .1 ? B.waist : y < .26 ? lerp(B.waist, B.chest, (y - .1) / .16) : y < .41 ? B.chest : lerp(B.chest, B.sh, (y - .41) / .08), md = y < .41 ? m : B.chest; return [y, a * W * m, b * W * md, e]; });
   const shapeT = (x, y, z) => z < 0 ? -((Fm ? .046 * B.bust * gauss2(Math.abs(x) - .054 * B.chest, y - .318, .044 * Math.sqrt(B.bust), .042 * Math.sqrt(B.bust)) + .004 * gauss2(x, y - .3, .06, .03) : .007 * B.pec * gauss2(Math.abs(x) - .065 * B.chest, y - .34, .05, .04)) + B.belly * gauss2(x, y - .1, .13, .11))
     : .006 * gauss2(Math.abs(x) - .07, y - .38, .04, .05);
-  const torsoC = (x, y, z) => y > .505 ? skin : S.crop && y < .2 ? skin
+  const torsoC = (x, y, z) => y > .505 ? skin : S.bikini ? (y > .285 && y < .365 && (Fm || S.bikiniM) ? S.bikini : skin) : S.crop && y < .2 ? skin
     : S.tank && ((y > .44 && Math.abs(x) > .085) || (y > .41 && z < 0 && Math.abs(x) < .06)) ? skin
     : S.overalls && (y < .12 || (z < -.03 && Math.abs(x) < .1 && y < .4)) ? S.overalls : top;
-  const t = new Seg().raw(paintGeo(ringGeo(torsoRings, 28, shapeT, [.505, S.crop ? .2 : null, S.overalls ? .12 : null, S.tank ? .44 : null, S.tank ? .41 : null].filter(v => v !== null)), torsoC));
-  t.raw(paintGeo(limbGeo([[0, .63], [.044, .62], [.043, .58], [.048, .53], [.06, .5], [0, .49]], 1 - .12 * Fm, 1, 14), () => skin));   // neck
+  const t = new Seg().raw(paintGeo(ringGeo(torsoRings, 28, shapeT, [.505, S.bikini ? .285 : null, S.bikini ? .365 : null, S.crop ? .2 : null, S.overalls ? .12 : null, S.tank ? .44 : null, S.tank ? .41 : null].filter(v => v !== null)), torsoC));
+  t.raw(paintGeo(limbGeo([[0, .62], [.041, .61], [.039, .58], [.044, .53], [.058, .5], [0, .49]], 1 - .14 * Fm, 1, 16), () => skin));   // neck
   if (S.titan) {
     for (const sx of [-1, 1]) t.sph(.085 * W, .055, .03, sx * .085 * W, .37, -.1, shade);
     t.box(.28 * W, .015, .02, 0, .445, -.1, shade);
@@ -3273,9 +3363,9 @@ function buildFigureParts(S) {
     for (const sx of [-1, 1]) for (let r = 0; r < 3; r++) t.box(.015, .02, .1, sx * .178 * W, .27 + r * .05, -.02, shade);
     t.sph(.06, .032, .022, 0, .53, .065, '#a4544a', 0);                       // the nape
   } else {
-    if (!S.tank && !S.hood) t.cyl(.074 - .008 * Fm, .088 - .008 * Fm, .045, 0, .515, 0, S.collar || '#e9e4d6', 0, .9);
+    if (!S.tank && !S.hood && !S.bikini && !S.bare) t.cyl(.074 - .008 * Fm, .088 - .008 * Fm, .045, 0, .515, 0, S.collar || '#e9e4d6', 0, .9);
     if (S.buttons) for (const y of [.2, .28, .36]) t.sph(.011, .011, .007, 0, y, -.118, shadeOf(top, .55), 0);
-    if (!lowerTop && !S.crop) t.cyl((.156 - .022 * Fm) * W * B.waist, (.158 - .022 * Fm) * W * B.waist, .045, 0, .01, 0, S.belt || shadeOf(legC, .6), 0, .68).box(.045, .035, .012, 0, .01, -.108, '#b38a3e', 0);
+    if (!lowerTop && !S.crop && !S.bikini) t.cyl((.156 - .022 * Fm) * W * B.waist, (.158 - .022 * Fm) * W * B.waist, .045, 0, .01, 0, S.belt || shadeOf(legC, .6), 0, .68).box(.045, .035, .012, 0, .01, -.108, '#b38a3e', 0);
     if (S.tank) for (const sx of [-1, 1]) t.box(.035, .06, .2, sx * .09, .5, 0, top, 0);
     if (S.hood) t.sph(.13, .085, .085, 0, .5, .105, S.hood).box(.2, .1, .012, 0, .12, -.12, shadeOf(S.hood, .85), 0).box(.008, .1, .006, -.03, .44, -.13, '#f2f0ea', 0).box(.008, .1, .006, .03, .44, -.13, '#f2f0ea', 0);
     if (S.blazer) t.box(.07, .2, .012, 0, .4, -.122, S.inner || '#f2f0ea', 0).box(.05, .24, .014, -.06, .38, -.124, shadeOf(top, .8), 0).box(.05, .24, .014, .06, .38, -.124, shadeOf(top, .8), 0);
@@ -3398,13 +3488,15 @@ function buildFigureParts(S) {
     const rip = (x, y, z, [a, b], base) => z < -.02 && Math.abs(x) < .07 && y > a && y < b ? (y > a + .007 && y < b - .007 ? skin : '#e9eef4') : base;
     const thighCol = (x, y, z) => !S.shorts ? (rips ? rip(x, y, z, R2, rip(x, y, z, R1, thC)) : thC) : y > -.2 ? S.shorts : y > -.218 ? (S.cut ? '#c9d6e6' : shadeOf(S.shorts, .8)) : skin;
     const tCuts = S.shorts ? [-.2, -.218] : rips ? [...R1, R1[0] + .007, R1[1] - .007, ...R2, R2[0] + .007, R2[1] - .007] : null;
-    const tg = new Seg().raw(paintGeo(limbGeo([[0, .06], [.05, .05], [.08, .02], [.085, -.03], [.08, -.1], [.073, -.2], [.064, -.3], [.057, -.38], [.052, -.42], [.035, -.45], [0, -.46]], W * (1 + .1 * Fm) * B.thigh, 1, 14, tCuts), thighCol));
+    const tg = new Seg().raw(paintGeo(limbGeo(S.baggy ? [[0, .06], [.05, .05], [.085, .02], [.092, -.03], [.09, -.1], [.087, -.2], [.084, -.3], [.082, -.38], [.08, -.42], [.06, -.45], [0, -.46]]
+      : [[0, .06], [.05, .05], [.08, .02], [.085, -.03], [.08, -.1], [.073, -.2], [.064, -.3], [.057, -.38], [.052, -.42], [.035, -.45], [0, -.46]], W * (1 + .1 * Fm) * B.thigh, 1, 14, tCuts), thighCol));
     if (S.jeans && !S.shorts && !lowerTop) tg.box(.008, .4, .008, sx * .074 * W, -.2, 0, shadeOf(legC, .7), 0);
     tg.mesh(hp2, cast);
     const kn = new THREE.Group(); kn.position.y = -.42; hp2.add(kn);
     // shin: the knee, a calf that swells and narrows to the ankle
     const K1 = [-.04, .012], sCuts = [...(S.socks ? [-.26] : []), ...(rips ? [...K1, K1[0] + .007, K1[1] - .007] : [])];
-    const sg = new Seg().raw(paintGeo(limbGeo([[0, .04], [.04, .03], [.056, 0], [.06, -.06], [.058, -.11], [.05, -.18], [.04, -.26], [.035, -.32], [.034, -.37], [.03, -.39], [0, -.4]], W * (1 - .04 * Fm) * (.5 + .5 * B.thigh), 1, 14, sCuts.length ? sCuts : null),
+    const sg = new Seg().raw(paintGeo(limbGeo(S.baggy && !lowerTop && !S.shorts ? [[0, .04], [.06, .03], [.08, 0], [.08, -.08], [.079, -.18], [.079, -.28], [.082, -.36], [.086, -.4], [.07, -.415], [0, -.42]]
+      : [[0, .04], [.04, .03], [.056, 0], [.06, -.06], [.058, -.11], [.05, -.18], [.04, -.26], [.035, -.32], [.034, -.37], [.03, -.39], [0, -.4]], W * (1 - .04 * Fm) * (.5 + .5 * B.thigh), 1, 14, sCuts.length ? sCuts : null),
       (x, y, z) => S.socks && y < -.26 ? S.socks : rips ? rip(x, y, z, K1, shinC) : shinC));
     if (S.titan) sg.sph(.042, .036, .02, 0, -.01, -.055, shade).sph(.062, .045, .13, 0, -.43, -.035, skin, .04, { w: 12, h: 8 }).sph(.055, .03, .04, 0, -.445, -.13, shade);
     else if (S.heels) sg.sph(.045, .04, .11, 0, -.43, -.045, S.shoes, .02, { w: 10, h: 8 }).box(.05, .012, .17, 0, -.452, -.06, '#141010', 0).box(.025, .06, .025, 0, -.43, .03, S.shoes, 0);
@@ -3554,7 +3646,7 @@ function spawnTitan(x, z) {
 function spawnFar(minD = 55) {
   for (let k = 0; k < 60; k++) {
     const a = RM(0, TAU), d = RM(minD, minD + 80);
-    const x = clamp(P.pos.x + Math.sin(a) * d, -BOUND, BOUND), z = clamp(P.pos.z + Math.cos(a) * d, -BOUND, BOUND);
+    const x = clamp(P.pos.x + Math.sin(a) * d, -BOUND, BOUND), z = clamp(P.pos.z + Math.cos(a) * d, ZLO, BOUND);
     if (heightAt(x, z) >= 2 && Math.hypot(x - P.pos.x, z - P.pos.z) > minD && !nearVillage(x, z, VR + 25)) return spawnTitan(x, z);
   }
   return spawnTitan(clamp(P.pos.x + 80, -BOUND, BOUND), P.pos.z);
@@ -3643,7 +3735,7 @@ function updateTitans(dt) {
     }
     else {
       if (t.state === 'chase') t.state = 'wander';
-      if (Math.hypot(t.wander.x - g.position.x, t.wander.z - g.position.z) < 5) { const wx = farFromPlayer(t) ? P.pos.x : g.position.x, wz = farFromPlayer(t) ? P.pos.z : g.position.z; t.wander.set(clamp(wx + RM(-60, 60), -BOUND, BOUND), 0, clamp(wz + RM(-60, 60), -BOUND, BOUND)); }
+      if (Math.hypot(t.wander.x - g.position.x, t.wander.z - g.position.z) < 5) { const wx = farFromPlayer(t) ? P.pos.x : g.position.x, wz = farFromPlayer(t) ? P.pos.z : g.position.z; t.wander.set(clamp(wx + RM(-60, 60), -BOUND, BOUND), 0, clamp(wz + RM(-60, 60), ZLO, BOUND)); }
       tx = t.wander.x; tz = t.wander.z;
     }
     t.cd -= dt;
@@ -3667,7 +3759,7 @@ function updateTitans(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, d = Math.hypot(ex, ez);
       if (d < r && d > 1e-4) { g.position.x += ex / d * (r - d); g.position.z += ez / d * (r - d); }
     }
-    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, -BOUND, BOUND);
+    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, BOUND);
     const gy = Math.max(heightAt(g.position.x, g.position.z), WATER_Y - 1) - .3;
     g.position.y += (gy - g.position.y) * Math.min(1, dt * 6);
     // limbs
@@ -3761,7 +3853,7 @@ function placeForSpawn(v, p, child, opts) {
   return 'village';
 }
 function outfitFor(pl, F, kid, old, ng) {
-  const o = {}, r = Math.random();
+  const o = {}; let r = Math.random();
   const tee = (c, collar) => Object.assign(o, { shirt: c, sleeve: c, longSleeve: false, collar: collar || c });
   const longTop = (c, collar) => Object.assign(o, { shirt: c, sleeve: c, longSleeve: true, collar: collar || c });
   const tank = c => Object.assign(o, { shirt: c, tank: true, longSleeve: false });
@@ -3807,23 +3899,41 @@ function outfitFor(pl, F, kid, old, ng) {
   if (pl === 'gardener') { tee('#3e6e4a'); o.pants = '#6b5a3a'; boots('#4a3424'); return o; }
   if (pl === 'driver') { longTop('#f2f0ea', '#f2f0ea'); Object.assign(o, { pants: '#1b1608', tie: '#1b1608' }); shoes('#141010'); return o; }
   if (pl === 'pool') { tee('#f2f0ea'); shorts('#2f5f9a'); sandals(); return o; }
-  if (pl === 'club') {   // dressed for the night: bodycon, sequins and heels; crisp shirts, blazers and loafers
+  if (pl === 'club') {   // dressed for the night: minis, crop tops and heels; baggy jeans, oversized tees and fresh sneakers
     if (F) {
-      const c = ri(['#141014', '#b8261e', '#d6ae5f', '#c9d0d4', '#e84a9a', '#2a3a9a', '#f2f0ea', '#141014']);
-      if (r < .55) dress(c, .34, Math.random() < .6);
-      else if (r < .75) gown([c], true);
-      else { tank(c); o.crop = true; skirt(ri(['#141014', '#d6ae5f', '#c9d0d4']), .38, true); }
-      heels(ri(['#141014', '#d6ae5f', '#b8261e', '#c9d0d4'])); o.earrings = ri(['#d6ae5f', '#e8e8f0']);
+      const c = ri(['#141014', '#b8261e', '#d6ae5f', '#c9d0d4', '#e84a9a', '#2a3a9a', '#f2f0ea', '#141014', '#7a1a5a', '#1fb5a8']);
+      if (r < .34) { dress(c, ri([.24, .27, .3]), Math.random() < .7); o.pencil = true; }                                   // a short bodycon dress, often strappy
+      else if (r < .56) { crop(c); skirt(ri(['#141014', '#d6ae5f', '#c9d0d4', c]), ri([.22, .25]), true); }               // crop top and a mini skirt
+      else if (r < .7) { crop(c); shorts(ri(['#141014', ...DENIM.slice(2)])); o.cut = Math.random() < .5; }               // crop top and shorts
+      else if (r < .82) { crop(c); (Math.random() < .6 ? ripped : jeans)(ri(['#141014', '#1b2a44', ...DENIM])); }         // crop top and jeans
+      else if (r < .92) { tank(c); skirt(c, .34, true); }                                                                   // a slip dress
+      else gown([c], true);
+      if (r < .82 || Math.random() < .7) heels(ri(['#141014', '#d6ae5f', '#b8261e', '#c9d0d4', '#f2f0ea'])); else sneakers();
+      o.earrings = ri(['#d6ae5f', '#e8e8f0']);
     } else {
-      if (r < .4) { longTop(ri(['#f2f0ea', '#141014', '#2a3a9a', '#7a1a2a', '#c9e0f4'])); o.pants = ri(['#c9b58a', '#1b1608', '#2a2c30']); shoes(ri(['#4a3424', '#141010'])); }
-      else if (r < .75) { longTop(ri(['#141014', '#f2f0ea']), ri(['#141014', '#f2f0ea'])); o.blazer = true; o.shirt = ri(['#141014', '#2a2c30', '#7a1a2a', '#1f2f6a']); jeans(ri(['#1b2a44', '#141014'])); o.shoes = '#f4f4f2'; o.sole = '#f4f4f2'; }
-      else { tee(ri(['#141014', '#f2f0ea', '#7a1a2a'])); jeans(ri(['#1b2a44', '#141014'])); sneakers(); }
+      const baggy = c => { jeans(c); o.baggy = true; };
+      if (r < .4) { tee(ri(['#141014', '#f2f0ea', '#7a1a2a', '#2a3a9a', '#e8742a', '#1fb5a8'])); baggy(ri(['#3b5a8a', '#6f8fb8', '#1b2a44', '#141014', '#c9b58a'])); if (Math.random() < .3) o.ripped = true; sneakers(); }
+      else if (r < .55) { tank(ri(['#141014', '#f2f0ea'])); baggy(ri(['#6f8fb8', '#3b5a8a', '#141014'])); sneakers(); }
+      else if (r < .75) { longTop(ri(['#141014', '#f2f0ea']), ri(['#141014', '#f2f0ea'])); o.blazer = true; o.shirt = ri(['#141014', '#2a2c30', '#7a1a2a', '#1f2f6a']); (Math.random() < .5 ? baggy : jeans)(ri(['#1b2a44', '#141014'])); o.shoes = '#f4f4f2'; o.sole = '#f4f4f2'; }
+      else { longTop(ri(['#f2f0ea', '#141014', '#2a3a9a', '#7a1a2a', '#c9e0f4'])); o.buttons = true; o.pants = ri(['#c9b58a', '#1b1608', '#2a2c30']); shoes(ri(['#4a3424', '#141010'])); }
     }
+    return o;
+  }
+  if (pl === 'campus') {   // students: jeans and tees, crop tops, a few in native wear, most with a bag
+    if (F) { if (r < .3) { crop(ri([...BRIGHT, '#141014', '#f2f0ea'])); (Math.random() < .6 ? ripped : jeans)(); } else if (r < .55) { tee(ri([...BRIGHT, ...PASTEL])); jeans(); } else if (r < .7) { dress(ri(BRIGHT), .46); } else if (r < .85) { longTop(ri(PASTEL)); skirt(ri(MUTED), .6); } else gown(); (Math.random() < .7 ? sneakers : sandals)(); }
+    else { if (r < .35) { tee(ri([...BRIGHT, '#141014', '#f2f0ea'])); (Math.random() < .5 ? ripped : jeans)(); } else if (r < .55) { hoodie(ri([...MUTED, ...BRIGHT])); jeans(); } else if (r < .7) { longTop(ri(['#f2f0ea', '#c9e0f4']), '#f2f0ea'); o.buttons = true; o.pants = ri(['#2f3a4a', '#a89a7a']); } else if (r < .85) { kaftan(ri(NATIVE)); } else { jalabiya(ri(NATIVE)); kufi(); } (Math.random() < .7 ? sneakers : sandals)(); }
+    if (Math.random() < .65) o.backpack = ri(['#2a2c30', '#d8342c', '#2f5f9a', '#3fae5a', '#8a8f94', '#141014']);
     return o;
   }
   if (pl === 'bartender') { longTop('#f2f0ea', '#f2f0ea'); Object.assign(o, { pants: '#1b1608', cardigan: '#1b1608', tie: '#1b1608' }); shoes('#141010'); return o; }
   if (pl === 'bouncer') { tee('#141414'); Object.assign(o, { pants: '#141414', build: 1.25 }); boots('#141010'); return o; }
   if (pl === 'beach') {
+    const bikini = () => { const c = ri(['#d8342c', '#141014', '#f2f0ea', '#e85a9a', '#1fb5a8', '#f2c230', '#2f8fd0', '#e8742a', '#8a5ad0']);
+      Object.assign(o, { bikini: c, shirt: c, sleeve: c, collar: c, longSleeve: false, tank: true }); o.pants = null;   // tank: bare arms and thin straps
+      if (Math.random() < .3) Object.assign(o, { skirt: ri(['#f2f0ea', c, '#f2c230', '#1fb5a8']), skirtLen: .32, pencil: true }); sandals(); };   // sometimes a wrap
+    const trunks = () => { Object.assign(o, { bare: true, shirt: null, sleeve: null, collar: null, longSleeve: false }); const c = ri(['#2f5f9a', '#d8342c', '#141014', '#3fae5a', '#f2c230', '#e8742a', '#1fb5a8']); shorts(c); o.belt = c; sandals(); };
+    if (F ? r < .42 : r < .34) { (F ? bikini : trunks)(); return o; }
+    r = Math.random();
     if (F) {
       if (r < .3) { gown(); if (Math.random() < .5) o.headwrap = o.print ? o.print[1] : ri(BRIGHT); sandals(); }
       else if (r < .5) { dress(ri(BRIGHT), .5, true); sandals(); }
@@ -3896,7 +4006,7 @@ function makeCivilian(v, opts = {}) {
   const elder = !opts.child && !opts.adult && Math.random() < .15, child = opts.child || (!opts.adult && !elder && Math.random() < .14);
   const female = opts.female ?? Math.random() < .5;
   const p = roadPoint(v), pl = placeForSpawn(v, p, child, opts);
-  const ng = pl === 'beach' || pl === 'seafront' || (['city', 'airport', 'kid', 'cityschool', 'club', 'bartender', 'bouncer', 'security', 'chef', 'housekeeper', 'gardener', 'driver', 'pool'].includes(pl) || opts.cop || opts.fire) && Math.random() < .5;
+  const ng = pl === 'beach' || pl === 'seafront' || ((pl === 'yaba' || pl === 'market' || pl === 'campus') && Math.random() < .92) || (['city', 'airport', 'kid', 'cityschool', 'club', 'bartender', 'bouncer', 'security', 'chef', 'housekeeper', 'gardener', 'driver', 'pool'].includes(pl) || opts.cop || opts.fire) && Math.random() < .5;
   const skin = ng ? ri(NG_SKIN) : pick(SKIN_TONES);
   const base = { skin, hair: elder ? ri(['#9a9a9a', '#c8c4bc', '#7a7a7a']) : ng ? ri(NG_HAIR) : hx(pick(HAIRS)), eye: ng ? ri(['#2a1a10', '#1a1210', '#3b2a1e']) : pick(EYES),
     female, child, build: female ? RM(.9, 1.02) : RM(.95, 1.15), earrings: female && !child && Math.random() < .6 ? ri(['#d6ae5f', '#d6ae5f', '#c9d0d4']) : null,
@@ -3906,7 +4016,7 @@ function makeCivilian(v, opts = {}) {
   if (opts.fire) spec = { ...base, hairStyle: female ? 'bun' : 'short', shirt: '#c9a640', sleeve: '#c9a640', collar: '#2a2c30', belt: '#2a2c30', pants: '#c9a640', boots: '#1a1a1a', shoes: '#1a1a1a', helmet: '#b8261e', reflect: true, earrings: null };
   else if (opts.cop) spec = { ...base, hairStyle: female ? 'bun' : ri(['short', 'fade', 'bald']), shirt: '#1e2a44', sleeve: '#1e2a44', longSleeve: Math.random() < .5, collar: '#1e2a44', belt: '#111111', pants: '#1a2236', shoes: '#101010', hat: 'police', badge: true, buttons: true };
   else {
-    const o = outfitFor(pl, female, child, elder, ng), rural = pl === 'country' || pl === 'village';
+    const o = opts.jog ? jogKit(female) : outfitFor(pl, female, child, elder, ng), rural = pl === 'country' || pl === 'village';
     spec = { ...base, ...o, hairStyle: hairFor(pl, female, ng, elder),
       beard: !female && !child && Math.random() < (pl === 'village' ? .25 : .1), stubble: !female && !child && Math.random() < .35 ? ri([true, 'heavy']) : false, moustache: !female && !child && Math.random() < .12,
       glasses: Math.random() < (elder ? .45 : .12),
@@ -3919,11 +4029,27 @@ function makeCivilian(v, opts = {}) {
   g.scale.setScalar((child ? .62 : 1) * RM(.9, 1.0) * (female && !child ? .96 : 1));
   if (opts.cop) addGun(rig);
   const c = { g, rig, lo: rig, hi: null, spec, v, marker, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
+  if (opts.jog) { c.jog = true; c.speed = RM(2.6, 3.4); c.state = 'walk'; c.path = jogLoop(c); }
   g.position.set(p.x, v.y, p.z); g.rotation.y = RM(0, TAU);
   civRoot.add(g); civilians.push(c); v.civs.push(c);
   return c;
 }
 const SWL = GRID.flatMap(gv => [gv - 5.5, gv + 5.5]);   // sidewalk centre lines, both directions
+// joggers: shorts and a vest or sports top, trainers; laps round a town block on the sidewalk, then on to another block
+function jogKit(F) {
+  const c = ri(['#141014', '#f2f0ea', '#d8342c', '#2f8fd0', '#3fae5a', '#e85a9a', '#f2c230', '#8a5ad0']), b = ri(['#141014', '#2a2c30', '#1f2f6a', '#5a6370']);
+  const o = { shirt: c, sleeve: c, collar: c, longSleeve: false, shoes: ri(['#f2f2f2', '#d8342c', '#2f8fd0', '#141014']), sole: '#f4f4f2', socks: '#f2f0ea' };
+  if (F) { if (Math.random() < .6) { o.tank = true; o.crop = true; } else o.tank = Math.random() < .5; if (Math.random() < .55) Object.assign(o, { shorts: b, pants: b }); else Object.assign(o, { pants: b }); }   // a sports top, running shorts or leggings
+  else { o.tank = Math.random() < .5; Object.assign(o, { shorts: b, pants: b }); }
+  return o;
+}
+function jogLoop(c) {
+  const i = Math.floor(Math.random() * (GRID.length - 1)), j = Math.floor(Math.random() * (GRID.length - 1)), T = c.v;
+  const x0 = T.x + GRID[i] + 5.5, x1 = T.x + GRID[i + 1] - 5.5, z0 = T.z + GRID[j] + 5.5, z1 = T.z + GRID[j + 1] - 5.5;
+  const loop = Math.random() < .5 ? [[x0, z0], [x1, z0], [x1, z1], [x0, z1]] : [[x0, z0], [x0, z1], [x1, z1], [x1, z0]], laps = 2 + Math.floor(Math.random() * 2), path = [];
+  for (let l = 0; l < laps; l++) for (const [x, z] of loop) path.push(new V3(x, 0, z));
+  return path;
+}
 const addGun = rig => { const gun = new THREE.Mesh(new THREE.BoxGeometry(.035, .17, .05), MM.dark); gun.position.set(0, -.36, -.01); rig.fArm[1].add(gun); };
 // detail on demand: the full figure (sculpted head, painted face, smooth body) is built when you come close, and freed when you leave
 const DETAIL = { near: 16, far: 22, drop: 45, statue: 45, budget: 0 };
@@ -3966,8 +4092,8 @@ function roadPoint(v) {
   return new V3(v.x + RM(-3.5, 3.5), 0, v.z + RM(-3.5, 3.5));
 }
 for (const v of VILLAGES) for (let k = 0, n = 11 + Math.floor(Math.random() * 4); k < n; k++) makeCivilian(v);
-if (TOWN) { for (let k = 0; k < 55; k++) makeCivilian(TOWN); for (let k = 0; k < 10; k++) makeCivilian(TOWN, { cop: true }); }
-if (BEACH) for (let k = 0; k < 34; k++) { const c = makeCivilian(BEACH); if (k < 14) { c.guard = true; c.g.rotation.y = Math.PI + RM(-.6, .6); } }   // sunbathers face the sea
+if (TOWN) { for (let k = 0; k < 55; k++) makeCivilian(TOWN); for (let k = 0; k < 10; k++) makeCivilian(TOWN, { cop: true }); for (let k = 0; k < 7; k++) makeCivilian(TOWN, { adult: true, jog: true }); }
+if (BEACH) for (let k = 0; k < 46; k++) { const c = makeCivilian(BEACH); if (k < 18) { c.guard = true; c.g.rotation.y = Math.PI + RM(-.6, .6); } }   // sunbathers face the sea
 if (COUNTRY) for (let k = 0; k < 24; k++) makeCivilian(COUNTRY);
 for (const E of ESTATES) for (let k = 0; k < 10; k++) makeCivilian(E);
 if (TOWN && TOWN.station) for (const s2 of [-1.8, 1.8]) {   // two officers on guard at the station door
@@ -4071,7 +4197,7 @@ function updateCivilians(dt) {
         }
       } else if (c.state === 'walk') {
         const w = c.path[0];
-        if (!w) { c.state = 'idle'; c.timer = RM(2, 7); }
+        if (!w) { if (c.jog) c.path = jogLoop(c); else { c.state = 'idle'; c.timer = RM(2, 7); } }
         else { mx = w.x - px; mz = w.z - pz; sp = c.speed; if (Math.hypot(mx, mz) < .5) c.path.shift(); }
       }
     }
@@ -4088,14 +4214,14 @@ function updateCivilians(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, dd = Math.hypot(ex, ez), r = .35;
       if (dd < r) { if (dd > 1e-4) { g.position.x += ex / dd * (r - dd); g.position.z += ez / dd * (r - dd); } else g.position.x += r; if (c.state === 'walk') c.path.length = 0; }
     }
-    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, -BOUND, BOUND);
+    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, BOUND);
     const inH = houseAt(c.v, g.position.x, g.position.z);
     g.position.y = c.fixedY ?? (inH ? inH.floorY : groundAt(g.position.x, g.position.z));
     g.rotation.x = 0;
     // limbs
     const moving = sp > 0;
-    c.phase += dt * (moving ? sp * (sp > 3 ? 2 : 3.6) : 0);
-    animFigure(c.rig, c.phase, moving ? 1 : 0, c.state === 'flee' || c.state === 'shelter' ? 'panic' : 'walk', S.time + c.phase);
+    c.phase += dt * (moving ? sp * (c.jog ? 2.3 : sp > 3 ? 2 : 3.6) : 0);
+    animFigure(c.rig, c.phase, moving ? 1 : 0, c.state === 'flee' || c.state === 'shelter' ? 'panic' : c.jog && moving ? 'run' : 'walk', S.time + c.phase);
     if (c.hailing && !moving) { c.rig.uArm[1].rotation.set(2.8 + Math.sin(S.time * 7 + c.phase) * .25, 0, .3); c.rig.fArm[1].rotation.x = .25; let dy = Math.atan2(-(P.pos.x - g.position.x), -(P.pos.z - g.position.z)) - g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); g.rotation.y += dy * Math.min(1, dt * 4); }
     if ((c.dance || c.dj) && !moving && dd < DETAIL.statue && c !== TC.conv?.c) danceStep(c, dt);
     if (c.state === 'fight' && c.aimT) {   // face the titan, two-handed aim at its neck
@@ -5473,7 +5599,7 @@ const makeTaxi = () => makeModel(pick(['corolla05', 'camry08', 'corolla05', 'sie
 
 /* ---------- traffic: cars cruise the grid, turn at junctions and stop for anything in their lane ---------- */
 const traffic = [], LANE = 1.6;
-function laneXY(c) { return c.axis === 'x' ? [TOWN.x + c.pos, TOWN.z + c.line + LANE * c.dir] : [TOWN.x + c.line - LANE * c.dir, TOWN.z + c.pos]; }
+function laneXY(c) { const T = c.T || TOWN; return c.axis === 'x' ? [T.x + c.pos, T.z + c.line + LANE * c.dir] : [T.x + c.line - LANE * c.dir, T.z + c.pos]; }   // c.T: which street grid (the city or Yaba)
 if (TOWN) for (let k = 0; k < 24; k++) {
   const g = makeMixed(); scene.add(g);
   traffic.push({ g, axis: Math.random() < .5 ? 'x' : 'z', line: pick(GRID), dir: pick([-1, 1]), pos: RM(-70, 70), speed: 0, cruise: RM(8, 12), plan: null });
@@ -5497,12 +5623,13 @@ if (TOWN) for (let k = 0; k < 6; k++) {
 for (const o of traffic) beamsFor(o.g, o.kind);
 function updateTraffic(dt) {
   for (const c of traffic) {
-    const [wx, wz] = laneXY(c), fx = c.axis === 'x' ? c.dir : 0, fz = c.axis === 'z' ? c.dir : 0;
+    const [wx, wz] = laneXY(c), fx = c.axis === 'x' ? c.dir : 0, fz = c.axis === 'z' ? c.dir : 0, TT = c.T || TOWN;
+    if (Math.abs(wx - P.pos.x) > 260 || Math.abs(wz - P.pos.z) > 260) continue;   // far away: leave it parked until you come back
     let blocked = false;
     const check = (px, pz, r) => { const ex = px - wx, ez = pz - wz, along = ex * fx + ez * fz, lat = Math.abs(ex * fz - ez * fx); if (along > 0 && along < 9 && lat < r) blocked = true; };
-    if (P.pos.y < TOWN.y + 3) check(P.pos.x, P.pos.z, 1.8);
-    for (const o of traffic) if (o !== c && o.axis === c.axis && o.dir === c.dir) { const [ox, oz] = laneXY(o); check(ox, oz, 1.4); }
-    for (const p of TOWN.civs) if (p.active && p.state !== 'hide') check(p.g.position.x, p.g.position.z, 1.4);
+    if (P.pos.y < TT.y + 3) check(P.pos.x, P.pos.z, 1.8);
+    for (const o of traffic) if (o !== c && o.T === c.T && o.axis === c.axis && o.dir === c.dir) { const [ox, oz] = laneXY(o); check(ox, oz, 1.4); }
+    for (const p of TT.civs) if (p.active && p.state !== 'hide') check(p.g.position.x, p.g.position.z, 1.4);
     for (const t of titans) if (!t.dead) check(t.g.position.x, t.g.position.z, t.H * .2 + 1);
     c.speed += clamp((blocked ? 0 : c.cruise) - c.speed, -16 * dt, 5 * dt);
     let step = c.speed * dt;
@@ -5523,11 +5650,11 @@ function updateTraffic(dt) {
       if (c.plan && (c.pos - c.plan.node) * c.dir > LANE + .5) c.plan = null;
     }
     const [nx, nz] = laneXY(c);
-    c.g.position.set(nx, TOWN.y + .02, nz);
+    c.g.position.set(nx, TT.y + .02, nz);
     const yawT = c.axis === 'x' ? (c.dir > 0 ? -Math.PI / 2 : Math.PI / 2) : (c.dir > 0 ? Math.PI : 0);
     let dy = yawT - c.g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.g.rotation.y += dy * Math.min(1, dt * 7);
     // shove the scout out of the way rather than letting them stand inside a car
-    if (P.pos.y < TOWN.y + 1.8) {
+    if (P.pos.y < TT.y + 1.8) {
       const gx = c.axis === 'x' ? 1 : 0, gz = c.axis === 'z' ? 1 : 0, ex = P.pos.x - nx, ez = P.pos.z - nz;
       const along = ex * gx + ez * gz, lat = ex * gz - ez * gx;
       if (Math.abs(along) < 2.5 && Math.abs(lat) < 1.35) { const push = (1.35 - Math.abs(lat)) * Math.sign(lat || 1); P.pos.x += gz * push; P.pos.z -= gx * push; }
@@ -5867,6 +5994,225 @@ if (TOWN && TOWN.ambBays) {
   colliders.push({ x0: a[0] - 1.05, x1: a[0] + 1.05, y0: TOWN.y, y1: TOWN.y + 2.7, z0: a[1] - 2.8, z1: a[1] + 2.8, tag: 'house' });
   makeDrivable(b2[0], b2[1], Math.PI, 'car', false, true);
 }
+/* ---------- Yaba, on the mainland: a busy 4x4 street grid (Tejuosho Market, an Ojuelegba-style motor park with a footbridge,
+   the tech hub, bukas, shops, a bank, a mosque, a church, flats), Yaba College of Technology to the west and the
+   University of Lagos to the east on the lagoon. Built from its own seed so the rest of the world keeps its layout. ---------- */
+const YABA = YB ? { x: YB.x, z: YB.z, y: TOWN.y, modern: true, houses: [], civs: [], place: 'yaba', BC: [-57, -19, 19, 57] } : null;
+const YSIGNS = [];   // sign painters, re-run once the fonts have loaded
+function ySignMat(text, bg = '#1f5fa8', fg = '#ffffff', sub = '', W = 512, H = 128) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  const paint = () => { g.fillStyle = bg; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 6; g.strokeRect(6, 6, W - 12, H - 12);
+    fitText(g, text, W / 2, sub ? H * .56 : H * .68, W - 40, sub ? H * .48 : H * .62, 800, fg, 'center'); if (sub) fitText(g, sub, W / 2, H * .87, W - 40, H * .22, 700, fg, 'center'); t.needsUpdate = true; };
+  paint(); YSIGNS.push(paint); return new THREE.MeshLambertMaterial({ map: t });
+}
+const ySignRoot = new THREE.Group(); scene.add(ySignRoot);
+function ySign(mat, w, h, x, y, z, ry) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.y = ry; ySignRoot.add(m); return m; }
+if (YABA) withSeed(9191, () => {
+  const Y = YABA.y, ri2 = a => a[Math.floor(rng() * a.length)];
+  const paints = [0xf2e6c8, 0xf4d9b8, 0xc9e0f4, 0xd6f0d0, 0xf4ecc0, 0xf4c9c9, 0xe8e6df, 0xd9e8c4, 0xf2d0a0, 0xc8d8e8].map(c => LM(c));
+  const bandM = LM(0xd8d2c4), winM = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), rustM = LM(0x8a4a2a), zincM = LM(0x9aa3a8), blueRoofM = LM(0x2f5f9a);
+  const tankM = LM(0x1b1b1f), greenM = LM(0x2f8a4a), whiteM = MM.white, darkM = MM.dark, woodM = M.oak;
+  const awnings = [0xd8342c, 0x2f8fd0, 0x3fae5a, 0xf2c230, 0xe8742a, 0x8a5ad0, 0x1fb5a8].map(c => LM(c));
+  const facing = (nx, nz) => Math.atan2(nx, nz);   // a plane's rotation so it faces (nx, nz)
+  /* a building: render walls, a band and windows on every floor, a parapet, a black water tank on the roof */
+  function block(b, x, z, w, d, floors, opts = {}) {
+    const FH = 3.2, H = floors * FH, wall = opts.wall || ri2(paints);
+    b.box(w, H, d, x, Y + H / 2, z, wall, 2, true, 'house');
+    for (let f = 0; f < floors; f++) {
+      const fy = Y + f * FH; b.box(w + .14, .18, d + .14, x, fy + FH - .09, z, bandM, 1, false);
+      if (f === 0 && opts.shops) continue;
+      const wy = fy + FH * .55, nx = Math.max(1, Math.floor(w / 3.2)), nz = Math.max(1, Math.floor(d / 3.2));
+      for (let k = 0; k < nx; k++) { const wx = x - w / 2 + (k + .5) * w / nx; for (const s of [-1, 1]) b.box(1.3, 1.4, .08, wx, wy, z + s * (d / 2 + .03), winM, 1, false); }
+      for (let k = 0; k < nz; k++) { const wz = z - d / 2 + (k + .5) * d / nz; for (const s of [-1, 1]) b.box(.08, 1.4, 1.3, x + s * (w / 2 + .03), wy, wz, winM, 1, false); }
+      if (opts.balconies && f > 0) for (let k = 0; k < nx; k += 2) { const wx = x - w / 2 + (k + .5) * w / nx; b.box(2.2, .12, 1, wx, fy + .06, z - d / 2 - .5, bandM, 1, false); b.box(2.2, .9, .06, wx, fy + .5, z - d / 2 - 1, darkM, 1, false); }
+    }
+    b.box(w + .3, .5, d + .3, x, Y + H + .25, z, bandM, 1, true, 'roof');
+    if (!opts.noTank) b.box(1.6, 1.4, 1.6, x + w / 4, Y + H + 1.2, z + d / 4, tankM, 1, false);
+    YABA_MAP.push([x, z, w, d, opts.mapC || '#e8e6df']);
+    return Y + H;
+  }
+  // shopfronts on a building's street side: dark openings under coloured awnings, and a painted signboard above
+  const SHOPS = [['MAMA T BUKA', '#b8261e'], ['GOD’S GRACE PHARMACY', '#2f8a4a'], ['BLESSED PHONES & ACCESSORIES', '#1f5fa8'], ['POS · TRANSFER · WITHDRAWAL', '#e8742a'],
+    ['YABA TAILORS', '#6a3a8a'], ['JOLLOF HUB', '#c8261e'], ['PRINTING & LAMINATION', '#2a2c30'], ['SUYA SPOT', '#8a2a1a'], ['FAITH SUPERMARKET', '#1f6f9a'], ['ICE COLD DRINKS', '#1fb5a8'],
+    ['LAPTOP REPAIRS & SALES', '#2a3a6a'], ['KINGS BARBING SALON', '#141014'], ['ADUNNI HAIR & BEAUTY', '#c84a8a'], ['YABA GADGETS', '#2f5f9a'], ['FRESH PASTRIES', '#d6a040'],
+    ['CHOP & GO', '#e8742a'], ['TOKUNBO PARTS', '#4a4a4a'], ['ABULE IJESHA TEXTILES', '#8a5a2a'], ['MOBILE MONEY · AIRTIME', '#2f8a4a'], ['CYBER CAFÉ & CBT', '#1f2f6a']];
+  let shopN = 0;
+  function shopfront(b, x, z, len, nx, nz) {   // along the face whose outward normal is (nx, nz), centred at (x, z)
+    const n = Math.max(1, Math.floor(len / 6)), tx = -nz, tz = nx;
+    for (let k = 0; k < n; k++) {
+      const o = (k + .5) * len / n - len / 2, cx = x + tx * o, cz = z + tz * o, sw = len / n - .8;
+      b.box(Math.abs(tx) * sw + Math.abs(nx) * .1 || .1, 2.4, Math.abs(tz) * sw + Math.abs(nz) * .1 || .1, cx + nx * .06, Y + 1.25, cz + nz * .06, darkM, 1, false);
+      b.box(Math.abs(tx) * sw + Math.abs(nx) * 1.6, .12, Math.abs(tz) * sw + Math.abs(nz) * 1.6, cx + nx * .85, Y + 2.75, cz + nz * .85, ri2(awnings), 1, false);
+      const [txt, bg] = SHOPS[shopN++ % SHOPS.length];
+      ySign(ySignMat(txt, bg), sw, .9, cx + nx * .09, Y + 3.25, cz + nz * .09, facing(nx, nz));
+    }
+  }
+  const lot = (bi, bj) => [YB.x + YABA.BC[bi], YB.z + YABA.BC[bj]];   // a block's centre
+  const tree = (b, x, z) => smallTree(b, x, z, Y);
+  const palm = (b, x, z) => { b.box(.5, 7, .5, x, Y + 3.5, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7]]) b.box(dx ? 3 : .6, .25, dz ? 3 : .6, x + dx * 1.4, Y + 7, z + dz * 1.4, M.leaves, 1, false); };
+  const umbrella = (b, x, z, m) => { b.box(.08, 2.2, .08, x, Y + 1.1, z, darkM, 1, false); b.box(2.4, .15, 2.4, x, Y + 2.25, z, m, 1, false); b.box(1.6, .15, 1.6, x, Y + 2.4, z, m, 1, false); };
+  const stall = (b, x, z) => { b.box(2, .9, 1.2, x, Y + .45, z, woodM, 1, true, 'house'); for (let k = 0; k < 4; k++) b.box(.4, .25, .4, x - .7 + k * .45, Y + 1.03, z + (rng() - .5) * .4, ri2([LM(0xd8342c), LM(0xf2c230), LM(0x3fae5a), LM(0xe8742a), LM(0x8a5a2a)]), 1, false); };
+  const lampPost = (b, x, z, ax, az) => { LAMPS.push([x + ax * 1.25, z + az * 1.25, Y]); b.box(.16, 5.4, .16, x, Y + 2.7, z, darkM, 1, true, 'house'); b.box(ax ? 1.3 : .1, .1, az ? 1.3 : .1, x + ax * .65, Y + 5.35, z + az * .65, darkM, 1, false); b.box(.45, .12, .45, x + ax * 1.25, Y + 5.25, z + az * 1.25, lampMat, 1, false); };
+
+  /* ---- the blocks ---- */
+  for (const key in YABA_PLAN) {
+    const [bi, bj] = key.split(',').map(Number), kind = YABA_PLAN[key], [cx, cz] = lot(bi, bj), b = new Builder();
+    if (kind.startsWith('shops') || kind === 'bank') {   // two- and three-storey shophouses on all four streets
+      for (const [ox, oz, w, d, nx, nz] of [[0, -8.5, 22, 7, 0, -1], [0, 8.5, 22, 7, 0, 1], [-8.5, 0, 7, 9, -1, 0], [8.5, 0, 7, 9, 1, 0]]) {
+        if (kind === 'bank' && oz < 0) continue;
+        const top = block(b, cx + ox, cz + oz, w, d, 2 + Math.floor(rng() * 2), { shops: true });
+        shopfront(b, cx + ox + nx * w / 2, cz + oz + nz * d / 2, nx ? d : w, nx, nz);
+      }
+      if (kind === 'bank') {   // a bank on the north side with a glass front and an ATM
+        block(b, cx, cz - 7, 24, 10, 3, { wall: LM(0xe8e6df), noTank: true, mapC: '#c9d6e6' });
+        b.box(20, 3, .1, cx, Y + 1.6, cz - 12.06, winM, 1, false); b.box(1, 1.8, .4, cx + 8, Y + .9, cz - 12.3, MM.steel, 1, true, 'house');
+        ySign(ySignMat('UNITY TRUST BANK', '#1f2f6a', '#f2c230', 'BANKING · LOANS · FOREX'), 14, 2.2, cx, Y + 8.4, cz - 12.08, Math.PI);
+      }
+    } else if (kind === 'market') {   // Tejuosho Market: a big steel shed with rusty roofing over rows of stalls
+      for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) b.box(.3, 6, .3, cx + ix * 10, Y + 3, cz + iz * 10, darkM, 1, true, 'house');
+      b.box(24, .3, 24, cx, Y + 6.2, cz, rustM, 2, true, 'roof'); b.box(24.4, .5, 1, cx, Y + 6.8, cz, zincM, 1, false);
+      for (let ix = -3; ix <= 3; ix += 2) for (let iz = -3; iz <= 3; iz += 2) stall(b, cx + ix * 2.8, cz + iz * 2.8);
+      ySign(ySignMat('TEJUOSHO MARKET', '#2f8a4a', '#ffffff', 'YABA · LAGOS'), 12, 2.4, cx, Y + 7.8, cz + 12.3, 0);
+      YABA_MAP.push([cx, cz, 24, 24, '#c87a4a']);
+    } else if (kind === 'market2') {   // open-air market: umbrellas, tarps and tables
+      for (let ix = -2; ix <= 2; ix++) for (let iz = -2; iz <= 2; iz++) { const x = cx + ix * 4.6 + (rng() - .5), z = cz + iz * 4.6 + (rng() - .5); if (rng() < .7) { stall(b, x, z); umbrella(b, x + .9, z, ri2(awnings)); } }
+    } else if (kind === 'buspark') {   // the motor park: rows of danfos, a shelter, the big sign on a gantry
+      b.box(14, .2, 4, cx - 4, Y + 3.2, cz + 9, zincM, 1, true, 'roof'); for (const sx of [-10, 2]) b.box(.2, 3.2, .2, cx + sx, Y + 1.6, cz + 9, darkM, 1, false);
+      for (let k = 0; k < 5; k++) bench(b, cx - 9 + k * 2.4, cz + 10, Y, true);
+      for (const sx of [-12, 12]) b.box(.4, 7, .4, cx + sx, Y + 3.5, cz - 12, darkM, 1, true, 'house');
+      b.box(24.4, 1.8, .3, cx, Y + 7.6, cz - 12, darkM, 1, false);
+      ySign(ySignMat('OJUELEGBA MOTOR PARK', '#f2c230', '#141014', 'DANFO · BRT LINK · KEKE'), 23.6, 1.7, cx, Y + 7.6, cz - 11.83, 0);
+      for (let k = 0; k < 4; k++) for (const row of [-6, 4.5]) { const car = makeModel('danfo'); car.position.set(cx - 9 + k * 5.6, Y + .02, cz + row); car.rotation.y = Math.PI / 2; addStatic(car); }
+      for (let k = 0; k < 3; k++) { const kk = makeKeke(); kk.position.set(cx + 8 + k * 1.6, Y + .02, cz + 7); addStatic(kk); }
+    } else if (kind.startsWith('techhub')) {   // the tech strip: two glass towers you can go up, and a café front
+      const mk = (lx, lz) => ({ x: cx + lx, z: cz + lz, w: 10.5, d: 10.5, side: 'nz', v: YABA, floors: kind === 'techhub' ? 8 + Math.floor(rng() * 3) : 6 + Math.floor(rng() * 3) });
+      for (const sx of [-1, 1]) { const t = mk(sx * 6.5, -4); buildTower(t, b); YABA_MAP.push([t.x, t.z, 10.5, 10.5, '#7fb6d8']); }
+      ySign(ySignMat(kind === 'techhub' ? 'YABACON HUB' : 'CO-CREATION SPACE', '#141014', '#3ee8ff', 'CO-WORK · CAFÉ · FAST WIFI'), 10, 2, cx, Y + 3.2, cz + 7.1, 0);
+      b.box(16, 3, 4, cx, Y + 1.5, cz + 9, LM(0x2a2c30), 1, true, 'house'); b.box(15, 2.2, .1, cx, Y + 1.4, cz + 11.05, winM, 1, false);
+      for (const sx of [-5, 0, 5]) tree(b, cx + sx, cz + 4);
+    } else if (kind === 'gas') {   // a filling station: canopy, pumps and a kiosk
+      b.box(16, .5, 10, cx, Y + 5.2, cz, LM(0xf2f0ea), 1, true, 'roof'); b.box(16.2, .8, 10.2, cx, Y + 5.6, cz, LM(0xd8342c), 1, false);
+      for (const sx of [-6, 6]) for (const sz of [-3.5, 3.5]) b.box(.4, 5, .4, cx + sx, Y + 2.5, cz + sz, whiteM, 1, true, 'house');
+      for (const sx of [-3, 3]) b.box(1, 1.6, .6, cx + sx, Y + .8, cz, LM(0xd8342c), 1, true, 'house');
+      block(b, cx, cz + 9, 10, 5, 1, { wall: LM(0xf2f0ea), noTank: true });
+      ySign(ySignMat('MAINLAND FUELS', '#d8342c', '#ffffff', 'PMS · AGO · GAS'), 8, 1.6, cx, Y + 5.6, cz - 5.12, Math.PI);
+    } else if (kind === 'mosque') {   // white walls, a green dome and a minaret
+      block(b, cx, cz, 16, 16, 2, { wall: LM(0xf2f0ea), noTank: true, mapC: '#e8f4e8' });
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(5, 18, 10, 0, TAU, 0, Math.PI / 2), greenM); dome.position.set(cx, Y + 6.9, cz); dome.castShadow = true; scene.add(dome);
+      b.box(2.2, 16, 2.2, cx + 9.5, Y + 8, cz - 9.5, whiteM, 1, true, 'house'); b.box(3, .5, 3, cx + 9.5, Y + 13, cz - 9.5, greenM, 1, false);
+      const top = new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 8), greenM); top.position.set(cx + 9.5, Y + 16.6, cz - 9.5); scene.add(top);
+      for (const sx of [-10, 10]) tree(b, cx + sx, cz + 10);
+    } else if (kind === 'church') {
+      buildChurch({ x: cx, z: cz + 1, w: 9, d: 15, side: 'nz', v: YABA }, b, false); YABA_MAP.push([cx, cz + 1, 9, 15, '#e8e6df']);
+      for (const sz of [-4, 4]) { tree(b, cx - 9, cz + sz); tree(b, cx + 9, cz + sz); }
+    } else if (kind.startsWith('flats')) {   // blocks of flats with balconies (four floors), round a yard
+      for (const [ox, oz, w, d] of [[-6, -6, 11, 9], [6, -6, 11, 9], [-6, 6.5, 11, 9], [6, 6.5, 11, 9]]) block(b, cx + ox, cz + oz, w, d, 3 + Math.floor(rng() * 2), { balconies: true });
+      for (const k of [-3, 3]) b.box(.05, .05, 5, cx + k, Y + 2, cz, darkM, 1, false);   // washing lines
+    } else if (kind === 'bukas') {   // roadside bukas: tin-roofed shacks, benches, cooking pots
+      for (const [ox, oz] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) {
+        b.box(8, 2.6, 6, cx + ox, Y + 1.3, cz + oz, ri2([LM(0x8a6a4a), LM(0x6a7a5a), LM(0x9a7a5a)]), 1, true, 'house'); b.box(9, .15, 7.5, cx + ox, Y + 2.8, cz + oz - .6, rustM, 1, false);
+        bench(b, cx + ox, cz + oz - 4.6, Y, false); b.box(.7, .6, .7, cx + ox + 2.5, Y + .3, cz + oz - 4, darkM, 1, false);
+        const [txt, bg] = SHOPS[shopN++ % SHOPS.length]; ySign(ySignMat(ri2(['IYA BASIRA BUKA', 'MAMA PUT', 'AMALA SPOT', 'CALABAR KITCHEN', 'FISH PEPPER SOUP']), ri2(['#b8261e', '#e8742a', '#2f8a4a'])), 6, .9, cx + ox, Y + 3.3, cz + oz - 3.02, Math.PI);
+      }
+    }
+    b.build();
+  }
+  // street lamps, and traders' umbrellas on the sidewalks
+  { const b = new Builder();
+    for (const gv of GRID) for (const a of [-57, -19, 19, 57]) { lampPost(b, YB.x + a, YB.z + gv - 4.75, 0, 1); lampPost(b, YB.x + gv - 4.75, YB.z + a, 1, 0); }
+    for (let k = 0; k < 30; k++) { const gv = ri2(GRID), a = (rng() - .5) * 140, side = rng() < .5 ? -5.6 : 5.6, alongX = rng() < .5; const x = YB.x + (alongX ? a : gv + side), z = YB.z + (alongX ? gv + side : a); if (Math.abs(a) % 38 > 8) umbrella(b, x, z, ri2(awnings)); }
+    b.build(); }
+  // the footbridge across the street between the motor park and the shops (Ojuelegba-style): stairs both sides, a deck, railings
+  // the stairs run along the sidewalks on each side (one going north, one south), so nothing blocks the shops
+  { const b = new Builder(), fx = YB.x + 38, fz = YB.z - 57, deck = 6.2;
+    b.box(13, .4, 2.2, fx, Y + deck, fz, M.concrete, 1, true, 'roof');
+    for (const s of [-1, 1]) { b.box(13, 1.1, .1, fx, Y + deck + .75, fz + s * 1.05, darkM, 1, false); b.box(.5, deck, .5, fx + s * 5.5, Y + deck / 2, fz + s * .6, M.concrete, 1, true, 'house'); }
+    for (const s of [-1, 1]) for (let k = 0; k < 20; k++) { const h = (k + 1) * deck / 20; b.box(1.9, .2, .42, fx + s * 5.5, Y + h - .1, fz - s * (1.3 + .42 * (19 - k) + .21), M.concrete, 1, true, 'stair'); }
+    ySign(ySignMat('YABA · OJUELEGBA · SURULERE', '#2f5f9a', '#ffffff'), 12, 1, fx, Y + deck + 1.6, fz + 1.22, 0);
+    b.build(); }
+
+  /* ---- Yaba College of Technology ---- */
+  { const b = new Builder(), gz = YB.z - 38, gx = YTECH.x1;
+    for (const s of [-1, 1]) b.box(1.6, 6, 1.6, gx, Y + 3, gz + s * 7, LM(0x2f5f9a), 1, true, 'house');
+    b.box(1.2, 1.6, 16, gx, Y + 6.8, gz, LM(0x2f5f9a), 1, false);
+    ySign(ySignMat('YABA COLLEGE OF TECHNOLOGY', '#1f2f6a', '#f2c230', 'YABATECH · EST. 1947'), 15, 1.5, gx + .62, Y + 6.8, gz, Math.PI / 2);
+    b.box(3, 2.6, 3, gx - 4, Y + 1.3, gz + 11, whiteM, 1, true, 'house');   // the gatehouse
+    block(b, -262, -530, 50, 14, 4, { wall: LM(0xf2f0ea), mapC: '#e8c84a' });                 // administration
+    ySign(ySignMat('ADMINISTRATION', '#1f2f6a', '#ffffff'), 10, 1.2, -262, Y + 4, -522.9, 0);
+    block(b, -300, -570, 40, 14, 3, { wall: LM(0xf4ecc0), mapC: '#e8c84a' }); block(b, -248, -570, 30, 14, 3, { wall: LM(0xc9e0f4), mapC: '#e8c84a' });   // lecture blocks
+    for (const [x, w] of [[-298, 44], [-246, 30]]) { block(b, x, -630, w, 18, 1, { wall: LM(0xb9c0c6), noTank: true, mapC: '#c9d0d4' }); for (let k = 0; k < Math.floor(w / 6); k++) b.box(5.4, 1.4, 18, x - w / 2 + 3 + k * 6, Y + 3.9, -630, zincM, 1, false); }   // engineering workshops
+    block(b, -320, -470, 24, 36, 3, { balconies: true, mapC: '#e8c84a' });                   // a hostel
+    for (const fx2 of [-292, -264, -236]) { b.box(.15, 8, .15, fx2, Y + 4, -506, darkM, 1, false); b.box(1.6, 1, .05, fx2 + .85, Y + 7.4, -506, LM(0x2f8a4a), 1, false); }   // flagpoles
+    for (let k = 0; k < 6; k++) palm(b, -300 + k * 14, -476);
+    b.build();
+  }
+
+  /* ---- the University of Lagos, Akoka ---- */
+  { const b = new Builder(), gx = UNILAG.x0, gz = YB.z;
+    for (const s of [-1, 1]) b.box(2, 8, 2, gx, Y + 4, gz + s * 8, LM(0xf2f0ea), 1, true, 'house');
+    b.box(1.6, 2.2, 18, gx, Y + 8.6, gz, LM(0x7a1a2a), 1, false);
+    ySign(ySignMat('UNIVERSITY OF LAGOS', '#7a1a2a', '#f2c230', 'AKOKA · IN DEED AND IN TRUTH'), 17, 2, gx - .82, Y + 8.6, gz, -Math.PI / 2);
+    b.box(3, 2.6, 3, gx + 5, Y + 1.3, gz - 12, whiteM, 1, true, 'house');
+    // the Senate building: a tall white tower over a paved plaza
+    block(b, 160, -514, 26, 14, 14, { wall: LM(0xf4f2ec), mapC: '#f2f0ea' });
+    ySign(ySignMat('SENATE BUILDING', '#7a1a2a', '#ffffff'), 10, 1.3, 160, Y + 4.4, -506.9, 0);
+    for (const sx of [-14, 0, 14]) { b.box(.15, 9, .15, 160 + sx, Y + 4.5, -488, darkM, 1, false); b.box(1.8, 1.1, .05, 160 + sx + .95, Y + 8.4, -488, LM(0x2f8a4a), 1, false); }
+    // the library, the faculties, the halls of residence
+    block(b, 238, -492, 44, 22, 3, { wall: LM(0xe6e1d3), mapC: '#f2f0ea' }); for (let k = 0; k < 9; k++) b.box(.8, 9.6, .8, 218 + k * 5, Y + 4.8, -480.4, whiteM, 1, true, 'house');
+    ySign(ySignMat('UNIVERSITY LIBRARY', '#7a1a2a', '#ffffff'), 12, 1.3, 238, Y + 10.4, -480.6, 0);
+    block(b, 238, -552, 44, 16, 4, { wall: LM(0xf4ecc0), mapC: '#f2f0ea' }); ySign(ySignMat('FACULTY OF ARTS', '#7a1a2a', '#ffffff'), 9, 1.1, 238, Y + 4, -543.9, 0);
+    block(b, 166, -560, 40, 16, 4, { wall: LM(0xc9e0f4), mapC: '#f2f0ea' }); ySign(ySignMat('FACULTY OF SCIENCE', '#7a1a2a', '#ffffff'), 9, 1.1, 166, Y + 4, -551.9, 0);
+    for (const [z, name] of [[-530, 'FACULTY OF ENGINEERING'], [-596, 'FACULTY OF LAW'], [-662, 'FACULTY OF SOCIAL SCIENCES']]) { block(b, 84, z, 30, 40, 4, { wall: ri2(paints), mapC: '#f2f0ea' }); ySign(ySignMat(name, '#7a1a2a', '#ffffff'), 13, 1.1, 99.1, Y + 4, z, Math.PI / 2); }
+    for (const [x, z, name] of [[160, -430, 'JAJA HALL'], [240, -430, 'MOREMI HALL'], [160, -727, 'ELIAS HALL'], [240, -727, 'HONOURS HALL']]) { block(b, x, z, 52, 12, 4, { balconies: z > -600, mapC: '#e8c84a' }); ySign(ySignMat(name, '#2f5f9a', '#ffffff'), 8, 1, x, Y + 13.3, z + (z > -600 ? -6.1 : 6.1), z > -600 ? Math.PI : 0); }
+    // the sports centre: stands beside the track, goals on the pitch
+    b.box(60, 1.2, 4, UL_TRACK.x, Y + .6, UL_TRACK.z + 30, M.concrete, 1, true, 'house'); b.box(60, 1.2, 3, UL_TRACK.x, Y + 1.8, UL_TRACK.z + 32, M.concrete, 1, true, 'house'); b.box(62, .3, 7, UL_TRACK.x, Y + 6, UL_TRACK.z + 31, blueRoofM, 1, false);
+    for (const sx of [-1, 1]) { b.box(.15, 2.4, 7.3, UL_TRACK.x + sx * 30, Y + 1.2, UL_TRACK.z, whiteM, 1, false); b.box(.15, .15, 7.3, UL_TRACK.x + sx * 30, Y + 2.4, UL_TRACK.z, whiteM, 1, false); }
+    ySign(ySignMat('UNILAG SPORTS CENTRE', '#2f5f9a', '#ffffff'), 12, 1.3, UL_TRACK.x, Y + 7, UL_TRACK.z + 27.4, 0);
+    // the lagoon front: a promenade with lamps and benches, and a jetty
+    for (let z = -720; z <= -430; z += 24) { lampPost(b, UNILAG.lagoonX - 6, z, 1, 0); bench(b, UNILAG.lagoonX - 4, z + 12, Y, false); }
+    b.box(5, .4, 30, UNILAG.lagoonX + 14, Y - .5, -560, woodM, 1, true, 'roof');
+    for (let z = -575; z <= -545; z += 5) for (const s of [-2.2, 2.2]) b.box(.3, 4, .3, UNILAG.lagoonX + 14 + s, Y - 2.4, z, M.bark, 1, false);
+    for (let x = 130; x <= 270; x += 20) { palm(b, x, -453); palm(b, x, -707); }
+    for (let z = -560; z <= -460; z += 16) tree(b, 64, z);
+    b.build();
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(120, 420), new THREE.MeshLambertMaterial({ color: 0x3f7fb8, transparent: true, opacity: .8 }));
+    water.rotation.x = -Math.PI / 2; water.position.set(UNILAG.lagoonX + 60, WATER_Y, -560); scene.add(water);
+  }
+  // giant trees on the rest of the mainland (own seed): never on the districts, roads or the lagoon
+  { let n = 0;
+    for (let tries = 0; tries < 4000 && n < 70; tries++) {
+      const x = -HALF + 10 + rng() * (2 * HALF - 20), z = ZN + 10 + rng() * (ND - 30);
+      if (inYabaCore(x, z, 24) || inR(UNILAG, x, z, 24) || inR(YTECH, x, z, 24) || yRoadDist(x, z) < 14 || heightAt(x, z) < 3 || x > UNILAG.lagoonX - 10 && z < -390) continue;
+      if (TREES.some(t => Math.hypot(t.x - x, t.z - z) < 20)) continue;
+      const b = new Builder(), base = heightAt(x, z) - 1.5, w = Math.round(4 + rng() * 2.5), h = 52 + rng() * 32;
+      b.box(w, h, w, x, base + h / 2, z, M.bark, 2, true, 'trunk'); b.box(w + 2.5, 3.8, w + 2.5, x, base + 1.9, z, M.bark, 2, true, 'trunk');
+      b.box(14 + rng() * 6, 4 + rng() * 2, 14 + rng() * 6, x, base + h + 1, z, M.leaves, 2); b.box(9 + rng() * 4, 3 + rng() * 2, 9 + rng() * 4, x, base + h + 5.5, z, M.leaves, 2);
+      for (let k = 0; k < 2; k++) { const [dx, dz] = DIRS[Math.floor(rng() * 4)], by = base + h * (.45 + rng() * .4), L = 5 + rng() * 6; b.box(dx ? L : 1.6, 1.6, dz ? L : 1.6, x + dx * (w / 2 + L / 2), by, z + dz * (w / 2 + L / 2), M.bark, 2); b.box(7, 4, 7, x + dx * (w / 2 + L), by + 1.8, z + dz * (w / 2 + L), M.leaves, 2); }
+      b.build(); TREES.push({ x, z, w }); n++;
+    }
+  }
+  document.fonts?.ready.then(() => YSIGNS.forEach(f => f())).catch(() => {});
+
+  /* ---- people: Yaba's streets, the market, the motor park, the campuses; joggers on Yaba's sidewalks ---- */
+  for (let k = 0; k < 48; k++) makeCivilian(YABA, { adult: rng() < .85 });
+  for (let k = 0; k < 5; k++) makeCivilian(YABA, { adult: true, jog: true });
+  const [mx, mz] = lot(0, 0), MARKET = { x: mx, z: mz, y: Y, sand: [mx - 11, mx + 11, mz - 11, mz + 11], houses: [], civs: [], place: 'market' };
+  for (let k = 0; k < 16; k++) { const c = makeCivilian(MARKET, { adult: true }); if (k < 8) c.guard = true; }
+  const [px, pz] = lot(2, 0), PARK = { x: px, z: pz, y: Y, sand: [px - 12, px + 12, pz - 10, pz + 11], houses: [], civs: [], place: 'yaba' };
+  for (let k = 0; k < 8; k++) makeCivilian(PARK, { adult: true });
+  YABA.UNILAG = { x: 200, z: -510, y: Y, sand: [126, 274, -575, -452], houses: [], civs: [], place: 'campus' };
+  for (let k = 0; k < 34; k++) makeCivilian(YABA.UNILAG, { adult: true });
+  const T2 = { x: 200, z: -650, y: Y, sand: [UL_TRACK.x - 40, UL_TRACK.x + 40, UL_TRACK.z - 22, UL_TRACK.z + 22], houses: [], civs: [], place: 'campus' };
+  for (let k = 0; k < 6; k++) makeCivilian(T2, { adult: true });
+  YABA.YTECH = { x: -262, z: -495, y: Y, sand: [-330, -186, -510, -452], houses: [], civs: [], place: 'campus' };
+  for (let k = 0; k < 22; k++) makeCivilian(YABA.YTECH, { adult: true });
+
+  /* ---- traffic on Yaba's grid: danfos, kekes and cars ---- */
+  for (let k = 0; k < 20; k++) {
+    const id = k < 6 ? 'danfo' : k < 10 ? 'keke' : null, g = id === 'keke' ? makeKeke() : id ? makeModel(id) : makeMixed(); scene.add(g); beamsFor(g, 'car');
+    traffic.push({ g, T: YABA, axis: rng() < .5 ? 'x' : 'z', line: ri2(GRID), dir: ri2([-1, 1]), pos: (rng() - .5) * 140, speed: 0, cruise: 7 + rng() * 4, plan: null });
+  }
+});
 bakeProps();
 if (TOWN) { const [gx, gz] = blockAt('gas'); makeDrivable(gx + 8.5, gz + 1.5, Math.PI, 'bike'); makeDrivable(TOWN.x - 57, TOWN.z - 38 - 3.5, Math.PI / 2, 'bike'); }
 if (TOWN) for (const [lx, lz, yaw] of [[57, -38 + 3.5, -Math.PI / 2], [-57, 38 + 3.5, -Math.PI / 2], [19, 76 - 3.5, Math.PI / 2]]) makeDrivable(TOWN.x + lx, TOWN.z + lz, yaw);
@@ -5893,7 +6239,7 @@ function enterCar(c) {
       const civ = makeCivilian(TOWN); civ.g.position.set(x + 1.6, TOWN.y, z + 1.6);
     }
     const lk = !c.police && !c.ambulance && !c.fire && c.g.userData.lux;
-    c = { g: c.g, kind, lux: lk || undefined, luxName: lk ? LUX[lk].name : undefined, col: c.g.userData.col, police: !!c.police, ambulance: !!c.ambulance, fire: !!c.fire, x, z, y: TOWN.y, yaw: c.g.rotation.y, speed: 0, steer: 0, vy: 0, lean: 0 };
+    c = { g: c.g, kind, lux: lk || undefined, luxName: lk ? LUX[lk].name : undefined, col: c.g.userData.col, police: !!c.police, ambulance: !!c.ambulance, fire: !!c.fire, x, z, y: (c.T || TOWN).y, yaw: c.g.rotation.y, speed: 0, steer: 0, vy: 0, lean: 0 };
     DRIVABLES.push(c);
   }
   for (const h of hooks) h.state = 'idle';
@@ -5929,7 +6275,7 @@ function driveStep(dt) {
   c.yaw += (c.speed / V.wb) * Math.tan(c.steer) * dt;
   if (c.kind === 'bike') c.lean += (clamp(c.steer * Math.min(1, Math.abs(c.speed) / 12) * 1.1, -.55, .55) - c.lean) * Math.min(1, dt * 6);
   const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
-  const nx = clamp(c.x + fx * c.speed * dt, -BOUND, BOUND), nz = clamp(c.z + fz * c.speed * dt, -BOUND, BOUND);
+  const nx = clamp(c.x + fx * c.speed * dt, -BOUND, BOUND), nz = clamp(c.z + fz * c.speed * dt, ZLO, BOUND);
   // walls, trees, houses and water stop the car; kerbs and steps up to a block high do not
   let ok = carGround(nx, nz, c.yaw, V) <= c.y + 1.05 && heightAt(nx, nz) > 1;
   if (ok) for (const k of V.circles) {
@@ -6541,7 +6887,7 @@ function stepPlayer(dt) {
     else { p.z -= pz0; if (P.vel.z > 0) P.vel.z = 0; }
   }
   if (Math.abs(p.x) > BOUND) { p.x = Math.sign(p.x) * BOUND; P.vel.x = 0; }
-  if (Math.abs(p.z) > BOUND) { p.z = Math.sign(p.z) * BOUND; P.vel.z = 0; }
+  if (p.z > BOUND || p.z < ZLO) { p.z = clamp(p.z, ZLO, BOUND); P.vel.z = 0; }
   if (p.y < WATER_Y - .6) { P.vel.multiplyScalar(Math.exp(-4 * dt)); P.vel.y += 30 * dt; }
 }
 function playerTimers(dt) {
@@ -6735,12 +7081,13 @@ function updateHUD(dt) {
 
 /* ---------- minimap ---------- */
 const mm = $('minimap'), mg = mm.getContext('2d');
+const MAP_OY = YB ? ND : 0;   // the map image carries the mainland strip above the old map
 const mapImg = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'); const img = g.createImageData(N, N);
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-    const h = Hm[i * N + j], o = (j * N + i) * 4;
+  const c = document.createElement('canvas'); c.width = N; c.height = N + MAP_OY; const g = c.getContext('2d'); const img = g.createImageData(N, N + MAP_OY);
+  for (let i = 0; i < N; i++) for (let j = -MAP_OY; j < N; j++) {
+    const h = j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j], o = ((j + MAP_OY) * N + i) * 4;
     let r, gg, b;
-    const kd = KIND[i * N + j], k = h / 36;
+    const kd = j < 0 ? NKIND[i * ND + j + ND] : KIND[i * N + j], k = h / 36;
     if (h <= 1) { r = 58; gg = 120; b = 190; }
     else if (kd === 2) { r = 236; gg = 240; b = 242; }
     else if (kd === 3) { r = 120 + k * 40; gg = 122 + k * 40; b = 124 + k * 40; }
@@ -6752,6 +7099,8 @@ const mapImg = (() => {
     img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = 255;
   }
   g.putImageData(img, 0, 0);
+  g.translate(0, MAP_OY);   // everything below is drawn in old-map coordinates
+  for (const [x, z, w, d, col] of YABA_MAP) { g.fillStyle = col; g.fillRect(x + HALF - w / 2, z + HALF - d / 2, w, d); }
   g.fillStyle = '#2f5d22';
   for (const t of TREES) { g.beginPath(); g.arc(t.x + HALF, t.z + HALF, 6, 0, TAU); g.fill(); }
   g.fillStyle = '#8b8f90'; for (const [x, z] of RUINS) g.fillRect(x + HALF - 6, z + HALF - 1.5, 12, 3);
@@ -6769,7 +7118,7 @@ function drawMinimap() {
   mg.beginPath(); mg.arc(W / 2, W / 2, W / 2, 0, TAU); mg.clip();
   mg.fillStyle = '#5f9a3c'; mg.fillRect(0, 0, W, W);
   mg.imageSmoothingEnabled = false;
-  mg.drawImage(mapImg, P.pos.x + HALF - h, P.pos.z + HALF - h, MAP_SPAN, MAP_SPAN, 0, 0, W, W);
+  mg.drawImage(mapImg, P.pos.x + HALF - h, P.pos.z + HALF + MAP_OY - h, MAP_SPAN, MAP_SPAN, 0, 0, W, W);
   const toM = (x, z) => [(x - P.pos.x + h) * sc, (z - P.pos.z + h) * sc];
   mg.strokeStyle = 'rgba(242,194,48,.9)'; mg.lineWidth = 1.5; mg.fillStyle = 'rgba(242,194,48,.16)';
   for (const i of forSale()) if (i.ok && !LAND.plots.has(i.key) && Math.abs(i.r.cx - P.pos.x) < h + PLOT && Math.abs(i.r.cz - P.pos.z) < h + PLOT) { const [a, b] = toM(i.r.x0, i.r.z0); mg.fillRect(a, b, PLOT * sc, PLOT * sc); mg.strokeRect(a, b, PLOT * sc, PLOT * sc); }
@@ -6800,8 +7149,9 @@ function toggleBigMap(force) {
   if (!el.hidden) { bigMapT = 0; drawBigMap(); }
 }
 function drawBigMap() {
-  const W = bmC.width, sc = W / N, toB = (x, z) => [(x + HALF) * sc, (z + HALF) * sc];
-  bg2.imageSmoothingEnabled = false; bg2.drawImage(mapImg, 0, 0, W, W);
+  const W = bmC.width, sc = W / (N + MAP_OY), ox = (W - N * sc) / 2, toB = (x, z) => [ox + (x + HALF) * sc, (z + HALF + MAP_OY) * sc];   // the whole world, mainland included, fitted to the height
+  bg2.fillStyle = '#3a6a2a'; bg2.fillRect(0, 0, W, W);
+  bg2.imageSmoothingEnabled = false; bg2.drawImage(mapImg, ox, 0, N * sc, (N + MAP_OY) * sc);
   bg2.fillStyle = 'rgba(10,14,9,.18)'; bg2.fillRect(0, 0, W, W);
   const label = (text, x, z, size = 15, color = '#f1ebda', dy = 0) => {
     const [bx, by] = toB(x, z); bg2.font = `700 ${size}px 'Barlow Condensed', 'Arial Narrow', sans-serif`; bg2.textAlign = 'center'; bg2.textBaseline = 'middle';
@@ -6846,6 +7196,11 @@ function drawBigMap() {
   if (AP && AP.showSlots && AP.showSlots.length) { const q = AP.showSlots[Math.floor(AP.showSlots.length / 4)]; label('🚗 32 cars to drive', q[0], q[1], 12, '#f2c230', -10); }
   if (RR.car && P.driving !== RR.car) { const [bx, by] = toB(RR.car.x, RR.car.z); bg2.fillStyle = '#9fe0ff'; bg2.beginPath(); bg2.arc(bx, by, 4, 0, TAU); bg2.fill(); label('✦ Range Rover', RR.car.x, RR.car.z, 12, '#9fe0ff', 12); }   // the rare car, wherever it was left
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
+  if (YB) {   // the mainland
+    label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
+    label('UNIVERSITY OF LAGOS', (UNILAG.x0 + UNILAG.lagoonX) / 2, UNILAG.z0 + 30, 15, '#ffb0b0'); label('Senate', 160, -514, 11, '#ffffff'); label('Lagoon', UNILAG.lagoonX + 30, -560, 12, '#bfe3ff');
+    label('YABATECH', (YTECH.x0 + YTECH.x1) / 2, YTECH.z0 - 10, 15, '#bfe3ff'); label('To the city', -6, -300, 11, '#f1ebda');
+  }
   for (const E of ESTATES) { label(E.short.toUpperCase(), E.x, E.z, 15, '#bfe3ff', E.avenue.axis === 'x' ? -E.d * sc / 2 - 9 : 0); if (E.avenue.axis === 'z') label('ESTATE', E.x, E.z + 18, 13, '#bfe3ff'); }
   for (const p of PICKUPS) { const [x, y] = toB(p.x, p.z); bg2.fillStyle = '#b98a52'; bg2.strokeStyle = '#fff'; bg2.lineWidth = 1.5; bg2.fillRect(x - 6, y - 5, 12, 10); bg2.strokeRect(x - 6, y - 5, 12, 10); }
   { const jt = jobTarget(); if (jt) { const [x, y] = toB(jt[0], jt[1]); bg2.fillStyle = jt[2]; bg2.strokeStyle = '#1b1608'; bg2.lineWidth = 2; bg2.beginPath(); bg2.arc(x, y, 10, 0, TAU); bg2.fill(); bg2.stroke(); label(JOBS.del ? `Parcel: ${JOBS.del.who}` : JOBS.boat.next < 3 ? `Buoy ${JOBS.boat.next + 1}` : 'Back to the jetty', jt[0], jt[1], 13, jt[2], -18); } }
