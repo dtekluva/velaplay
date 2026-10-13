@@ -71,13 +71,20 @@ The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). I
 - **Start screen:** a *Play online* panel to sign in, create an account, play as a guest, or make your scout.
 - **Character creator:** body, build, skin, twelve hair styles, hair colour, outfit (jacket, T-shirt or dress) and colours, trousers, shoes, hat and sunglasses, with a turning 3D preview.
 - **In the world:** joining when you Deploy, sending your position 20 times a second (only when it changes), and drawing other players as real figures in their look, with name tags. Their car, boat, plane or motorbike is drawn too, from the same models as yours. Movement is smoothed, and they snap after long jumps.
-- **Chat:** Enter to chat (Chat in the ••• menu on touch), with messages in a log and as speech bubbles.
+- **Chat:** Enter to chat, with messages in a log and as speech bubbles.
+- **Touch screens** get an online dock on the right while playing online:
+  - **💬 Chat** opens a chat bar at the top of the screen, clear of the keyboard, with **Send** and **✕**.
+  - **🎧 Voice** turns voice on or off.
+  - A big **🎙 Hold** button appears while voice is on, and turns red while you're talking.
+- **Mobile viewport:** the page carries a `viewport` meta tag, so phones get the touch layout at real size instead of a shrunken desktop page.
 - **Proximity voice:**
   - **Connections:** players' browsers connect directly over WebRTC, with the server only passing the handshake along, to other voice players within 35 m. They hang up past 45 m. Each player's messages are handled in order, so the call is set up before its ICE candidates arrive.
   - **Sound:** each voice plays through a 3D panner at the speaker's head, so it fades with distance and comes from their direction.
   - **Off by default:** **J** joins voice (listen only). **Hold Z** to talk, which uses push-to-talk and asks for the microphone on first use. Touch gets a hold-to-talk button and *Voice chat* in the ••• menu.
   - **Speaking indicator:** players who are talking show a 🔊 above their heads.
   - **Network fallback:** Google's public STUN, then our TURN relay, addressed by IP (`46.101.63.217`) so phones don't need a DNS lookup.
+  - **Its own audio context** (`VOICE.ac`): the game suspends its sound while paused (for example when the window loses focus), and voices must keep playing.
+  - **Phones release the microphone** 1.5 s after you let go of talk. An open mic makes iPhones play call audio through the quiet earpiece; releasing it puts sound back on the loudspeaker.
   - **Phones and tablets** play each voice straight through an `<audio>` element. Web Audio from a call stream is silent on many of them, iOS Safari especially. Volume follows distance where the browser allows it (iOS doesn't), and there's no 3D panning. Computers keep the 3D panner.
   - **Silent until a tap:** if the browser blocks sound, the game says *Tap the screen*, and any tap restarts the voices and wakes the audio.
   - **Status:** a toast says when your voice links with a nearby scout, or if it couldn't connect.
@@ -88,6 +95,31 @@ The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). I
 On pages that can't reach the server (the claude.ai artifact blocks all outside connections), the panel links to the online address and the game stays single-player.
 
 `ops/build-client.sh` copies the game into `server/public/index.html`, and `ops/deploy.sh` runs it automatically.
+
+## How many players it handles
+
+Load test (`ops/loadtest.js`), 13 October 2026, on the $24 Droplet (2 vCPU, 4 GB). Simulated players joined one room and each sent a move 10 times a second:
+
+| Players in the room | Server CPU (of one core) | Memory | Updates/s | Your move back to you (avg / p95) |
+|---|---|---|---|---|
+| 23 | ~8% | 28 MB | 19.8 | 201 / 222 ms |
+| 43 | ~12% | 35 MB | 19.2 | 206 / 233 ms |
+| 63 | ~15% | 47 MB | 19.5 | 212 / 244 ms |
+| 83 | ~16–25% | 60 MB | 19.7 | 209 / 248 ms |
+
+- **Latency:** the ~200 ms is mostly the distance from the tester to London plus the 50 ms update interval. It barely moved with load.
+- **Bandwidth:** at 80 players the server sent about 1.4 MB/s, roughly 17 KB/s to each player. That grows with the square of the players in a room.
+- **Limits:**
+  - **One room** holds 100 players (`maxClients`); more players open another room, a separate copy of the world.
+  - **Raising the cap:** CPU would allow a few hundred per room, but bandwidth is the real limit. Above about 100 in one world, add interest management (only send players near you).
+  - **The whole Droplet** should handle several full rooms, roughly 300–500 players online at once, before needing a bigger machine.
+- **Voice** is peer to peer, so it doesn't load the server. Each phone connects to the voice players within 35 m, and that's comfortable up to about 6–8 at once. The TURN relay only carries players whose networks block direct connections, at about 50 kbit/s per stream.
+
+To run it again (bots join far from the start, walk about, then leave):
+
+```bash
+mkdir -p /tmp/lt && cd /tmp/lt && npm i colyseus.js@0.15.28 && cp <repo>/ops/loadtest.js . && node loadtest.js 20,40,60,80 30
+```
 
 ## Working on it
 

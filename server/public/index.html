@@ -6,6 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Giantwood Scouts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -121,7 +122,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 #tc{position:absolute;inset:0;touch-action:none;display:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.touch #tc{display:block}
 body.touch #hud *{pointer-events:none}
-body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *{pointer-events:auto}
+body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *{pointer-events:auto}
 body.touch #tc .stick,body.touch #tc .knob{pointer-events:none}
 body.touch #help{display:none!important}
 #helpTab{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:5px 10px;background:var(--panel);border:1px solid var(--edge);color:var(--brass);font:700 12px/1 inherit;letter-spacing:.06em;cursor:pointer;pointer-events:auto;opacity:.75}
@@ -212,7 +213,20 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 #chatLog .chathead{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass);font-weight:700}
 #chatLog .chatline{background:rgba(16,20,15,.55);padding:3px 8px;align-self:flex-start;max-width:100%;overflow-wrap:anywhere}
 #chatLog b{color:var(--brass)}
-#chatIn{position:absolute;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(560px,90vw);font:17px var(--ui);padding:10px 14px;background:rgba(10,14,9,.92);color:var(--ink);border:1px solid var(--brass);outline:none;pointer-events:auto}
+#chatBar{position:absolute;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(600px,92vw);display:flex;gap:6px;pointer-events:auto;z-index:30}
+#chatIn{flex:1;min-width:0;font:17px var(--ui);padding:10px 14px;background:rgba(10,14,9,.92);color:var(--ink);border:1px solid var(--brass);outline:none}
+#chatBar button{font:600 15px var(--ui);padding:0 14px;border:1px solid var(--brass);background:rgba(214,174,95,.9);color:#1b1608;cursor:pointer}
+#chatBar #chatX{background:rgba(10,14,9,.92);color:var(--ink);padding:0 12px}
+body.touch #chatBar{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
+#chatBar{background:rgba(10,14,9,.94);padding:4px;border-radius:4px}
+body.touch #chatLog{top:calc(256px + env(safe-area-inset-top,0px));width:min(290px,62vw);font-size:14px}
+#odock{position:absolute;right:calc(10px + env(safe-area-inset-right,0px));top:calc(232px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:auto;z-index:20}
+body:not(.touch) #odock{display:none}
+#odock .dk{width:58px;height:58px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;line-height:1;background:rgba(20,24,28,.72);border:1px solid rgba(214,174,95,.7);color:#f2ead6;user-select:none;-webkit-user-select:none;touch-action:none}
+#odock .dk small{font:600 10px var(--ui);letter-spacing:.04em;margin-top:3px;text-transform:uppercase}
+#odock .dk.on{background:rgba(62,232,255,.85);color:#06222a;border-color:#3ee8ff}
+#odock .dk.talk{width:76px;height:76px;font-size:30px;background:rgba(214,174,95,.9);color:#1b1608}
+#odock .dk.talk.live{background:#e5372b;color:#fff;border-color:#fff;box-shadow:0 0 0 6px rgba(229,55,43,.35)}
 .note{font-size:14px;color:var(--muted)}
 .best{font-size:15px;color:var(--muted)}
 
@@ -248,7 +262,8 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
     </div>
     <div id="toast"><div class="big" id="toastBig"></div><div class="small" id="toastSmall"></div></div>
     <div id="chatLog" hidden></div>
-    <input id="chatIn" type="text" maxlength="160" placeholder="Say something · Enter to send · Esc to cancel" autocomplete="off" hidden>
+    <div id="chatBar" hidden><input id="chatIn" type="text" maxlength="160" placeholder="Say something" enterkeyhint="send" autocomplete="off"><button id="chatSend" type="button">Send</button><button id="chatX" type="button" aria-label="Close chat">✕</button></div>
+    <div id="odock" hidden><div class="dk" id="dkChat" aria-label="Chat">💬<small>Chat</small></div><div class="dk" id="dkVoice" aria-label="Voice chat">🎧<small>Voice</small></div><div class="dk talk" id="dkTalk" aria-label="Hold to talk" hidden>🎙<small>Hold</small></div></div>
     <div id="prompt" hidden></div>
     <div id="hurt"></div>
     <div class="vitals">
@@ -6861,7 +6876,6 @@ function touchOn() {
     ['THR +', 'KeyW', true, 'fly', 4, 90], ['THR −', 'KeyS', true, 'fly', 76, 76],
     ['BLADE', 'KeyL', false, 'dozer', 88, 2],
     ['USE', 'KeyE', false, 'use', 0, 168, 'pill'],
-    ['🎙 TALK', 'KeyZ', true, 'voice', 0, 280, 'pill sim'],
     ['SIM VIEW', 'KeyK', false, 'indoor', 0, 224, 'pill sim'],
   ];
   for (const [label, key, hold, group, r, b, cls] of B) {
@@ -6959,6 +6973,7 @@ function updateTouch() {
   }
   const groups = { dozer: playing && d?.kind === 'dozer', foot: playing && !d, ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: playing && !d && !firstPerson && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y) };
   for (const el of $('tc').querySelectorAll('.pad .b')) { const g = el.dataset.group; if (g !== 'use') el.hidden = !groups[g]; }
+  const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
   let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish/.test(txt) ? 'HOME' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
@@ -8200,24 +8215,45 @@ function chatIn(m) {
 }
 function renderChat() {
   const el = $('chatLog'); if (!el) return; el.innerHTML = '';
-  const head = document.createElement('div'); head.className = 'chathead'; head.textContent = NET.room ? `🌐 Online · ${NET.room.state.players.size} in this world · Enter to chat · ` + (VOICE.on ? (VOICE.talking ? '🔴 talking' : `🎙 voice on (${VOICE.peers.size} near) · hold ${TOUCH.on ? 'TALK' : 'Z'} to talk`) : 'J for voice') : ''; el.append(head);
+  const head = document.createElement('div'); head.className = 'chathead'; head.textContent = NET.room ? `🌐 Online · ${NET.room.state.players.size} in this world · ${TOUCH.on ? '💬 to chat' : 'Enter to chat'} · ` + (VOICE.on ? (VOICE.talking ? '🔴 talking' : `🎙 voice on (${VOICE.peers.size} near) · hold ${TOUCH.on ? 'TALK' : 'Z'} to talk`) : 'J for voice') : ''; el.append(head);
   for (const m of NET.chatLog) { const d = document.createElement('div'); d.className = 'chatline'; const b = document.createElement('b'); b.textContent = m.from + ': '; d.append(b, document.createTextNode(m.text)); el.append(d); }
   el.hidden = !NET.room;
 }
 const chatStatus = () => renderChat();
 function openChat() {
-  if (!NET.room) return; const box = $('chatIn'); box.hidden = false; box.value = ''; box.focus();
+  if (!NET.room) return; $('chatBar').hidden = false; const box = $('chatIn'); box.value = ''; box.focus();
   for (const k in keys) keys[k] = false;
 }
-function closeChat() { const box = $('chatIn'); box.hidden = true; box.blur(); }
+function closeChat() { $('chatBar').hidden = true; $('chatIn').blur(); }
+function sendChat() { const t = $('chatIn').value.trim(); if (t && NET.room) NET.room.send('chat', { text: t }); closeChat(); }
+for (const [id, fn] of [['chatSend', sendChat], ['chatX', closeChat]]) for (const ev of ['touchstart', 'mousedown']) $(id).addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); fn(); }, { passive: false });
+// the online dock (touch screens): chat, voice on/off, and a big hold-to-talk button
+function renderDock() {
+  const v = $('dkVoice'), t = $('dkTalk'); if (!v) return;
+  v.classList.toggle('on', VOICE.on); v.querySelector('small').textContent = VOICE.on ? 'Voice on' : 'Voice';
+  t.hidden = !VOICE.on; t.classList.toggle('live', VOICE.talking); t.querySelector('small').textContent = VOICE.talking ? 'Talking' : 'Hold';
+}
+(() => {
+  const tap = (id, fn) => {
+    const go = e => { e.preventDefault(); e.stopPropagation(); try { navigator.vibrate?.(8); } catch (x) {} fn(); };
+    if ('ontouchstart' in window) $(id).addEventListener('touchstart', go, { passive: false });   // touch screens: the game's own touch handling would swallow pointer events
+    $(id).addEventListener('pointerdown', e => { if (e.pointerType === 'touch' && 'ontouchstart' in window) return; go(e); });
+  };
+  tap('dkChat', () => openChat()); tap('dkVoice', () => voiceToggle());
+  const t = $('dkTalk'), on = e => { e.preventDefault(); e.stopPropagation(); try { navigator.vibrate?.(12); } catch (x) {} voiceTalk(true); }, off = e => { e && e.preventDefault(); voiceTalk(false); };
+  if ('ontouchstart' in window) { t.addEventListener('touchstart', on, { passive: false }); t.addEventListener('touchend', off, { passive: false }); t.addEventListener('touchcancel', () => off()); }
+  else { t.addEventListener('pointerdown', on); t.addEventListener('pointerup', off); t.addEventListener('pointerleave', () => VOICE.talking && off()); }
+})();
 $('chatIn').addEventListener('keydown', e => {
   e.stopPropagation();
-  if (e.key === 'Enter') { const t = e.target.value.trim(); if (t && NET.room) NET.room.send('chat', { text: t }); closeChat(); e.preventDefault(); }
+  if (e.key === 'Enter') { sendChat(); e.preventDefault(); }
   else if (e.key === 'Escape') { closeChat(); e.preventDefault(); }
 });
 // ---- proximity voice: WebRTC between nearby players (the game server only passes the handshake along), heard from where
 // they stand. Off by default: J turns it on (you hear scouts near you), hold Z to talk (push-to-talk). ----
-const VOICE = { on: false, mic: null, talking: false, peers: new Map(), ice: null, iceT: 0, scanT: 0, NEAR: 35, FAR: 45 };
+const VOICE = { on: false, mic: null, talking: false, peers: new Map(), ice: null, iceT: 0, scanT: 0, NEAR: 35, FAR: 45, ac: null, micOffT: 0 };
+// voices get their own audio context: the game's sound is suspended while paused, and voices must keep playing
+function voiceAC() { if (!VOICE.ac) try { VOICE.ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { VOICE.ac = null; } if (VOICE.ac && VOICE.ac.state !== 'running') VOICE.ac.resume?.(); return VOICE.ac; }
 async function voiceIce() {
   if (VOICE.ice && Date.now() < VOICE.iceT) return VOICE.ice;
   const list = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -8227,11 +8263,11 @@ async function voiceIce() {
 function voiceToggle() {
   if (!NET.room) { toast('', 'Voice chat is for the shared world: join online first'); return; }
   if (!window.RTCPeerConnection) { toast('', 'This browser can’t do voice chat'); return; }
-  VOICE.on = !VOICE.on; VOICE.talking = false;
+  VOICE.on = !VOICE.on; VOICE.talking = false; if (VOICE.on) voiceAC();
   NET.room.send('voice', { on: VOICE.on, talk: false });
   if (!VOICE.on) { for (const id of [...VOICE.peers.keys()]) peerClose(id); if (VOICE.mic) { VOICE.mic.getTracks().forEach(t => t.stop()); VOICE.mic = null; } }
-  toast(VOICE.on ? '🎙 Voice on' : 'Voice off', VOICE.on ? `You hear scouts near you. Hold ${TOUCH.on ? 'TALK' : 'Z'} to talk` : 'Nobody can hear you');
-  renderChat();
+  toast(VOICE.on ? '🎙 Voice on' : 'Voice off', VOICE.on ? `You hear scouts near you. Hold ${TOUCH.on ? '🎙' : 'Z'} to talk` : 'Nobody can hear you');
+  renderChat(); renderDock();
 }
 async function ensureMic() {
   if (VOICE.mic) return VOICE.mic;
@@ -8244,9 +8280,15 @@ async function ensureMic() {
 function voiceTalk(down) {
   if (!VOICE.on || VOICE.talking === down) return;
   VOICE.talking = down; NET.room && NET.room.send('voice', { on: true, talk: down });
+  clearTimeout(VOICE.micOffT); voiceUnlock();
   if (down) ensureMic().then(m => { if (m) m.getAudioTracks()[0].enabled = VOICE.talking; });
-  else if (VOICE.mic) VOICE.mic.getAudioTracks()[0].enabled = false;
-  renderChat();
+  else if (VOICE.mic) {
+    VOICE.mic.getAudioTracks()[0].enabled = false;
+    // an open mic makes iPhones play call audio through the quiet earpiece: phones release it shortly after you stop talking
+    if (voiceOnPhone()) VOICE.micOffT = setTimeout(() => { if (VOICE.talking || !VOICE.mic) return; VOICE.mic.getTracks().forEach(t => t.stop()); VOICE.mic = null;
+      for (const p of VOICE.peers.values()) if (p.sender) p.sender.replaceTrack(null).catch(() => {}); voiceUnlock(); }, 1500);
+  }
+  renderChat(); renderDock();
 }
 async function peerOpen(id, initiator) {
   const p = { id, pc: null, sender: null, pending: [], el: null, src: null, panner: null, gain: null };
@@ -8273,18 +8315,19 @@ function peerAudio(p, stream) {
   if (p.el) return;
   const el = p.el = document.createElement('audio'); el.autoplay = true; el.playsInline = true; el.setAttribute('playsinline', ''); el.hidden = true;
   el.srcObject = stream; document.body.appendChild(el);
-  if (AC && !voiceOnPhone()) {
+  const A = !voiceOnPhone() && voiceAC();
+  if (A) {
     el.muted = true;   // the element only keeps the stream flowing in Chrome; the sound comes out of the panner
-    p.src = AC.createMediaStreamSource(stream); p.panner = AC.createPanner(); p.gain = AC.createGain();
+    p.src = A.createMediaStreamSource(stream); p.panner = A.createPanner(); p.gain = A.createGain();
     Object.assign(p.panner, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 4, maxDistance: 60, rolloffFactor: 1.3 });
-    p.src.connect(p.panner).connect(p.gain).connect(AC.destination);
+    p.src.connect(p.panner).connect(p.gain).connect(A.destination);
   } else el.muted = false;
   el.play().catch(() => { if (!VOICE.blocked) { VOICE.blocked = true; toast('🔊 Tap the screen', 'to hear the scouts near you'); } });
 }
 // browsers only start sound after a tap: any tap retries the voices and wakes the audio (iOS suspends it when the mic starts)
 function voiceUnlock() {
   if (!VOICE.on) return;
-  if (AC && AC.state !== 'running' && mode === 'play') AC.resume?.();
+  if (VOICE.ac && VOICE.ac.state !== 'running') VOICE.ac.resume?.();
   for (const p of VOICE.peers.values()) if (p.el && p.el.paused) p.el.play().then(() => { VOICE.blocked = false; }).catch(() => {});
 }
 for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, voiceUnlock, { capture: true, passive: true });
@@ -8321,12 +8364,12 @@ async function handleRtc(m) {
 function updateVoice(dt) {
   const room = NET.room; if (!room || !VOICE.on) return;
   for (const p of VOICE.peers.values()) if (p.el && !p.panner) { const r = NET.others.get(p.id); if (r) p.el.volume = clamp(1.25 - Math.hypot(r.x - P.pos.x, r.z - P.pos.z) / 32, 0, 1); }   // phones: louder up close (iOS ignores this)
-  if (AC) placeVoices();
+  if (VOICE.ac) placeVoices();
   voiceScan(dt);
 }
 function placeVoices() {
   // place each voice where its scout is, and the listener at the camera
-  const L = AC.listener, f = camDir(tmpC), t = AC.currentTime;
+  const A = VOICE.ac, L = A.listener, f = camDir(tmpC), t = A.currentTime;
   if (L.positionX) { L.positionX.setTargetAtTime(camera.position.x, t, .05); L.positionY.setTargetAtTime(camera.position.y, t, .05); L.positionZ.setTargetAtTime(camera.position.z, t, .05);
     L.forwardX.setTargetAtTime(f.x, t, .05); L.forwardY.setTargetAtTime(f.y, t, .05); L.forwardZ.setTargetAtTime(f.z, t, .05); L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
   else { L.setPosition(camera.position.x, camera.position.y, camera.position.z); L.setOrientation(f.x, f.y, f.z, 0, 1, 0); }
