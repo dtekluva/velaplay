@@ -415,8 +415,8 @@ $('app').prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const SKY = 0xbfd5d0;
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, LITE ? 28 : 34, LITE ? 84 : 109);   // draw distance cut by 30% (was 40-120 / 48-156)
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, LITE ? 90 : 118);   // just past the fog, so hidden things are culled
+scene.fog = new THREE.Fog(SKY, LITE ? 34 : 41, LITE ? 101 : 131);   // draw distance: cut 30%, then back up 20% (smooth on a Pixel 8)
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, LITE ? 108 : 142);   // just past the fog, so hidden things are culled
 
 const hemi = new THREE.HemisphereLight(0xe2eff2, 0x587538, 0.78); scene.add(hemi);
 // a warm glow that follows the scout after dark, and a headlight for whatever you are driving
@@ -4143,7 +4143,7 @@ function updateCivilians(dt) {
     if (c.riding) continue;   // in your taxi
     const g = c.g, px = g.position.x, pz = g.position.z;
     const dd = Math.hypot(px - P.pos.x, pz - P.pos.z);
-    c.active = dd < 96 || mode === 'title';   // past the fog: not drawn, not animated
+    c.active = dd < 115 || mode === 'title';   // past the fog: not drawn, not animated
     g.visible = c.active;
     if (dd > DETAIL.drop) dropDetail(c);
     else if (c.active) { if (dd < DETAIL.near && (c.hi || DETAIL.budget-- > 0)) setDetail(c, true); else if (dd > DETAIL.far) setDetail(c, false); }
