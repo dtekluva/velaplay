@@ -3423,6 +3423,77 @@ const BODY_F = { slim: { sh: .97, chest: .96, waist: .93, hip: .97, glute: 1.1, 
 const BODY_M = { slim: { sh: .96, chest: .94, waist: .94, hip: .96, thigh: .94, arm: .92 }, fit: { sh: 1.1, chest: 1.1, waist: .93, hip: .98, glute: 1.25, pec: 2.2, thigh: 1.07, arm: 1.16 },
   big: { sh: 1.06, chest: 1.12, waist: 1.22, hip: 1.12, glute: 1.2, thigh: 1.1, arm: 1.1, belly: .045 } };
 function bodyType(S, fem) { const d = { sh: 1, chest: 1, waist: 1, hip: 1, glute: 1, bust: 1, pec: 1, thigh: 1, arm: 1, belly: 0 }; return S.child || S.titan ? d : { ...d, ...((fem ? BODY_F : BODY_M)[S.body] || {}) }; }
+/* ---------- hair with volume: strands, partings and fades painted along the cap, and per style real shape: box braids and locs
+   hanging from the scalp, a coily afro, curtains of long hair and bobs, a tapered ponytail, a wrapped bun, a crown of curls.
+   Head-local units: the skull is centred at (0, .15, 0), front toward -z. ---------- */
+const HAIR_VOLUME = false;   // the new hair (braids, afro, curtains, ponytail…): on once approved
+function hairShade(hair, st, skin) {
+  const base = new THREE.Color(hair), sk = new THREE.Color(skin || '#6e4a32').multiplyScalar(.7), out = new THREE.Color();
+  return (x, y, z) => {
+    const a = Math.atan2(x, z);
+    let k = 1 + .09 * Math.sin(a * 26 + y * 44) + .05 * Math.sin(a * 63 - y * 17);
+    if (st === 'braids' && y > .16) k *= Math.cos(x * 95) > .78 ? .55 : 1.05;   // cornrow partings, front to back
+    out.copy(base).multiplyScalar(k);
+    if (st === 'fade') out.lerp(sk, clamp((.215 - y) / .075, 0, 1) * .6);       // a fade: skin shows through low on the sides
+    return '#' + out.getHexString();
+  };
+}
+function hairTube(a, c, r1, r2, seg = 6) {   // a tapered tube between two points [x, y, z]
+  const A = new THREE.Vector3(...a), C = new THREE.Vector3(...c), d = C.clone().sub(A), len = d.length(); d.normalize();
+  const g = new THREE.CylinderGeometry(r2, r1, len, FIG_LOD ? 4 : seg, 1), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+  return g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q)).translate((A.x + C.x) / 2, (A.y + C.y) / 2, (A.z + C.z) / 2);
+}
+// a curtain of hair round the back of the head: angle a (0 at the back, +-PI at the front), rows from the top down
+function hairCurtain(a0, a1, ys, rAt, bottomAt, nu = 22) {
+  const pos = [], idx = [], cols = nu + 1;
+  ys.forEach(y0 => { for (let i = 0; i <= nu; i++) { const a = a0 + (a1 - a0) * i / nu, y = Math.max(y0, bottomAt ? bottomAt(a) : -9), r = rAt(y, a); pos.push(Math.sin(a) * r, y, Math.cos(a) * r * 1.04 + .006); } });
+  for (let j = 0; j < ys.length - 1; j++) for (let i = 0; i < nu; i++) { const p = j * cols + i; idx.push(p, p + cols, p + 1, p + 1, p + cols, p + cols + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const n = g.attributes.normal, p0 = g.attributes.position, k = Math.floor(p0.count / 2);
+  if (n.getX(k) * p0.getX(k) + n.getZ(k) * p0.getZ(k) < 0) { const ix = g.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i]; ix[i] = ix[i + 2]; ix[i + 2] = t; } g.computeVertexNormals(); }
+  return g;
+}
+function hairVolume(h, st, hair, Fm, skin) {
+  const shade = hairShade(hair, st, skin), add = g => h.raw(paintGeo(g, shade, .02)), rnd = (a, b) => a + Math.random() * (b - a);
+  const headR = y => { const t = (y - .15) / .134; return Math.sqrt(Math.max(0, 1 - t * t)) * (.112 - .005 * Fm) + .012; };   // the skull's radius at a height, plus a little volume
+  if (st === 'long' || st === 'bob') {
+    // a curved hem (longest at the back), and ends that turn in at the bottom
+    const long = st === 'long', A = long ? 1.95 : 2.3, ys = long ? [.25, .21, .17, .12, .07, .02, -.04, -.1, -.16, -.22, -.26, -.27] : [.25, .21, .17, .12, .08, .055, .035, .02, .015];
+    const hem = a => { const s = Math.abs(a), u = (s / A) ** 2; return long ? (s > 1.25 ? -.27 + (s - 1.25) / .7 * .28 : -.27 + .05 * u) : .015 + .035 * u; };
+    add(hairCurtain(-A, A, ys, (y, a) => { const h0 = hem(a), curl = y <= h0 + .004 ? .018 : 0; return Math.max(headR(Math.max(y, .07)), .1) + Math.max(0, .1 - y) * (long ? .12 : .2) + .004 * Math.sin(a * 9) - curl; }, hem, 28));
+    if (!long) add(hairCurtain(Math.PI - .55, Math.PI + .55, [.272, .25, .225, .205], (y) => headR(y) + .006));   // the fringe
+  }
+  if (st === 'ponytail') {
+    h.add(new THREE.TorusGeometry(.028, .009, 6, 14).rotateX(-.6), 0, .218, .118, shadeOf(hair, .6), 0);   // the tie
+    for (let k = 0; k < 7; k++) { const r = .04 - .0038 * k; h.sph(r, r * 1.25, r, (Math.sin(k * .7) * .006), .205 - .042 * k, .14 + .028 * k - .0028 * k * k, shadeOf(hair, 1 - k * .03), .02, { w: 10, h: 8 }); }
+  }
+  if (st === 'bun') { h.sph(.058, .05, .056, 0, .282, .075, hair, .02, { w: 14, h: 10 }); h.add(new THREE.TorusGeometry(.046, .013, 7, 18).rotateX(Math.PI / 2 - .5), 0, .262, .08, shadeOf(hair, .82), .02); }
+  if (st === 'afro') {   // a coily dome, tilted so it frames the face
+    const g = new THREE.SphereGeometry(1, FIG_LOD ? 12 : 34, FIG_LOD ? 8 : 24, 0, TAU, 0, Math.PI * .62), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), th = Math.acos(clamp(y, -1, 1)) / Math.PI, tuck = 1 - .34 * smooth(.38, .62, th), n = (1 + .04 * Math.sin(x * 23) * Math.sin(y * 19 + 1) * Math.sin(z * 29 + 2) + .035 * (Math.random() - .5)) * tuck; p.setXYZ(i, x * n, y * n, z * n); }   // a fuzzy, uneven surface whose rim curves in to hug the hairline
+    g.scale(.18 - .008 * Fm, .168, .185).rotateX(.3).translate(0, .205, .03); g.computeVertexNormals();
+    h.raw(paintGeo(g, () => shadeOf(hair, .72 + Math.random() * .5), .02));   // coils catch the light unevenly
+  }
+  if (st === 'curly') for (let k = 0; k < 46; k++) {   // a crown of small curls over the cap
+    const th = Math.acos(1 - Math.random() * .8), ph = Math.random() * TAU, dx = Math.sin(th) * Math.sin(ph), dy = Math.cos(th), dz = Math.sin(th) * Math.cos(ph);
+    if (dz < -.45 && dy < .55) continue;   // keep the forehead clear
+    h.sph(rnd(.022, .03), rnd(.02, .027), rnd(.022, .03), dx * .118, .15 + dy * .142, dz * .126, shadeOf(hair, rnd(.8, 1.15)), 0, { w: 7, h: 5 });
+  }
+  if (st === 'messy') for (let k = 0; k < 12; k++) h.sph(.03, .045, .03, rnd(-.09, .09), .27 + rnd(-.01, .02), rnd(-.07, .1), shadeOf(hair, rnd(.85, 1.1)), 0, { w: 8, h: 6 });
+  if (st === 'braids' || st === 'locs') {   // box braids (thin, long, many) or locs (thicker, shorter), hanging from the scalp
+    const braids = st === 'braids', n = braids ? (FIG_LOD ? 14 : 28) : (FIG_LOD ? 10 : 18), segs = FIG_LOD ? 2 : braids ? 6 : 4;
+    for (let k = 0; k < n; k++) {
+      const a = -2.05 + k * (4.1 / (n - 1)) + rnd(-.04, .04), out = [Math.sin(a), 0, Math.cos(a)], side = Math.abs(a) > 1.35;
+      const L = (braids ? (side ? .3 : .44) : (side ? .2 : .28)) * rnd(.9, 1.1), r = braids ? .0095 : .016, y0 = side ? .13 : .1, R0 = headR(y0) - .004;
+      let prev = [out[0] * R0, y0, out[2] * R0 * 1.04 + .01];
+      for (let s = 1; s <= segs; s++) {
+        const t = s / segs, fl = .015 + .05 * t, p = [out[0] * (R0 + fl), y0 - L * t, out[2] * ((R0 + fl) * 1.04) + .01 + (side ? 0 : .02 * t)];
+        h.raw(paintGeo(hairTube(prev, p, s % 2 ? r : r * .9, s % 2 ? r * .9 : r), () => braids ? shadeOf(hair, s % 2 ? 1 : .86) : shadeOf(hair, s === segs ? 1.35 : 1 - s * .03), .02)); prev = p;
+      }
+      h.sph(r * 1.15, r * 1.3, r * 1.15, prev[0], prev[1] - .004, prev[2], braids ? shadeOf(hair, .9) : shadeOf(hair, 1.4), 0, { w: 6, h: 4 });
+    }
+  }
+}
 function buildFigure(S) { FIG_LOD = !!S.lod; try { return buildFigureParts(S); } finally { FIG_LOD = false; } }
 function buildFigureParts(S) {
   const W = S.build || 1, cast = !!S.cast, skin = S.skin, shade = S.shade || shadeOf(skin, .82);
@@ -3546,7 +3617,9 @@ function buildFigureParts(S) {
   if (st && st !== 'bald') {
     if (S.titan) h.sph(.123, .146, .133, 0, .156, .006, hair, .04, { w: 16, h: 10, tl: Math.PI * .42 }).sph(.121, .141, .131, 0, .15, .008, hair, .04, { w: 14, h: 8, ps: 0, pl: Math.PI, ts: Math.PI * .3, tl: Math.PI * .42 });
     else if (S.lod) h.sph(.118 - .006 * Fm, .142, .128, 0, .156, .006, hair, .04, { tl: Math.PI * .45 });
+    else if (HAIR_VOLUME) { h.raw(paintGeo(hairCap(Fm, st === 'afro' ? 'short' : st, S.face, S.feat).clone(), hairShade(hair, st, skin), .02)); hairVolume(h, st, hair, Fm, skin); }
     else h.add(hairCap(Fm, st, S.face, S.feat).clone(), 0, 0, 0, hair, .04);
+    if (S.lod || S.titan || !HAIR_VOLUME) {   // distant figures and titans: the simple shapes (close up, hairVolume built the real hair)
     if (st === 'long') h.sph(.1, .16, .05, 0, .04, .095, hair).sph(.025, .1, .035, -.1, .07, .025, hair).sph(.025, .1, .035, .1, .07, .025, hair);
     if (st === 'bun') h.sph(.05, .045, .045, 0, .25, .11, hair);
     if (st === 'ponytail') h.sph(.04, .04, .04, 0, .2, .13, hair).cyl(.03, .018, .22, 0, .08, .15, hair, .04, 1, 8);
@@ -3556,6 +3629,7 @@ function buildFigureParts(S) {
     if (st === 'messy') for (let k = 0; k < 7; k++) h.sph(.032, .05, .032, RM(-.09, .09), .27, RM(-.08, .1), hair, .04, { w: 8, h: 6 });
     if (st === 'braids') for (let k = 0; k < 13; k++) { const a = -1.9 + k * (3.8 / 12), bx = Math.sin(a) * .11, bz = Math.cos(a) * .1 + .02, L = .28 + (Math.abs(a) < 1.2 ? .08 : 0); h.cyl(.011, .009, L, bx, .1 - L / 2 + .05, bz, hair, .05, 1, 6); }
     if (st === 'locs') for (let k = 0; k < 10; k++) { const a = -1.7 + k * (3.4 / 9), bx = Math.sin(a) * .115, bz = Math.cos(a) * .1 + .015; h.cyl(.016, .014, .2, bx, .07, bz, hair, .05, 1, 6); }
+    }
   }
   if (S.headwrap) {   // a gele: wrapped high, with a fan of folded cloth
     const hw = S.headwrap, h2 = S.headwrap2 || shadeOf(hw, .8);
@@ -6366,10 +6440,11 @@ function enterCar(c) {
   if (c.kind === 'boat') { engineOn(); sfx('clank'); toast('', 'W/S throttle · A/D steer · Space slows · E to get off at the jetty or the beach'); return; }
   if (c.kind === 'dozer') { engineOn(); sfx('clank'); toast('Bulldozer', 'W/S drive · A/D steer · L lowers the blade to level your land at this height · E to get out'); return; }
   engineOn(); sfx('clank');
-  toast('', c.kind === 'bike' ? 'W/S ride · A/D steer and lean · Space brake · E to get off' : c.police ? 'Police car · B siren on/off · W/S drive · E to get out' : c.ambulance ? 'Ambulance · B siren on/off · W/S drive · E to get out' : c.fire ? 'Fire truck · B siren on/off · W/S drive · E to get out' : 'W/S drive · A/D steer · Space handbrake · E to get out');
+  toast('', c.kind === 'bike' ? 'W/S ride · A/D steer and lean · Space brake · E to get off' : c.police ? 'Police car · B siren on/off · W/S drive · E to get out' : c.ambulance ? 'Ambulance · B siren on/off · W/S drive · E to get out' : c.fire ? 'Fire truck · B siren on/off · W/S drive · E to get out' : 'W/S drive · A/D steer · Space handbrake · E to get out · Map (P): tap a spot to hire a driver');
 }
 function exitCar() {
   const c = P.driving; if (!c) return;
+  if (DRIVER.on) driverStop('You got out');
   if (c.kind === 'dozer') { c.bladeDown = false; LAND.dozer = { x: c.x, z: c.z, yaw: c.yaw }; saveLand(); }   // the bulldozer stays where you leave it
   P.driving = null; c.speed = 0; c.lean = 0; placeCar(c); engineOff(); sirenOff();
   const lx = -Math.cos(c.yaw), lz = Math.sin(c.yaw), off = vehOf(c).exit;
@@ -6382,13 +6457,17 @@ function exitCar() {
 }
 function driveStep(dt) {
   const c = P.driving, V = vehOf(c);
-  const thr = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-  const st = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
+  let thr = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  let st = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0), aiBrake = false;
+  if (DRIVER.on) {   // a hired driver has the wheel until you touch the controls
+    if (thr || st || keys.Space) driverStop('You take the wheel');
+    else { const ai = driverInputs(c, V, dt); thr = ai.thr; st = ai.st; aiBrake = ai.brake; }
+  }
   c.steer += (st * V.steer - c.steer) * Math.min(1, dt * 6);
   if (thr > 0) c.speed += (c.speed < 0 ? V.brk : V.acc) * dt;
   else if (thr < 0) c.speed -= (c.speed > 0 ? V.brk : V.rev) * dt;
   else c.speed *= Math.exp(-.6 * dt);
-  if (keys.Space) c.speed *= Math.exp(-3.5 * dt);
+  if (keys.Space || aiBrake) c.speed *= Math.exp(-3.5 * dt);
   c.speed = clamp(c.speed, -V.maxR, V.maxF);
   c.yaw += (c.speed / V.wb) * Math.tan(c.steer) * dt;
   if (c.kind === 'bike') c.lean += (clamp(c.steer * Math.min(1, Math.abs(c.speed) / 12) * 1.1, -.55, .55) - c.lean) * Math.min(1, dt * 6);
@@ -7252,6 +7331,7 @@ function drawMinimap() {
   for (const p of PICKUPS) { const [x, y] = toM(p.x, p.z); if (x > -10 && y > -10 && x < W + 10 && y < W + 10) { mg.fillStyle = '#b98a52'; mg.strokeStyle = '#fff'; mg.lineWidth = 1.5; mg.fillRect(x - 6, y - 5, 12, 10); mg.strokeRect(x - 6, y - 5, 12, 10); } }
   { const jt = jobTarget(); if (jt) { let [x, y] = toM(jt[0], jt[1]); const cx = W / 2, cy = W / 2, dd = Math.hypot(x - cx, y - cy), R = W / 2 - 12; if (dd > R) { x = cx + (x - cx) * R / dd; y = cy + (y - cy) * R / dd; } mg.fillStyle = jt[2]; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2; mg.beginPath(); mg.arc(x, y, 9, 0, TAU); mg.fill(); mg.stroke(); } }
   if (TAXI.job) { let [x, y] = toM(TAXI.job.dest[1], TAXI.job.dest[2]); const cx = W / 2, cy = W / 2, dd = Math.hypot(x - cx, y - cy), R = W / 2 - 12; if (dd > R) { x = cx + (x - cx) * R / dd; y = cy + (y - cy) * R / dd; } mg.fillStyle = '#f2c230'; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2; mg.beginPath(); mg.arc(x, y, 9, 0, TAU); mg.fill(); mg.stroke(); }
+  drawDriverRoute(mg, toM, 2.5);
   for (const t of titans) { if (t.dead) continue; const [x, y] = toM(t.g.position.x, t.g.position.z); mg.fillStyle = '#e0392b'; mg.beginPath(); mg.arc(x, y, 6, 0, TAU); mg.fill(); mg.strokeStyle = '#3a0c08'; mg.lineWidth = 1.5; mg.stroke(); }
   mg.translate(W / 2, W / 2); mg.rotate(-yaw);
   mg.fillStyle = '#fff'; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2;
@@ -7313,6 +7393,8 @@ function drawBigMap() {
   for (const C of CLUBS) label('♪ ' + C.name, C.at[0], C.at[1], 11, '#ff9ae0', -8);
   if (AP && AP.showSlots && AP.showSlots.length) { const q = AP.showSlots[Math.floor(AP.showSlots.length / 4)]; label('🚗 32 cars to drive', q[0], q[1], 12, '#f2c230', -10); }
   if (RR.car && P.driving !== RR.car) { const [bx, by] = toB(RR.car.x, RR.car.z); bg2.fillStyle = '#9fe0ff'; bg2.beginPath(); bg2.arc(bx, by, 4, 0, TAU); bg2.fill(); label('✦ Range Rover', RR.car.x, RR.car.z, 12, '#9fe0ff', 12); }   // the rare car, wherever it was left
+  drawDriverRoute(bg2, toB, 2.5);
+  if (P.driving && !DRIVER.on && !isAir(P.driving)) label('Tap a spot: your driver takes you there', 0, -HALF - MAP_OY + 14, 13, '#f2c230');
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (YB) {   // the mainland
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
@@ -9116,6 +9198,135 @@ function updateOnline(dt) {
   if ((NET.headT = (NET.headT || 0) - dt) <= 0) { NET.headT = 2; renderChat(); }
 }
 
+/* ---------- a hired driver: in a car, open the big map (P) and tap a spot; a driver takes the wheel and follows the roads there.
+   The route is an A* search over a 2 m grid of the ground itself: asphalt is cheap, pavement dearer, a short hop over open grass
+   allowed where nothing solid stands. The driver keeps right, slows for bends, stops for cars, people and you, backs out of
+   trouble, and is paid on arrival (N1,500 plus N8 a metre, pro rata if you take the wheel early). W/S/A/D or E takes over. ---------- */
+const DRIVER = { on: false, path: null, i: 0, dest: null, dist: 0, done: 0, stuckT: 0, revT: 0, name: '' };
+const DRV_CELL = 2, DRV_NI = Math.ceil(2 * HALF / DRV_CELL), DRV_Z0 = typeof ZN === 'number' && YB ? ZN : -HALF, DRV_NJ = Math.ceil((HALF - DRV_Z0) / DRV_CELL);
+const drvW = (i, j) => [-HALF + (i + .5) * DRV_CELL, DRV_Z0 + (j + .5) * DRV_CELL];
+function drvCost(i, j, tight) {   // the cost of driving through a cell, or Infinity (tight: less room needed, for getting away from where you parked)
+  const [x, z] = drvW(i, j), h = heightAt(x, z); if (h <= 1) return Infinity;
+  const k = kindAt(x, z), road = k === 6 || k === 8 || k === 9;
+  if (k === 1 || k === 2 || k === 3) return Infinity;
+  const cl = tight ? .9 : road ? 1.2 : 3.2;   // room for the car: walls, trees and buildings block every kind of ground, paved floors included
+  for (const b of queryGrid(solidGrid, x, z, cl)) if (b.y1 > h + .65 && b.y0 < h + 2 && x > b.x0 - cl && x < b.x1 + cl && z > b.z0 - cl && z < b.z1 + cl) return Infinity;
+  return road ? 1 : k === 7 ? 3.5 : 14;   // asphalt, then pavement, then open ground (only to reach a road)
+}
+function drvRoute(x0, z0, x1, z1) {
+  const NI = DRV_NI, NJ = DRV_NJ, cell = (x, z) => [clamp(Math.floor((x + HALF) / DRV_CELL), 0, NI - 1), clamp(Math.floor((z - DRV_Z0) / DRV_CELL), 0, NJ - 1)];
+  const [si, sj] = cell(x0, z0), [ti, tj] = cell(x1, z1);   // any drivable cell within 20 m of the spot picked will do (it may be fenced in)
+  const N = NI * NJ, g = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), costC = new Float32Array(N).fill(-1), closed = new Uint8Array(N);
+  const cost = k => { if (costC[k] < 0) { const i = Math.floor(k / NJ), j = k % NJ; costC[k] = drvCost(i, j, Math.hypot(i - si, j - sj) < 5 || Math.hypot(i - ti, j - tj) < 5); } return costC[k]; };
+  const heap = [], push = (k, f) => { heap.push([f, k]); let n = heap.length - 1; while (n) { const p = (n - 1) >> 1; if (heap[p][0] <= heap[n][0]) break; [heap[p], heap[n]] = [heap[n], heap[p]]; n = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let n = 0; for (;;) { const l = 2 * n + 1, r = l + 1; let m = n; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === n) break; [heap[m], heap[n]] = [heap[n], heap[m]]; n = m; } } return top; };
+  const start = si * NJ + sj; let goal = -1; g[start] = 0; push(start, 0);
+  const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+  let steps = 0;
+  while (heap.length && steps++ < 2500000) {
+    const [, k] = pop(); if (closed[k]) continue; closed[k] = 1; if (Math.hypot(Math.floor(k / NJ) - ti, k % NJ - tj) <= 10) { goal = k; break; }
+    const i = Math.floor(k / NJ), j = k % NJ, hk = heightAt(...drvW(i, j));
+    for (const [di, dj, w] of D) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= NI || nj >= NJ) continue;
+      const nk = ni * NJ + nj; if (closed[nk]) continue; const c = cost(nk); if (c === Infinity) continue;
+      if (Math.abs(heightAt(...drvW(ni, nj)) - hk) > 1.05) continue;   // a car climbs a block at most
+      const ng = g[k] + w * c; if (ng < g[nk]) { g[nk] = ng; from[nk] = k; push(nk, ng + 1.4 * Math.hypot(ni - ti, nj - tj)); }   // leaning toward the goal: fast, near enough the best road
+    }
+  }
+  if (goal < 0) return null;
+  const cells = []; for (let k = goal; k >= 0; k = from[k]) { cells.push(k); if (k === start) break; }
+  cells.reverse();
+  // every few cells a waypoint, shifted to the right-hand side of wide roads
+  const pts = []; for (let n = 0; n < cells.length; n += 3) pts.push(drvW(Math.floor(cells[n] / NJ), cells[n] % NJ));
+  pts.push(drvW(Math.floor(goal / NJ), goal % NJ));
+  const out = pts.map(([x, z], n) => {
+    const [ax, az] = pts[Math.max(0, n - 1)], [bx, bz] = pts[Math.min(pts.length - 1, n + 1)], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz) || 1;
+    const k = kindAt(x, z), sh = k === 6 || k === 8 || k === 9 ? 1.6 : 0; return { x: x - dz / L * sh, z: z + dx / L * sh };   // keep right
+  });
+  let len = 0; for (let n = 1; n < out.length; n++) len += Math.hypot(out[n].x - out[n - 1].x, out[n].z - out[n - 1].z);
+  return { pts: out, len };
+}
+const drvFare = m => Math.round(1500 + 8 * m);
+function driverHire(x, z) {
+  const c = P.driving;
+  if (!c || isAir(c) || c.kind === 'boat' || c.kind === 'dozer' || c.kind === 'bike') { toast('🚕 Hire a driver', 'Get in a car first, then pick a spot on the map'); return false; }
+  const r = drvRoute(c.x, c.z, x, z); if (!r || r.pts.length < 2) { toast('', 'Your driver can’t find a road there. Try a spot nearer a road'); return false; }
+  const fare = drvFare(r.len); if (LAND.money < fare) { toast('', `That trip is about ${NAIRA(fare)}; you have ${NAIRA(LAND.money)}`); return false; }
+  DRIVER.name = ri(['Musa', 'Tunde', 'Chinedu', 'Emeka', 'Sola', 'Ibrahim', 'Kunle', 'Uche']);
+  Object.assign(DRIVER, { on: true, path: r.pts, i: 0, dest: r.pts[r.pts.length - 1], dist: r.len, done: 0, stuckT: 0, revT: 0, stucks: 0, snags: 0, best: undefined, noGain: 0, lx: c.x, lz: c.z, fare });
+  toast(`🚕 ${DRIVER.name} is driving`, `${Math.round(r.len)} m · about ${NAIRA(fare)} · W/S/A/D or E to take the wheel`);
+  return true;
+}
+function driverStop(msg, arrived) {
+  if (!DRIVER.on) return; DRIVER.on = false;
+  const fare = arrived ? DRIVER.fare : Math.round(1500 + 8 * Math.min(DRIVER.done, DRIVER.dist));
+  LAND.money = Math.max(0, LAND.money - fare); saveLand();
+  toast(arrived ? `🚕 You’ve arrived` : '🚕 Driver dismissed', `${msg ? msg + ' · ' : ''}paid ${DRIVER.name} ${NAIRA(fare)}`);
+  DRIVER.path = null; DRIVER.dest = null;
+}
+// the driver's hands and feet: steering and throttle toward a point a little way down the route
+function driverInputs(c, V, dt) {
+  const P0 = DRIVER.path; let i = DRIVER.i;
+  DRIVER.done += Math.hypot(c.x - DRIVER.lx, c.z - DRIVER.lz); DRIVER.lx = c.x; DRIVER.lz = c.z;
+  const look = 2.8 + Math.abs(c.speed) * .5;   // short at low speed, so corners are not cut
+  while (i < P0.length - 1 && Math.hypot(P0[i].x - c.x, P0[i].z - c.z) < look) i++;
+  DRIVER.i = i;
+  const tg = P0[i], dx = tg.x - c.x, dz = tg.z - c.z, toEnd = Math.hypot(DRIVER.dest.x - c.x, DRIVER.dest.z - c.z);
+  if (toEnd < 6 && i >= P0.length - 2) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }
+  // progress watch: getting no closer for a while near the end counts as arrived; elsewhere the driver moves on past the snag
+  const togo = (P0.length - 1 - i) * 6 + Math.hypot(dx, dz);
+  if (DRIVER.best === undefined || togo < DRIVER.best - 2) { DRIVER.best = togo; DRIVER.noGain = 0; } else DRIVER.noGain += dt;
+  if (toEnd < 25 && DRIVER.noGain > 6) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }
+  if (DRIVER.noGain > 20) {
+    const n = Math.min(P0.length - 1, i + 3), q = P0[n], q2 = P0[Math.min(P0.length - 1, n + 1)];
+    c.x = q.x; c.z = q.z; c.y = carGround(q.x, q.z, c.yaw, V); if (q2 !== q) c.yaw = Math.atan2(-(q2.x - q.x), -(q2.z - q.z)); c.speed = 0;
+    DRIVER.i = n; DRIVER.lx = c.x; DRIVER.lz = c.z; DRIVER.best = undefined; DRIVER.revT = 0; return { thr: 0, st: 0, brake: true };
+  }
+  let err = Math.atan2(-dx, -dz) - c.yaw; err = Math.atan2(Math.sin(err), Math.cos(err));
+  // how sharp is the road ahead? slow down for bends and near the end
+  let bend = 0; const j = Math.min(P0.length - 1, i + 4); if (j > i) { const a1 = Math.atan2(P0[j].x - tg.x, P0[j].z - tg.z), a0 = Math.atan2(dx, dz); bend = Math.abs(Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0))); }
+  let want = Math.min(V.maxF * .78, 6 + 14 / (1 + bend * 2.2 + Math.abs(err) * 3), toEnd * .6 + 2);
+  // something in the way? cars, people, titans and you (when you're out of the car you are not in it, so: everyone else)
+  const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw); let blocked = false, people = false;
+  const ahead = (px, pz, r) => { const ex = px - c.x, ez = pz - c.z, al = ex * fx + ez * fz, lat = Math.abs(ex * fz - ez * fx); return al > 1 && al < 6 + Math.abs(c.speed) * .9 && lat < r; };
+  for (const t of titans) if (!t.dead && ahead(t.g.position.x, t.g.position.z, t.H * .2 + 1)) blocked = true;
+  for (const o of traffic) { const [ox, oz] = laneXY(o); if (ahead(ox, oz, 1.6)) people = true; }
+  for (const p of civilians) if (p.active && ahead(p.g.position.x, p.g.position.z, 1.3)) people = true;
+  if (people && !blocked) { DRIVER.waitT = (DRIVER.waitT || 0) + dt; if (DRIVER.waitT < 3) blocked = true; else want = Math.min(want, 2); }   // wait for people and cars, then edge past (cars wait for you too)
+  else DRIVER.waitT = 0;
+  if (blocked) want = 0;
+  if (toEnd < 15 && Math.abs(c.speed) < .5 && (DRIVER.waitT > 3 || DRIVER.snags)) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }   // close enough
+  // the way on is behind us: a three-point turn (reverse with the wheel the other way), since the car can't turn tighter than ~9 m
+  DRIVER.turnCD = Math.max(0, (DRIVER.turnCD || 0) - dt);
+  if (Math.abs(err) > 1.3 && DRIVER.revT <= 0 && !DRIVER.turnCD && !blocked) { DRIVER.revT = 1.3; DRIVER.turnCD = 2.5; }
+  if (Math.abs(err) > .7) want = Math.min(want, 4);
+  // stuck against something: back up a little, then carry on
+  if (DRIVER.revT > 0) { DRIVER.revT -= dt; return { thr: c.speed > 1 ? 0 : -1, st: err > 0 ? -1 : 1, brake: c.speed > 1 }; }
+  if (!blocked && Math.abs(c.speed) < .6 && want > 1) {
+    if ((DRIVER.stuckT += dt) > 2.5) {   // stuck: back up, and after the second time find a new way from here
+      DRIVER.stuckT = 0; DRIVER.revT = 1.4; DRIVER.snags = (DRIVER.snags || 0) + 1;
+      if (DRIVER.snags >= 3) {   // still stuck after backing up and a new route: ease the car a little way on along the route, past the snag
+        DRIVER.snags = 0; DRIVER.revT = 0; const n = Math.min(P0.length - 1, i + 2), q = P0[n], q2 = P0[Math.min(P0.length - 1, n + 1)];
+        c.x = q.x; c.z = q.z; c.y = carGround(q.x, q.z, c.yaw, V); if (q2 !== q) c.yaw = Math.atan2(-(q2.x - q.x), -(q2.z - q.z)); c.speed = 0; DRIVER.i = n; DRIVER.lx = c.x; DRIVER.lz = c.z;
+      } else { const r = drvRoute(c.x - fx * 3, c.z - fz * 3, DRIVER.dest.x, DRIVER.dest.z); if (r && r.pts.length > 1) { DRIVER.path = r.pts; DRIVER.i = 0; } }
+    }
+  } else { DRIVER.stuckT = 0; if (c.speed > 3 && DRIVER.revT <= 0) { DRIVER.goodT = (DRIVER.goodT || 0) + dt; if (DRIVER.goodT > 3) DRIVER.snags = 0; } else DRIVER.goodT = 0; }   // only real forward progress clears the snags
+  const st = clamp(err * 2.4, -1, 1), thr = c.speed < want - .5 ? 1 : 0, brake = c.speed > want + 1.5 || blocked;
+  return { thr, st, brake };
+}
+// the big map: pick a spot while in a car; the route and the destination are drawn on both maps
+bmC.addEventListener('click', e => {
+  if (!P.driving) { toast('🚕 Hire a driver', 'Get in a car first, then open the map (P) and tap where to go'); return; }
+  const r = bmC.getBoundingClientRect(), px = (e.clientX - r.left) * bmC.width / r.width, py = (e.clientY - r.top) * bmC.height / r.height;
+  const sc = bmC.width / (N + MAP_OY), ox = (bmC.width - N * sc) / 2, x = (px - ox) / sc - HALF, z = py / sc - HALF - MAP_OY;
+  if (driverHire(x, z)) toggleBigMap(false);
+});
+function drawDriverRoute(ctx, toP, lw) {
+  if (!DRIVER.on || !DRIVER.path) return;
+  ctx.save(); ctx.strokeStyle = 'rgba(242,194,48,.9)'; ctx.lineWidth = lw; ctx.setLineDash([lw * 2, lw * 1.5]); ctx.beginPath();
+  DRIVER.path.slice(DRIVER.i).forEach((p, n) => { const [a, b] = toP(p.x, p.z); n ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }); ctx.stroke(); ctx.setLineDash([]);
+  const [dx, dy] = toP(DRIVER.dest.x, DRIVER.dest.z); ctx.fillStyle = '#f2c230'; ctx.strokeStyle = '#1b1608'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(dx, dy, lw * 2.2, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
+}
 /* ---------- main loop ---------- */
 if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(30);
 /* Peaceful mode: no titans at all. Toggle with T in game or the button on the start screen. */
