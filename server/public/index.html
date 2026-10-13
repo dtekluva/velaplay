@@ -5904,7 +5904,7 @@ for (const [k, name, make] of [['tractor', 'farm tractor', () => makeTractor()],
 for (const k of ['gwagon', 'lux']) LUX[k].name = EXTRA_NAMES[k].name;
 LUX.sport.name = 'sports coupé'; LUX.saloon.name = 'luxury saloon';
 // driving feel: every road vehicle (not the bulldozer, boats or planes) at half the top speed, half the acceleration and half the steering
-for (const k of new Set(['car', 'bus', 'truck', 'bike', 'lux', 'gwagon', 'sport', 'saloon', ...MODEL_IDS, 'tractor', 'tipper', 'tanker', 'keke'])) { const V = VEH[k]; V.maxF *= .5; V.maxR *= .5; V.acc *= .5; V.steer *= .5; }
+for (const k of new Set(['car', 'bus', 'truck', 'bike', 'lux', 'gwagon', 'sport', 'saloon', ...MODEL_IDS, 'tractor', 'tipper', 'tanker', 'keke'])) { const V = VEH[k]; V.maxF *= .5 * 1.4; V.maxR *= .5 * 1.4; V.acc *= .5 * 1.3; V.steer *= .5; }   // halved, then speed +40% and acceleration +30%
 makeLux('corolla21', 9.6, 0, 0);   // the car by the start
 /* the airport car park's ground floor holds one of every model, oldest first, and all of them can be driven.
    The utility vehicles live where they work: a tractor and a tipper at the farm, a tanker at the filling station. */
