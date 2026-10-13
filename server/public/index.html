@@ -3068,13 +3068,19 @@ function updateGrass() {   // tiles within ~110 m of the scout
 
 
 /* ---------- boulders in the highlands ---------- */
+const LINK_ROCKS = [];   // boulders where the road to Yaba is cut through later: built after it, on the new ground (see the link road)
+function buildBoulder(x, z, y, s, sh, sd) {
+  const b = new Builder();
+  b.box(s, sh, sd, x, y + s * .3, z, M.rock, 2);
+  b.box(s * .6, s * .5, s * .6, x + s * .4, y + s * .7, z - s * .2, M.rock, 2);
+  b.build();
+}
 for (let tries = 0, made = 0; tries < 3000 && made < 70; tries++) {
   const x = R(-OB, OB), z = R(-OB, OB);
   if (kindAt(x, z) !== 3) continue;
-  const y = heightAt(x, z), b = new Builder(), s = R(2.5, 6);
-  b.box(s, s * R(.6, .9), s * R(.8, 1.2), x, y + s * .3, z, M.rock, 2);
-  b.box(s * .6, s * .5, s * .6, x + s * .4, y + s * .7, z - s * .2, M.rock, 2);
-  b.build(); made++;
+  const s = R(2.5, 6), sh = s * R(.6, .9), sd = s * R(.8, 1.2);   // the same random numbers in the same order as always
+  if (YB && linkDist(x, z) < 24) LINK_ROCKS.push([x, z, s, sh, sd]); else buildBoulder(x, z, heightAt(x, z), s, sh, sd);
+  made++;
 }
 
 /* ---------- giant trees ---------- */
@@ -3123,19 +3129,27 @@ for (let k = TREES.length - 1; k >= 0; k--) if (TREES[k].cut) TREES.splice(k, 1)
 /* the road to Yaba: from the city's north-east corner, east, then north up to the mainland. Graded now (after the forest),
    so the forest and the plots for sale keep the layout the server knows. */
 if (YB) {
-  const touched = new Set(), y = TOWN.y;
+  const touched = new Set(), y = TOWN.y, tuftM = new THREE.Matrix4(), tuftHide = new THREE.Matrix4().makeScale(0, 0, 0);
   for (const [ax, az, bx, bz] of LINK) {
     const x0 = Math.min(ax, bx) - 20, x1 = Math.max(ax, bx) + 20, z0 = Math.min(az, bz) - 20, z1 = Math.max(az, bz) + 20;
     for (let x = x0; x <= x1; x++) for (let z = Math.max(z0, -HALF); z <= Math.min(z1, HALF - 1); z++) {
       const i = Math.floor(x + HALF), j = Math.floor(z + HALF); if (i < 0 || i >= N || j < 0 || j >= N) continue;
       const d = linkDist(i - HALF + .5, j - HALF + .5), k = i * N + j; if (d > 18) continue;
       if (Math.abs(i - HALF + .5 - TOWN.x) < RING && Math.abs(j - HALF + .5 - TOWN.z) < RING) continue;   // the city's own streets
-      const t = smooth(18, 6, d); if (t > 0) Hm[k] = Math.round(Hm[k] + (y - Hm[k]) * t);
+      const t = smooth(18, 6, d), was = Hm[k]; if (t > 0) Hm[k] = Math.round(Hm[k] + (y - Hm[k]) * t);
       if (d < 4.5) KIND[k] = 6; else if (d < 6.3) KIND[k] = 7;
+      // grass and flowers were planted on the old ground: move them down (or up) with it, and off the road
+      if (Hm[k] !== was || KIND[k] >= 6) for (const [im, n] of GRASS_AT.get(k) || []) {
+        if (KIND[k] >= 6) im.setMatrixAt(n, tuftHide);
+        else { im.getMatrixAt(n, tuftM); tuftM.elements[13] = Hm[k]; im.setMatrixAt(n, tuftM); }
+        im.instanceMatrix.needsUpdate = true;
+      }
       touched.add(Math.floor(i / 96) * 96 + ',' + Math.floor(j / 96) * 96);
     }
   }
   for (const key of touched) { const [ci, cj] = key.split(',').map(Number); TERRAIN_CHUNK(ci, cj); }
+  // the boulders along it, on the new ground; any that would sit on the road or pavement are left out
+  for (const [x, z, s, sh, sd] of LINK_ROCKS) if (linkDist(x, z) - s * .6 > 6.5) buildBoulder(x, z, heightAt(x, z), s, sh, sd);
 }
 hookRoot.updateMatrixWorld(true);
 // a last check once the world is built: no wall or building may stand on a road tile. Anything found is listed in the console
