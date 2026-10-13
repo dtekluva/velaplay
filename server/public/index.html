@@ -3167,7 +3167,7 @@ let peaceful = true; try { const pv = localStorage.getItem('giantwood-peaceful')
 /* ---------- jointed voxel figures: the scout, townspeople and titans share one skeleton ----------
    root > pelvis (hips) > torso (spine) > head, shoulders > upper arm > forearm, hips > thigh > shin.
    Each segment is one merged, vertex-coloured mesh, so a figure costs 11 draw calls. Front is -z. */
-const figMat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 16, specular: 0x161412 });   // per-pixel light: smooth skin, not faceted plastic
+const figMat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 16, specular: 0x161412, emissive: 0x0a0604 });   // a faint warm glow: the green ground light no longer tints faces   // per-pixel light: smooth skin, not faceted plastic
 const _fc = new THREE.Color();
 function mergeColored(geos) {
   const parts = geos.map(g => g.index ? g.toNonIndexed() : g);
@@ -3213,7 +3213,7 @@ const shadeOf = (hex, k) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexS
 const FACE = { cell: 192, cols: 8, X0: -.12, X1: .12, Y0: 0, Y1: .28 };
 const HEADS = new Map();
 // face shapes: how fast the jaw narrows, a defined jaw corner, cheekbone width, and length below the eyes
-const FACE_SHAPES = { oval: { nar: .3, jaw: 0, cheek: .01, len: 0, chin: 1 }, round: { nar: .14, jaw: .03, cheek: .03, len: -.03, chin: .8 }, square: { nar: .12, jaw: .11, cheek: .01, len: .02, chin: 1.35 },
+const FACE_SHAPES = { oval: { nar: .24, jaw: 0, cheek: .01, len: 0, chin: 1 }, round: { nar: .14, jaw: .03, cheek: .03, len: -.03, chin: .8 }, square: { nar: .12, jaw: .11, cheek: .01, len: .02, chin: 1.35 },
   heart: { nar: .4, jaw: -.02, cheek: .055, len: 0, chin: .9 }, long: { nar: .24, jaw: .04, cheek: 0, len: .08, chin: 1.1 }, jaw: { nar: .18, jaw: .08, cheek: .03, len: .03, chin: 1.25 } };
 const faceShapeOf = (fem, shape) => FACE_SHAPES[shape] ? shape : fem ? 'oval' : 'jaw';
 function headGeo(fem, shape, feat = 0) {   // the sculpted skull for a man (0) or a woman (1), in head-local units, front toward -z
@@ -3227,7 +3227,7 @@ function headGeo(fem, shape, feat = 0) {   // the sculpted skull for a man (0) o
     const dx = p.getX(i), dy = p.getY(i), dz = p.getZ(i);
     let x = dx * rx, y = dy * ry, z = dz * rz;
     x *= 1 + F.cheek * G(dy + .08, 0, .25, 1) * (dz < .2 ? 1 : .4);                       // cheekbone width
-    if (dy < 0) { const t = -dy; x *= (1 - F.nar * t * t) * (1 + F.jaw * G(t - .58, 0, .2, 1) * (dz < .35 ? 1 : .3)); y *= 1 + (.1 + F.len) * t; if (dz < 0) z *= 1 - .045 * t * t; }   // the jaw: narrowing to the chin, with a corner
+    if (dy < 0) { const t = -dy; x *= (1 - F.nar * t * t) * (1 + F.jaw * G(t - .58, 0, .2, 1) * (dz < .35 ? 1 : .3)); y *= 1 + (.17 + F.len) * t; if (dz < 0) z *= 1 - .045 * t * t; }   // a longer lower face: room for the chin below the mouth   // the jaw: narrowing to the chin, with a corner
     if (dz > 0) z *= 1 + .07 * Math.max(0, dy + .3);                                                                         // a fuller back of the skull
     const Y = cy + y, ax = Math.abs(x), w = clamp((-dz - .2) / .45, 0, 1);
     if (w > 0) {
@@ -3310,7 +3310,9 @@ const faceAtlas = (() => {
     // soft modelling: sockets, the sides of the nose, under the nose, under the lower lip, cheeks
     for (const sx of [-1, 1]) { radial(sx * .043, .162, .03, 'rgba(70,35,25,.12)'); radial(sx * .016, .125, .012, 'rgba(70,35,25,.07)'); }
     radial(0, .093, .011, 'rgba(60,30,25,.12)'); if (!fem) radial(0, .052, .014, 'rgba(60,30,25,.08)');   // the dip under the lower lip: men only (on women it read as a goatee)
-    if (fem) for (const sx of [-1, 1]) radial(sx * .062, .115, .026, 'rgba(215,95,105,.14)');
+    const dark = lip === 1;   // the atlas's lip bit marks darker skin: blush, sclera and lips follow it
+    if (fem && !dark) for (const sx of [-1, 1]) radial(sx * .062, .115, .026, 'rgba(215,95,105,.09)');
+    for (const sx of [-1, 1]) { radial(sx * .013, .116, .011, `rgba(50,25,20,${dark ? .1 : .05})`); radial(sx * .016, .1, .007, `rgba(60,30,24,${dark ? .14 : .08})`); }   // the sides of the nose and its wings
     radial(0, .108, .01, 'rgba(255,255,255,.12)');   // a highlight on the tip of the nose
     for (const sx of [-1, 1]) radial(sx * .062, .128, .028, 'rgba(255,236,214,.11)');   // light on the cheekbones
     radial(0, .14, .006, 'rgba(255,255,255,.08)');   // down the bridge of the nose
@@ -3319,21 +3321,21 @@ const faceAtlas = (() => {
       const ex = sx * .042, ey = .156, ew = fem ? 1.1 : 1, inner = ex - sx * .02 * ew, outer = ex + sx * .022 * ew;
       g.strokeStyle = 'rgba(70,40,30,.35)'; g.lineWidth = L(.0018); curve([[inner, ey + .006], [ex, ey + .022], [outer, ey + .008]]); g.stroke();   // lid crease
       if (fem) { g.fillStyle = 'rgba(120,70,60,.24)'; curve([[inner, ey + .004], [ex, ey + .026], [outer + sx * .004, ey + .008]]); g.lineTo(...P(outer, ey + .002)); g.closePath(); g.fill(); }   // a warm lid shade
-      const almond = () => curve([[inner, ey], [ex, ey + .017 * ew], [outer, ey + .003], [ex, ey - .011 * ew], [inner, ey]]);
-      almond(); g.fillStyle = '#f2ece4'; g.fill();
+      const almond = () => curve([[inner, ey], [ex, ey + .0145 * ew], [outer, ey + .003], [ex, ey - .0085 * ew], [inner, ey]]);
+      almond(); g.fillStyle = dark ? '#ddd2c4' : '#ece4da'; g.fill();
       g.save(); almond(); g.clip();
-      const [ix, iy] = P(ex, ey + .001), ir = L(.0098), gi = g.createRadialGradient(ix, iy, ir * .2, ix, iy, ir);
+      const [ix, iy] = P(ex, ey + .0015), ir = L(.0104), gi = g.createRadialGradient(ix, iy, ir * .2, ix, iy, ir);
       gi.addColorStop(0, shadeOf(IRIS[eye], 1.5)); gi.addColorStop(.75, IRIS[eye]); gi.addColorStop(1, shadeOf(IRIS[eye], .5));
       g.fillStyle = gi; g.beginPath(); g.arc(ix, iy, ir, 0, TAU); g.fill();
       g.fillStyle = '#080605'; g.beginPath(); g.arc(ix, iy, L(.0043), 0, TAU); g.fill();
       g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(ix + L(.003), iy - L(.003), L(.0018), 0, TAU); g.fill();
-      g.fillStyle = 'rgba(60,40,30,.25)'; g.fillRect(ix - L(.03), iy - L(.012), L(.06), L(.005));   // the upper lid's shadow on the eye
+      g.fillStyle = 'rgba(50,30,24,.38)'; g.fillRect(ix - L(.03), iy - L(.0125), L(.06), L(.0065));   // the upper lid's shadow on the eye
       g.restore();
       g.strokeStyle = '#1a120c'; g.lineCap = 'round'; g.lineWidth = L(fem ? .0034 : .0024);
-      curve([[inner, ey], [ex, ey + .017], [outer, ey + .003]]); g.stroke();                                   // upper lash line
+      curve([[inner, ey], [ex, ey + .0145 * ew], [outer, ey + .003]]); g.stroke();                              // upper lash line
       if (fem) { g.beginPath(); g.moveTo(...P(outer, ey + .003)); g.lineTo(...P(outer + sx * .007, ey + .009)); g.stroke();   // a small wing
         g.lineWidth = L(.0007); g.globalAlpha = .7; for (let i = 2; i < 6; i += 1.5) { const t = i / 6, x = inner + (outer - inner) * t, y = ey + .017 * 4 * t * (1 - t) * .9; g.beginPath(); g.moveTo(...P(x, y)); g.lineTo(...P(x + sx * .002, y + .004)); g.stroke(); } g.globalAlpha = 1; }
-      g.strokeStyle = 'rgba(40,25,20,.35)'; g.lineWidth = L(.0012); curve([[inner, ey], [ex, ey - .011], [outer, ey + .003]]); g.stroke();   // lower lid
+      g.strokeStyle = 'rgba(40,25,20,.28)'; g.lineWidth = L(.0011); curve([[inner, ey], [ex, ey - .0085 * ew], [outer, ey + .003]]); g.stroke();   // lower lid
       // brows: tapered hair strokes along an arch
       const bc = BROWS[brow], b0 = [ex - sx * .02, .175], b1 = [ex + sx * .004, fem ? .19 : .186], b2 = [ex + sx * .027, fem ? .178 : .179];
       g.strokeStyle = bc; g.lineCap = 'round';
@@ -3348,11 +3350,11 @@ const faceAtlas = (() => {
     // nostrils
     for (const sx of [-1, 1]) { const [nx, ny] = P(sx * .0085, .0985); g.fillStyle = 'rgba(40,20,15,.38)'; g.beginPath(); g.ellipse(nx, ny, L(.0036), L(.0019), sx * .4, 0, TAU); g.fill(); }
     // lips
-    const lc = fem ? (lip ? '#7a2c3a' : '#b84e5c') : (lip ? 'rgba(85,45,42,.55)' : 'rgba(160,90,85,.5)');
-    const lw = fem ? .027 : .024, up = fem ? .0815 : .0795, lo = fem ? .0555 : .0585;   // women: wider, fuller lips
+    const lc = fem ? (dark ? '#4a1e24' : '#a8485a') : (dark ? 'rgba(60,30,30,.7)' : 'rgba(150,85,80,.55)'), lc2 = fem ? (dark ? '#6a2e36' : '#c06070') : (dark ? 'rgba(80,42,40,.6)' : 'rgba(170,100,95,.5)');
+    const lw = fem ? .028 : .025, up = fem ? .082 : .0795, lo = fem ? .0545 : .058;   // women: wider, fuller lips
     g.fillStyle = lc;
     curve([[-lw, .0712], [-.015, .0745], [-.0068, up], [-.003, up + .0005], [0, up - .0028], [.003, up + .0005], [.0068, up], [.015, .0745], [lw, .0712], [0, .0705], [-lw, .0712]]); g.fill();   // upper lip with a cupid's bow
-    curve([[-lw, .0712], [-.016, lo + .003], [0, lo], [.016, lo + .003], [lw, .0712], [0, .0705], [-lw, .0712]]); g.fill();                                                     // lower lip
+    g.fillStyle = lc2; curve([[-lw, .0712], [-.016, lo + .003], [0, lo], [.016, lo + .003], [lw, .0712], [0, .0705], [-lw, .0712]]); g.fill();                                     // lower lip, a shade lighter
     if (fem) { g.strokeStyle = 'rgba(70,20,28,.45)'; g.lineWidth = L(.0012); curve([[-lw, .0712], [-.016, lo + .003], [0, lo], [.016, lo + .003], [lw, .0712]]); g.stroke(); }   // liner
     g.strokeStyle = 'rgba(40,15,15,.65)'; g.lineWidth = L(.0016); curve([[-lw, .0712], [0, .0698], [lw, .0712]]); g.stroke();
     radial(0, lo + .0055, fem ? .009 : .007, fem ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.12)');   // gloss on the lower lip
@@ -3363,12 +3365,12 @@ const faceAtlas = (() => {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return t;
 })();
-const faceMat = new THREE.MeshPhongMaterial({ map: faceAtlas, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, shininess: 16, specular: 0x161412 });
+const faceMat = new THREE.MeshPhongMaterial({ map: faceAtlas, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, shininess: 16, specular: 0x161412, emissive: 0x0a0604 });
 function faceCell(S, fem, skin) {
   const e = (S.eye || '').toLowerCase(), eye = e === '#5a4030' ? 1 : e === '#2a4a6a' ? 2 : e === '#3a5a2a' ? 3 : 0;
   const hc = new THREE.Color(S.brow || S.hair || '#2a1d14'), hl = hc.getHSL({}).l, grey = hc.getHSL({}).s < .08 && hl > .35;
   const brow = grey ? 3 : hl > .5 ? 2 : hl > .16 ? 1 : 0, lip = new THREE.Color(skin).getHSL({}).l < .45 ? 1 : 0;
-  return ((fem * 4 + eye) * 4 + brow) * 2 + lip;
+  return ((fem * 4 + (lip ? eye & 1 : eye)) * 4 + brow) * 2 + lip;   // darker skin: brown eyes
 }
 
 /* ---------- smooth bodies: torso and hips built from shaped rings, limbs lathed from muscle profiles; each is coloured
@@ -3429,7 +3431,7 @@ function buildFigureParts(S) {
   const root = new THREE.Group(); root.rotation.order = 'YXZ';
   const pelvis = new THREE.Group(); pelvis.position.y = .885; root.add(pelvis);
   const torso = new THREE.Group(); torso.position.y = .1; pelvis.add(torso);
-  const head = new THREE.Group(); head.position.y = .565; torso.add(head);
+  const head = new THREE.Group(); head.position.y = .565; torso.add(head); if (!S.titan && !S.child) head.scale.setScalar(1.06);   // adult proportions: a touch larger
   const top = S.shirt || skin, legC = S.pants || skin;
   const sleeve = S.tank ? skin : S.sleeve || top;
   const lowerTop = S.gown || S.kaftan || S.skirt || S.robe;      // what covers the hips and legs
@@ -3480,7 +3482,7 @@ function buildFigureParts(S) {
     if (!S.tank && !S.hood && !S.bikini && !S.bare) t.cyl(.074 - .008 * Fm, .088 - .008 * Fm, .045, 0, .515, 0, S.collar || '#e9e4d6', 0, .9);
     if (S.buttons) for (const y of [.2, .28, .36]) t.sph(.011, .011, .007, 0, y, -.118, shadeOf(top, .55), 0);
     if (!lowerTop && !S.crop && !S.bikini) t.cyl((.156 - .022 * Fm) * W * B.waist, (.158 - .022 * Fm) * W * B.waist, .045, 0, .01, 0, S.belt || shadeOf(legC, .6), 0, .68).box(.045, .035, .012, 0, .01, -.108, '#b38a3e', 0);
-    if (S.tank) for (const sx of [-1, 1]) t.box(.035, .06, .2, sx * .09, .5, 0, top, 0);
+    if (S.tank) for (const sx of [-1, 1]) t.box(.028, .018, .17, sx * .088, .487, 0, top, 0);   // thin straps lying on the shoulders
     if (S.hood) t.sph(.13, .085, .085, 0, .5, .105, S.hood).box(.2, .1, .012, 0, .12, -.12, shadeOf(S.hood, .85), 0).box(.008, .1, .006, -.03, .44, -.13, '#f2f0ea', 0).box(.008, .1, .006, .03, .44, -.13, '#f2f0ea', 0);
     if (S.blazer) t.box(.07, .2, .012, 0, .4, -.122, S.inner || '#f2f0ea', 0).box(.05, .24, .014, -.06, .38, -.124, shadeOf(top, .8), 0).box(.05, .24, .014, .06, .38, -.124, shadeOf(top, .8), 0);
     if (S.tie) t.box(.03, .22, .012, 0, .34, -.13, S.tie, 0).box(.04, .03, .014, 0, .45, -.13, S.tie, 0);
