@@ -101,6 +101,8 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #bigmap .head{display:flex;justify-content:space-between;align-items:baseline;gap:24px}
 #bigmap h3{margin:0;font-family:var(--display);font-size:18px;letter-spacing:.12em;color:var(--ink)}
 #bigmap .hint{font-size:14px;color:var(--muted);letter-spacing:.04em}
+#bigmap .bmz{display:flex;gap:4px;pointer-events:auto}
+#bigmap .bmz button{font:700 15px var(--ui);min-width:34px;padding:4px 9px;background:#0e130d;color:var(--ink);border:1px solid var(--edge);cursor:pointer}
 #bigmapC{display:block;width:min(80vh,86vw);height:min(80vh,86vw);image-rendering:pixelated}
 #bigmap .key{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:14px;color:var(--muted);max-width:min(80vh,86vw)}
 #bigmap .key i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.5)}
@@ -124,7 +126,7 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #tc{position:absolute;inset:0;touch-action:none;display:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.touch #tc{display:block}
 body.touch #hud *{pointer-events:none}
-body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC{pointer-events:auto}
+body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *{pointer-events:auto}
 body.touch #tc .stick,body.touch #tc .knob{pointer-events:none}
 body.touch #help{display:none!important}
 #helpTab{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:5px 10px;background:var(--panel);border:1px solid var(--edge);color:var(--brass);font:700 12px/1 inherit;letter-spacing:.06em;cursor:pointer;pointer-events:auto;opacity:.75}
@@ -344,7 +346,7 @@ body:not(.touch) #odock{display:none}
     </dl>
     <button id="helpTab" type="button" title="Show the controls (H)">H · controls</button>
     <div id="bigmap" hidden><div class="frame">
-      <div class="head"><h3>Map of the Giantwood</h3><span class="hint">P to close</span></div>
+      <div class="head"><h3>Map of the Giantwood</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button></span><span class="hint">P to close · wheel zooms · drag to move</span></div>
       <canvas id="bigmapC" width="960" height="960"></canvas>
       <div class="key"><span><i style="background:#fff"></i>You</span><span><i style="background:#2f7fd0"></i>Supply depot</span><span><i style="background:#e0392b;border-radius:50%"></i>Titan</span><span><i style="background:#3a6fd0"></i>Police</span><span><i style="background:#d64a3c"></i>Hospital</span><span><i style="background:#e8742a"></i>Fire station</span><span><i style="background:#e8c84a"></i>School</span><span><i style="background:#9a5ad0"></i>Mall</span><span><i style="background:#7fd3e8"></i>Airport terminal</span><span><i style="background:rgba(242,194,48,.5);border-color:#f2c230"></i>Land for sale</span><span><i style="background:#e8742a"></i>Your land</span><span><i style="background:#b98a52"></i>Deliveries</span></div>
     </div></div>
@@ -601,7 +603,7 @@ class Builder {
 
 /* ---------- terrain: terraced voxel heightmap ---------- */
 const N = 720, HALF = 360, BOUND = HALF - 14, EDGE_H = 2, Hm = new Int16Array(N * N);
-const ZLO = -(HALF + 794 - 14);   // the north limit: the mainland strip (Yaba, then Ikeja GRA) runs 794 m past the old edge
+const ZLO = -(HALF + 5520 - 14);   // the north limit: the mainland strip (Yaba, Ikeja, the expressway, Ibadan, Oyo) runs 5520 m past the old edge
 const OH = 240, OB = OH - 14;   // the original 480 m map: content placed before the coast keeps to it
 const LAKES = [{ x: -44, z: 36, r: 15 }];
 for (let tries = 0; tries < 400 && LAKES.length < 8; tries++) {
@@ -934,7 +936,7 @@ for (const k in LAND_SAVE.edits || {}) KIND[+k] = 5;   // graded earth
 /* ---------- the mainland: a 384 m strip added along the north edge for Yaba, Yabatech and UNILAG.
    It is its own grid (NHm / NKIND, rows j = -ND..-1), so the old map's cell indices, plot keys and bulldozer edits
    are unchanged. Heights come from the same terrain function; the districts are levelled to the city's height. ---------- */
-const ND = 794, ZN = -HALF - ND, NBOUND = HALF + ND - 14;   // the new north edge (384 m for Yaba, then 410 m for Ikeja GRA), and how far north you can go
+const ND = 5520, ZN = -HALF - ND, NBOUND = HALF + ND - 14;   // the new north edge (384 m for Yaba, 410 m for Ikeja, then the road to Ibadan and Oyo), and how far north you can go
 const NHm = new Int16Array(N * ND), NKIND = new Uint8Array(N * ND), YABA_MAP = [];   // YABA_MAP: building footprints for the maps [x, z, w, d, colour]
 const YB = TOWN ? { x: -60, z: -476 } : null;   // the centre of Yaba's street grid (same 4x4 grid as the city)
 const UNILAG = { x0: 46, x1: 336, z0: -738, z1: -414, lagoonX: 298 }, YTECH = { x0: -336, x1: -176, z0: -660, z1: -446 };
@@ -963,44 +965,130 @@ const inMainland = (x, z) => z < -HALF;
 const YABA_PLAN = { '0,0': 'market', '1,0': 'market2', '2,0': 'buspark', '3,0': 'shops', '0,1': 'mosque', '1,1': 'techhub', '2,1': 'shops2', '3,1': 'gas',
   '0,2': 'flats', '1,2': 'bukas', '2,2': 'techhub2', '3,2': 'bank', '0,3': 'flats2', '1,3': 'church', '2,3': 'shops3', '3,3': 'flats3' };
 const UL_TRACK = { x: 200, z: -650, ax: 44, az: 26, w: 7 }, UL_PLAZA = { x0: 132, x1: 188, z0: -532, z1: -468 }, YT_PLAZA = { x0: -300, x1: -228, z0: -508, z1: -478 };
+/* ---------- Oyo State, north of Ikeja: the Lagos–Ibadan Expressway (a dual carriageway through forest, over the Ogun
+   and Ona rivers, past roadside hamlets with land for sale, Redemption City, the Ogere rest stop and the toll plaza),
+   then Ibadan and Oyo town. North of NZ_OYO the ground is built in passes (roads mark only the cells near them,
+   the hills come from noise sampled every 4 m), so the long strip loads quickly. ---------- */
+const NZ_OYO = -1160;
+const EXPWY = YB ? [[-60, -1130], [-60, -1450], [10, -1800], [90, -2200], [70, -2600], [-30, -3000], [-90, -3400], [-30, -3800], [40, -4200], [0, -4600], [0, -4724]] : [];
+const EXP_HW = 10;   // half-width: two lanes each way (lane centres 2.8 and 6.3 m out), the median, kerbs
+const EXP_SEGS = []; for (let k = 0; k + 1 < EXPWY.length; k++) { const [ax, az] = EXPWY[k], [bx, bz] = EXPWY[k + 1], len = Math.hypot(bx - ax, bz - az); EXP_SEGS.push({ ax, az, bx, bz, tx: (bx - ax) / len, tz: (bz - az) / len, len }); }
+const expX = z => { for (const s of EXP_SEGS) if (z <= s.az && z >= s.bz) return s.ax + (s.bx - s.ax) * (s.az - z) / (s.az - s.bz); return EXPWY.length ? EXPWY[EXPWY.length - 1][0] : 0; };   // where the expressway is at this z
+const expDist = (x, z) => { let b = 1e9; for (const s of EXP_SEGS) b = Math.min(b, segDist(x, z, [s.ax, s.az, s.bx, s.bz])); return b; };
+const RIVERS = YB ? [{ name: 'OGUN RIVER', z: -2380, a: 30, f: 70, ph: 0, w: 9 }, { name: 'ONA RIVER', z: -3950, a: 24, f: 60, ph: 1, w: 8 }] : [];
+const riverZ = (R, x) => R.z + Math.sin(x / R.f + R.ph) * R.a;
+// roadside hamlets: a spur road off the expressway, houses on some lots, land for sale on the rest (24 m land grid rows)
+const rowZ = z => Math.round((z + HALF - 12) / 24) * 24 - HALF + 12;   // the centre of the land-grid row nearest z
+const HAMLETS = YB ? [{ name: 'Magboro', z: -1660, side: 1 }, { name: 'Ibafo', z: -2060, side: -1 }, { name: 'Mowe', z: -2780, side: 1 }, { name: 'Ogere', z: -3580, side: -1, rest: true }].map(H => {
+  const zc = rowZ(H.z), ex = expX(zc), x0 = H.side > 0 ? Math.ceil((ex + EXP_HW + 14 + HALF) / 24) * 24 - HALF : Math.floor((ex - EXP_HW - 14 + HALF) / 24) * 24 - HALF;
+  const n = H.rest ? 3 : 6, x1 = x0 + H.side * 24 * n;
+  return { ...H, zc, ex, x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: zc - 36, z1: zc + 36, spur: [ex + H.side * (EXP_HW - 1), zc, x1 + H.side * 8, zc, 4] };
+}) : [];
+// Redemption City (east of the expressway) and the toll plaza before Ibadan
+const RCCG = YB ? (() => { const z = -3200, ex = expX(z); return { x0: ex + 30, x1: ex + 250, z0: z - 110, z1: z + 70, gz: z, ex }; })() : null;
+const TOLL_Z = -4420;
+// Ibadan Airport (Alakia), east of the expressway's last stretch: a north–south runway, apron and terminal, a road in from the expressway
+const IBAIR = YB ? { x0: 150, x1: 346, z0: -4712, z1: -4250, rx: 300, rz0: -4690, rz1: -4290, rw: 15, tx0: 172, tx1: 232, tz0: -4540, tz1: -4440, roadZ: -4490 } : null;
+// Ibadan: the Mapo old core of brown roofs, Dugbe with Cocoa House, Agodi Government House, the University of Ibadan, Bodija
+const IBD = { x0: -340, x1: 340, z0: -5450, z1: -4724, y: 3 };
+const MAPO = { x0: -330, x1: -22, z0: -4992, z1: -4732 }, DUGBE = { x0: 22, x1: 320, z0: -4992, z1: -4740 }, AGODI = { x0: 60, x1: 330, z0: -5164, z1: -5012 };
+const UI = { x0: -330, x1: -40, z0: -5440, z1: -5104 }, BODIJA = { x0: 30, x1: 330, z0: -5440, z1: -5184 };
+const COCOA = { x: 96, z: -4812 }, MAPO_HALL = { x: -176, z: -4862 }, BOWER = { x: -270, z: -5052 };
+const OYO = { x0: -270, x1: 270, z0: -5866, z1: -5560 }, AFIN = { x0: -120, x1: 120, z0: -5856, z1: -5704 }, AKESAN = { x0: -96, x1: 96, z0: -5690, z1: -5624 };
+const OROADS = YB ? [
+  [0, -4724, 0, -5700, 5],                                   // Oyo Road: the expressway's end, through Ibadan and north to the Alaafin's palace
+  [-330, -4740 + 0, -22, -4740, 4],                          // Mapo: the old core's ring of lanes
+  [-330, -5000, 330, -5000, 4.5],                            // Iwo Road, across the city
+  [22, -4740, 330, -4740, 4.5], [22, -4880, 330, -4880, 4.5], [170, -4740, 170, -5000, 4.5],   // Dugbe's streets
+  [0, -5178, 330, -5178, 4.5], [110, -5178, 110, -5440, 4], [230, -5178, 230, -5440, 4], [0, -5310, 330, -5310, 4],   // Bodija
+  [0, -5090, AGODI.x0 + 30, -5090, 4.5],                     // Agodi Government House's drive
+  [0, -5260, -60, -5260, 5], [-60, -5130, -60, -5420, 4], [-60, -5130, -310, -5130, 4], [-310, -5130, -310, -5420, 4], [-60, -5420, -310, -5420, 4], [-60, -5260, -310, -5260, 4],   // UI: the gate road and the campus loop
+  [-200, -5600, 200, -5600, 4.5], [-160, -5600, -160, -5850, 4], [160, -5600, 160, -5850, 4],   // Oyo town's streets, round the palace
+  ...HAMLETS.map(H => H.spur),
+  ...(RCCG ? [[RCCG.ex + EXP_HW - 1, RCCG.gz, RCCG.x0 + 20, RCCG.gz, 5]] : []),
+  ...(IBAIR ? [[expX(IBAIR.roadZ) + EXP_HW - 1, IBAIR.roadZ, IBAIR.tx0 - 8, IBAIR.roadZ, 5]] : []),   // the airport road
+] : [];
+// Mapo's lanes: a tight grid of narrow laterite lanes between the houses, every 34 m one way and 30 m the other
+const mapoLane = (x, z) => { const lx = ((x - MAPO.x0 - 26) % 34 + 34) % 34, lz = ((z - MAPO.z0 - 24) % 30 + 30) % 30; return lx < 2.6 || lx > 31.4 || lz < 2.6 || lz > 27.4; };
+const OYO_RECTS = [IBD, OYO, ...HAMLETS, ...(RCCG ? [RCCG] : []), ...(IBAIR ? [IBAIR] : [])];
 const nIdx = (x, z) => clamp(Math.floor(x + HALF), 0, N - 1) * ND + clamp(Math.floor(z - ZN), 0, ND - 1);
 if (YB) {
   const Y = TOWN.y;
+  // pass 1: how far each cell is from the paved roads (RD) and from the expressway's centre line (ED); each road marks only the cells near it
+  const RD = new Float32Array(N * ND).fill(99), ED = new Float32Array(N * ND).fill(99);
+  const mark = (arr, ax, az, bx, bz, off, reach) => {
+    const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz || 1;
+    const i0 = Math.max(0, Math.floor(Math.min(ax, bx) - reach + HALF)), i1 = Math.min(N - 1, Math.ceil(Math.max(ax, bx) + reach + HALF));
+    const j0 = Math.max(0, Math.floor(Math.min(az, bz) - reach - ZN)), j1 = Math.min(ND - 1, Math.ceil(Math.max(az, bz) + reach - ZN));
+    for (let i = i0; i <= i1; i++) { const x = i - HALF + .5; for (let jn = j0; jn <= j1; jn++) { const z = jn + ZN + .5; let t = ((x - ax) * dx + (z - az) * dz) / L; t = t < 0 ? 0 : t > 1 ? 1 : t; const ex = x - ax - dx * t, ez = z - az - dz * t, d = Math.sqrt(ex * ex + ez * ez) - off, k = i * ND + jn; if (d < arr[k]) arr[k] = d; } }
+  };
+  for (const r of YROADS.concat(OROADS)) mark(RD, r[0], r[1], r[2], r[3], r[4] - 4.5, r[4] + 24);
+  for (const sg of EXP_SEGS) mark(ED, sg.ax, sg.az, sg.bx, sg.bz, 0, EXP_HW + 30);
+  // pass 2: the north's rolling forest hills, noise sampled every 4 m and blended between
+  const CS = 4, CW = Math.ceil(N / CS) + 2, CHt = Math.ceil((NZ_OYO - ZN) / CS) + 2, coarse = new Float32Array(CW * CHt);
+  for (let a = 0; a < CW; a++) for (let c = 0; c < CHt; c++) { const x = a * CS - HALF, z = c * CS + ZN; coarse[a * CHt + c] = 4.5 + fbm(x / 70 + 21, z / 70 - 13) * 9 + fbm(x / 23 - 5, z / 23 + 8) * 2.5 - 2.5; }
+  const hillAt = (x, z) => { const fx = (x + HALF) / CS, fz = (z - ZN) / CS, a = fx | 0, c = fz | 0, u = fx - a, v = fz - c, o = a * CHt + c; return (coarse[o] * (1 - u) + coarse[o + CHt] * u) * (1 - v) + (coarse[o + 1] * (1 - u) + coarse[o + CHt + 1] * u) * v; };
+  const RIVZ = RIVERS.map(R => Float32Array.from({ length: N }, (_, i) => riverZ(R, i - HALF + .5)));   // each river's line, worked out once per column
+  const RECTS_A = [UNILAG, YTECH, GRA, GOVH];
   for (let i = 0; i < N; i++) for (let jn = 0; jn < ND; jn++) {
-    const x = i - HALF + .5, z = jn + ZN + .5, k = i * ND + jn;
-    let h = 2 + fbm(x / 40 + 3.1, z / 40 - 7.7) * 7.5 + fbm(x / 13, z / 13) * 2.2 - 1.6;
-    h += Math.max(0, fbm(x / 110 + 11, z / 110 - 4) - .52) * 34;
-    const dc = Math.hypot(x, z), hi = smooth(.5, .64, fbm(x / 170 + 40, z / 170 + 40)) * smooth(70, 130, dc);
-    h += hi * (fbm(x / 34 + 5, z / 34 - 3) * 34 + 3);
-    h = Math.max(h, 2);
-    // the districts and their roads are level with the city
-    let m = 99;
-    m = Math.min(m, Math.max(Math.abs(x - YB.x) - RING - 4, Math.abs(z - YB.z) - RING - 4, 0));
-    for (const R of [UNILAG, YTECH, GRA, GOVH]) m = Math.min(m, Math.max(R.x0 - x, x - R.x1, R.z0 - z, z - R.z1, 0));
-    m = Math.min(m, Math.max(0, yRoadDist(x, z) - 6));
-    const t = smooth(16, 0, m); h = h + (Y - h) * t;
-    // the lagoon along UNILAG's east side
-    const lg = x - UNILAG.lagoonX; if (z > UNILAG.z0 - 30 && z < UNILAG.z1 + 20 && lg > -2) h = lg > 6 ? 0 : lg > 2 ? 1 : Math.min(h, 2);
-    NHm[k] = clamp(Math.round(h), 0, 36);
-    // ground kinds: water and sand, rock and snow on the hills, then the districts' paving
+    const x = i - HALF + .5, z = jn + ZN + .5, k = i * ND + jn, rdk = RD[k], edk = ED[k];
     let kd = 0;
-    if (NHm[k] <= 2 && x > UNILAG.lagoonX - 4 && z < UNILAG.z1 + 20) kd = 1;
-    else if (NHm[k] >= 26) kd = 2; else if (hi > .35 && NHm[k] >= 13) kd = 3;
-    if (inYabaCore(x, z)) {   // the same street pattern as the city: roads with centre lines, sidewalks, paved blocks
-      const dx = x - YB.x, dz = z - YB.z; let ax = 99, az = 99, gx = 0, gz = 0;
-      for (const gv of GRID) { if (Math.abs(dx - gv) < ax) { ax = Math.abs(dx - gv); gx = gv; } if (Math.abs(dz - gv) < az) { az = Math.abs(dz - gv); gz = gv; } }
-      if (az < RH || ax < RH) kd = az < RH && ax >= RH && Math.floor(dz) === gz && Math.floor(dx / 3) % 2 === 0 ? 8 : ax < RH && az >= RH && Math.floor(dx) === gx && Math.floor(dz / 3) % 2 === 0 ? 9 : 6;
-      else if (az < SWE || ax < SWE) kd = 7;
-      else { const bx = clamp(Math.floor((dx + 76) / 38), 0, 3), bz = clamp(Math.floor((dz + 76) / 38), 0, 3), pl = YABA_PLAN[bx + ',' + bz]; kd = /flats|mosque|church/.test(pl) ? 0 : 7; }
+    if (z >= NZ_OYO) {   // Yaba and Ikeja: as they always were
+      // the districts and their roads are level with the city (where they are fully level, the hills needn't be worked out)
+      let m = 99;
+      m = Math.min(m, Math.max(Math.abs(x - YB.x) - RING - 4, Math.abs(z - YB.z) - RING - 4, 0));
+      for (const R of RECTS_A) m = Math.min(m, Math.max(R.x0 - x, x - R.x1, R.z0 - z, z - R.z1, 0));
+      m = Math.min(m, Math.max(0, rdk - 6), Math.max(0, edk - EXP_HW - 1));
+      let h = Y, hi = 0;
+      if (m > 0) {
+        h = 2 + fbm(x / 40 + 3.1, z / 40 - 7.7) * 7.5 + fbm(x / 13, z / 13) * 2.2 - 1.6;
+        h += Math.max(0, fbm(x / 110 + 11, z / 110 - 4) - .52) * 34;
+        const dc = Math.hypot(x, z); hi = smooth(.5, .64, fbm(x / 170 + 40, z / 170 + 40)) * smooth(70, 130, dc);
+        h += hi * (fbm(x / 34 + 5, z / 34 - 3) * 34 + 3);
+        h = Math.max(h, 2);
+        const t = smooth(16, 0, m); h = h + (Y - h) * t;
+      }
+      // the lagoon along UNILAG's east side
+      const lg = x - UNILAG.lagoonX; if (z > UNILAG.z0 - 30 && z < UNILAG.z1 + 20 && lg > -2) h = lg > 6 ? 0 : lg > 2 ? 1 : Math.min(h, 2);
+      NHm[k] = clamp(Math.round(h), 0, 36);
+      // ground kinds: water and sand, rock and snow on the hills, then the districts' paving
+      if (NHm[k] <= 2 && x > UNILAG.lagoonX - 4 && z < UNILAG.z1 + 20) kd = 1;
+      else if (NHm[k] >= 26) kd = 2; else if (hi > .35 && NHm[k] >= 13) kd = 3;
+      if (inYabaCore(x, z)) {   // the same street pattern as the city: roads with centre lines, sidewalks, paved blocks
+        const dx = x - YB.x, dz = z - YB.z; let ax = 99, az = 99, gx = 0, gz = 0;
+        for (const gv of GRID) { if (Math.abs(dx - gv) < ax) { ax = Math.abs(dx - gv); gx = gv; } if (Math.abs(dz - gv) < az) { az = Math.abs(dz - gv); gz = gv; } }
+        if (az < RH || ax < RH) kd = az < RH && ax >= RH && Math.floor(dz) === gz && Math.floor(dx / 3) % 2 === 0 ? 8 : ax < RH && az >= RH && Math.floor(dx) === gx && Math.floor(dz / 3) % 2 === 0 ? 9 : 6;
+        else if (az < SWE || ax < SWE) kd = 7;
+        else { const bx = clamp(Math.floor((dx + 76) / 38), 0, 3), bz = clamp(Math.floor((dz + 76) / 38), 0, 3), pl = YABA_PLAN[bx + ',' + bz]; kd = /flats|mosque|church/.test(pl) ? 0 : 7; }
+      }
+      if (inR(UNILAG, x, z) && x < UNILAG.lagoonX - 4) {   // lawns, the running track round the sports field, the Senate plaza, the lagoon promenade
+        kd = 0; const T = UL_TRACK, e = ((x - T.x) / T.ax) ** 2 + ((z - T.z) / T.az) ** 2, ei = ((x - T.x) / (T.ax - T.w)) ** 2 + ((z - T.z) / (T.az - T.w)) ** 2;
+        if (e < 1 && ei >= 1) kd = 5; if (inR(UL_PLAZA, x, z)) kd = 7; if (x > UNILAG.lagoonX - 12) kd = 7;
+      }
+      if (inR(YTECH, x, z)) { kd = 0; if (inR(YT_PLAZA, x, z)) kd = 7; }
+      if (inR(GRA, x, z)) kd = 0;   // lawns and gardens; the streets come from YROADS
+      if (inR(GOVH, x, z)) { kd = 0; if (Math.hypot(x - GOVH.fx, z - GOVH.fz) < GOVH.fr || (x > GOVH.bx0 - 16 && x < GOVH.bx0 && Math.abs(z - GOVH.cz) < 58)) kd = 7; }   // the forecourt and the terrace before the main building
+    } else {   // the road north: forest hills, the rivers, the hamlets, Ibadan and Oyo
+      let h = hillAt(x, z), m = rdk - 6 < edk - EXP_HW - 1 ? rdk - 6 : edk - EXP_HW - 1;
+      for (let r = 0; r < OYO_RECTS.length; r++) { const R = OYO_RECTS[r]; if (z > R.z0 - 16 && z < R.z1 + 16) { const d = Math.max(R.x0 - x, x - R.x1, R.z0 - z, z - R.z1); if (d < m) m = d; } }
+      if (m <= 0) h = Y; else if (m < 16) { const t = 1 - m / 16, e = t * t * (3 - 2 * t); h += (Y - h) * e; }
+      if (Math.abs(z - BOWER.z) < 46 && Math.abs(x - BOWER.x) < 46) { const db = Math.hypot(x - BOWER.x, z - BOWER.z); if (db < 46) h += 15 * smooth(46, 12, db); }   // Oke Are, the hill Bower's Tower stands on
+      if (Math.abs(z - MAPO_HALL.z) < 30 && Math.abs(x - MAPO_HALL.x) < 30) { const dm = Math.hypot(x - MAPO_HALL.x, z - MAPO_HALL.z); if (dm < 30) h = Math.max(h, Y + 3 * smooth(30, 18, dm)); }   // Mapo Hall's rise
+      let river = 0; for (let r = 0; r < RIVERS.length; r++) { const R = RIVERS[r]; if (Math.abs(z - R.z) > R.a + R.w + 4) continue; const dr = Math.abs(z - RIVZ[r][i]); if (dr < R.w + 4) river = Math.max(river, dr < R.w ? 2 : 1); }
+      if (river && edk > EXP_HW + 1.6) { h = river === 2 ? 0 : Math.min(h, 2); kd = 1; }   // water in the channel, sand banks; the expressway crosses on its causeway
+      const hr = Math.round(h); NHm[k] = hr < 0 ? 0 : hr > 40 ? 40 : hr;
+      if (IBAIR && x > IBAIR.x0 && z > IBAIR.z0 && z < IBAIR.z1) {   // the airport: runway and taxiway in asphalt, the apron paved
+        if (Math.abs(x - IBAIR.rx) < IBAIR.rw && z > IBAIR.rz0 && z < IBAIR.rz1) kd = 6;
+        else if (z > IBAIR.tz0 - 30 && z < IBAIR.tz1 + 30 && x > IBAIR.tx1 && x < IBAIR.rx - IBAIR.rw) kd = 7;
+        else if (Math.abs(z - (IBAIR.tz0 + IBAIR.tz1) / 2) < 6 && x > IBAIR.tx1 && x < IBAIR.rx) kd = 6;
+      }
+      if (kd !== 1 && z > OYO.z0 && z < IBD.z1) {
+        if ((x > MAPO.x0 && x < MAPO.x1 && z > MAPO.z0 && z < MAPO.z1) || (x > OYO.x0 && x < OYO.x1 && z > OYO.z0 && z < OYO.z1)) kd = 5;   // red laterite ground
+        else if (x > DUGBE.x0 && x < DUGBE.x1 && z > DUGBE.z0 && z < DUGBE.z1) kd = 7;
+      }
     }
-    if (inR(UNILAG, x, z) && x < UNILAG.lagoonX - 4) {   // lawns, the running track round the sports field, the Senate plaza, the lagoon promenade
-      kd = 0; const T = UL_TRACK, e = ((x - T.x) / T.ax) ** 2 + ((z - T.z) / T.az) ** 2, ei = ((x - T.x) / (T.ax - T.w)) ** 2 + ((z - T.z) / (T.az - T.w)) ** 2;
-      if (e < 1 && ei >= 1) kd = 5; if (inR(UL_PLAZA, x, z)) kd = 7; if (x > UNILAG.lagoonX - 12) kd = 7;
-    }
-    if (inR(YTECH, x, z)) { kd = 0; if (inR(YT_PLAZA, x, z)) kd = 7; }
-    if (inR(GRA, x, z)) kd = 0;   // lawns and gardens; the streets come from YROADS
-    if (inR(GOVH, x, z)) { kd = 0; if (Math.hypot(x - GOVH.fx, z - GOVH.fz) < GOVH.fr || (x > GOVH.bx0 - 16 && x < GOVH.bx0 && Math.abs(z - GOVH.cz) < 58)) kd = 7; }   // the forecourt and the terrace before the main building
-    const rd = yRoadDist(x, z); if (rd < 4.5) kd = 6; else if (rd < 6.3 && kd !== 1) kd = 7;
+    if (rdk < 4.5) kd = 6; else if (rdk < 6.3 && kd !== 1) kd = 7;
+    if (edk < 1.2) kd = 7; else if (edk < 9.6) kd = 6; else if (edk < 10.8) kd = 7;   // the median, the carriageways, the kerbs
     NKIND[k] = kd;
   }
 }
@@ -1774,8 +1862,9 @@ if (TOWN) {
   for (const s2 of [-1, 1]) {
     const b = new Builder(), lot = hs => roadUnder(hs.x, hs.z, hs.w + 1, hs.d + 1) ? dropBuild(T0, () => buildBungalow(hs, new Builder())) : buildBungalow(hs, b);
     for (const a of [-70, -50, -30, -10, 10, 30, 50, 70]) {
-      if (!(ESTATES.length && s2 < 0 && Math.abs(a - 10) < 12)) lot(mkLot(a, s2 * 89, 12, 8, s2 < 0 ? 'pz' : 'nz'));   // a gap for the road north to Lekki Gardens
-      if (!(AP && s2 === AP.sx && Math.abs(a + 38 * AP.sz) < 20) && !(COAST && s2 < 0 && Math.abs(a) < 20)) lot(mkLot(s2 * 89, a, 8, 12, s2 < 0 ? 'px' : 'nx'));
+      const car = (x, z, ax) => { if (((a + 70) / 20 + (s2 > 0 ? 1 : 0)) % 2 === 0 && !roadUnder(x, z, 5, 5)) addCar(b, x, z, T0.y, ax); };   // every other house has its car parked alongside
+      if (!(ESTATES.length && s2 < 0 && Math.abs(a - 10) < 12)) { const hs = mkLot(a, s2 * 89, 12, 8, s2 < 0 ? 'pz' : 'nz'); lot(hs); if (!roadUnder(hs.x, hs.z, 13, 9)) car(hs.x + 10, hs.z, false); }   // a gap for the road north to Lekki Gardens
+      if (!(AP && s2 === AP.sx && Math.abs(a + 38 * AP.sz) < 20) && !(COAST && s2 < 0 && Math.abs(a) < 20)) { const hs = mkLot(s2 * 89, a, 8, 12, s2 < 0 ? 'px' : 'nx'); lot(hs); if (!roadUnder(hs.x, hs.z, 9, 13)) car(hs.x, hs.z + 10, true); }
     }
     b.build();
   }
@@ -2914,6 +3003,7 @@ if (ESTATES.length) withSeed(9090, () => {
         const duplex = n % 2 === 0, w = duplex ? 11 : 12, d = duplex ? 10 : 8, ax = L.side === 'px' || L.side === 'nx';
         const hs = { v: E, x: L.cx, z: L.cz, w: ax ? d : w, d: ax ? w : d, side: L.side, yard: 2 };
         if (duplex) buildModernHouse(hs, b); else buildBungalow(hs, b);
+        addCar(b, L.cx + front[0] * .72 + (ax ? 0 : 6), L.cz + front[1] * .72 + (ax ? 6 : 0), y, ax);   // the family car in the front yard
         // a low front wall with a gate
         const fx = L.cx + front[0] * .95, fz = L.cz + front[1] * .95, gx = hs.doorOut.x, gz = hs.doorOut.z;
         if (ax) { if (gz - 1.6 > L.cz - 11) b.box(.3, 1.6, gz - 1.6 - (L.cz - 11), fx, y + .8, (L.cz - 11 + gz - 1.6) / 2, cream, 2, true, 'house'); if (L.cz + 11 > gz + 1.6) b.box(.3, 1.6, L.cz + 11 - gz - 1.6, fx, y + .8, (gz + 1.6 + L.cz + 11) / 2, cream, 2, true, 'house'); }
@@ -5891,6 +5981,17 @@ function makeKeke(color = rp([0xf2c230, 0x2f8a4a, 0x2f5f9a])) {
 const TRAFFIC_MIX = { corolla05: 5, camry08: 5, accord05: 4, sienna10: 4, corolla21: 3, camry23: 2, es350_12: 3, highlander15: 2, danfo: 3, hilux19: 2, rav4_20: 2, elantra17: 2, picanto18: 2,
   civic98: 2, sunny93: 2, peugeot504: 2, w123: 1, corolla88: 2, golf2: 1, beetle72: 1, accord22: 1.5, c300_16: 1, es350_23: 1, rx350_17: 1.5, lc200: 1.5, lx570: .6, bmw5_21: .8, gwagon: .4, huracan: .25, cullinan: .2, keke: 3 };
 const PARK_MIX = { ...TRAFFIC_MIX, danfo: 1, keke: 1, tipper: .3, gwagon: .4 };   // only used once LUX exists (the G 63 is built from it)
+// by neighbourhood: the GRA, the estates, Banana Island and the Lekki seafront see Land Cruisers, Lexuses and G-Wagons;
+// Yaba and the villages see old Corollas, danfos and kekes; the city keeps the everyday mix
+const LUX_MIX = { lx570: 3, lc200: 3, gwagon: 2, es350_23: 3, rx350_17: 3, c300_16: 2, bmw5_21: 2, camry23: 2, highlander15: 2, accord22: 2, es350_12: 1.5, rav4_20: 1, cullinan: .6, huracan: .4 };
+const BASIC_MIX = { corolla05: 5, corolla88: 3, camry08: 4, accord05: 3, sunny93: 3, peugeot504: 3, civic98: 2, golf2: 2, beetle72: 1, w123: 1, picanto18: 2, elantra17: 1.5, sienna10: 3, danfo: 5, keke: 5, hilux19: 1 };
+const BASIC_PARK = { ...BASIC_MIX, danfo: 1, keke: 1.5 };
+function mixAt(x, z) {   // which cars park and drive here
+  if (YB && (inR(BODIJA, x, z) || (RCCG && inR(RCCG, x, z)))) return PARK_MIX;
+  if (inEstate(x, z) || inBI(x, z) || (YB && (inR(GRA, x, z) || inR(GOVH, x, z) || inR(AGODI, x, z))) || (BEACH && z > 222 && !inRect(COUNTRY, x, z))) return LUX_MIX;
+  if ((YB && z < -HALF) || inRect(COUNTRY, x, z) || VILLAGES.some(v => Math.hypot(v.x - x, v.z - z) < VR + 20)) return BASIC_PARK;
+  return PARK_MIX;
+}
 function pickMix(mix) { let t = 0; for (const k in mix) t += mix[k]; let r = Math.random() * t; for (const k in mix) if ((r -= mix[k]) <= 0) return k; return 'corolla05'; }
 const makeMixed = (mix = TRAFFIC_MIX) => { const id = pickMix(mix); return id === 'keke' ? makeKeke() : id === 'tipper' ? makeTipper() : makeModel(id); };
 const makeTaxi = () => makeModel(pick(['corolla05', 'camry08', 'corolla05', 'sienna10']), 0xf2c230);
@@ -6129,7 +6230,6 @@ function bakeProps() {
   }
   STATIC_PROPS.length = 0; STATIC_PROPS.push(...keep);
 }
-for (const [x, z, y, ax] of DRIVEWAY_CARS) { const car = makeMixed(PARK_MIX); car.position.set(x, y, z); car.rotation.y = (ax ? Math.PI / 2 : 0) + (Math.random() < .5 ? Math.PI : 0); addStatic(car); }
 if (TOWN && TOWN.gasCar) { const car = makeMixed(PARK_MIX); car.position.set(...TOWN.gasCar); addStatic(car); }
 if (TOWN && TOWN.station) {
   for (const [x, z] of TOWN.policeBays) { const car = makePoliceCar(); car.position.set(x, TOWN.y + .02, z); car.rotation.y = Math.PI; addStatic(car); }
@@ -6207,6 +6307,40 @@ function updateCoastTraffic(dt) {
     let want = Math.atan2(-fx, -fz); if (c.turn > 0) want += Math.PI * (1 - c.turn / 3);
     let dy = want - c.g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.g.rotation.y += dy * Math.min(1, dt * 6);
   }
+}
+/* ---------- traffic on the newer roads (Ikeja's avenue and streets; the expressway next): a few cars per route, keeping
+   right, stopping for whatever is ahead, turning round at the ends. Light, and the kind of car fits the area. ---------- */
+const RTRAFFIC = [];
+function routeOf(pts) { const segs = []; let L = 0; for (let k = 0; k + 1 < pts.length; k++) { const [ax, az] = pts[k], [bx, bz] = pts[k + 1], len = Math.hypot(bx - ax, bz - az); segs.push({ ax, az, tx: (bx - ax) / len, tz: (bz - az) / len, len, s0: L }); L += len; } return { segs, L }; }
+function routeAt(R, s) { let g = R.segs[R.segs.length - 1]; for (const q of R.segs) if (s <= q.s0 + q.len) { g = q; break; } const t = clamp(s - g.s0, 0, g.len); return { x: g.ax + g.tx * t, z: g.az + g.tz * t, tx: g.tx, tz: g.tz }; }
+function addRouteCars(pts, n, opts = {}) {
+  const R = routeOf(pts), lanes = [].concat(opts.lane ?? 2.3); R.lane = lanes[0]; R.y = opts.y;
+  for (let k = 0; k < n; k++) {
+    const p = routeAt(R, R.L * (k + .5) / n), g = makeMixed(opts.mix || mixAt(p.x, p.z)); scene.add(g); beamsFor(g, 'car');
+    RTRAFFIC.push({ g, R, s: R.L * (k + .5) / n, dir: k % 2 ? -1 : 1, speed: 0, cruise: (opts.cruise || 10) * RM(.8, 1.1), turn: 0, lat: lanes[Math.floor(k / 2) % lanes.length] });
+  }
+}
+function updateRouteTraffic(dt) {
+  for (const c of RTRAFFIC) {
+    const R = c.R; if (c.turn > 0) { c.turn -= dt; if (c.turn <= 0) c.dir = -c.dir; }
+    const p = routeAt(R, c.s), fx = p.tx * c.dir, fz = p.tz * c.dir, rx = -fz, rz = fx;
+    let lat = c.lat ?? R.lane; if (c.turn > 0) lat *= (c.turn / 3) * 2 - 1;   // swing across during a U-turn
+    const x = p.x + rx * lat, z = p.z + rz * lat;
+    if (Math.abs(x - P.pos.x) > 300 || Math.abs(z - P.pos.z) > 300) continue;   // far away: wait until you come back
+    let blocked = false;
+    const check = (px, pz, w) => { const ex = px - x, ez = pz - z, a = ex * fx + ez * fz; if (a > 0 && a < 10 && Math.abs(ex * fz - ez * fx) < w) blocked = true; };
+    if (Math.abs(P.pos.y - (R.y ?? groundAt(x, z))) < 3) check(P.pos.x, P.pos.z, 1.8);
+    for (const o of RTRAFFIC) if (o !== c && o.R === R && o.dir === c.dir && o.turn <= 0 && Math.abs((o.lat ?? R.lane) - lat) < 1) check(o.g.position.x, o.g.position.z, 1.4);
+    c.speed += clamp((blocked || c.turn > 0 ? (blocked ? 0 : 3) : c.cruise) - c.speed, -14 * dt, 4 * dt);
+    if (c.turn <= 0) { c.s += c.dir * c.speed * dt; if (c.s > R.L - 8 || c.s < 8) { c.s = clamp(c.s, 8, R.L - 8); c.turn = 3; } }
+    c.g.position.set(x, (R.y ?? groundAt(x, z)) + .02, z);
+    let want = Math.atan2(-fx, -fz); if (c.turn > 0) want += Math.PI * (1 - c.turn / 3);
+    let dy = want - c.g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.g.rotation.y += dy * Math.min(1, dt * 6);
+  }
+}
+if (YB) {   // Ikeja: Obafemi Awolowo Way (an everyday mix) and a car or two on each GRA street
+  addRouteCars([[GRA.ave, -560], [GRA.ave, -1124]], 5, { mix: TRAFFIC_MIX, cruise: 11, lane: 2.3, y: TOWN.y });
+  GRA.streets.forEach((A, i) => addRouteCars([[GRA.ave - 6, A], [GRA.x0 + 6, A]], i === 1 ? 2 : 1, { mix: LUX_MIX, cruise: 8, lane: 2, y: TOWN.y }));
 }
 if (TOWN && TOWN.mallCars) for (const [x, z] of TOWN.mallCars) { const car = makeMixed(PARK_MIX); car.position.set(x, TOWN.y + .02, z); car.rotation.y = Math.random() < .5 ? 0 : Math.PI; addStatic(car); }
 if (TOWN && TOWN.kidSpots) for (const [x, z] of TOWN.kidSpots) { const k = makeCivilian(TOWN, { child: true, place: 'cityschool' }); k.guard = true; k.g.position.set(x, TOWN.y, z); k.g.rotation.y = RM(0, TAU); }
@@ -6507,9 +6641,18 @@ if (YABA) withSeed(9191, () => {
   YABA.YTECH = { x: -262, z: -495, y: Y, sand: [-330, -186, -510, -452], houses: [], civs: [], place: 'campus' };
   for (let k = 0; k < 22; k++) makeCivilian(YABA.YTECH, { adult: true });
 
+  /* ---- parked along Yaba's kerbs: old cars and the odd danfo (placed by position, not the seed, so Yaba keeps its layout) ---- */
+  for (const gv of GRID) for (let t = -66; t <= 66; t += 11) {
+    if (GRID.some(g2 => Math.abs(t - g2) < 9)) continue;
+    for (const along of [true, false]) {
+      const h = Math.abs(Math.sin(gv * 12.9898 + t * 78.233 + (along ? 0 : 3.7))) % 1; if (h > .32) continue;
+      const side = h < .16 ? 1 : -1;
+      if (along) addCar(null, YB.x + t, YB.z + gv + side * 3.6, Y, true); else addCar(null, YB.x + gv + side * 3.6, YB.z + t, Y, false);
+    }
+  }
   /* ---- traffic on Yaba's grid: danfos, kekes and cars ---- */
   for (let k = 0; k < 20; k++) {
-    const id = k < 6 ? 'danfo' : k < 10 ? 'keke' : null, g = id === 'keke' ? makeKeke() : id ? makeModel(id) : makeMixed(); scene.add(g); beamsFor(g, 'car');
+    const id = k < 6 ? 'danfo' : k < 10 ? 'keke' : null, g = id === 'keke' ? makeKeke() : id ? makeModel(id) : makeMixed(BASIC_MIX); scene.add(g); beamsFor(g, 'car');
     traffic.push({ g, T: YABA, axis: rng() < .5 ? 'x' : 'z', line: ri2(GRID), dir: ri2([-1, 1]), pos: (rng() - .5) * 140, speed: 0, cruise: 7 + rng() * 4, plan: null });
   }
 });
@@ -6564,6 +6707,7 @@ if (IKEJA) withSeed(9393, () => {
       b.box(2.3, wallH - .2, .12, gx - 1.2, Y + (wallH - .2) / 2, zf + fz * .3, LM(0x2a2c30), 1, false);   // the gate, half open
       b.box(23.6, .16, .5, L.cx, Y + wallH + .08, zb, trim, 1, false);
       if (n % 2) b.box(6, .7, .7, x0 + 5, Y + wallH + .2, zf, LM(0xc8327a), 1, false);   // bougainvillea
+      const cx = clamp(gx > L.cx ? gx - 6 : gx + 6, L.cx - 9, L.cx + 9); addCar(b, cx, L.cz + fz * 8, Y, false); if (big) addCar(b, clamp(cx + (cx > L.cx ? -3.2 : 3.2), L.cx - 9, L.cx + 9), L.cz + fz * 8, Y, false);
     } else {
       const bx = L.cx + 6, bz = L.cz + fz * 10.5, rot = L.side === 'pz' ? 0 : Math.PI;
       for (const s of [-.9, .9]) b.box(.12, 1.6, .12, bx + s, Y + .8, bz, MM.wood, 1, false);
@@ -6672,7 +6816,7 @@ if (IKEJA) withSeed(9393, () => {
   { const gx = 268, gz = cz - 70; for (const [ox, oz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) b.box(.4, 3.4, .4, gx + ox, Y + 1.7, gz + oz, stone, 1, true, 'house'); b.box(10, .4, 10, gx, Y + 3.6, gz, cornice, 1, true, 'roof'); hipRoof(b, LM(0x2f6f4a), gx, gz, 10, 10, Y + 3.8, { pitch: .5, ground: Y }); }
   blockG(G.z0 + 16, G.z0 + 46, 270, 326, 2);   // staff quarters
   b.box(52, .05, 24, 300, Y + .03, G.z1 - 30, LM(0x3a3a3e), 1, false);
-  for (let k = 0; k < 4; k++) makeDrivable(282 + k * 7, G.z1 - 30, Math.PI, 'car');
+  ['lx570', 'lc200', 'gwagon', 'es350_23'].forEach((id, k) => makeLux(id, 282 + k * 7, G.z1 - 30, Math.PI, 0x14161a));   // the convoy, in black
   for (let x = bx0 + depth + 12; x < G.x1 - 10; x += 22) for (const z of [cz - 80, cz + 80]) smallTree(b, x, z + (rng() - .5) * 10, Y);
   b.build();
   YABA_MAP.push([G.fx, G.fz, 20, 20, '#7fd0ee']);
@@ -6684,6 +6828,371 @@ if (IKEJA) withSeed(9393, () => {
   for (let k = 0; k < 8; k++) makeCivilian({ x: G.fx, z: cz, y: Y, houses: [], civs: [], sand: [G.fx + 14, bx0 - 16, cz - 28, cz + 28], place: k < 3 ? 'security' : 'seafront' }, { adult: true });
 });
 
+/* ---------- the road north and Oyo State, built from its own seed: the expressway's markings, median barrier, bridges,
+   signs and toll plaza; the forest; the hamlets, Redemption City and the Ogere rest stop; Ibadan Airport; Ibadan (Mapo,
+   Mapo Hall, Bower's Tower, Dugbe and Cocoa House, Agodi Government House, the University of Ibadan, Bodija); Oyo town
+   (the Alaafin's palace and Akesan market). ---------- */
+const FOREST = [];   // instanced trees in 400 m bands, shown near the scout (updateForest)
+const OYO_PLACES = [];   // [name, x, z] for the map and taxi fares
+const FLIGHT_DESKS = [];   // { x, z, y, to, name }: where to buy a seat on Oyo Skylink
+if (YB) withSeed(9494, () => {
+  const Y = TOWN.y, b = new Builder(), ri2 = a => a[Math.floor(rng() * a.length)], R2 = (a, c) => a + rng() * (c - a);
+  // pieces at an angle (the expressway runs on a slant), merged per material
+  const ROT = new Map();
+  const sbox = (w, h, d, x, y, z, ang, mat, S = 1) => { const g = boxGeo(w, h, d, S); g.rotateY(ang); g.translate(x, y, z); if (!ROT.has(mat)) ROT.set(mat, []); ROT.get(mat).push(g); };
+  const white = LM(0xf2f0ea), yel = LM(0xf2c230), conc = M.concrete, darkM = MM.dark, green = LM(0x1f6f3a);
+  const rusts = [0x2e160a, 0x361a0c, 0x281208, 0x3c200e, 0x30180c, 0x382414].map(c => LM(c)), zinc = LM(0x9aa3a8);   // old rusted zinc: Ibadan's sea of brown roofs
+  const walls = [0xe8d4a8, 0xd8b88a, 0xf0e2c4, 0xc89a6a, 0xe4c8a0, 0xf2e8d0, 0xd4a880, 0xe8c8b8].map(c => LM(c));
+  const winM = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), glassM = new THREE.MeshLambertMaterial({ color: 0x6a8ea8, emissive: 0x10202c });
+  const sign = (text, sub, bg, w, h, x, y, z, ry, fg = '#ffffff') => ySign(ySignMat(text, bg, fg, sub), w, h, x, y, z, ry);
+  const palm = (x, z, y = Y) => { b.box(.45, 7.5, .45, x, y + 3.75, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7], [.7, -.7], [-.7, .7]]) b.box(dx ? 3 : .6, .22, dz ? 3 : .6, x + dx * 1.4, y + 7.5 - (dx && dz ? .3 : 0), z + dz * 1.4, M.leaves, 1, false); };
+  const lamp = (x, z, ax, az) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, darkM, 1, true, 'house'); b.box(ax ? 1.4 : .12, .1, az ? 1.4 : .12, x + ax * .7, Y + 6.45, z + az * .7, darkM, 1, false); b.box(.45, .14, .45, x + ax * 1.3, Y + 6.35, z + az * 1.3, lampMat, 1, false); LAMPS.push([x + ax * 1.3, z + az * 1.3, Y]); };
+  // a plain house: rendered walls, a door and windows, a hip roof of rusty zinc (or tiles), on its own plot of red earth or grass
+  const cottage = (x, z, w, d, floors = 1, face = 'pz', roofM = ri2(rusts), wallM = ri2(walls), mapC = '#c8a070') => {
+    const H = floors * 3.1; b.box(w, H, d, x, Y + H / 2, z, wallM, 2, true, 'house');
+    const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[face], along = fz !== 0;
+    b.box(along ? 1.1 : .08, 2.1, along ? .08 : 1.1, x + fx * (w / 2 + .03), Y + 1.05, z + fz * (d / 2 + .03), MM.door || darkM, 1, false);
+    for (let f = 0; f < floors; f++) for (const o of [-.3, .3]) { const L = along ? w : d; b.box(along ? 1 : .08, 1, along ? .08 : 1, x + fx * (w / 2 + .03) + (along ? o * L : 0), Y + f * 3.1 + 1.7, z + fz * (d / 2 + .03) + (along ? 0 : o * L), winM, 1, false); }
+    hipRoof(b, roofM, x, z, w, d, Y + H, { pitch: .34, ov: .45, ground: Y });
+    YABA_MAP.push([x, z, w, d, mapC]); TAKEN.push([x, z, w, d]);
+  };
+  const TAKEN = [];   // footprints already built on, so scattered houses and trees don't land on each other
+  const free = (x, z, w, d, m = 2) => !TAKEN.some(([a, c, e, f]) => Math.abs(a - x) < (e + w) / 2 + m && Math.abs(c - z) < (f + d) / 2 + m);
+  const people = (place, n, rect, opts = {}) => { for (let k = 0; k < n; k++) { const c = makeCivilian({ x: (rect[0] + rect[1]) / 2, z: (rect[2] + rect[3]) / 2, y: Y, houses: [], civs: [], sand: rect, place }, { adult: rng() < .85, ...opts }); if (opts.guard) c.guard = true; } };
+
+  /* ---- the Lagos–Ibadan Expressway ---- */
+  const nearJunction = z => HAMLETS.some(H => Math.abs(z - H.zc) < 16) || (RCCG && Math.abs(z - RCCG.gz) < 16) || (IBAIR && Math.abs(z - IBAIR.roadZ) < 16) || Math.abs(z - TOLL_Z) < 22 || z > NZ_OYO + 20 || z < -4700;
+  const onBridge = (x, z) => RIVERS.find(R => Math.abs(z - riverZ(R, x)) < R.w + 5);
+  for (const sg of EXP_SEGS) {
+    const ang = Math.atan2(-sg.tz, sg.tx), at = (t, o) => [sg.ax + sg.tx * t - sg.tz * o, sg.az + sg.tz * t + sg.tx * o];
+    for (const o of [-4.55, 4.55]) for (let t = 1; t < sg.len - 3; t += 9) { const [x, z] = at(t + 2, o); sbox(4, .02, .18, x, Y + .04, z, ang, white); }
+    for (const o of [-8.7, 8.7, -1.7, 1.7]) { const [x, z] = at(sg.len / 2, o); sbox(sg.len, .02, .16, x, Y + .04, z, ang, Math.abs(o) < 2 ? yel : white); }
+    for (let t = 0; t < sg.len; t += 2) {
+      const [x, z] = at(t + 1, 0);
+      if (!nearJunction(z)) { sbox(2.02, .85, .5, x, Y + .43, z, ang, conc); colliders.push({ x0: x - .35, x1: x + .35, y0: Y, y1: Y + .85, z0: z - .35, z1: z + .35, tag: 'roof' }); }
+      const R = onBridge(x, z);
+      if (R) for (const s of [-1, 1]) {   // the bridge: parapets along both edges, dark culvert arches on the embankment below
+        const [px, pz] = at(t + 1, s * 10.4); sbox(2.02, 1.1, .35, px, Y + .55, pz, ang, conc); colliders.push({ x0: px - .3, x1: px + .3, y0: Y, y1: Y + 1.1, z0: pz - .3, z1: pz + .3, tag: 'house' });
+        if (Math.floor(t) % 6 === 0) { const [ax, az] = at(t + 1, s * 12.1); sbox(3.4, 1.6, .2, ax, Y - 1.4, az, ang, darkM); }
+      }
+    }
+  }
+  for (const R of RIVERS) {   // the river's water, and the name on the bridge
+    const P = [], I = []; for (let x = -HALF, n = 0; x <= HALF; x += 4, n++) { const zc = riverZ(R, x); P.push(x, WATER_Y, zc - R.w - 1.5, x, WATER_Y, zc + R.w + 1.5); if (n) I.push(2 * n - 2, 2 * n - 1, 2 * n, 2 * n - 1, 2 * n + 1, 2 * n); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x4f8f8a, transparent: true, opacity: .82, side: THREE.DoubleSide })); scene.add(m);
+    const ex = expX(R.z), zc = riverZ(R, ex);
+    sign(R.name, 'LAGOS–IBADAN EXPRESSWAY', '#0d4a2a', 5, 1.4, ex + 11.6, Y + 2.6, zc + R.w + 6, 0); sign(R.name, 'LAGOS–IBADAN EXPRESSWAY', '#0d4a2a', 5, 1.4, ex - 11.6, Y + 2.6, zc - R.w - 6, Math.PI);
+    for (const s of [-1, 1]) for (const sz of [-1, 1]) b.box(.2, 3.2, .2, ex + s * 11.6 + sz * 2.3 * 0, Y + 1.6, zc + s * (R.w + 6) + sz * 0, darkM, 1, false);
+  }
+  // road signs: on the right for each direction (northbound on the east side facing south, southbound on the west side facing north)
+  const roadSign = (z, dir, text, sub, bg = '#1f6f3a') => { const x = expX(z) + dir * 13; sign(text, sub, bg, 7, 2.2, x, Y + 5, z, dir > 0 ? 0 : Math.PI); for (const o of [-2.6, 2.6]) b.box(.25, 6, .25, x + o, Y + 3, z + dir * .05, darkM, 1, true, 'house'); };
+  roadSign(-1180, 1, 'LAGOS–IBADAN EXPRESSWAY', 'IBADAN 120 KM · SHAGAMU 52 KM'); roadSign(-1560, 1, 'MAGBORO', 'NEXT RIGHT'); roadSign(-1960, -1, 'IBAFO', 'NEXT RIGHT'); roadSign(-2600, 1, 'MOWE', 'NEXT RIGHT');
+  roadSign(-3050, 1, 'REDEMPTION CITY', 'RCCG · NEXT RIGHT', '#1f3f8a'); roadSign(-3460, -1, 'OGERE REST STOP', 'FUEL · FOOD · REST', '#8a3a1a'); roadSign(-3420, 1, 'OGERE REST STOP', 'ACROSS THE MEDIAN AT THE NEXT GAP', '#8a3a1a');
+  roadSign(-4010, 1, 'WELCOME TO OYO STATE', 'PACESETTER STATE', '#7a1a2a'); roadSign(-3890, -1, 'WELCOME TO OGUN STATE', 'GATEWAY STATE', '#1a3a6a');
+  roadSign(-4300, 1, 'TOLL PLAZA 1 KM', 'HAVE YOUR ₦300 READY'); roadSign(-4460, 1, 'IBADAN AIRPORT', 'NEXT RIGHT', '#1f3f8a'); roadSign(-4640, 1, 'IBADAN', 'CITY CENTRE · UI · OYO', '#7a1a2a');
+  roadSign(-4560, -1, 'LAGOS 120 KM', 'LAGOS–IBADAN EXPRESSWAY'); roadSign(-1300, -1, 'IKEJA', 'GRA · GOVERNMENT HOUSE');
+  // the toll plaza: a canopy across both carriageways, booths in the median and between the lanes, lamps either side
+  { const sg = EXP_SEGS.find(s => TOLL_Z <= s.az && TOLL_Z >= s.bz), t = (sg.az - TOLL_Z) / (sg.az - sg.bz) * sg.len, ang = Math.atan2(-sg.tz, sg.tx), at = (tt, o) => [sg.ax + sg.tx * tt - sg.tz * o, sg.az + sg.tz * tt + sg.tx * o];
+    for (const o of [-13, 0, 13]) { const [x, z] = at(t, o); sbox(1.2, 6, 1.2, x, Y + 3, z, ang, white); colliders.push({ x0: x - .6, x1: x + .6, y0: Y, y1: Y + 6, z0: z - .6, z1: z + .6, tag: 'house' }); }
+    { const [x, z] = at(t, 0); sbox(14, .6, 30, x, Y + 6.3, z, ang, white); sbox(14.4, .3, 30.4, x, Y + 6.75, z, ang, LM(0x1f6f3a)); colliders.push({ x0: x - 15, x1: x + 15, y0: Y + 6, y1: Y + 7, z0: z - 15, z1: z + 15, tag: 'roof' }); sign('TOLL PLAZA', 'LAGOS–IBADAN EXPRESSWAY · ₦300', '#1f6f3a', 12, 1.6, x, Y + 5.4, z + 7.2, 0); sign('TOLL PLAZA', 'LAGOS–IBADAN EXPRESSWAY · ₦300', '#1f6f3a', 12, 1.6, x, Y + 5.4, z - 7.2, Math.PI); }
+    for (const o of [-4.55, 4.55]) for (const dt of [-3, 3]) { const [x, z] = at(t + dt, o); sbox(1.1, 2.6, 2.6, x, Y + 1.3, z, ang, LM(0xf2c230)); sbox(1.2, .2, 2.8, x, Y + 2.7, z, ang, white); colliders.push({ x0: x - .6, x1: x + .6, y0: Y, y1: Y + 2.6, z0: z - .6, z1: z + .6, tag: 'house' }); }
+    for (const dt of [-60, -30, 30, 60]) for (const s of [-1, 1]) { const [x, z] = at(t + dt, s * 11.5); lamp(x, z, -s, 0); }
+    people('security', 3, [at(t, 0)[0] - 2, at(t, 0)[0] + 2, at(t, 0)[1] - 6, at(t, 0)[1] + 6], { guard: true });
+  }
+
+  /* ---- the forest: tall broadleaf trees and oil palms, instanced in 400 m bands ---- */
+  { const parts = { trunk: [], crown: [], top: [], ptrunk: [], frond: [] }, colors = [], BAND = 400;
+    const nearRoad = (x, z) => OROADS.some(r => Math.abs(z - (r[1] + r[3]) / 2) < Math.abs(r[3] - r[1]) / 2 + 20 && segDist(x, z, r) < r[4] + 9);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new V3(), pos = new V3(), up = new V3(0, 1, 0);
+    for (let z = ZN + 12; z < NZ_OYO - 14; z += 11) for (let x = -HALF + 10; x < HALF - 10; x += 11) {
+      const tx = x + R2(-4, 4), tz = z + R2(-4, 4), r = rng(), r2 = rng(), r3 = rng();
+      if (kindAt(tx, tz) !== 0 || heightAt(tx, tz) < 3) continue;
+      if (OYO_RECTS.some(R => tx > R.x0 - 12 && tx < R.x1 + 12 && tz > R.z0 - 12 && tz < R.z1 + 12) || expDist(tx, tz) < 17 || nearRoad(tx, tz)) continue;
+      if (r < .18 && r2 < .5) continue;   // glades
+      const band = Math.floor((tz - ZN) / BAND), y = heightAt(tx, tz), push = (k, px, py, pz, sx, sy, sz, ry = 0) => { q.setFromAxisAngle(up, ry); m4.compose(pos.set(px, py, pz), q, sc.set(sx, sy, sz)); (parts[k][band] ||= []).push(m4.clone()); };
+      if (r2 < .2) {   // an oil palm
+        const h = 6 + r3 * 4; push('ptrunk', tx, y, tz, 1, h, 1); for (let f = 0; f < 3; f++) push('frond', tx, y + h, tz, 1, 1, 1, f * Math.PI / 3 + r * 3);
+        colliders.push({ x0: tx - .3, x1: tx + .3, y0: y, y1: y + h, z0: tz - .3, z1: tz + .3, tag: 'trunk' });
+      } else {
+        const h = 4 + r3 * 5, w = 3.5 + r * 4, ch = 2.4 + r2 * 2;
+        push('trunk', tx, y, tz, 1 + r * .6, h, 1 + r * .6); push('crown', tx, y + h + ch / 2 - .4, tz, w, ch, w, r2); push('top', tx + R2(-.6, .6), y + h + ch + .4, tz + R2(-.6, .6), w * .62, 1.4 + r3, w * .62, r);
+        (colors[band] ||= []).push(r3);
+        colliders.push({ x0: tx - .45, x1: tx + .45, y0: y, y1: y + h, z0: tz - .45, z1: tz + .45, tag: 'trunk' });
+      }
+    }
+    const GEO = { trunk: new THREE.BoxGeometry(.5, 1, .5).translate(0, .5, 0), crown: new THREE.BoxGeometry(1, 1, 1), top: new THREE.BoxGeometry(1, 1, 1), ptrunk: new THREE.BoxGeometry(.42, 1, .42).translate(0, .5, 0), frond: new THREE.BoxGeometry(6.2, .2, .7) };
+    const MAT = { trunk: M.bark, crown: new THREE.MeshLambertMaterial({ color: 0xffffff }), top: new THREE.MeshLambertMaterial({ color: 0xffffff }), ptrunk: LM(0x6a5034), frond: LM(0x3f7f2e) };
+    const greens = [0x2f6a26, 0x3a7a2c, 0x285a22, 0x467f2a, 0x356e30].map(c => new THREE.Color(c));
+    const nb = Math.ceil((NZ_OYO - ZN) / BAND) + 1;
+    for (let band = 0; band < nb; band++) {
+      const meshes = [];
+      for (const k in parts) {
+        const list = parts[k][band]; if (!list || !list.length) continue;
+        const im = new THREE.InstancedMesh(GEO[k], MAT[k], list.length); list.forEach((mm, n) => im.setMatrixAt(n, mm));
+        if (k === 'crown' || k === 'top') list.forEach((mm, n) => im.setColorAt(n, greens[(n * 7 + (k === 'top' ? 3 : 0) + band) % greens.length]));
+        im.castShadow = k !== 'frond'; im.receiveShadow = true; im.frustumCulled = false; im.visible = false; scene.add(im); meshes.push(im);
+      }
+      FOREST.push({ z: ZN + (band + .5) * BAND, meshes });
+    }
+  }
+
+  /* ---- the roadside hamlets: houses on some lots, land for sale on the rest; the Ogere rest stop ---- */
+  for (const H of HAMLETS) {
+    const E = { id: 'h-' + H.name.toLowerCase(), name: H.name, short: H.name, x0: H.x0, x1: H.x1, z0: H.z0, z1: H.z1, price: 8000, houses: [], civs: [], place: 'village', estate: true, lots: [],
+      avenue: { axis: 'x', at: H.zc, from: H.x0, to: H.x1 }, gate: { x: H.ex + H.side * 14, z: H.zc, side: 'x' } };
+    Object.assign(E, { x: (H.x0 + H.x1) / 2, z: H.zc, w: H.x1 - H.x0, d: H.z1 - H.z0, y: Y });
+    sign(H.name.toUpperCase(), H.rest ? 'REST STOP · FUEL · FOOD' : 'OGUN STATE', H.rest ? '#8a3a1a' : '#1f6f3a', 5, 1.3, H.ex + H.side * 13, Y + 3.2, H.zc + 7, 0);
+    for (const o of [-2, 2]) b.box(.2, 3.2, .2, H.ex + H.side * 13 + o, Y + 1.6, H.zc + 7.1, darkM, 1, false);
+    if (H.rest) {   // Ogere: a fuel station on one side of the spur, bukas and parked trucks on the other
+      const cx = (H.x0 + H.x1) / 2, nz = H.zc - 24, sz = H.zc + 24;
+      for (const [ox, oz] of [[-12, -5], [12, -5], [-12, 5], [12, 5]]) b.box(.5, 5.5, .5, cx + ox, Y + 2.75, nz + oz, white, 1, true, 'house');
+      b.box(30, .8, 16, cx, Y + 5.9, nz, LM(0xd8342c), 1, true, 'roof'); b.box(30.4, .3, 16.4, cx, Y + 6.45, nz, white, 1, false);
+      for (const ox of [-6, 6]) for (const oz of [-2, 2]) { b.box(1, 1.6, .6, cx + ox, Y + .8, nz + oz, white, 1, true, 'house'); b.box(.9, .4, .65, cx + ox, Y + 1.4, nz + oz, LM(0xd8342c), 1, false); }
+      sign('OGERE FUEL', 'PMS ₦1,050 · AGO ₦1,400', '#d8342c', 9, 1.3, cx, Y + 5.9, nz + 8.15, 0);
+      cottage(cx, nz - 11, 16, 6, 1, 'pz', zinc, walls[2], '#e8e6df'); sign('REST STOP SHOP · ATM · TOILETS', '', '#2a2c30', 9, .9, cx, Y + 2.6, nz - 7.95, 0);
+      for (const ox of [-16, -6, 4, 14]) { b.box(6, .2, 5, cx + ox, Y + 2.8, sz - 4, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, -2.3], [-2.8, 2.3], [2.8, 2.3]]) b.box(.15, 2.8, .15, cx + ox + px, Y + 1.4, sz - 4 + pz, M.bark, 1, false); b.box(4, .9, 1.2, cx + ox, Y + .45, sz - 4, M.oak, 1, true, 'house'); }
+      sign('MAMA OGERE BUKA', 'AMALA · EWEDU · GBEGIRI', '#8a2a1a', 6, 1, cx - 6, Y + 3.4, sz - 1.4, 0);
+      for (const [ox, kind] of [[-14, 'tipper'], [-2, 'tanker'], [10, 'tipper']]) { const g = kind === 'tanker' ? makeTanker() : makeTipper(); g.position.set(cx + ox, Y + .02, sz + 9); g.rotation.y = Math.PI / 2; addStatic(g); colliders.push({ x0: cx + ox - 4, x1: cx + ox + 4, y0: Y, y1: Y + 3, z0: sz + 7.5, z1: sz + 10.5, tag: 'house' }); }
+      people('village', 10, [H.x0 + 4, H.x1 - 4, H.zc - 16, H.zc + 16]);
+      OYO_PLACES.push(['Ogere rest stop', cx, H.zc]);
+      continue;
+    }
+    for (const [z0, side] of [[H.zc - 36, 'pz'], [H.zc + 12, 'nz']]) for (let x0 = H.x0; x0 < H.x1; x0 += 24) E.lots.push({ x0, z0, cx: x0 + 12, cz: z0 + 12, side });
+    E.lots.forEach((L, n) => {
+      L.key = Math.floor((L.cx + HALF) / 24) + ',' + Math.floor((L.cz + HALF) / 24); L.n = n + 1;
+      L.taken = (n * 5 + H.name.length) % 3 === 0;
+      const fz = L.side === 'nz' ? -1 : 1;
+      if (L.taken) { cottage(L.cx + R2(-3, 3), L.cz - fz * 2, R2(8, 11), R2(6.5, 8), 1, L.side); b.box(.3, 1.2, 20, L.x0 + .5, Y + .6, L.cz, LM(0xc89a6a), 1, true, 'house'); if ((n + H.zc) % 2) addCar(null, L.cx + 7, L.cz + fz * 7, Y, false); }
+      else { const bx = L.cx + 6, bz = L.cz + fz * 10.5; for (const s of [-.9, .9]) b.box(.12, 1.6, .12, bx + s, Y + .8, bz, MM.wood, 1, false); textSign(`${H.name.toUpperCase()} · PLOT ${L.n} · FOR SALE`, '#f2f0ea', '#1f6f3a', 3, .8, bx, Y + 1.9, bz + fz * .08, L.side === 'pz' ? 0 : Math.PI, '#d8342c'); for (const [ox, oz] of [[-11.6, -11.6], [11.6, -11.6], [-11.6, 11.6], [11.6, 11.6]]) b.box(.18, .5, .18, L.cx + ox, Y + .25, L.cz + oz, LM(0xd8342c), 1, false); }
+    });
+    // a kiosk and a borehole tank by the junction, a small church or mosque at the far end, palms
+    const kx = H.x0 + (H.side > 0 ? -6 : H.x1 - H.x0 + 6); b.box(3, 2.4, 2.2, kx, Y + 1.2, H.zc - 8, LM(0x2f8fd0), 1, true, 'house'); b.box(3.6, .15, 2.8, kx, Y + 2.5, H.zc - 8, zinc, 1, false); sign('MAMA PUT · RECHARGE CARD', '', '#2f5f9a', 3, .6, kx, Y + 2.1, H.zc - 6.85, 0);
+    for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.box(.2, 6, .2, kx + ox, Y + 3, H.zc + 8 + oz, MM.steel, 1, true, 'house'); b.box(2.6, 2, 2.6, kx, Y + 7, H.zc + 8, LM(0x1b1b1f), 1, false);
+    const fx = H.side > 0 ? H.x1 + 10 : H.x0 - 10; if (H.name.length % 2) { cottage(fx, H.zc - 14, 9, 14, 1, 'pz', zinc, white, '#ffffff'); b.box(.2, 4, .2, fx, Y + 5.5, H.zc - 14, white, 1, false); b.box(1.6, .2, .2, fx, Y + 6.6, H.zc - 14, white, 1, false); } else { cottage(fx, H.zc - 14, 12, 12, 1, 'pz', LM(0x2f8a4a), white, '#ffffff'); b.box(1.4, 9, 1.4, fx + 5, Y + 4.5, H.zc - 19, white, 1, true, 'house'); b.box(1.8, 1.6, 1.8, fx + 5, Y + 9.8, H.zc - 19, LM(0x2f8a4a), 1, false); }
+    for (let k = 0; k < 6; k++) palm(H.x0 + (k + .5) * (H.x1 - H.x0) / 6, H.zc + (k % 2 ? 9 : -9));
+    people('village', 7, [H.x0 + 4, H.x1 - 4, H.zc - 7.5, H.zc - 6.5]);
+    ESTATES.push(E); OYO_PLACES.push([H.name, E.x, H.zc]);
+  }
+
+  /* ---- Redemption City: the vast open-sided auditorium, the gate, a car park ---- */
+  if (RCCG) {
+    const cx = (RCCG.x0 + RCCG.x1) / 2 + 20, cz = RCCG.gz - 10, W = 150, D = 100;
+    for (let x = cx - W / 2; x <= cx + W / 2; x += 15) for (let z = cz - D / 2; z <= cz + D / 2; z += 20) b.box(.9, 15, .9, x, Y + 7.5, z, MM.steel, 1, true, 'house');
+    b.box(W + 8, 1.2, D + 8, cx, Y + 15.6, cz, LM(0xe8e6df), 2, true, 'roof'); b.box(W + 8.4, .4, D + 8.4, cx, Y + 16.4, cz, LM(0x2f5f9a), 1, false);
+    b.box(10, 1.4, 40, cx + W / 2 - 10, Y + .7, cz, LM(0x6a3a2a), 1, true, 'base'); b.box(.4, 6, 36, cx + W / 2 - 4, Y + 4, cz, LM(0x8a1a2a), 1, false);
+    for (let x = cx - W / 2 + 8; x < cx + W / 2 - 20; x += 3) for (const s of [-1, 1]) b.box(1.2, .6, 40, x, Y + .3, cz + s * 24, LM(0x2f5f9a), 1, false);
+    sign('THE REDEEMED CHRISTIAN CHURCH OF GOD', 'REDEMPTION CITY · HOLY GHOST SERVICE: FIRST FRIDAY', '#1f3f8a', 26, 3, cx, Y + 13, cz + D / 2 + 4.2, 0);
+    const gx = RCCG.ex + EXP_HW + 14; for (const s of [-1, 1]) b.box(1.6, 8, 1.6, gx, Y + 4, RCCG.gz + s * 8, white, 1, true, 'house'); b.box(1.6, 1.6, 17.6, gx, Y + 8.8, RCCG.gz, white, 1, true, 'roof');
+    sign('REDEMPTION CITY', 'RCCG · WELCOME', '#1f3f8a', 14, 1.6, gx - .9, Y + 8.8, RCCG.gz, -Math.PI / 2);
+    for (let x = RCCG.x0 + 30; x < cx - W / 2 - 6; x += 3.4) for (const z of [RCCG.gz + 14, RCCG.gz - 14]) if (rng() < .7) addCar(null, x, z, Y, false);
+    people('village', 18, [cx - W / 2 + 6, cx + W / 2 - 16, cz - D / 2 + 6, cz + D / 2 - 6]);
+    OYO_PLACES.push(['Redemption City', cx, cz]); YABA_MAP.push([cx, cz, W, D, '#e8e6df']);
+  }
+
+  /* ---- Ibadan Airport: runway, apron, terminal and tower, the Oyo Skylink jet, a plane you can fly ---- */
+  if (IBAIR) {
+    const A = IBAIR, tcx = (A.tx0 + A.tx1) / 2, tcz = (A.tz0 + A.tz1) / 2;
+    for (let z = A.rz1 - 20; z > A.rz0 + 20; z -= 20) b.box(.6, .02, 8, A.rx, Y + .04, z, white, 1, false);
+    for (const s of [-1, 1]) b.box(.4, .02, A.rz1 - A.rz0, A.rx + s * (A.rw - 1), Y + .04, (A.rz0 + A.rz1) / 2, white, 1, false);
+    for (const zz of [A.rz0 + 14, A.rz1 - 14]) for (let k = -5; k <= 5; k++) b.box(.8, .02, 6, A.rx + k * 2.4, Y + .04, zz, white, 1, false);
+    for (let z = A.rz0; z <= A.rz1; z += 30) for (const s of [-1, 1]) b.box(.3, .3, .3, A.rx + s * (A.rw + .6), Y + .15, z, lampMat, 1, false);
+    // the terminal: two floors of glass under a deep roof, the name across the front
+    b.box(A.tx1 - A.tx0, 9, A.tz1 - A.tz0, tcx, Y + 4.5, tcz, LM(0xe8e6df), 2, true, 'house');
+    for (const x of [A.tx0 - .05, A.tx1 + .05]) b.box(.1, 6.5, A.tz1 - A.tz0 - 6, x, Y + 4, tcz, glassM, 1, false);
+    b.box(A.tx1 - A.tx0 + 12, .8, A.tz1 - A.tz0 + 8, tcx, Y + 9.6, tcz, white, 1, true, 'roof');
+    sign('IBADAN AIRPORT', 'ALAKIA · OYO SKYLINK', '#1f3f8a', 26, 2.4, A.tx0 - .7, Y + 7.6, tcz, -Math.PI / 2);
+    b.box(6, 22, 6, A.tx0 + 6, Y + 11, A.tz0 - 16, white, 1, true, 'house'); b.box(9, 4, 9, A.tx0 + 6, Y + 24, A.tz0 - 16, glassM, 1, true, 'roof'); b.box(9.6, .6, 9.6, A.tx0 + 6, Y + 26.3, A.tz0 - 16, white, 1, false);
+    const jet = makeAirliner(); jet.position.set(A.tx1 + 32, Y, tcz - 20); jet.rotation.y = -Math.PI / 2; scene.add(jet);
+    colliders.push({ x0: A.tx1 + 14, x1: A.tx1 + 50, y0: Y, y1: Y + 6, z0: tcz - 26, z1: tcz - 14, tag: 'house' });
+    sign('OYO SKYLINK', 'IBADAN ⇄ LAGOS', '#7a1a2a', 10, 1.6, A.tx1 + 8, Y + 3, tcz + 34, 0);
+    makeDrivable(A.tx1 + 30, tcz + 24, -Math.PI / 2, 'plane');
+    FLIGHT_DESKS.push({ x: A.tx0 - 7, z: tcz + 16, y: Y, to: 'lagos', name: 'Ibadan Airport', out: [A.tx0 - 10, tcz] });   // the airline's booth on the kerb by arrivals
+    people('airport', 10, [A.tx0 - 14, A.tx0 - 6, tcz - 30, tcz + 30]);
+    OYO_PLACES.push(['Ibadan Airport', A.tx0 - 10, tcz]); YABA_MAP.push([tcx, tcz, A.tx1 - A.tx0, A.tz1 - A.tz0, '#7fd3e8']);
+  }
+
+  /* ---- Ibadan ---- */
+  // Oyo Road: palms and lamps through the city
+  for (let z = -4740, k = 0; z > -5690; z -= 18, k++) for (const s of [-1, 1]) { if (OROADS.some(r => r[1] === r[3] && Math.abs(z - r[1]) < 12)) continue; if (k % 2) palm(s * 9.5, z); else lamp(s * 9.5, z, -s, 0); }
+  sign('WELCOME TO IBADAN', 'CITY OF SEVEN HILLS · OYO STATE', '#7a1a2a', 9, 1.8, -13, Y + 4.4, -4732, 0); for (const o of [-3.8, 3.8]) b.box(.25, 4.4, .25, -13 + o, Y + 2.2, -4732.1, darkM, 1, true, 'house');
+  // Mapo: the old core, a tight grid of narrow lanes and brown rusty roofs, two to a lane-block each way
+  for (let lx = MAPO.x0 + 26; lx < MAPO.x1 - 10; lx += 34) for (let lz = MAPO.z0 + 24; lz < MAPO.z1 - 10; lz += 30) {
+    for (const [ox, oz] of [[8.5, 8], [25.5, 8], [8.5, 22], [25.5, 22]]) {
+      const x = lx + ox - (ox > 17 ? 0 : 0), z = lz + oz;
+      if (x > MAPO.x1 - 6 || z > MAPO.z1 - 6 || Math.hypot(x - MAPO_HALL.x, z - MAPO_HALL.z) < 36) continue;
+      const floors = rng() < .25 ? 2 : 1; cottage(x, z, R2(10, 11.5), R2(9, 10.5), floors, ri2(['pz', 'nz', 'px', 'nx']), ri2(rusts), ri2(walls), '#a8603a');
+    }
+  }
+  people('market', 26, [MAPO.x0 + 8, MAPO.x1 - 8, MAPO.z0 + 8, MAPO.z1 - 8]);
+  // Mapo Hall on its rise: a colonnaded white hall with a broad stair
+  { const hx = MAPO_HALL.x, hz = MAPO_HALL.z, hy = Y + 3;
+    b.box(34, 10, 18, hx, hy + 5, hz, LM(0xf4efe2), 2, true, 'house'); b.box(35, .8, 19, hx, hy + 10.4, hz, white, 1, true, 'roof'); b.box(35.4, .4, 19.4, hx, hy + 11, hz, LM(0xd8d2c4), 1, false);
+    for (let k = 0; k < 10; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.55, .6, 9, 14), white); c.position.set(hx - 15.3 + k * 3.4, hy + 4.5, hz + 11.5); scene.add(c); colliders.push({ x0: hx - 15.9 + k * 3.4, x1: hx - 14.7 + k * 3.4, y0: hy, y1: hy + 9, z0: hz + 10.9, z1: hz + 12.1, tag: 'house' }); }
+    b.box(35, .8, 4.4, hx, hy + 9.4, hz + 11.5, white, 1, true, 'roof');
+    for (let k = 0; k < 6; k++) b.box(20, .5, 2, hx, Y + .25 + k * .5, hz + 22 - k * 1.8, LM(0xd8d2c4), 1, true, 'base');
+    sign('MAPO HALL', 'IBADAN · 1929', '#7a1a2a', 8, 1.2, hx, hy + 8, hz + 9.05, 0);
+    OYO_PLACES.push(['Mapo Hall', hx, hz + 26]); YABA_MAP.push([hx, hz, 34, 18, '#f4efe2']); }
+  // Bower's Tower on Oke Are
+  { const bx = BOWER.x, bz = BOWER.z, by = heightAt(bx, bz);
+    b.box(6, 14, 6, bx, by + 7, bz, white, 2, true, 'house'); b.box(5, 6, 5, bx, by + 17, bz, white, 2, true, 'house'); b.box(7.4, .8, 7.4, bx, by + 20.4, bz, LM(0xd8d2c4), 1, true, 'roof');
+    for (const [ox, oz] of [[-3.4, 0], [3.4, 0], [0, -3.4], [0, 3.4]]) b.box(ox ? .2 : 7, 1.1, oz ? .2 : 7, bx + ox, by + 21.3, bz + oz, darkM, 1, false);
+    b.box(3, 3, 3, bx, by + 22.3, bz, white, 1, true, 'house'); b.box(1.2, 2, .1, bx, by + 1, bz + 3.05, darkM, 1, false);
+    sign('BOWER’S TOWER', 'OKE ARE · 1936', '#7a1a2a', 4.5, 1, bx, by + 3.2, bz + 3.06, 0);
+    OYO_PLACES.push(['Bower’s Tower', bx, bz + 30]); YABA_MAP.push([bx, bz, 6, 6, '#ffffff']); }
+  // Dugbe: Cocoa House (twenty-six floors, white ribs, a crown), banks and offices, the market
+  { const cx = COCOA.x, cz = COCOA.z, fl = 4, n = 26, top = Y + 8 + n * fl, cream = LM(0xf2efe6), rib = LM(0xb8b2a4);
+    b.box(34, 8, 34, cx, Y + 4, cz, cream, 2, true, 'house'); b.box(36, .6, 36, cx, Y + 8.3, cz, white, 1, false);
+    b.box(22, n * fl, 22, cx, Y + 8 + n * fl / 2, cz, cream, 3, true, 'house');
+    for (let k = -4; k <= 4; k++) for (const s of [-1, 1]) { b.box(1.2, n * fl - 2, .25, cx + k * 2.4, Y + 9 + n * fl / 2, cz + s * 11.12, k % 2 ? glassM : rib, 1, false); b.box(.25, n * fl - 2, 1.2, cx + s * 11.12, Y + 9 + n * fl / 2, cz + k * 2.4, k % 2 ? glassM : rib, 1, false); }
+    b.box(23, 3, 23, cx, top + 1.5, cz, rib, 1, true, 'roof'); b.box(14, 6, 14, cx, top + 6, cz, cream, 1, true, 'roof'); b.box(3, 9, 3, cx, top + 13.5, cz, white, 1, false);
+    for (const [ox, oz, ry] of [[0, 11.6, 0], [0, -11.6, Math.PI], [11.6, 0, Math.PI / 2], [-11.6, 0, -Math.PI / 2]]) sign('COCOA HOUSE', 'IBADAN', '#7a4a1a', 12, 1.6, cx + ox, top - 3, cz + oz, ry);
+    sign('COCOA HOUSE', 'DUGBE · IBADAN · 1965', '#7a4a1a', 14, 1.6, cx, Y + 6, cz + 17.05, 0); b.box(14, .3, 4, cx, Y + 3.6, cz + 19, white, 1, true, 'roof');
+    YABA_MAP.push([cx, cz, 34, 34, '#f2efe6']); OYO_PLACES.push(['Cocoa House', cx, cz + 26]);
+    // the rest of Dugbe: banks and offices in two blocks, the market in a third
+    const BANKS = [['FIRST BANK', '#1f3f6a'], ['UBA', '#d8261e'], ['GTBANK', '#e8742a'], ['ACCESS BANK', '#2f5f9a'], ['ZENITH BANK', '#d8261e'], ['WEMA BANK', '#6a2a8a']];
+    let bk = 0;
+    for (const [x0, z0, x1, z1] of [[176, -4874, 326, -4746], [176, -4994, 326, -4886], [22 + 6, -4740 + 0, 50, -4740]]) {
+      if (x1 - x0 < 40) continue;
+      for (let x = x0 + 14; x < x1 - 10; x += 30) for (const z of [z0 + 14, z1 - 14]) { const fl2 = 3 + Math.floor(rng() * 5); cottage(x, z, 22, 16, fl2, z < (z0 + z1) / 2 ? 'nz' : 'pz', zinc, ri2([walls[2], walls[5], LM(0xdfe6ea)]), '#dfe6ea'); const [t, c] = BANKS[bk++ % BANKS.length]; sign(t, '', c, 10, 1.2, x, Y + 4, z + (z < (z0 + z1) / 2 ? -8.06 : 8.06), z < (z0 + z1) / 2 ? Math.PI : 0); }
+    }
+    for (let x = 32; x < 162; x += 9) for (let z = -4988; z < -4892; z += 8) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); b.box(5, .9, 1.2, x, Y + .45, z - 1.4, M.oak, 1, true, 'house'); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); }
+    sign('DUGBE MARKET', '', '#8a2a1a', 8, 1.2, 96, Y + 3.6, -4886.5, 0);
+    people('yaba', 20, [24, 320, -4876, -4744]); people('market', 24, [30, 162, -4992, -4892]);
+    OYO_PLACES.push(['Dugbe Market', 96, -4884]);
+  }
+  // Agodi: Oyo State Government House
+  { const A = AGODI, cz = -5090, bx0 = 190;
+    for (const [x0, z0, x1, z1] of [[A.x0, A.z0, A.x1, A.z0], [A.x0, A.z1, A.x1, A.z1], [A.x1, A.z0, A.x1, A.z1], [A.x0, A.z0, A.x0, cz - 8], [A.x0, cz + 8, A.x0, A.z1]]) { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; b.box(along ? L : .5, 2.4, along ? .5 : L, (x0 + x1) / 2, Y + 1.2, (z0 + z1) / 2, white, 2, true, 'house'); b.box(along ? L : .7, .25, along ? .7 : L, (x0 + x1) / 2, Y + 2.5, (z0 + z1) / 2, LM(0x2f8a4a), 1, false); }
+    for (const s of [-1, 1]) { b.box(1.6, 5, 1.6, A.x0, Y + 2.5, cz + s * 8, white, 1, true, 'house'); b.box(1.9, .3, 1.9, A.x0, Y + 5.15, cz + s * 8, LM(0x2f8a4a), 1, false); }
+    sign('OYO STATE GOVERNMENT HOUSE', 'AGODI · IBADAN', '#1f6f3a', 14, 1.5, A.x0 - .4, Y + 4.2, cz, -Math.PI / 2);
+    b.box(70, 9, 26, bx0 + 35, Y + 4.5, cz, LM(0xf4efe2), 2, true, 'house'); hipRoof(b, LM(0x2f8a4a), bx0 + 35, cz, 70, 26, Y + 9, { pitch: .3, ov: .8, ground: Y });
+    for (let k = 0; k < 6; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.5, .55, 8.6, 14), white); c.position.set(bx0 - 4, Y + 4.3, cz - 10 + k * 4); scene.add(c); colliders.push({ x0: bx0 - 4.6, x1: bx0 - 3.4, y0: Y, y1: Y + 8.6, z0: cz - 10.6 + k * 4, z1: cz - 9.4 + k * 4, tag: 'house' }); }
+    b.box(8, .7, 24, bx0 - 4, Y + 8.9, cz, white, 1, true, 'roof');
+    for (let f = 0; f < 2; f++) for (let k = 0; k < 7; k++) for (const s of [-1, 1]) b.box(1.4, 2, .1, bx0 + 5 + k * 10, Y + 2 + f * 4.4, cz + s * 13.05, winM, 1, false);
+    { const fx = bx0 - 40, cyl = (r, h, y, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 32), m); o.position.set(fx, y, cz); scene.add(o); }; cyl(6, .8, Y + .4, white); cyl(5.5, .1, Y + .8, new THREE.MeshPhongMaterial({ color: 0x7fd0ee, shininess: 120 })); cyl(1.2, 2.6, Y + 1.3, white); colliders.push({ x0: fx - 6, x1: fx + 6, y0: Y, y1: Y + .8, z0: cz - 6, z1: cz + 6, tag: 'base' }); }
+    for (const dz of [-20, 0, 20]) { b.box(.18, 12, .18, bx0 - 18, Y + 6, cz + dz, MM.steel, 1, true, 'house'); }
+    for (let x = A.x0 + 16; x < A.x1 - 8; x += 18) for (const z of [A.z0 + 10, A.z1 - 10]) palm(x, z);
+    people('security', 4, [A.x0 + 2, A.x0 + 8, cz - 4, cz + 4], { guard: true }); people('seafront', 6, [bx0 - 46, bx0 - 10, cz - 20, cz + 20]);
+    for (let k = 0; k < 3; k++) makeLux(['lc200', 'es350_23', 'lx570'][k], A.x1 - 30, cz - 30 + k * 6, Math.PI / 2, 0x14161a);
+    YABA_MAP.push([bx0 + 35, cz, 70, 26, '#f4efe2']); OYO_PLACES.push(['Government House, Agodi', A.x0 - 10, cz + 12]);
+  }
+  // the University of Ibadan: the gate, Trenchard Hall and its clock tower, Kenneth Mellanby Hall round its court, faculties, the sports field
+  { const tile = LM(0x9a4a2a), brick = LM(0xb86a4a), cream = LM(0xf2e8d0);
+    const gx = -30, gz = -5260; for (const s of [-1, 1]) b.box(2, 7, 2, gx, Y + 3.5, gz + s * 9, cream, 1, true, 'house'); b.box(2, 1.8, 20, gx, Y + 7.9, gz, cream, 1, true, 'roof');
+    sign('UNIVERSITY OF IBADAN', 'RECTE SAPERE FONS', '#1f3f8a', 16, 1.5, gx + 1.05, Y + 7.9, gz, Math.PI / 2);
+    // Trenchard Hall with its clock tower
+    const th = { x: -185, z: -5196 }; b.box(46, 10, 22, th.x, Y + 5, th.z, cream, 2, true, 'house'); hipRoof(b, tile, th.x, th.z, 46, 22, Y + 10, { pitch: .35, ov: .7, ground: Y });
+    for (let k = 0; k < 9; k++) b.box(1.6, 3.2, .1, th.x - 20 + k * 5, Y + 4.5, th.z + 11.05, winM, 1, false);
+    b.box(7, 30, 7, th.x, Y + 15, th.z + 14, cream, 2, true, 'house'); b.box(8, 1, 8, th.x, Y + 30.5, th.z + 14, tile, 1, false); hipRoof(b, tile, th.x, th.z + 14, 7, 7, Y + 31, { pitch: 1.1, ov: .4, ground: Y });
+    for (const [ox, oz, ry] of [[0, 3.55, 0], [3.55, 0, Math.PI / 2], [-3.55, 0, -Math.PI / 2], [0, -3.55, Math.PI]]) { const c = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshLambertMaterial({ color: 0xf8f4e8 })); c.position.set(th.x + ox, Y + 26, th.z + 14 + oz); c.rotation.y = ry; scene.add(c); const hand = new THREE.Mesh(new THREE.PlaneGeometry(.15, 1.7), MM.dark); hand.position.set(th.x + ox * 1.003, Y + 26.5, th.z + 14 + oz * 1.003); hand.rotation.y = ry; hand.rotation.z = .5; scene.add(hand); }
+    sign('TRENCHARD HALL', '', '#1f3f8a', 8, 1, th.x, Y + 8.6, th.z + 11.06, 0);
+    // Kenneth Mellanby Hall: four wings round a grass court, arched walks, terracotta roofs
+    const km = { x: -150, z: -5345 };
+    for (const [ox, oz, w, d] of [[0, -22, 50, 10], [0, 22, 50, 10], [-20, 0, 10, 34], [20, 0, 10, 34]]) { b.box(w, 7, d, km.x + ox, Y + 3.5, km.z + oz, cream, 2, true, 'house'); hipRoof(b, tile, km.x + ox, km.z + oz, w, d, Y + 7, { pitch: .4, ov: .6, ground: Y }); }
+    for (let k = -3; k <= 3; k++) b.box(2.6, 3, .1, km.x + k * 6, Y + 1.5, km.z + 16.95, LM(0x5a3218), 1, false);
+    sign('KENNETH MELLANBY HALL', 'THE FIRST HALL · 1952', '#1f3f8a', 10, 1.2, km.x, Y + 6, km.z + 27.06, 0);
+    // faculties, the sports field, trees all over
+    for (const [x, z] of [[-270, -5175], [-270, -5228], [-120, -5175], [-270, -5300], [-270, -5385], [-90, -5300]]) cottage(x, z, 34, 14, 3, 'pz', tile, ri2([cream, brick]), '#c8906a');
+    b.box(70, .05, 40, -215, Y + .03, -5345, LM(0x4f9a3a), 1, false); for (const [ox, oz] of [[-35, 0], [35, 0]]) { b.box(.2, 2.4, 7, -215 + ox, Y + 1.2, -5345 + oz, white, 1, false); }
+    TAKEN.push([th.x, th.z + 5, 48, 40], [km.x, km.z, 54, 58], [-215, -5345, 72, 42]);
+    for (let k = 0; k < 70; k++) { const x = R2(-320, -70), z = R2(-5430, -5110); if (kindAt(x, z) === 0 && free(x, z, 3, 3, 1)) { smallTree(b, x, z, Y); TAKEN.push([x, z, 3, 3]); } }
+    people('campus', 30, [-305, -65, -5415, -5135]);
+    YABA_MAP.push([th.x, th.z, 46, 22, '#f2e8d0']); OYO_PLACES.push(['University of Ibadan', -30, -5252]);
+  }
+  // Bodija: comfortable bungalows and duplexes on leafy streets, cars in the drives
+  for (const z of [-5178, -5310]) for (let x = 20; x < 326; x += 28) for (const s of [-1, 1]) {
+    if (Math.abs(x - 110) < 14 || Math.abs(x - 230) < 14) continue;
+    const hz = z + s * 18; if (!inR(BODIJA, x, hz, -6)) continue;
+    cottage(x, hz, 12, 10, rng() < .4 ? 2 : 1, s > 0 ? 'nz' : 'pz', gerardMat(roofColour(x, hz)), ri2([walls[2], walls[5], LM(0xdfe6ea)]), '#e8e6df');
+    if (rng() < .5) addCar(null, x + 9, hz - s * 3, Y, false);
+    if (rng() < .5) smallTree(b, x + 12, z + s * 8.5, Y);
+  }
+  people('yaba', 14, [30, 326, -5306, -5302]);
+  // round the rest of the city, the ordinary houses go right up to the edges
+  for (let k = 0; k < 120; k++) { const x = R2(IBD.x0 + 8, IBD.x1 - 8), z = R2(IBD.z0 + 8, IBD.z1 - 8); if ([MAPO, DUGBE, AGODI, UI, BODIJA].some(R => inR(R, x, z, 8)) || Math.abs(x) < 16 || kindAt(x, z) >= 6 || heightAt(x, z) > Y + .5 || Math.hypot(x - BOWER.x, z - BOWER.z) < 50 || !free(x, z, 13, 11, 3) || OROADS.some(r => segDist(x, z, r) < r[4] + 9)) continue; cottage(x, z, R2(9, 13), R2(8, 11), rng() < .3 ? 2 : 1, ri2(['pz', 'nz', 'px', 'nx'])); }
+
+  /* ---- Oyo town: the Alaafin's palace, Akesan market, the town round them ---- */
+  { const A = AFIN, earth = LM(0x9a4a2a), dark = LM(0x3a2416), red = LM(0x8a2a1a);
+    const wall = (x0, z0, x1, z1) => { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; if (L < .5) return; b.box(along ? L : 1, 3.4, along ? 1 : L, (x0 + x1) / 2, Y + 1.7, (z0 + z1) / 2, earth, 2, true, 'house'); b.box(along ? L : 1.4, .4, along ? 1.4 : L, (x0 + x1) / 2, Y + 3.6, (z0 + z1) / 2, ri2(rusts), 1, false); };
+    wall(A.x0, A.z0, A.x1, A.z0); wall(A.x0, A.z0, A.x0, A.z1); wall(A.x1, A.z0, A.x1, A.z1); wall(A.x0, A.z1, -9, A.z1); wall(9, A.z1, A.x1, A.z1);
+    for (const s of [-1, 1]) { b.box(3, 7, 3, s * 10, Y + 3.5, A.z1, earth, 2, true, 'house'); b.box(3.6, .5, 3.6, s * 10, Y + 7.25, A.z1, red, 1, false); for (let k = 0; k < 3; k++) b.box(.5, 6, .5, s * 10 + s * 1.9, Y + 3, A.z1 + .9 - k * .9, dark, 1, false); }
+    b.box(23, 2.4, 3.4, 0, Y + 8.4, A.z1, earth, 1, true, 'roof'); sign('AFIN OYO', 'THE PALACE OF THE ALAAFIN OF OYO', '#5a1a0a', 14, 1.6, 0, Y + 8.4, A.z1 + 1.75, 0, '#f2c230');
+    // the great hall with its carved verandah posts, courtyards of lesser halls, the sacred tree
+    const hz = A.z0 + 60; b.box(70, 7, 24, 0, Y + 3.5, hz, earth, 2, true, 'house'); hipRoof(b, ri2(rusts), 0, hz, 70, 24, Y + 7, { pitch: .4, ov: 3, ground: Y });
+    for (let k = 0; k < 15; k++) { const x = -33 + k * 4.7; b.box(.7, 6.2, .7, x, Y + 3.1, hz + 14, dark, 1, true, 'house'); for (let j = 0; j < 4; j++) b.box(.9, .35, .9, x, Y + 1 + j * 1.4, hz + 14, red, 1, false); }
+    b.box(72, .4, 5, 0, Y + .2, hz + 14.5, LM(0x6a3a22), 1, true, 'base');
+    for (const [x, z, w, d] of [[-80, -5810, 40, 16], [80, -5810, 40, 16], [-80, -5750, 30, 14], [80, -5750, 30, 14], [0, -5840, 50, 12]]) { b.box(w, 5, d, x, Y + 2.5, z, earth, 2, true, 'house'); hipRoof(b, ri2(rusts), x, z, w, d, Y + 5, { pitch: .4, ov: 1.5, ground: Y }); YABA_MAP.push([x, z, w, d, '#9a4a2a']); }
+    b.box(2.4, 9, 2.4, 0, Y + 4.5, A.z1 - 22, M.bark, 1, true, 'trunk'); b.box(14, 5, 14, 0, Y + 11, A.z1 - 22, M.leaves, 1, false); b.box(9, 3, 9, 0, Y + 14.5, A.z1 - 22, M.leaves, 1, false);
+    sign('ALAAFIN OF OYO', 'KÁÀBỌ̀ · WELCOME', '#5a1a0a', 9, 1.2, 0, Y + 6, hz + 12.06, 0, '#f2c230');
+    people('security', 4, [-8, 8, A.z1 + 3, A.z1 + 6], { guard: true }); people('village', 10, [A.x0 + 10, A.x1 - 10, hz + 18, A.z1 - 8]);
+    YABA_MAP.push([0, hz, 70, 24, '#9a4a2a']); OYO_PLACES.push(['The Alaafin’s palace, Oyo', 0, A.z1 + 14]);
+    // Akesan market: rows of rust-roofed stalls and bright umbrellas
+    const K = AKESAN, umb = [0xd8342c, 0x2f8fd0, 0x3fae5a, 0xf2c230, 0xe8742a].map(c => LM(c));
+    for (let x = K.x0 + 6; x < K.x1 - 4; x += 8) for (let z = K.z0 + 6; z < K.z1 - 4; z += 9) { if (Math.abs(x) < 8) continue; if (rng() < .65) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3], [-2.8, 2.3], [2.8, -2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); } else { b.box(.08, 2.2, .08, x, Y + 1.1, z, darkM, 1, false); b.box(2.6, .15, 2.6, x, Y + 2.25, z, ri2(umb), 1, false); } b.box(4.5, .85, 1.3, x, Y + .43, z - 1.2, M.oak, 1, true, 'house'); }
+    sign('AKESAN MARKET', 'OYO', '#8a2a1a', 9, 1.3, 0, Y + 4, K.z1 + 1.5, 0); for (const o of [-4, 4]) b.box(.25, 4, .25, o, Y + 2, K.z1 + 1.4, darkM, 1, true, 'house');
+    people('market', 26, [K.x0 + 4, K.x1 - 4, K.z0 + 4, K.z1 - 4]);
+    OYO_PLACES.push(['Akesan Market, Oyo', 0, K.z1 + 8]);
+    // the town: houses round the palace and the market
+    for (let k = 0; k < 110; k++) { const x = R2(OYO.x0 + 8, OYO.x1 - 8), z = R2(OYO.z0 + 8, OYO.z1 - 8); if (inR(AFIN, x, z, 10) || inR(AKESAN, x, z, 8) || Math.abs(x) < 14 || kindAt(x, z) >= 6 || !free(x, z, 12, 10, 3) || OROADS.some(r => segDist(x, z, r) < r[4] + 8)) continue; cottage(x, z, R2(8, 12), R2(7, 10), rng() < .2 ? 2 : 1, ri2(['pz', 'nz', 'px', 'nx'])); }
+    people('village', 16, [OYO.x0 + 10, OYO.x1 - 10, -5606, -5594]);
+    sign('WELCOME TO OYO', 'ANCIENT TOWN OF THE ALAAFIN', '#5a1a0a', 9, 1.8, -13, Y + 4.4, OYO.z1 - 6, 0, '#f2c230'); for (const o of [-3.8, 3.8]) b.box(.25, 4.4, .25, -13 + o, Y + 2.2, OYO.z1 - 6.1, darkM, 1, true, 'house');
+  }
+
+  for (const [mat, geos] of ROT) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); }
+  b.build();
+  document.fonts?.ready.then(() => YSIGNS.forEach(f => f())).catch(() => {});
+});
+function updateForest() { for (const B of FOREST) { const on = Math.abs(B.z - P.pos.z) < 420; for (const m of B.meshes) m.visible = on; } }
+
+/* ---------- traffic north of Ikeja: the expressway in both lanes each way (heavier: danfos, tippers, Siennas), lighter in
+   Ibadan and Oyo town (old cars, kekes), a few on the campus and the airport road ---------- */
+if (YB) {
+  const EXP_MIX = { ...TRAFFIC_MIX, danfo: 5, tipper: 3, sienna10: 5, hilux19: 3, lc200: 1, keke: 0 }, y = TOWN.y;
+  addRouteCars(EXPWY, 18, { mix: EXP_MIX, cruise: 22, lane: [2.8, 6.3], y });
+  addRouteCars([[0, -4730], [0, -5695]], 7, { mix: BASIC_MIX, cruise: 10, lane: 2.4, y });
+  addRouteCars([[-326, -5000], [326, -5000]], 4, { mix: BASIC_MIX, cruise: 10, lane: 2.3, y });
+  addRouteCars([[22, -4880], [326, -4880]], 2, { mix: TRAFFIC_MIX, cruise: 8, lane: 2.3, y });
+  addRouteCars([[0, -5178], [326, -5178]], 2, { mix: TRAFFIC_MIX, cruise: 8, lane: 2.3, y });
+  addRouteCars([[-60, -5130], [-310, -5130], [-310, -5420], [-60, -5420], [-60, -5140]], 2, { mix: TRAFFIC_MIX, cruise: 7, lane: 2, y });
+  addRouteCars([[-200, -5600], [200, -5600]], 2, { mix: BASIC_MIX, cruise: 8, lane: 2.3, y });
+  if (IBAIR) addRouteCars([[expX(IBAIR.roadZ) + EXP_HW + 2, IBAIR.roadZ], [IBAIR.tx0 - 8, IBAIR.roadZ]], 1, { mix: TRAFFIC_MIX, cruise: 9, lane: 2.4, y });
+}
+
+/* ---------- Oyo Skylink: a seat between Lagos and Ibadan. Buy it at the airline's booth at either airport; the screen fades
+   while you fly, and you walk out by the other airport's arrivals. ---------- */
+const FLIGHT = { fare: 15000, busy: false, no: 117 };
+if (AP && IBAIR) {
+  const [x, z] = Wp(119, 117), [ox, oz] = Wp(117, 105);
+  FLIGHT_DESKS.push({ x, z, y: TOWN.y, to: 'ibadan', name: 'Lagos', out: [ox, oz] });
+  const b = new Builder(), Y = TOWN.y, red = LM(0x7a1a2a);
+  for (const d of FLIGHT_DESKS) {   // the booth: a counter under a red canopy, with the airline's board
+    b.box(3, 1.1, 1.2, d.x, Y + .55, d.z, red, 1, true, 'house'); b.box(3.4, .12, 1.6, d.x, Y + 1.16, d.z, MM.white, 1, false);
+    for (const [a, c] of [[-1.6, -.7], [1.6, -.7], [-1.6, .7], [1.6, .7]]) b.box(.1, 2.6, .1, d.x + a, Y + 1.3, d.z + c, MM.steel, 1, false);
+    b.box(3.8, .2, 2, d.x, Y + 2.7, d.z, red, 1, false);
+    for (const ry of [0, Math.PI]) ySign(ySignMat('OYO SKYLINK', d.to === 'ibadan' ? 'FLIGHTS TO IBADAN · ₦15,000' : 'FLIGHTS TO LAGOS · ₦15,000', '#7a1a2a', '#ffffff'), 3.4, .9, d.x, Y + 3.3, d.z + (ry ? -.06 : .06), ry);
+    makeCivilian({ x: d.x, z: d.z - 1.5, y: Y, houses: [], civs: [], sand: [d.x - .4, d.x + .4, d.z - 1.6, d.z - 1.4], place: 'security' }, { adult: true, female: true }).guard = true;
+  }
+  b.build();
+}
+function flightDeskNear() { if (P.driving) return null; return FLIGHT_DESKS.find(d => Math.hypot(d.x - P.pos.x, d.z - P.pos.z) < 3.6 && Math.abs(P.pos.y - d.y) < 3) || null; }
+function flyFrom(d) {
+  if (FLIGHT.busy) return;
+  const to = FLIGHT_DESKS.find(q => q !== d), city = d.to === 'ibadan' ? 'Ibadan' : 'Lagos';
+  if (!to) return;
+  if (LAND.money < FLIGHT.fare) { toast('', `A seat to ${city} is ${NAIRA(FLIGHT.fare)}; you have ${NAIRA(LAND.money)}`); return; }
+  LAND.money -= FLIGHT.fare; saveLand(); FLIGHT.busy = true; sfx('refill');
+  const fade = $('fade'); fade.style.transition = 'opacity .6s'; fade.style.opacity = '1';
+  toast(`✈ Oyo Skylink OS ${FLIGHT.no} · ${d.to === 'ibadan' ? 'Lagos → Ibadan' : 'Ibadan → Lagos'}`, `${NAIRA(FLIGHT.fare)} · boarding… 35 minutes in the air`);
+  setTimeout(() => {
+    const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0);
+    yaw = d.to === 'ibadan' ? Math.PI / 2 : -Math.PI / 2;
+  }, 1300);
+  setTimeout(() => { fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90); toast(`Welcome to ${city}`, d.to === 'ibadan' ? 'Ibadan Airport, Alakia · taxis and the city are out front' : 'Murtala Muhammed International · Lagos'); }, 2600);
+}
+
+// cars parked at homes all over the world, the kind that fits the neighbourhood (placed now, once Yaba and Ikeja are built too)
+for (const [x, z, y, ax] of DRIVEWAY_CARS) { const car = makeMixed(mixAt(x, z)); car.position.set(x, y, z); car.rotation.y = (ax ? Math.PI / 2 : 0) + (Math.random() < .5 ? Math.PI : 0); addStatic(car); }
 bakeProps();
 if (TOWN) { const [gx, gz] = blockAt('gas'); makeDrivable(gx + 8.5, gz + 1.5, Math.PI, 'bike'); makeDrivable(TOWN.x - 57, TOWN.z - 38 - 3.5, Math.PI / 2, 'bike'); }
 if (TOWN) for (const [lx, lz, yaw] of [[57, -38 + 3.5, -Math.PI / 2], [-57, 38 + 3.5, -Math.PI / 2], [19, 76 - 3.5, Math.PI / 2]]) makeDrivable(TOWN.x + lx, TOWN.z + lz, yaw);
@@ -6765,6 +7274,7 @@ function driveStep(dt) {
   if (ok) { c.x = nx; c.z = nz; }
   else { if (Math.abs(c.speed) > 8) { sfx('hurt'); shake = Math.max(shake, .5); } c.speed *= -.25; }
   // other cars and pedestrians
+  for (const o of RTRAFFIC) { const dx = c.x - o.g.position.x, dz = c.z - o.g.position.z, d = Math.hypot(dx, dz); if (d < V.push && d > .01) { c.x += dx / d * (V.push - d); c.z += dz / d * (V.push - d); c.speed *= .5; } }
   for (const o of traffic) { const [ox, oz] = laneXY(o), dx = c.x - ox, dz = c.z - oz, d = Math.hypot(dx, dz); if (d < V.push && d > .01) { c.x += dx / d * (V.push - d); c.z += dz / d * (V.push - d); c.speed *= .5; } }
   for (const p of civilians) {
     if (!p.active) continue;
@@ -7182,7 +7692,7 @@ let lastMouse = -9;
 addEventListener('mousemove', e => {
   if (mode !== 'play' || ARR.on) return;
   if (e.movementX || e.movementY) lastMouse = performance.now() / 1000;
-  if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); MAPCUR.x = clamp(MAPCUR.x + e.movementX * k, 0, bmC.width); MAPCUR.y = clamp(MAPCUR.y + e.movementY * k, 0, bmC.height); MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
+  if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); const nx = MAPCUR.x + e.movementX * k, ny = MAPCUR.y + e.movementY * k, sc = bmC.width / BMV.span; MAPCUR.x = clamp(nx, 0, bmC.width); MAPCUR.y = clamp(ny, 0, bmC.height); if (nx !== MAPCUR.x || ny !== MAPCUR.y) { BMV.cx += (nx - MAPCUR.x) / sc; BMV.cz += (ny - MAPCUR.y) / sc; bmClamp(); } MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
   yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.35, 1.35);
 });
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
@@ -7627,14 +8137,24 @@ function drawMinimap() {
 const bmC = $('bigmapC'), bg2 = bmC.getContext('2d');
 let bigMapT = 0;
 const MAPCUR = { x: 0, y: 0, dirty: false };   // a crosshair on the big map, moved by the captured mouse
+// the big map shows a square window onto the world (BMV: its centre and width in metres): it opens on you, zooms and pans
+const BMV = { cx: 0, cz: 0, span: 1100, down: null, dragged: false }, BM_MIN = 240, BM_MAX = N + MAP_OY + 40;
+const bmToB = (x, z) => { const sc = bmC.width / BMV.span; return [bmC.width / 2 + (x - BMV.cx) * sc, bmC.height / 2 + (z - BMV.cz) * sc]; };
+const bmFromB = (px, py) => { const sc = bmC.width / BMV.span; return [BMV.cx + (px - bmC.width / 2) / sc, BMV.cz + (py - bmC.height / 2) / sc]; };
+function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(0, -HALF + h), Math.max(0, HALF - h)); BMV.cz = clamp(BMV.cz, Math.min((HALF - HALF - MAP_OY) / 2, -HALF - MAP_OY + h), Math.max((HALF - HALF - MAP_OY) / 2, HALF - h)); }
+function bmZoom(f, px = bmC.width / 2, py = bmC.height / 2) {   // keep the spot under (px, py) where it is
+  const [x, z] = bmFromB(px, py); BMV.span *= f; bmClamp(); const [x2, z2] = bmFromB(px, py); BMV.cx += x - x2; BMV.cz += z - z2; bmClamp(); MAPCUR.dirty = true;
+}
+function bmCentreOnMe() { BMV.cx = P.pos.x; BMV.cz = P.pos.z; bmClamp(); [MAPCUR.x, MAPCUR.y] = bmToB(P.pos.x, P.pos.z); MAPCUR.dirty = true; }
 function toggleBigMap(force) {
   const el = $('bigmap'); el.hidden = force === undefined ? !el.hidden : !force;
-  if (!el.hidden) { const sc = bmC.width / (N + MAP_OY); MAPCUR.x = (bmC.width - N * sc) / 2 + (P.pos.x + HALF) * sc; MAPCUR.y = (P.pos.z + HALF + MAP_OY) * sc; bigMapT = 0; drawBigMap(); }
+  if (!el.hidden) { bmCentreOnMe(); bigMapT = 0; drawBigMap(); }
 }
 function drawBigMap() {
-  const W = bmC.width, sc = W / (N + MAP_OY), ox = (W - N * sc) / 2, toB = (x, z) => [ox + (x + HALF) * sc, (z + HALF + MAP_OY) * sc];   // the whole world, mainland included, fitted to the height
+  const W = bmC.width, sc = W / BMV.span, toB = bmToB;   // the part of the world in view (BMV)
   bg2.fillStyle = '#3a6a2a'; bg2.fillRect(0, 0, W, W);
-  bg2.imageSmoothingEnabled = false; bg2.drawImage(mapImg, ox, 0, N * sc, (N + MAP_OY) * sc);
+  { const sx = BMV.cx - BMV.span / 2 + HALF, sy = BMV.cz - BMV.span / 2 + HALF + MAP_OY, ix0 = Math.max(0, sx), iy0 = Math.max(0, sy), ix1 = Math.min(mapImg.width, sx + BMV.span), iy1 = Math.min(mapImg.height, sy + BMV.span);
+    bg2.imageSmoothingEnabled = BMV.span > 1600; if (ix1 > ix0 && iy1 > iy0) bg2.drawImage(mapImg, ix0, iy0, ix1 - ix0, iy1 - iy0, (ix0 - sx) * sc, (iy0 - sy) * sc, (ix1 - ix0) * sc, (iy1 - iy0) * sc); }
   bg2.fillStyle = 'rgba(10,14,9,.18)'; bg2.fillRect(0, 0, W, W);
   const label = (text, x, z, size = 15, color = '#f1ebda', dy = 0) => {
     const [bx, by] = toB(x, z); bg2.font = `700 ${size}px 'Barlow Condensed', 'Arial Narrow', sans-serif`; bg2.textAlign = 'center'; bg2.textBaseline = 'middle';
@@ -7679,9 +8199,12 @@ function drawBigMap() {
   if (AP && AP.showSlots && AP.showSlots.length) { const q = AP.showSlots[Math.floor(AP.showSlots.length / 4)]; label('🚗 32 cars to drive', q[0], q[1], 12, '#f2c230', -10); }
   if (RR.car && P.driving !== RR.car) { const [bx, by] = toB(RR.car.x, RR.car.z); bg2.fillStyle = '#9fe0ff'; bg2.beginPath(); bg2.arc(bx, by, 4, 0, TAU); bg2.fill(); label('✦ Range Rover', RR.car.x, RR.car.z, 12, '#9fe0ff', 12); }   // the rare car, wherever it was left
   drawDriverRoute(bg2, toB, 2.5);
-  if (P.driving && !DRIVER.on && !isAir(P.driving)) label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', 0, -HALF - MAP_OY + 14, 13, '#f2c230');
+  if (P.driving && !DRIVER.on && !isAir(P.driving)) { const [hx, hz] = bmFromB(W / 2, 18); label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', hx, hz, 13, '#f2c230'); }
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (YB) {   // the mainland
+    label('LAGOS–IBADAN EXPRESSWAY', expX(-2800) + 80, -2800, 14, '#f2c230'); label('IBADAN', 0, -4930, 24, '#f2c230'); label('OYO', 0, OYO.z1 + 14, 22, '#f2c230');
+    for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
+    for (const [n, x, z] of OYO_PLACES) label(n, x, z, 11, '#ffd3a8');
     label('IKEJA', GRA.ave, GRA.z1 - 6, 18, '#f2c230'); label('Lagos State Government House', GOVH.bx0 + 18, GOVH.cz - 70, 11, '#ffd3a8');
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
     label('UNIVERSITY OF LAGOS', (UNILAG.x0 + UNILAG.lagoonX) / 2, UNILAG.z0 + 30, 15, '#ffb0b0'); label('Senate', 160, -514, 11, '#ffffff'); label('Lagoon', UNILAG.lagoonX + 30, -560, 12, '#bfe3ff');
@@ -7698,13 +8221,13 @@ function drawBigMap() {
   bg2.beginPath(); bg2.moveTo(0, -15); bg2.lineTo(10, 11); bg2.lineTo(0, 5); bg2.lineTo(-10, 11); bg2.closePath(); bg2.fill(); bg2.stroke(); bg2.restore();
   bg2.strokeStyle = 'rgba(255,255,255,.85)'; bg2.lineWidth = 2; bg2.beginPath(); bg2.arc(px, py, 22 + 4 * Math.sin(performance.now() / 180), 0, TAU); bg2.stroke();
   // scale bar
-  const m100 = 100 * sc; bg2.fillStyle = 'rgba(10,14,9,.75)'; bg2.fillRect(W - m100 - 34, W - 40, m100 + 22, 28);
+  const barM = BMV.span > 3000 ? 1000 : BMV.span > 1400 ? 500 : 100, m100 = barM * sc; bg2.fillStyle = 'rgba(10,14,9,.75)'; bg2.fillRect(W - m100 - 34, W - 40, m100 + 22, 28);
   bg2.fillStyle = '#f1ebda'; bg2.fillRect(W - m100 - 23, W - 22, m100, 3); bg2.fillRect(W - m100 - 23, W - 27, 2, 8); bg2.fillRect(W - 25, W - 27, 2, 8);
   if (document.pointerLockElement) {   // the mouse is captured: a crosshair to pick a spot with
     const { x, y } = MAPCUR; bg2.strokeStyle = '#1b1608'; bg2.lineWidth = 4; for (const pass of [0, 1]) { bg2.beginPath(); bg2.moveTo(x - 14, y); bg2.lineTo(x - 4, y); bg2.moveTo(x + 4, y); bg2.lineTo(x + 14, y); bg2.moveTo(x, y - 14); bg2.lineTo(x, y - 4); bg2.moveTo(x, y + 4); bg2.lineTo(x, y + 14); bg2.stroke(); bg2.strokeStyle = '#f2c230'; bg2.lineWidth = 2; }
     if (P.driving && !DRIVER.on) { bg2.font = "700 13px 'Barlow Condensed', sans-serif"; bg2.textAlign = 'left'; bg2.lineWidth = 3; bg2.strokeStyle = 'rgba(10,14,9,.85)'; bg2.strokeText('Click: hire a driver to here', x + 16, y - 10); bg2.fillStyle = '#f2c230'; bg2.fillText('Click: hire a driver to here', x + 16, y - 10); }
   }
-  bg2.font = "600 13px 'Barlow Condensed', sans-serif"; bg2.textAlign = 'center'; bg2.textBaseline = 'alphabetic'; bg2.fillText('100 m', W - m100 / 2 - 23, W - 26);
+  bg2.font = "600 13px 'Barlow Condensed', sans-serif"; bg2.textAlign = 'center'; bg2.textBaseline = 'alphabetic'; bg2.fillText(barM >= 1000 ? barM / 1000 + ' km' : barM + ' m', W - m100 / 2 - 23, W - 26);
 }
 
 /* ---------- modes ---------- */
@@ -9153,6 +9676,7 @@ function fareSpots() {
   VILLAGES.forEach((v, k) => s.push([k ? 'the forest village' : 'the home village', v.x, v.z]));
   for (const E of ESTATES) s.push([E.name, E.gate.side === 'z' ? E.gate.x : E.gate.x + 12, E.gate.side === 'z' ? E.gate.z - 12 : E.gate.z]);
   if (YB) s.push(['Government House, Ikeja', GOVH.x0 - 10, GOVH.cz + 14]);
+  for (const p of OYO_PLACES) s.push(p);
   return s;
 }
 function updateTaxi(dt) {
@@ -9299,6 +9823,7 @@ function taxiPrompt() {
 
 // what E does about land, if anything
 function landAction() {
+  { const fd = typeof flightDeskNear === 'function' && flightDeskNear(); if (fd) return { label: `E · Oyo Skylink: fly to ${fd.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`, run: () => flyFrom(fd) }; }
   if (nearDealer()) return { label: `E · Buy a bulldozer · ${NAIRA(DOZER_YARD.price)}`, run: buyDozer };
   if (P.driving) return null;
   const [px, pz] = plotAt(P.pos.x, P.pos.z), info = plotInfo(px, pz);
@@ -10055,6 +10580,7 @@ function driverInputs(c, V, dt) {
   const ahead = (px, pz, r) => { const ex = px - c.x, ez = pz - c.z, al = ex * fx + ez * fz, lat = Math.abs(ex * fz - ez * fx); return al > 1 && al < 6 + Math.abs(c.speed) * .9 && lat < r; };
   for (const t of titans) if (!t.dead && ahead(t.g.position.x, t.g.position.z, t.H * .2 + 1)) blocked = true;
   for (const o of traffic) { const [ox, oz] = laneXY(o); if (ahead(ox, oz, 1.6)) people = true; }
+  for (const o of RTRAFFIC) if (ahead(o.g.position.x, o.g.position.z, 1.6)) people = true;
   for (const p of civilians) if (p.active && ahead(p.g.position.x, p.g.position.z, 1.3)) people = true;
   if (people && !blocked) { DRIVER.waitT = (DRIVER.waitT || 0) + dt; if (DRIVER.waitT < 3) blocked = true; else want = Math.min(want, 2); }   // wait for people and cars, then edge past (cars wait for you too)
   else DRIVER.waitT = 0;
@@ -10081,10 +10607,18 @@ function driverInputs(c, V, dt) {
 // the big map: pick a spot while in a car; the route and the destination are drawn on both maps
 function mapPick(px, py) {   // px, py: pixels on the big map's canvas
   if (!P.driving) { toast('🚕 Hire a driver', 'Get in a car first, then open the map (P) and pick where to go'); return; }
-  const sc = bmC.width / (N + MAP_OY), ox = (bmC.width - N * sc) / 2, x = (px - ox) / sc - HALF, z = py / sc - HALF - MAP_OY;
+  const [x, z] = bmFromB(px, py);
   if (driverHire(x, z)) toggleBigMap(false);
 }
-bmC.addEventListener('click', e => { if (document.pointerLockElement) return; const r = bmC.getBoundingClientRect(); mapPick((e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height); });
+bmC.addEventListener('click', e => { if (document.pointerLockElement || BMV.dragged) return; const r = bmC.getBoundingClientRect(); mapPick((e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height); });
+// drag to move the map, the wheel (or the buttons) to zoom
+const bmPx = e => { const r = bmC.getBoundingClientRect(); return [(e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height]; };
+bmC.addEventListener('pointerdown', e => { if (document.pointerLockElement) return; BMV.down = { id: e.pointerId, p: bmPx(e) }; BMV.dragged = false; try { bmC.setPointerCapture(e.pointerId); } catch (x) {} });
+bmC.addEventListener('pointermove', e => { const D = BMV.down; if (!D || e.pointerId !== D.id) return; const p = bmPx(e), sc = bmC.width / BMV.span; if (!BMV.dragged && Math.hypot(p[0] - D.p[0], p[1] - D.p[1]) < 8) return; BMV.dragged = true; BMV.cx -= (p[0] - D.p[0]) / sc; BMV.cz -= (p[1] - D.p[1]) / sc; D.p = p; bmClamp(); MAPCUR.dirty = true; });
+for (const ev of ['pointerup', 'pointercancel']) bmC.addEventListener(ev, e => { if (BMV.down && e.pointerId === BMV.down.id) BMV.down = null; setTimeout(() => { BMV.dragged = false; }, 0); });
+addEventListener('wheel', e => { if ($('bigmap').hidden) return; const locked = !!document.pointerLockElement; if (!locked && e.target !== bmC) return; e.preventDefault(); const [px, py] = locked ? [MAPCUR.x, MAPCUR.y] : bmPx(e); bmZoom(e.deltaY > 0 ? 1.2 : 1 / 1.2, px, py); }, { passive: false });
+$('bmIn').addEventListener('click', e => { e.stopPropagation(); bmZoom(1 / 1.5); }); $('bmOut').addEventListener('click', e => { e.stopPropagation(); bmZoom(1.5); });
+$('bmMe').addEventListener('click', e => { e.stopPropagation(); bmCentreOnMe(); }); $('bmAll').addEventListener('click', e => { e.stopPropagation(); BMV.span = BM_MAX; BMV.cx = 0; BMV.cz = (HALF - HALF - MAP_OY) / 2; bmClamp(); MAPCUR.dirty = true; });
 function drawDriverRoute(ctx, toP, lw) {
   if (!DRIVER.on || !DRIVER.path) return;
   ctx.save(); ctx.strokeStyle = 'rgba(242,194,48,.9)'; ctx.lineWidth = lw; ctx.setLineDash([lw * 2, lw * 1.5]); ctx.beginPath();
@@ -10116,7 +10650,7 @@ function frame(now) {
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
   updateTitans(mode === 'pause' ? 0 : dt);
-  if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); } }
+  if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); } updateRouteTraffic(dt); }
   updateTalk(dt);
   titanRoot.updateMatrixWorld(true);
   if (mode === 'play') {
@@ -10134,7 +10668,7 @@ function frame(now) {
   updateAds(dt);
   updatePolice();
   updateDayNight(dt);
-  updateGrass();
+  updateGrass(); updateForest();
   updateHUD(dt);
   updateLand(dt);
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);

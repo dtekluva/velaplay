@@ -23,7 +23,7 @@ export class WorldState extends Schema {
 }
 
 interface Auth { id: string; name: string; guest: boolean; look: string }
-const BOUND = 346, ZLO = -1140, MAX_STEP = 40;   // the map edge (ZLO: the north edge, out past Yaba and Ikeja on the mainland); the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
+const BOUND = 346, ZLO = -5866, MAX_STEP = 40;   // the map edge (ZLO: the north edge, out past Yaba, Ikeja, Ibadan and Oyo on the mainland); the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
 const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 
 export class WorldRoom extends Room<WorldState> {
