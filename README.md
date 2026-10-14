@@ -188,3 +188,10 @@ The server keeps every club's music on its own clock, so everyone online in a cl
   - The server broadcasts `djreq` with who asked.
 - **Keep in step with the game:** loop lengths in `TRACKS` must match the game's `CLUB_TRACKS` and the files in `giantwood-scouts/music/`. `ops/build-client.sh` copies those files to `public/music/`.
 - **Timestamps:** a ms timestamp sent by the game arrives as a 64-bit integer, so the server reads it with `Number()`.
+
+## Doorbell visits
+
+Other players' homes are locked in the game until the owner lets you in.
+
+- **`ring`** `{ key, owner }`: the visitor rings. The server sends `ring` `{ key, from, id }` to the owner's session (found by account id), or `ringres` `{ ok: false, why: "away" }` back if the owner isn't online. One ring per 6 s per player.
+- **`answer`** `{ id, key, ok }`: the owner replies. The server sends `ringres` `{ key, ok, name }` to the visitor, but only from the owner the ring went to (`rings` map), so nobody can answer their own ring.

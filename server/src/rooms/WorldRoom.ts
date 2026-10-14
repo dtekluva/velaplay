@@ -44,6 +44,8 @@ export class WorldRoom extends Room<WorldState> {
   private stopNews?: () => void;
   private stopTell?: () => void;
   private lastDJ = new Map<string, number>();
+  private lastRing = new Map<string, number>();
+  private rings = new Map<string, string>();   // visitor session + key -> the owner's session it went to (only they can answer)
 
   onCreate() {
     this.setState(new WorldState());
@@ -81,6 +83,23 @@ export class WorldRoom extends Room<WorldState> {
         c.req = m.key; c.end = Math.max(t + (XF + 1) * 1000, Math.min(c.end, passEnd + XF * 1000));
       }
       this.broadcast("djreq", { club: m.club, key: m.key, now: !!m.now, by: p.name, id: client.sessionId });
+    });
+
+    // doorbell visits: a ring goes to the home's owner if they're online; their answer goes back to whoever rang
+    this.onMessage("ring", (client, m: any) => {
+      const p = this.state.players.get(client.sessionId); if (!p || typeof m?.key !== "string" || typeof m?.owner !== "string" || m.key.length > 40) return;
+      const t = Date.now(); if (t - (this.lastRing.get(client.sessionId) || 0) < 6000) return;   // one ring every few seconds
+      this.lastRing.set(client.sessionId, t);
+      const owner = this.clients.find((c) => (c as any).userData?.id === m.owner);
+      if (!owner || owner === client) return client.send("ringres", { key: m.key, ok: false, why: "away" });
+      this.rings.set(client.sessionId + "|" + m.key, owner.sessionId);
+      owner.send("ring", { key: m.key, from: p.name, id: client.sessionId });
+    });
+    this.onMessage("answer", (client, m: any) => {
+      const me = this.state.players.get(client.sessionId), to = typeof m?.id === "string" ? this.clients.find((c) => c.sessionId === m.id) : undefined;
+      if (!me || !to || typeof m.key !== "string") return;
+      const k = m.id + "|" + m.key; if (this.rings.get(k) !== client.sessionId) return;   // only the owner the ring went to can answer it
+      this.rings.delete(k); to.send("ringres", { key: m.key, ok: !!m.ok, name: me.name });
     });
 
     this.onMessage("move", (client, m: any) => {
@@ -163,6 +182,6 @@ export class WorldRoom extends Room<WorldState> {
 
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
-    this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId);
+    this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
   }
 }

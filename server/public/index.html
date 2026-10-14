@@ -1681,8 +1681,9 @@ function nearestHouse(v, x, z, r) { let best = null, bd = r; for (const h of v.h
 function updateDoors(dt) {
   for (const dr of DOORS) {
     if (Math.abs(dr.x - P.pos.x) > 45 || Math.abs(dr.z - P.pos.z) > 45) continue;
-    let near = Math.hypot(dr.x - P.pos.x, dr.z - P.pos.z) < 2.6 && Math.abs(P.pos.y - dr.y) < 2.5;
-    if (!near) for (const c of dr.v.civs) if (Math.hypot(dr.x - c.g.position.x, dr.z - c.g.position.z) < 2.2) { near = true; break; }
+    const shut = dr.v.other && homeLocked(dr.v.other);   // another player's home: shut unless they let you in
+    let near = !shut && Math.hypot(dr.x - P.pos.x, dr.z - P.pos.z) < 2.6 && Math.abs(P.pos.y - dr.y) < 2.5;
+    if (!near && !shut) for (const c of dr.v.civs) if (Math.hypot(dr.x - c.g.position.x, dr.z - c.g.position.z) < 2.2) { near = true; break; }
     dr.open += ((near ? 1 : 0) - dr.open) * Math.min(1, dt * 6);
     dr.g.rotation.y = dr.base - dr.open * 1.5;
   }
@@ -6679,9 +6680,22 @@ const BEACH_SPECIALS = [
   { name: 'Coconut cooler', price: 1600, hp: 40, b: 14, note: 'coconut water, lime and mint, in the shell' },
   { name: 'Pineapple and ginger punch', price: 1400, hp: 35, b: 14, note: 'fresh pressed, with a kick of ginger' },
 ];
+// a club's kitchen: bar food, eaten at the bar (fills hunger; see the daily needs)
+const CLUB_FOOD = [
+  ['Small chops platter', 3500, 45, 'puff-puff, samosa, spring rolls and gizzard'], ['Beef suya', 2000, 40, 'with onions and extra yaji'],
+  ['Peppered gizzard', 2500, 40, 'fried, then tossed in hot pepper sauce'], ['Asun', 3000, 45, 'smoky spicy goat'],
+  ['Chicken wings', 3000, 40, 'grilled, with a peppery glaze'], ['Jollof rice and chicken', 3500, 70, 'party jollof, from the kitchen'], ['Puff-puff', 500, 12, 'five, hot and sugared'],
+];
 function barMenu(B, page) {
+  if (page === 'food') {   // the club's food page
+    const items = CLUB_FOOD.map(([n, p, g, note]) => ({ label: `${n} · ${NAIRA(p)}`, note: `${note} · +${g} hunger`, run: () => eat(n, p, g, B.name), off: LAND.money < p }));
+    items.push({ label: '← Drinks', run: () => barMenu(B, false) }, { label: 'Close', run: menuClose });
+    menuShow(`🍢 ${B.name}`, `Bar food · hunger ${Math.round(NEEDS.h)}% · ${NAIRA(LAND.money)}`, items); LM_.venue = { x: B.x, z: B.z, r: B.r };
+    return;
+  }
   const list = [...(B.beach && !page ? BEACH_SPECIALS : []), ...DRINK_MENU.filter(D => !!D.bar === !!page)];
   const items = list.map(D => ({ label: `${D.name} · ${NAIRA(D.price)}`, note: D.note, run: () => buyDrink(B, D), off: LAND.money < D.price }));
+  if (!page && B.C) items.push({ label: '🍢 Food…', note: 'small chops, suya, asun, wings, jollof', run: () => barMenu(B, 'food') });
   if (!page) items.push({ label: 'Beer, stout and palm wine…', note: 'from the bar', run: () => barMenu(B, true) }, { label: `🍾 Buy a round for the house · ${NAIRA(ROUND_PRICE)}`, note: B.C ? 'drinks for everyone in the club' : 'drinks for everyone at the bar', run: () => buyRound(B), off: LAND.money < ROUND_PRICE });
   else items.push({ label: '← Soft drinks', run: () => barMenu(B, false) });
   if (B.back) items.push({ label: '← Food', run: B.back });
@@ -8431,7 +8445,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } { const dC = danceClub(); if (P.dance || (dC && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -8845,8 +8859,8 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
-  const ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !JOBS.del || !!TC.conv || LM_.open;
+  const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && (onDanceFloor(dnc) || !who);
+  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
@@ -8859,7 +8873,8 @@ function updateHUD(dt) {
   else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
-  else if (bar) $('prompt').textContent = `E · Bar: drinks menu · from ${NAIRA(300)}`;
+  else if (bar) $('prompt').textContent = `E · Bar: drinks and food · from ${NAIRA(300)}`;
+  else if (rgS) $('prompt').textContent = `E · Ring the doorbell · ${rgS.v.other.name}’s home`;
   else if (P.dance) $('prompt').textContent = `💃 ${DANCE_MOVES[P.dance.style]} · E · Another move · move to stop`;
   else if (dncF) $('prompt').textContent = 'E · Dance';
   else if (djB) $('prompt').textContent = `E · DJ booth: pick the next song · ${MUSIC.clubs.get(djB).cur.T.title} is on`;
@@ -9229,7 +9244,7 @@ function updateTouch() {
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
-  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /DJ booth/.test(txt) ? 'DJ' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
+  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /doorbell/.test(txt) ? 'RING' : /DJ booth/.test(txt) ? 'DJ' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
   TOUCH.useBtn.hidden = !playing || !label; TOUCH.useBtn.textContent = label;
   if (d?.kind === 'dozer') { const bl = TOUCH.bladeBtn, t = d.bladeDown ? 'BLADE ▲ UP' : 'BLADE ▼ DOWN'; if (bl.textContent !== t) { bl.textContent = t; bl.classList.toggle('lit', !!d.bladeDown); } }
   if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW' : '⌂ SIM OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
@@ -11097,6 +11112,8 @@ async function netJoin() {
     room.onMessage('clk', m => { const t = Date.now(), rtt = t - m.t; if (rtt <= NET.clk.rtt + 30) { NET.clk.off = m.s - (m.t + t) / 2; NET.clk.rtt = Math.min(rtt, NET.clk.rtt); } });
     for (let k = 0; k < 6; k++) setTimeout(() => NET.room === room && room.send('clk', { t: Date.now() }), 200 + k * 400);
     clearInterval(NET.clkT); NET.clkT = setInterval(() => { if (NET.room === room) { NET.clk.rtt += 40; room.send('clk', { t: Date.now() }); } }, 20000);
+    room.onMessage('ring', m => onRing(m));
+    room.onMessage('ringres', m => onRingResult(m));
     room.onMessage('djreq', m => {
       const C = CLUBS.find(c => c.name === m.club), T = CLUB_TRACKS[m.key]; if (!C || !T) return;
       if (m.id !== room.sessionId && Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z) < 60) {
@@ -11363,10 +11380,58 @@ function applyOther(p) {
   LAND.info.delete(p.key); FOR_SALE = null;
   for (const [k, h] of Object.entries(p.edits || {})) if (Hm[+k] !== h) otherCell(+k, h);
   if (!p.house) return;
-  if (!HOME_HS.has(p.key)) { raiseHouse(p.key, p.house); placeFurnOf(p.key, p.house); return; }
+  if (!HOME_HS.has(p.key)) { raiseHouse(p.key, p.house); placeFurnOf(p.key, p.house); tagOther(p); return; }
+  tagOther(p);
   if (!was || !was.house) return;
   if (canon(was.house.fence) !== canon(p.house.fence)) buildFence(p.key, p.house);
   if (canon(was.house.furn) !== canon(p.house.furn)) { for (const q of FURN_LIVE.filter(q => q.key === p.key)) furnUnplace(q); placeFurnOf(p.key, p.house); }
+}
+/* ---------- doorbell visits: other players' homes are locked. Ring the bell at the front door (E); if the owner is online
+   they get "🔔 so-and-so is at your door" and can let you in. A visit lasts until you've been back outside a while. ---------- */
+const VISIT = { ok: new Set(), outT: 0, lastOut: new V3(), hasOut: false, warnT: 0, ringT: 0 };
+function tagOther(p) {   // mark a home as someone else's (not yours, not one sold on to the town)
+  const hs = HOME_HS.get(p.key); if (!hs) return;
+  hs.v.other = p.owner && !(NET.user && p.owner === NET.user.id) ? { key: p.key, owner: p.owner, name: p.ownerName || 'A scout' } : null;
+}
+const homeLocked = o => !!o && !LAND.plots.has(o.key) && !(NET.user && o.owner === NET.user.id) && !VISIT.ok.has(o.key);
+function ringSpot() {   // standing at the front door of a locked home
+  if (P.driving) return null;
+  for (const hs of HOME_HS.values()) { const o = hs.v.other; if (o && homeLocked(o) && hs.doorOut && Math.hypot(hs.doorOut.x - P.pos.x, hs.doorOut.z - P.pos.z) < 2.6 && Math.abs(P.pos.y - hs.floorY) < 3) return hs; }
+  return null;
+}
+function ringDoor(hs) {
+  const o = hs.v.other, t = performance.now() / 1000;
+  if (!NET.room) { toast('🔔 Ding dong', `Nobody answers. Go online to visit ${o.name}`); return; }
+  if (t < VISIT.ringT) { toast('', 'Give them a moment to answer…'); return; }
+  VISIT.ringT = t + 8; NET.room.send('ring', { key: o.key, owner: o.owner }); doorbell();
+  toast('🔔 Ding dong', `You rang ${o.name}’s doorbell…`);
+}
+function doorbell() {   // a two-note chime
+  if (!AC) return; const t = AC.currentTime;
+  for (const [f, at] of [[880, 0], [659, .38]]) { const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0, t + at); g.gain.linearRampToValueAtTime(.25, t + at + .02); g.gain.exponentialRampToValueAtTime(.001, t + at + 1.1); o.connect(g); g.connect(master); o.start(t + at); o.stop(t + at + 1.2); }
+}
+function onRing(m) {   // someone's at your door
+  doorbell();
+  const answer = ok => { NET.room?.send('answer', { id: m.id, key: m.key, ok }); menuClose(); toast('', ok ? `${m.from} is coming in` : `You let ${m.from} know it's not a good time`); };
+  menuShow(`🔔 ${m.from} is at your door`, `Your home, plot ${m.key}`, [{ label: 'Let them in', note: 'your front door opens for them', run: () => answer(true) }, { label: 'Not now', run: () => answer(false) }]);
+  LM_.venue = { x: 0, z: 0, r: 1e9 };   // wherever you are, this stays open until you answer (a land menu would close as you walk off your plot)
+}
+function onRingResult(m) {
+  const o = [...HOME_HS.values()].find(h => h.v.other?.key === m.key)?.v.other, name = m.name || o?.name || 'They';
+  if (m.ok) { VISIT.ok.add(m.key); VISIT.outT = 0; toast('🚪 Come in!', `${name} let you in`); }
+  else toast('', m.why === 'away' ? `Nobody's home. ${o?.name || 'The owner'} is offline` : `${name} can't have visitors right now`);
+}
+function updateVisit(dt) {   // keep out of locked homes; end a visit once you've been outside a while
+  if (P.driving || mode !== 'play') return;
+  const hs = houseAtWorld(P.pos.x, P.pos.z, P.pos.y), o = hs && hs.v.other;
+  if (o && homeLocked(o)) {
+    if (VISIT.hasOut) P.pos.copy(VISIT.lastOut); else P.pos.set(hs.doorOut.x, hs.floorY + .05, hs.doorOut.z);
+    P.vel.x = P.vel.z = 0;
+    const t = performance.now() / 1000; if (t > VISIT.warnT) { VISIT.warnT = t + 4; toast(`🔒 ${o.name}’s home`, NET.room ? 'Ring the doorbell at the front door (E)' : 'Go online to ring the doorbell'); }
+    return;
+  }
+  if (!hs) { VISIT.lastOut.copy(P.pos); VISIT.hasOut = true; }
+  if (VISIT.ok.size) { if (o) VISIT.outT = 0; else if ((VISIT.outT += dt) > 45) { VISIT.ok.clear(); VISIT.outT = 0; } }
 }
 async function loadWorld() {
   try { const w = await api('/world'); for (const p of w.plots) applyOther(p); if (w.plots.length) { const n = new Set(w.plots.filter(p => p.ownerName && !(NET.user && p.owner === NET.user.id)).map(p => p.ownerName)).size; if (n) toast('🏘 Shared world', `${n} other scout${n > 1 ? 's own' : ' owns'} land here. Their homes are on the map (P)`); }; } catch (e) {}
@@ -11787,7 +11852,7 @@ function frame(now) {
   updateHUD(dt);
   updateLand(dt);
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch(); updateNeeds(dt); updateDance(); updateTipsy(dt);
+  updateTouch(); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
