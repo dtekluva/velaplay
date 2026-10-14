@@ -174,3 +174,17 @@ The server clamps positions to x ±346 and z from −5866 (the north edge, past 
 2. **Domain and HTTPS:** point a subdomain at `46.101.63.217`, set `SITE_ADDRESS` in the server `.env`, and redeploy.
 3. **Shared ownership** and **trading** are done (see above). Next ideas: owned cars that can be sold, and visiting other players' homes with a doorbell.
 4. **Later:** proximity voice (LiveKit on its own Droplet), moderation tools, nightly database backups to Spaces.
+
+## Club music (shared)
+
+The server keeps every club's music on its own clock, so everyone online in a club hears the same track at the same point (`server/src/music.ts`, `WorldRoom`).
+
+- **State:** `state.clubs` holds, per club, the track `key`, its `start` and `end` (server ms), its place `i` in the playlist, and a queued request `req`.
+- **Playlists:** a track plays two passes of its loop. The next one starts 4 s before the end, and the games crossfade. After a request, the playlist carries on where it was.
+- **`clk`:** the game sends its time, and the server replies with its own, so each game can work out its offset.
+- **`dj`:** `{ club, key, now }` is a DJ booth request.
+  - `now` starts the track at once. Otherwise it plays next, at the end of the current pass of the loop.
+  - One request every 4 s per player. The tip is the player's own money, which reaches the server through their land record.
+  - The server broadcasts `djreq` with who asked.
+- **Keep in step with the game:** loop lengths in `TRACKS` must match the game's `CLUB_TRACKS` and the files in `giantwood-scouts/music/`. `ops/build-client.sh` copies those files to `public/music/`.
+- **Timestamps:** a ms timestamp sent by the game arrives as a 64-bit integer, so the server reads it with `Number()`.

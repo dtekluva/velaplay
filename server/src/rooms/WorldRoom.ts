@@ -4,6 +4,7 @@ import { verifyToken } from "../auth";
 import { pool } from "../db";
 import { Character } from "../schemas";
 import { onPlotNews, onTell } from "../land";
+import { TRACKS, LISTS, XF, trackMs } from "../music";
 
 // what everyone sees of a player: position, facing, animation, vehicle, and their look
 export class Player extends Schema {
@@ -18,8 +19,17 @@ export class Player extends Schema {
   @type("boolean") voice = false;   // in voice chat
   @type("boolean") talk = false;    // holding push-to-talk
 }
+// what a club is playing: the track, when it started and when it ends (server ms), where it is in its playlist, a queued request
+export class ClubMusic extends Schema {
+  @type("string") key = "";
+  @type("number") start = 0;
+  @type("number") end = 0;
+  @type("uint8") i = 0;
+  @type("string") req = "";
+}
 export class WorldState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
+  @type({ map: ClubMusic }) clubs = new MapSchema<ClubMusic>();
 }
 
 interface Auth { id: string; name: string; guest: boolean; look: string }
@@ -33,6 +43,7 @@ export class WorldRoom extends Room<WorldState> {
   private lastLook = new Map<string, number>();
   private stopNews?: () => void;
   private stopTell?: () => void;
+  private lastDJ = new Map<string, number>();
 
   onCreate() {
     this.setState(new WorldState());
@@ -41,6 +52,36 @@ export class WorldRoom extends Room<WorldState> {
     this.stopNews = onPlotNews((news) => this.broadcast("plot", news));
     // offers, payments and sales for one player go only to them
     this.stopTell = onTell((userId, type, data) => { for (const c of this.clients) if ((c as any).userData?.id === userId) c.send(type, data); });
+
+    // club music: every club starts at a different place in its playlist, and the server moves each one along
+    Object.entries(LISTS).forEach(([name, list], n) => {
+      const c = new ClubMusic(), t = Date.now(); c.i = n % list.length; c.key = list[c.i]; c.start = t; c.end = t + trackMs(c.key);
+      this.state.clubs.set(name, c);
+    });
+    this.clock.setInterval(() => {
+      const t = Date.now();
+      this.state.clubs.forEach((c, name) => {
+        if (t < c.end - XF * 1000) return;
+        const list = LISTS[name], start = c.end - XF * 1000;   // the next one starts as this one fades: the clients crossfade
+        if (c.req) { c.key = c.req; c.req = ""; } else { c.i = (c.i + 1) % list.length; c.key = list[c.i]; }   // after a request, the playlist carries on where it was
+        c.start = start; c.end = start + trackMs(c.key);
+      });
+    }, 250);
+    // the clock: each game measures its offset from ours, so they all agree where a track is
+    this.onMessage("clk", (client, m: any) => { const t = Number(m?.t); client.send("clk", { t: Number.isFinite(t) ? t : 0, s: Date.now() }); });   // a ms timestamp arrives as a 64-bit integer (a BigInt)
+    // a DJ booth request: play a track next, or now. The tip is the player's own money (their land record syncs it)
+    this.onMessage("dj", (client, m: any) => {
+      const p = this.state.players.get(client.sessionId), c = typeof m?.club === "string" ? this.state.clubs.get(m.club) : undefined;
+      if (!p || !c || typeof m.key !== "string" || !(m.key in TRACKS)) return;
+      const t = Date.now(); if (t - (this.lastDJ.get(client.sessionId) || 0) < 4000) return;   // one request every few seconds
+      this.lastDJ.set(client.sessionId, t);
+      if (m.now) { c.key = m.key; c.req = ""; c.start = t; c.end = t + trackMs(m.key); }
+      else {   // next: at the end of this pass of the loop
+        const len = TRACKS[c.key] * 1000, passEnd = c.start + Math.ceil((t - c.start + 500) / len) * len;
+        c.req = m.key; c.end = Math.max(t + (XF + 1) * 1000, Math.min(c.end, passEnd + XF * 1000));
+      }
+      this.broadcast("djreq", { club: m.club, key: m.key, now: !!m.now, by: p.name, id: client.sessionId });
+    });
 
     this.onMessage("move", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p || !m) return;
@@ -122,6 +163,6 @@ export class WorldRoom extends Room<WorldState> {
 
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
-    this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId);
+    this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId);
   }
 }

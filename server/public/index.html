@@ -6683,13 +6683,13 @@ function loadTrack(T) {
   fetch('music/' + T.file).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status)).then(a => new Promise((ok, no) => AC.decodeAudioData(a, ok, no)))
     .then(buf => { MUSIC.bufs[T.file] = buf; }).catch(() => { MUSIC.bufs[T.file] = 'failed'; });
 }
-function playTrack(st, T, at, fadeIn) {   // a looping voice for this track, into the club's own (distance) gain
+function playTrack(st, T, at, fadeIn, off = 0) {   // a looping voice for this track, into the club's own (distance) gain; off: seconds into the loop
   const b = MUSIC.bufs[T.file], src = AC.createBufferSource(), g = AC.createGain(); src.buffer = b; src.loop = true;
   const pad = b.duration - (T.len + 2 * MUSIC.PRE) > .02 ? 1105 / b.sampleRate : 0;   // a decoder that keeps the mp3's encoder delay shifts everything ~25 ms
   const ls = MUSIC.PRE + pad; src.loopStart = ls; src.loopEnd = ls + T.len;
   g.gain.setValueAtTime(fadeIn ? 0 : 1, at); if (fadeIn) g.gain.linearRampToValueAtTime(1, at + MUSIC.XF);
-  src.connect(g); g.connect(st.G); src.start(at, ls);
-  return { src, g, T, t0: at, end: at + T.len * MUSIC.PASSES };
+  src.connect(g); g.connect(st.G); src.start(at, ls + off);
+  return { src, g, T, t0: at - off, end: at - off + T.len * MUSIC.PASSES };
 }
 function clubMusic(C, d) {   // a club's playlist: two passes of each loop, then a crossfade into the next; returns the voice playing now
   let st = MUSIC.clubs.get(C);
@@ -6698,6 +6698,9 @@ function clubMusic(C, d) {   // a club's playlist: two passes of each loop, then
     st = { list: list.map(k => CLUB_TRACKS[k]), i: CLUBS.indexOf(C) % list.length, cur: null, G: AC.createGain() };
     st.G.gain.value = 0; st.G.connect(master); MUSIC.clubs.set(C, st);
   }
+  const S = NET.room?.state?.clubs?.get?.(C.name);
+  if (S && CLUB_TRACKS[S.key]) return clubOnline(C, st, S, d);   // online: the server's playlist, so everyone hears the same thing
+  if (st.online) { st.online = false; if (st.cur) st.cur.end = AC.currentTime + st.cur.T.len; }   // back offline: carry on locally from here
   const T = st.list[st.i], nextI = (st.i + 1) % st.list.length, req = st.req && CLUB_TRACKS[st.req], N = req || st.list[nextI], now = AC.currentTime;
   if (d < 140) loadTrack(T);
   if (!st.cur) { if (MUSIC.bufs[T.file] instanceof AudioBuffer) st.cur = playTrack(st, T, now + .05, false); else if (MUSIC.bufs[T.file] === 'failed') st.i = nextI; return st.cur; }
@@ -6713,6 +6716,24 @@ function clubMusic(C, d) {   // a club's playlist: two passes of each loop, then
   }
   return st.cur;
 }
+// online: play the server's track for this club at the point the server's clock says it has reached
+const serverNow = () => Date.now() + (NET.clk?.off || 0);
+function clubOnline(C, st, S, d) {
+  st.online = true;
+  const T = CLUB_TRACKS[S.key], sn = serverNow(), now = AC.currentTime, at = ((sn - S.start) / 1000 % T.len + T.len) % T.len;
+  if (d < 140) loadTrack(T);
+  if (d < 300 && sn > S.end - 25000) { const nk = S.req || (CLUB_LISTS[C.name] || [])[(S.i + 1) % 3]; if (CLUB_TRACKS[nk]) loadTrack(CLUB_TRACKS[nk]); }
+  if (!(MUSIC.bufs[T.file] instanceof AudioBuffer)) return st.cur;   // keep whatever's playing until it's loaded
+  const drift = st.cur && st.cur.T === T ? Math.abs(((now - st.cur.t0) % T.len + T.len) % T.len - at) : 0;
+  if (!st.cur || st.cur.T !== T || (drift > .15 && drift < T.len - .15 && (st.chk = (st.chk || 0) + 1) > 30)) {   // a new track, or we've drifted (a pause, a better clock reading)
+    st.chk = 0; const old = st.cur, xf = old && old.T !== T ? MUSIC.XF : .4;
+    st.cur = playTrack(st, T, now + .03, !!old, (at + .03) % T.len);
+    if (old) { old.g.gain.cancelScheduledValues(now); old.g.gain.setValueAtTime(old.g.gain.value, now); old.g.gain.linearRampToValueAtTime(0, now + xf); old.src.stop(now + xf + .1); }
+    if (xf < 1) { st.cur.g.gain.cancelScheduledValues(now); st.cur.g.gain.setValueAtTime(0, now); st.cur.g.gain.linearRampToValueAtTime(1, now + xf); }
+    if (old && old.T !== T && d < 30 && performance.now() - (MUSIC.reqT || 0) > 4000) toast(`♪ ${C.name}`, `Now playing: ${T.title} · ${T.by} (Pixabay)`);   // a request's own message (who asked) wins
+  } else if (drift <= .15 || drift >= T.len - .15) st.chk = 0;
+  return st.cur;
+}
 // the DJ booth: stand at the decks and pick what plays next (₦500 tip), or have it mixed in right now (₦1,500)
 function djBoothNear() {
   if (P.driving || !AC) return null;
@@ -6723,14 +6744,20 @@ function djSay(C, line) { const dj = civilians.find(c => c.dj && Math.hypot(c.g.
 function djRequest(C, key, now) {
   const st = MUSIC.clubs.get(C), T = CLUB_TRACKS[key], tip = now ? 1500 : 500;
   if (LAND.money < tip) { toast('', `The DJ wants a ${NAIRA(tip)} tip`); return; }
-  LAND.money -= tip; LAND.changed = true; saveLand(); loadTrack(T); st.req = key; menuClose();
+  LAND.money -= tip; LAND.changed = true; saveLand(); loadTrack(T); menuClose();
+  if (st.online && NET.room) {   // online: the server plays it for everyone in the club; everyone sees who asked
+    NET.room.send('dj', { club: C.name, key, now });
+    toast(`🎧 ${T.title}`, `${now ? 'Mixing it in now' : 'Up next, after this pass'} · for everyone here · tip ${NAIRA(tip)}`); return;
+  }
+  st.req = key;
   const t = AC.currentTime, cur = st.cur, passEnd = cur.t0 + Math.ceil((t - cur.t0 + .5) / cur.T.len) * cur.T.len;
   cur.end = now ? t + MUSIC.XF : Math.min(cur.end, passEnd);   // now: start the crossfade at once; next: at the end of this pass of the loop
   djSay(C, now ? rp(['Say no more! Dropping it now 🔥', 'Selector! Here we go!', 'Una ready? Make una dance!']) : rp(['Request in! It’s up next.', 'Good choice. Coming right up.', 'I got you. Next one.']));
   toast(`🎧 ${T.title}`, `${now ? 'Mixing it in now' : 'Up next, after this pass'} · tip ${NAIRA(tip)}`);
 }
 function openDJ(C, all) {
-  const st = MUSIC.clubs.get(C), cur = st.cur.T, up = st.req ? CLUB_TRACKS[st.req] : st.list[(st.i + 1) % st.list.length];
+  const st = MUSIC.clubs.get(C), S = st.online && NET.room?.state?.clubs?.get?.(C.name), cur = st.cur.T;
+  const up = S ? CLUB_TRACKS[S.req] || st.list[(S.i + 1) % st.list.length] : st.req ? CLUB_TRACKS[st.req] : st.list[(st.i + 1) % st.list.length];
   const own = CLUB_LISTS[C.name] || [], keys = all ? Object.keys(CLUB_TRACKS).filter(k => !own.includes(k)) : own, items = [];
   for (const k of keys) {
     const T = CLUB_TRACKS[k], on = T === cur;
@@ -10942,6 +10969,19 @@ async function netJoin() {
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
     room.onMessage('trade', tradeNews);
     room.onMessage('rtc', m => onRtc(m));
+    // the server's clock (for the shared club music): keep the reading with the shortest round trip
+    NET.clk = { off: 0, rtt: 1e9 };
+    room.onMessage('clk', m => { const t = Date.now(), rtt = t - m.t; if (rtt <= NET.clk.rtt + 30) { NET.clk.off = m.s - (m.t + t) / 2; NET.clk.rtt = Math.min(rtt, NET.clk.rtt); } });
+    for (let k = 0; k < 6; k++) setTimeout(() => NET.room === room && room.send('clk', { t: Date.now() }), 200 + k * 400);
+    clearInterval(NET.clkT); NET.clkT = setInterval(() => { if (NET.room === room) { NET.clk.rtt += 40; room.send('clk', { t: Date.now() }); } }, 20000);
+    room.onMessage('djreq', m => {
+      const C = CLUBS.find(c => c.name === m.club), T = CLUB_TRACKS[m.key]; if (!C || !T) return;
+      if (m.id !== room.sessionId && Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z) < 60) {
+        MUSIC.reqT = performance.now();
+        toast(`🎧 ${m.by}`, `${m.now ? 'had the DJ drop' : 'requested'} ${T.title} · ${T.by}`);
+        djSay(C, m.now ? rp(['Shout out to ' + m.by + '!', 'This one’s for ' + m.by + '!']) : rp(['Request from ' + m.by + ', coming up!', m.by + ' wants this one next.']));
+      }
+    });
     room.onLeave(code => {
       NET.room = null; for (const r of [...NET.others.values()]) dropRemote(r); for (const id of [...VOICE.peers.keys()]) peerClose(id); VOICE.on = false; VOICE.talking = false; renderOnline(); chatStatus();
       if (code !== 1000 && code !== 4000 && (NET.token || NET.guest) && NET.retry < 6) setTimeout(() => { NET.retry++; netJoin(); }, 2000 + NET.retry * 2000);
