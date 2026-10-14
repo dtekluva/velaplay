@@ -1,6 +1,6 @@
 # VelaPlay
 
-The online backend for **Giantwood**, the game in `../giantwood-scouts`. It has player accounts, saved characters and cloud saves, plus a shared real-time world where everyone sees each other move and chat.
+The online backend for **NaijLife** (formerly Giantwood), the game in `../giantwood-scouts`. It has player accounts, saved characters and cloud saves, plus a shared real-time world where everyone sees each other move and chat.
 
 **Play online:** <https://46-101-63-217.sslip.io>. That's the full game: sign in or play as a guest, make your scout, and press Deploy to join the shared world. A bare-bones test page lives at `/test.html`.
 
@@ -73,7 +73,7 @@ The server is the truth for land, homes, furniture, fences, the bulldozer, terra
 
 ## The game client
 
-The game is the single-file Giantwood game (`../giantwood-scouts/index.html`). Its online module (`NET`, near the end of the script) handles:
+The game is the single-file NaijLife game (`../giantwood-scouts/index.html`). Its online module (`NET`, near the end of the script) handles:
 - **Start screen:** a *Play online* panel to sign in, create an account, play as a guest, or make your scout.
 - **Character creator:** body, build, skin, twelve hair styles, hair colour, outfit (jacket, T-shirt or dress) and colours, trousers, shoes, hat and sunglasses, with a turning 3D preview.
 - **In the world:** joining when you Deploy, sending your position 20 times a second (only when it changes), and drawing other players as real figures in their look, with name tags. Their car, boat, plane or motorbike is drawn too, from the same models as yours. Movement is smoothed, and they snap after long jumps.

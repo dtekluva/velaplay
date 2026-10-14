@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Giantwood Scouts</title>
+<title>NaijLife</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
@@ -497,7 +497,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     </dl>
     <button id="helpTab" type="button" title="Show the controls (H)">H · controls</button>
     <div id="bigmap" hidden><div class="frame">
-      <div class="head"><h3>Map of the Giantwood</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">P to close · wheel zooms · drag to move</span></div>
+      <div class="head"><h3>Map of NaijLife</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">P to close · wheel zooms · drag to move</span></div>
       <canvas id="bigmapC" width="960" height="960"></canvas>
       <div class="side"><div class="key"><span><i style="background:#fff"></i>You</span><span><i style="background:#2f7fd0"></i>Supply depot</span><span><i style="background:#e0392b;border-radius:50%"></i>Titan</span><span><i style="background:#3a6fd0"></i>Police</span><span><i style="background:#d64a3c"></i>Hospital</span><span><i style="background:#e8742a"></i>Fire station</span><span><i style="background:#e8c84a"></i>School</span><span><i style="background:#9a5ad0"></i>Mall</span><span><i style="background:#7fd3e8"></i>Airport terminal</span><span><i style="background:rgba(242,194,48,.5);border-color:#f2c230"></i>Land for sale</span><span><i style="background:#e8742a"></i>Your land</span><span><i style="background:#b98a52"></i>Deliveries</span></div></div>
     </div></div>
@@ -523,8 +523,8 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
   </div>
   <div id="overlay">
     <div class="card" id="card">
-      <div class="eyebrow" id="cEyebrow">Scout expedition · Giantwood</div>
-      <h1 id="cTitle">Giantwood Scouts</h1>
+      <div class="eyebrow" id="cEyebrow">Lagos · Ibadan · Oyo</div>
+      <h1 id="cTitle">NaijLife</h1>
       <p class="touchhint">Left thumb moves (and steers), right thumb looks around. Hold the HOOK buttons to swing, JUMP twice to boost, and tap the gold button to talk, drive or ride the lift. ☰ has the map and everything else; tap the minimap for the big map.</p>
       <p class="rotate">Turn your device sideways for the best view.</p>
       <p class="landhint">Buy land: yellow squares on the map are for sale. Stand on one and press E (BUY on touch). The gated estates, Lekki Gardens north of the city and Eastwood Park past the airport, have level plots ready to build on. Bulldozers are sold at Meadowbrook Machinery on the coast road.</p>
@@ -2159,7 +2159,7 @@ const AD_ART = [
     fitText(g, 'Full signal, even 80 metres up a tree.', 64, 285, 640, 54, 600, '#f4dff0');
     fitText(g, 'UNLIMITED DATA · NO WALLS', 64, 400, 640, 48, 800, '#7fd3e8');
   },
-  // Giantwood Homes
+  // Naija Homes
   g => {
     g.fillStyle = '#8fc3e0'; g.fillRect(0, 0, 1024, 512);
     g.fillStyle = '#5f9a3c'; g.fillRect(0, 430, 1024, 82);
@@ -2167,7 +2167,7 @@ const AD_ART = [
     g.fillStyle = '#2a2c30'; g.fillRect(720, 215, 250, 20); g.fillRect(820, 330, 40, 100);
     g.fillStyle = '#5a7d99'; g.fillRect(750, 260, 60, 50); g.fillRect(880, 260, 60, 50); g.fillRect(750, 345, 50, 50);
     g.fillStyle = '#8a5c3a'; g.fillRect(870, 330, 70, 100);
-    fitText(g, 'GIANTWOOD HOMES', 60, 190, 620, 120, 800, '#14243d');
+    fitText(g, 'NAIJA HOMES', 60, 190, 620, 120, 800, '#14243d');
     fitText(g, 'Two storeys. Titan-proof doors.', 64, 270, 600, 54, 700, '#14243d');
     fitText(g, 'MOVE IN TODAY', 64, 390, 600, 64, 800, '#c8261e');
   },
@@ -2431,7 +2431,7 @@ if (TOWN && blockAt('police')) {
   for (const [x, z] of T0.policeBays) colliders.push({ x0: x - .95, x1: x + .95, y0: y, y1: y + 1.6, z0: z - 2.2, z1: z + 2.2, tag: 'house' });
 }
 
-/* ---------- Giantwood General: four storeys, red crosses, a helipad, an emergency bay and a walk-in lobby ---------- */
+/* ---------- Naija General: four storeys, red crosses, a helipad, an emergency bay and a walk-in lobby ---------- */
 if (TOWN && blockAt('hospital')) {
   const T0 = TOWN, y = T0.y, [cx, cz] = blockAt('hospital'), b = new Builder();
   const red = LM(0xc8261e), pale = LM(0xcfe3e6), glassH = new THREE.MeshLambertMaterial({ color: 0x5f8f9a, emissive: 0x0c1418 }); towerGlass.push(glassH);
@@ -2620,7 +2620,7 @@ if (TOWN && blockAt('school')) {
   b.box(3, .25, 3, px + .5, y + .12, pz + 5.5, M.oak, 1, false); b.box(2.7, .2, 2.7, px + .5, y + .1, pz + 5.5, M.sand, 1, false);
   b.box(.12, 8, .12, cx - 1.5, y + 4, cz + 1.5, MM.steel, 1, true, 'house'); b.box(1.6, 1, .04, cx - .7, y + 7.3, cz + 1.5, LM(0x2f5b3a), 1, false);
   b.build();
-  textSign('GIANTWOOD SCHOOL', '#2f5b3a', '#f2c230', 7, 1.1, hs.x, fl + LH - .55, frontZ + .2, 0, '#f2c230');
+  textSign('NAIJA CITY SCHOOL', '#2f5b3a', '#f2c230', 7, 1.1, hs.x, fl + LH - .55, frontZ + .2, 0, '#f2c230');
   addDoor(F, 0, -DL / 2 + T / 2, fl, 2.2, 2.8, MM.glass, T0);
   Object.assign(hs, { doorOut: pt(0, -DL / 2 - 1.8), doorIn: pt(0, inZ0 + 1), inside: pt(0, .8), floorY: fl, two: false, top: fl + LH });
   T0.houses.push(hs); T0.school = hs;
@@ -2668,7 +2668,7 @@ if (TOWN && blockAt('mall')) {
   const spout = new THREE.Mesh(new THREE.CylinderGeometry(.15, .25, 1.4, 12), LM(0xb9b6ae)); spout.position.set(hs.x, fl + 1.1, hs.z + .2); scene.add(spout);
   colliders.push({ x0: hs.x - 1.9, x1: hs.x + 1.9, y0: fl, y1: fl + .6, z0: hs.z - 1.7, z1: hs.z + 2.1, tag: 'house' });
   // signs: the mall name over the doors, shop fascias, ads on the facade
-  textSign('GIANTWOOD MALL', '#14243d', '#ffffff', 11, 1.6, hs.x, fl + 6.6, frontZ + .2, 0, '#d6ae5f');
+  textSign('NAIJA MALL', '#14243d', '#ffffff', 11, 1.6, hs.x, fl + 6.6, frontZ + .2, 0, '#d6ae5f');
   shops.forEach(([name, col], k) => textSign(name, col, '#ffffff', 6.2, .62, hs.x - 7 + k * 7, fl + 4.35, hs.z + inZ1 - 4 - .12, Math.PI));
   textSign('FOOD COURT', '#e8742a', '#ffffff', 3.4, .9, hs.x + inX0 + .14, fl + 2.6, hs.z - 2, Math.PI / 2);
   textSign('PIXEL & CO', '#2a2c30', '#7fd3e8', 3.4, .9, hs.x + inX1 - .14, fl + 3.6, hs.z - 3.7, -Math.PI / 2);
@@ -3331,7 +3331,7 @@ if (TOWN) {
   const names = { '3,3': ['Club Prestige', '#ff3ec8'], '0,3': ['Neon Lounge', '#3ee8ff'] }, b = new Builder();
   for (const key in TOWN.plan) if (TOWN.plan[key] === 'club') {
     const [bi, bj] = key.split(',').map(Number), cx = TOWN.x + TOWN.BC[bi], cz = TOWN.z + TOWN.BC[bj];
-    buildClub({ x: cx, z: cz - 4, w: 24, d: 16, side: 'pz', v: TOWN }, b, ...(names[key] || ['Club Giantwood', '#b14cff']));
+    buildClub({ x: cx, z: cz - 4, w: 24, d: 16, side: 'pz', v: TOWN }, b, ...(names[key] || ['Club Naija', '#b14cff']));
     for (const s of [-1, 1]) smallTree(b, cx + s * 10, cz + 9, TOWN.y);
   }
   b.build();
@@ -4916,13 +4916,13 @@ const TALK_NAMES = {
     m: ['Otto', 'Konrad', 'Henrik', 'Bram', 'Lothar', 'Ulf', 'Jorg', 'Emil', 'Falk', 'Tomas'] },
 };
 const TALK_DESTS = ['Accra', 'London', 'Dubai', 'Nairobi', 'Johannesburg', 'New York', 'Abuja', 'Kigali', 'Cairo', 'Lisbon'];
-const TALK_PLACE_NAMES = { staff: 'Banana Island', city: 'Giantwood City', airport: 'the airport', beach: 'Elegushi Beach', seafront: 'the seafront', country: 'Meadowbrook', school: 'Meadowbrook School', village: 'the village', cop: 'Giantwood City', fire: 'Giantwood City', kid: 'Giantwood City' };
+const TALK_PLACE_NAMES = { staff: 'Banana Island', city: 'Naija City', airport: 'the airport', beach: 'Elegushi Beach', seafront: 'the seafront', country: 'Meadowbrook', school: 'Meadowbrook School', village: 'the village', cop: 'Naija City', fire: 'Naija City', kid: 'Naija City' };
 const TALK_JOBS = {
   beach_f: ['I braid hair by the gate. Six styles, fair price.', 'I run the drinks at Coconut Bar.', 'I sell zobo and chapman from my cooler.', 'I’m a lifeguard. Swim between the flags, abeg.', 'I came with my girls to catch some sun.', 'I sell coconuts. Fresh, cold, cut while you wait.'],
   beach_m: ['I grill suya at Suya & Chill. Best pepper on this beach.', 'I give horse rides along the water. Very gentle horses.', 'I fix canoes and take people out fishing.', 'I’m the DJ at Mama T’s on weekends.', 'I came to play ball with my guys.', 'I run the speedboat out at the jetty.'],
-  seafront_f: ['I work from home. With this view, can you blame me?', 'I run a little cake business from my kitchen.', 'I’m a nurse at Giantwood General. Night shifts, mostly.', 'I design houses like these ones.'],
+  seafront_f: ['I work from home. With this view, can you blame me?', 'I run a little cake business from my kitchen.', 'I’m a nurse at Naija General. Night shifts, mostly.', 'I design houses like these ones.'],
   seafront_m: ['I’m an engineer. I commute all the way to the city.', 'I manage the beach car park. Somebody has to.', 'I import fabric. Ankara, lace, you name it.', 'I write music. The waves help.'],
-  city_f: ['I’m a nurse at Giantwood General.', 'I sell phones at the mall.', 'I’m an architect. I drew half these towers.', 'I teach at the city school.', 'I drive the school bus. Every pothole knows me.'],
+  city_f: ['I’m a nurse at Naija General.', 'I sell phones at the mall.', 'I’m an architect. I drew half these towers.', 'I teach at the city school.', 'I drive the school bus. Every pothole knows me.'],
   city_m: ['I’m a banker. Long hours, nice suits.', 'I fix air conditioners in the towers.', 'I run the gas station night shift.', 'I deliver parcels on my motorbike.', 'I cook at the mall food court.'],
   airport_f: ['I’m flying to {dest}. Gate B3, if it ever opens.', 'I’m cabin crew. Twelve hours on my feet today.', 'I’m waiting for my sister. Her flight from {dest} is late.', 'I work at the check-in desk.'],
   airport_m: ['I’m flying to {dest} for work.', 'I’m a pilot. Short hops, mostly.', 'I drive a taxi. The airport run pays the rent.', 'I’m back from {dest}. My legs forgot how to walk.'],
@@ -4940,7 +4940,7 @@ const TALK_JOBS = {
   gardener: ['I keep the lawns and the palms. The hedges took me all week.', 'Gardener. This grass is the greenest on the island.'],
   driver: ['I drive for the house. The cars are washed and fuelled.', 'Driver. Where are we going today, boss?'],
   pool: ['I keep the pool clean and the towels fresh.', 'Pool attendant. The water is perfect today.'],
-  bartender: ['I run the bar here. Best Chapman in Giantwood.', 'Bartender. Ten years behind this counter.', 'I mix the drinks. Ask me for something special.'],
+  bartender: ['I run the bar here. Best Chapman in town.', 'Bartender. Ten years behind this counter.', 'I mix the drinks. Ask me for something special.'],
   bouncer: ['I keep the door. Nobody causes trouble on my watch.', 'Security. Dress code is my business.', 'I watch the door. And the rope. And you.'],
   kid: ['I’m in year four!', 'I want to be a scout like you when I grow up!', 'I’m seven and three quarters.'],
   school: ['I go to Meadowbrook School! Miss Hattie is my teacher.', 'I ring the school bell sometimes. It’s really loud.', 'I’m the fastest on the swings.'],
@@ -4990,7 +4990,7 @@ const TALK = {
     cop: ['Long shift, but it’s quiet. Keep it that way.'], fire: ['Good. No fires today, touch wood.'],
   },
   place: {
-    city: ['Giantwood City: sixteen blocks, one ring road, and the best food court for miles.', 'The towers are new. Ten years ago this was all forest.', 'Everything’s here: hospital, police, the mall, the fire station. Just never parking.'],
+    city: ['Naija City: sixteen blocks, one ring road, and the best food court for miles.', 'The towers are new. Ten years ago this was all forest.', 'Everything’s here: hospital, police, the mall, the fire station. Just never parking.'],
     airport: ['It’s modelled on the big one in Lagos, Murtala Muhammed. Smaller, mind you.', 'The car park roof has the best view of the runway.', 'The departures level is up the ramp. Arrivals downstairs.'],
     beach: ['Elegushi is the place to be! Music, suya, horses, and the whole Atlantic.', 'Come on a Sunday. Everybody is here!', 'The bars on the sand are the best part. Try Mama T’s jollof.', 'Swim between the flags. The current is no joke.'],
     seafront: ['Quiet houses, loud beach. Perfect balance.', 'The coastal road brings everyone through here on weekends.', 'Wake up to waves every morning. Expensive waves.'],
@@ -4999,7 +4999,7 @@ const TALK = {
     village: ['A well, a few houses, and the forest all around. It’s home.', 'We trade with the city sometimes. Mostly we keep to ourselves.', 'The giant trees were here before any of us.'],
     any: ['It’s nice. Quiet, mostly.', 'I like it here. People look out for each other.'],
     staff: ['Banana Island is the best address in town, boss.', 'Eleven bedrooms, a pool and a fountain. We are proud to work here.'],
-    club: ['{place}? Best spot in Giantwood. Great music, cold drinks.', 'The DJ here plays till the sun comes up.', 'Dress code is strict, but the vibe is worth it.', 'Get a drink at the bar. The bartender knows his stuff.'],
+    club: ['{place}? Best spot in Naija City. Great music, cold drinks.', 'The DJ here plays till the sun comes up.', 'Dress code is strict, but the vibe is worth it.', 'Get a drink at the bar. The bartender knows his stuff.'],
   },
   titans: {
     peace: ['Not lately, thank goodness. It’s been peaceful.', 'Titans? None for days. Long may it last.', 'The scouts say it’s quiet. I believe them.'],
@@ -5127,8 +5127,8 @@ function lineFor(P0, c, moodChance = .35) {
 const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
 function directions(c) {
   const here = c.g.position, spots = [];
-  if (TOWN) spots.push(['Giantwood City', TOWN.x, TOWN.z, 'The ring road goes all the way round it.']);
-  if (TOWN && TOWN.hospital) spots.push(['Giantwood General hospital', TOWN.hospital.x, TOWN.hospital.z, 'They’ll patch you up for free.']);
+  if (TOWN) spots.push(['Naija City', TOWN.x, TOWN.z, 'The ring road goes all the way round it.']);
+  if (TOWN && TOWN.hospital) spots.push(['Naija General hospital', TOWN.hospital.x, TOWN.hospital.z, 'They’ll patch you up for free.']);
   if (TOWN && TOWN.mall) spots.push(['the mall', TOWN.mall.x, TOWN.mall.z, 'Best food court around.']);
   if (AP) { const [ax, az] = Wp(135, 105); spots.push(['the airport', ax, az, 'Leave the city by the east gate; the airport road runs dead straight.']); }
   if (COAST) { spots.push(['Elegushi Beach', 30, 288, 'Take the coastal road from the city’s west gate and follow the sea.']); spots.push(['Meadowbrook', COUNTRY.x, COUNTRY.z, 'Follow the coastal road east, right to the very end.']); spots.push(['the jetty with the speedboat', 140, 300, 'It’s at the east end of Elegushi Beach.']); }
@@ -6879,7 +6879,7 @@ function dancePose(r, style, t) {   // like the club-goers' dance, for you and o
 /* ---------- the law: offences, a wanted level (★ to ★★★), police who chase you on foot and by car, and arrest.
    Minor offences count only if police see them (an officer, a patrol car or a pursuit car nearby); serious ones get
    reported by anyone. Lose the police (stay out of sight a while) and the wanted level clears. Caught: you're taken to
-   the Giantwood police station and either pay the fines or spend the night in the cell. ---------- */
+   the Naija City police station and either pay the fines or spend the night in the cell. ---------- */
 const OFFENCES = {
   speed: { label: 'Speeding', stars: 1, fine: 5000, witness: true, cool: 20 },
   drink: { label: 'Drink-driving', stars: 1, fine: 10000, witness: true, cool: 30 },
@@ -6994,7 +6994,7 @@ function arrestPlayer(surrender) {
 function arrestMenu() {
   const n = new Map(); for (const q of LAW.charges) n.set(q.label, (n.get(q.label) || 0) + 1);
   const fine = lawFine(), list = [...n].map(([l, k]) => k > 1 ? `${l} ×${k}` : l).join(' · ') || 'disturbing the peace';
-  menuShow('🚔 Giantwood Police Station', `Charged with: ${list}`, [
+  menuShow('🚔 Naija City Police Station', `Charged with: ${list}`, [
     { label: `Pay the fine · ${NAIRA(fine)}`, note: LAW.surrender ? 'a quarter off for giving yourself up · walk out free' : 'and walk out free', off: LAND.money < fine, run: () => {
       if (LAND.money < fine) { toast('', `The fine is ${NAIRA(fine)}; you have ${NAIRA(LAND.money)}`); return; }
       LAND.money -= fine; LAND.changed = true; saveLand(); lawRelease('Fine paid', 'Drive safe out there'); } },
@@ -8731,7 +8731,7 @@ function nearSupply() { for (const s of SUPPLIES) if (Math.hypot(s.x - P.pos.x, 
 function resupply() {
   const at = nearSupply();
   if (!at) return;
-  if (at.hospital) { P.health = HP_MAX; sfx('swap'); toast('', 'Patched up at Giantwood General. Full health'); return; }
+  if (at.hospital) { P.health = HP_MAX; sfx('swap'); toast('', 'Patched up at Naija General. Full health'); return; }
   P.gas = 100; P.spares = 6; P.sharp = 100; P.ammo = AMMO_MAX; P.health = Math.min(HP_MAX, P.health + 120);
   sfx('refill'); toast('', nearSupply()?.pump ? 'Filled up at Gas & Go: gas, rounds, blades and bandages' : 'Resupplied: gas, rounds, blades and bandages');
 }
@@ -9180,7 +9180,7 @@ function drawBigMap() {
     bg2.lineWidth = 4; bg2.strokeStyle = 'rgba(10,14,9,.85)'; bg2.strokeText(text, bx, by + dy); bg2.fillStyle = color; bg2.fillText(text, bx, by + dy);
   };
   // places
-  if (TOWN) label('GIANTWOOD CITY', TOWN.x, TOWN.z, 24, '#f2e3b8');
+  if (TOWN) label('NAIJA CITY', TOWN.x, TOWN.z, 24, '#f2e3b8');
   if (AP) { const [ax, az] = Wp(135, 128); label('MURTALA MUHAMMED', ax, az, 19, '#bfe9f3', -11); label('INT’L AIRPORT', ax, az, 19, '#bfe9f3', 11);
     const [rx, rz] = Wp(104, -14); label('AIRPORT ROAD', rx, rz, 14, '#f2c230', -20); }
   VILLAGES.forEach((v, k) => label(k ? 'Village' : 'Home village', v.x, v.z, 15, '#f1ebda', -VR * sc - 4));
@@ -10983,7 +10983,7 @@ const beam = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 60, 24, 1, true
 beam.visible = false; scene.add(beam);
 function fareSpots() {
   const s = [];
-  if (TOWN) { s.push(['Giantwood City centre', TOWN.x, TOWN.z]); for (const [k, n] of [['hospital', 'Giantwood General'], ['mall', 'the mall'], ['station', 'the police station'], ['school', 'the school'], ['fireStation', 'the fire station']]) if (TOWN[k]) s.push([n, TOWN[k].doorOut.x, TOWN[k].doorOut.z]); const g = blockAt('gas'); if (g) s.push(['Gas & Go', g[0], g[1]]); }
+  if (TOWN) { s.push(['Naija City centre', TOWN.x, TOWN.z]); for (const [k, n] of [['hospital', 'Naija General'], ['mall', 'the mall'], ['station', 'the police station'], ['school', 'the school'], ['fireStation', 'the fire station']]) if (TOWN[k]) s.push([n, TOWN[k].doorOut.x, TOWN[k].doorOut.z]); const g = blockAt('gas'); if (g) s.push(['Gas & Go', g[0], g[1]]); }
   if (AP) { const [ax, az] = Wp(104, 100); s.push(['the airport', ax, az]); }
   if (COAST) { s.push(['Elegushi Beach', 30, 263], ['the beach car park', 30, 250], ['Meadowbrook', COUNTRY.x, 200], ['Meadowbrook School', COUNTRY.x, 160], ['Meadowbrook Machinery', 193, 252]); }
   if (BI) s.push(['Banana Island', BI.gateX, BI.z0 - 6]);
@@ -11052,7 +11052,7 @@ for (const p of PICKUPS) {
 function homeDoors() {
   const out = [], take = (list, place) => { for (const h of list) if (h.doorOut && !h.hospital && !h.police && !h.fire && !h.school && !h.mall && !h.airport && !h.station && !h.floors) out.push({ x: h.doorOut.x, z: h.doorOut.z, place: place(h) }); };
   take(HOUSES, h => h.v === COUNTRY ? 'a cottage in Meadowbrook' : VILLAGES.indexOf(h.v) === 0 ? 'a house in the home village' : 'a house in the forest village');
-  if (TOWN) take(TOWN.houses, () => 'a home in Giantwood City');
+  if (TOWN) take(TOWN.houses, () => 'a home in Naija City');
   if (BEACH) take(BEACH.houses, () => 'a house on the seafront');
   for (const E of ESTATES) take(E.houses, () => `a home in ${E.short}`);
   return out;
