@@ -11371,7 +11371,7 @@ async function netJoin() {
   NET.joining = true; renderOnline();
   try {
     const Colyseus = await loadColyseus();
-    const opts = { x: P.pos.x, y: P.pos.y, z: P.pos.z, look: lookOut(), ...(NET.token ? { token: NET.token } : { name: NET.guest }) };
+    const opts = { x: P.pos.x, y: P.pos.y, z: P.pos.z, look: lookOut(), device: TOUCH.on ? 'phone' : 'desktop', ...(NET.token ? { token: NET.token } : { name: NET.guest }) };   // device: for the visit log
     const room = await new Colyseus.Client(NET.base.replace(/^http/, 'ws')).joinOrCreate('world', opts);
     NET.room = room; NET.retry = 0; NET.sent = null;
     room.onMessage('chat', m => chatIn(m));

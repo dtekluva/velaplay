@@ -211,3 +211,13 @@ Other players' homes are locked in the game until the owner lets you in.
 - **`rideans` `{ id, ok }`:** driver → server. Only the driver who was asked can answer. The server assigns the first free seat and sends `rideres` to the passenger.
 - **`rideleave`:** a passenger hops out.
 - **Drops:** passengers are dropped when the driver's `move` has no vehicle, or when the driver leaves.
+
+## Visit log and stats
+
+Every time someone is in the world, guest or account, the server keeps a row in `sessions` (`visits.ts`): who, phone or desktop (sent by the game), when they started and were last seen, how far they travelled, and which parts of the map they visited (`areaOf`).
+
+- **Saving:** rows are refreshed every minute while people play, and marked ended when they leave, so a deploy loses at most a minute.
+- **The stats page:** **/stats**, at <https://46-101-63-217.sslip.io/stats>. It uses the game's sign-in in the same browser and shows only accounts listed in `ADMIN_IDS` in `.env` (comma-separated user ids).
+- **What's on it:** who's playing right now, totals (players, visits, guest share, hours, phone share, accounts), players per day over the last 30 days, where people go, a player list and the last 60 visits.
+- **What it doesn't store:** no IP addresses or locations, only in-game areas.
+- **`/api/stats`:** the same data as JSON. It needs an admin's Bearer token, and errors are caught inside the route so they can't crash the server.

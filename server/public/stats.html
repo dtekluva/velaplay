@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NaijLife Stats</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #0f130e; --panel: #171d15; --line: #2b3427; --ink: #eef0e6; --muted: #9aa392;
+    --brass: #d6ae5f; --green: #5fbf6a; --pink: #ff6ec7; --blue: #6aa8ff;
+    --ui: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; --body: 'Barlow', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
+  main { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font: 700 30px/1 var(--ui); letter-spacing: .04em; }
+  h1 span { color: var(--brass); }
+  h2 { margin: 0 0 10px; font: 600 15px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--brass); }
+  .sub { color: var(--muted); font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .tile b { display: block; font: 700 28px/1.1 var(--ui); font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 13px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+  .chart { display: flex; align-items: flex-end; gap: 4px; height: 150px; padding-top: 8px; overflow-x: auto; }
+  .bar { flex: 0 0 34px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px; }
+  .bar i { width: 100%; background: var(--green); border-radius: 3px 3px 0 0; min-height: 2px; }
+  .bar small { font-size: 10px; color: var(--muted); white-space: nowrap; }
+  .bar em { font-style: normal; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .meter { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; grid-column: 1 / -1; }
+  .meter i { display: block; height: 100%; background: var(--blue); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font: 600 12px var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 4px; font: 600 12px var(--ui); letter-spacing: .05em; background: var(--line); color: var(--muted); }
+  .tag.acc { background: rgba(214,174,95,.18); color: var(--brass); }
+  .tag.live { background: rgba(95,191,106,.18); color: var(--green); }
+  .areas { color: var(--muted); font-size: 13px; }
+  .msg { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--brass); border-radius: 8px; padding: 18px; max-width: 560px; }
+  .msg a { color: var(--brass); }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main id="app"><p class="sub">Loading…</p></main>
+<script>
+// The NaijLife visit log (admins only). It uses the sign-in the game keeps in this browser, so open the game on this
+// site, sign in with an admin account, and come back. Refreshes every 30 seconds.
+const $ = s => document.querySelector(s);
+const nm = t => String(t ?? '').replace(/ \(guest\)$/, '');   // guests' names arrive as 'Ada (guest)'; the tag says it
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const when = t => new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
+const mins = m => m >= 60 ? `${Math.floor(m / 60)} h ${Math.round(m % 60)} m` : `${Math.round(m)} min`;
+const km = m => m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+function token() { try { return JSON.parse(localStorage.getItem('velaplay') || '{}').token || null; } catch (e) { return null; } }
+function message(html) { $('#app').innerHTML = `<div class="msg">${html}</div>`; }
+async function load() {
+  const t = token();
+  if (!t) return message('<h2>Sign in first</h2><p>This page is for admins. <a href="/">Open the game</a>, sign in with your admin account, then come back here.</p>');
+  let r; try { r = await fetch('/api/stats', { headers: { Authorization: 'Bearer ' + t } }); } catch (e) { return message('<h2>Can’t reach the server</h2><p>Try again in a moment.</p>'); }
+  if (r.status === 401) return message('<h2>Your sign-in has expired</h2><p><a href="/">Open the game</a> and sign in again, then come back.</p>');
+  if (r.status === 403) return message('<h2>Admins only</h2><p>You’re signed in, but this account can’t see the stats.</p>');
+  if (!r.ok) return message('<h2>Something went wrong</h2><p>The server couldn’t load the stats.</p>');
+  render(await r.json());
+}
+function render(d) {
+  const T = d.totals, maxDay = Math.max(1, ...d.days.map(x => x.players)), maxArea = Math.max(1, ...d.areas.map(a => a.visits));
+  $('#app').innerHTML = `
+  <header><h1>Naij<span>Life</span> stats</h1><span class="sub">Visit log since ${T.since ? when(T.since) : 'today'} · Lagos time · refreshes every 30 s</span></header>
+  <div class="tiles">
+    <div class="tile"><b>${d.live.length}</b><span>playing right now</span></div>
+    <div class="tile"><b>${T.players}</b><span>different players</span></div>
+    <div class="tile"><b>${T.visits}</b><span>visits (${T.guest_visits} as guests)</span></div>
+    <div class="tile"><b>${T.hours} h</b><span>played in all · ${T.avg_minutes} min a visit</span></div>
+    <div class="tile"><b>${T.visits ? Math.round(100 * T.phone_visits / T.visits) : 0}%</b><span>on phones and tablets</span></div>
+    <div class="tile"><b>${d.accounts.accounts}</b><span>accounts · ${d.accounts.new_this_week} new this week</span></div>
+  </div>
+  ${d.live.length ? `<section><h2>Playing now</h2><div class="scroll"><table><tr><th>Player</th><th>Where</th><th>For</th><th>Device</th></tr>
+    ${d.live.map(l => `<tr><td>${esc(nm(l.name))} ${l.guest ? '<span class="tag">guest</span>' : '<span class="tag acc">account</span>'}</td><td>${esc(l.area)}</td><td class="num">${mins(l.minutes)}</td><td>${l.device}</td></tr>`).join('')}</table></div></section>` : ''}
+  <section><h2>Players each day</h2>${d.days.length ? `<div class="chart">${d.days.map(x => `<div class="bar" title="${x.day}: ${x.players} players, ${x.visits} visits, ${x.minutes} min"><em>${x.players}</em><i style="height:${Math.max(2, 100 * x.players / maxDay)}%"></i><small>${x.day.slice(5)}</small></div>`).join('')}</div>` : '<p class="empty">No visits yet.</p>'}</section>
+  <div class="two">
+    <section><h2>Where they went</h2><div class="rows">${d.areas.map(a => `<div class="row"><span>${esc(a.area)}</span><span class="num">${a.visits}</span><div class="meter"><i style="width:${100 * a.visits / maxArea}%"></i></div></div>`).join('') || '<p class="empty">Nothing yet.</p>'}</div></section>
+    <section><h2>Players</h2><div class="scroll"><table><tr><th>Player</th><th>Visits</th><th>Time</th><th>Last seen</th></tr>
+      ${d.players.map(p => `<tr><td>${esc(nm(p.name))} ${p.guest ? '<span class="tag">guest</span>' : '<span class="tag acc">account</span>'}${p.phone ? ' 📱' : ''}</td><td class="num">${p.visits}</td><td class="num">${mins(p.minutes)}</td><td class="num">${when(p.last_seen)}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">No one yet.</td></tr>'}</table></div></section>
+  </div>
+  <section><h2>Recent visits</h2><div class="scroll"><table><tr><th>Player</th><th>Started</th><th>Played</th><th>Travelled</th><th>Device</th><th>Went to</th></tr>
+    ${d.recent.map(v => `<tr><td>${esc(nm(v.name))} ${v.guest ? '<span class="tag">guest</span>' : '<span class="tag acc">account</span>'}${v.ended ? '' : ' <span class="tag live">on now</span>'}</td><td class="num">${when(v.started_at)}</td><td class="num">${mins(v.minutes)}</td><td class="num">${km(v.metres)}</td><td>${v.device}</td><td class="areas">${v.areas.map(esc).join(' · ')}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">No visits yet.</td></tr>'}</table></div></section>`;
+}
+load(); setInterval(load, 30000);
+</script>
+</body>
+</html>

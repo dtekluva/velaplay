@@ -5,6 +5,7 @@ import { pool } from "../db";
 import { Character } from "../schemas";
 import { onPlotNews, onTell } from "../land";
 import { TRACKS, LISTS, XF, trackMs } from "../music";
+import { startVisit, sampleVisit, saveVisit, live, type Visit } from "../visits";
 
 // what everyone sees of a player: position, facing, animation, vehicle, and their look
 export class Player extends Schema {
@@ -66,7 +67,8 @@ export class WorldRoom extends Room<WorldState> {
   private lastDJ = new Map<string, number>();
   private lastRing = new Map<string, number>();
   private lastRideReq = new Map<string, number>();
-  private rideReqs = new Map<string, string>();   // passenger session -> the driver they asked
+  private rideReqs = new Map<string, string>();
+  private visits = new Map<string, Visit>();   // the visit log (see visits.ts)   // passenger session -> the driver they asked
   private rings = new Map<string, string>();   // visitor session + key -> the owner's session it went to (only they can answer)
 
   onCreate() {
@@ -120,6 +122,9 @@ export class WorldRoom extends Room<WorldState> {
       }
     });
     // the clock: each game measures its offset from ours, so they all agree where a track is
+    // the visit log: a position sample every 5 s, saved every minute
+    this.clock.setInterval(() => this.state.players.forEach((p, id) => { const v = this.visits.get(id); if (v) sampleVisit(id, v, p.x, p.z); }), 5000);
+    this.clock.setInterval(() => { for (const v of this.visits.values()) saveVisit(v); }, 60000);
     this.onMessage("clk", (client, m: any) => { const t = Number(m?.t); client.send("clk", { t: Number.isFinite(t) ? t : 0, s: Date.now() }); });   // a ms timestamp arrives as a 64-bit integer (a BigInt)
     // a DJ booth request: play a track next, or now. The tip is the player's own money (their land record syncs it)
     this.onMessage("dj", (client, m: any) => {
@@ -249,13 +254,16 @@ export class WorldRoom extends Room<WorldState> {
     p.x = ox ?? (Math.random() - .5) * 6; p.z = oz ?? (Math.random() - .5) * 6; p.y = oy ?? 10;
     if (auth.guest && options?.look) { const r = Character.safeParse(options.look); if (r.success) p.look = JSON.stringify(r.data); }
     this.state.players.set(client.sessionId, p);
+    const device = options?.device === "phone" ? "phone" : "desktop";
+    this.visits.set(client.sessionId, startVisit(client.sessionId, auth.guest ? null : auth.id, auth.name, device, p.x, p.z));
     setTimeout(() => { if (p.anim === "spawn") p.anim = "idle"; }, 3000);
     console.log(`${auth.name} joined (${this.clients.length} in the world)`);
   }
 
-  onDispose() { this.stopNews?.(); this.stopTell?.(); }
+  onDispose() { this.stopNews?.(); this.stopTell?.(); for (const [id, v] of this.visits) { saveVisit(v, true); live.delete(id); } }
 
   onLeave(client: Client) {
+    const v = this.visits.get(client.sessionId); if (v) { saveVisit(v, true); this.visits.delete(client.sessionId); } live.delete(client.sessionId);
     this.state.players.forEach((q) => { if (q.ride === client.sessionId) { q.ride = ""; q.seat = 0; } });   // the driver's gone: passengers are dropped
     this.rideReqs.delete(client.sessionId); this.lastRideReq.delete(client.sessionId);
     const uid = (client as any).userData?.id;   // the host leaving ends their party
