@@ -14,3 +14,6 @@ head = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
 open(sys.argv[2], 'w').write(head + s[:i] + '</head>\n<body>\n' + s[i:] + '\n</body>\n</html>\n')
 print('game copied to', sys.argv[2], len(s) // 1024, 'KB')
 PY
+# the club music loops (Pixabay Content License; see ../giantwood-scouts/music/CREDITS.md) sit beside the page
+MUSIC="$(dirname "$SRC")/music"
+if [ -d "$MUSIC" ]; then mkdir -p server/public/music && cp "$MUSIC"/*.mp3 "$MUSIC"/CREDITS.md server/public/music/ && echo "music copied: $(ls "$MUSIC"/*.mp3 | wc -l | tr -d ' ') loops"; fi

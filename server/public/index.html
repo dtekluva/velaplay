@@ -6654,10 +6654,42 @@ function clubHit(t, kind, vol, f = 55) {
   else { const src = AC.createBufferSource(); src.buffer = noiseBuf; const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000; g.gain.setValueAtTime(vol * .35, t); g.gain.exponentialRampToValueAtTime(.001, t + .05); src.connect(hp).connect(g); src.start(t); src.stop(t + .06); }
 }
 let danceT = 0;
+/* real music in the clubs: each plays its own afrobeat, afro-house or amapiano loop (music/*-loop.mp3, cut from tracks
+   under the Pixabay Content License; see music/CREDITS.md). Each file carries half a second of the song either side of
+   the loop, so the mp3's encoder padding never lands in it; we loop between the exact points. Until a loop has loaded
+   (or if it can't), the club falls back to the synthesised beat. */
+const CLUB_TRACKS = [
+  { file: 'reach-loop.mp3', len: 40, bpm: 96, title: 'Reach', by: 'DMSOUNDWORKS' },
+  { file: 'afrohouse-loop.mp3', len: 64, bpm: 120, title: 'Afro House', by: 'ArtIssizm' },
+  { file: 'whistle-loop.mp3', len: 35.2529, bpm: 108.93, title: 'Sweet Whistle', by: 'OiBeats' },
+  { file: 'godown-loop.mp3', len: 34.909, bpm: 110, title: 'Go Down', by: 'WizzykeyzBeat' },
+];
+const CLUB_TRACK_OF = { 'Club Prestige': 0, 'Neon Lounge': 1, 'The Lagoon Club': 2, 'Bluewave Beach Club': 3 };
+const MUSIC = { PRE: .5, bufs: {}, play: new Map(), heard: new Set() };   // bufs: file -> AudioBuffer | 'loading' | 'failed'; play: club -> { src, g, T, t0, ls }
+const trackOf = C => CLUB_TRACKS[CLUB_TRACK_OF[C.name] ?? CLUBS.indexOf(C) % CLUB_TRACKS.length];
+function clubMusic(C, d) {   // load when you're getting close; start looping once decoded; returns the playing entry, if any
+  const T = trackOf(C), b = MUSIC.bufs[T.file];
+  if (b === undefined && d < 140) {
+    MUSIC.bufs[T.file] = 'loading';
+    fetch('music/' + T.file).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status)).then(a => new Promise((ok, no) => AC.decodeAudioData(a, ok, no)))
+      .then(buf => { MUSIC.bufs[T.file] = buf; }).catch(() => { MUSIC.bufs[T.file] = 'failed'; });
+  }
+  let p = MUSIC.play.get(C);
+  if (!p && b instanceof AudioBuffer) {
+    const src = AC.createBufferSource(), g = AC.createGain(); g.gain.value = 0; src.buffer = b; src.loop = true;
+    const pad = b.duration - (T.len + 2 * MUSIC.PRE) > .02 ? 1105 / b.sampleRate : 0;   // a decoder that keeps the encoder delay shifts everything by ~25 ms
+    const ls = MUSIC.PRE + pad; src.loopStart = ls; src.loopEnd = ls + T.len;
+    src.connect(g); g.connect(master); src.start(0, ls); p = { src, g, T, t0: AC.currentTime, ls }; MUSIC.play.set(C, p);
+  }
+  return p;
+}
 function updateClubs(dt) {
   if (RR.car && !RR.seen && P.driving !== RR.car && Math.hypot(RR.car.x - P.pos.x, RR.car.z - P.pos.z) < 16) { RR.seen = true; toast('✦ Rare find', 'A Range Rover Sport. Press E to drive it'); }
   // the floor tiles change colour on the beat; beams sweep; the mirror ball turns
-  if ((danceT -= dt) <= 0) {
+  const mp = MUSIC.nearP;   // the nearest club's loop, if it's playing: flash on its half-beats
+  const halfBeat = mp ? Math.floor((AC.currentTime - mp.t0) / (30 / mp.T.bpm)) : -1;
+  if (mp ? halfBeat !== MUSIC.lastHB : (danceT -= dt) <= 0) {
+    MUSIC.lastHB = halfBeat; if (mp) BEAT.step++;
     danceT = .245; const g = danceCanvas.getContext('2d');
     for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { g.fillStyle = Math.random() < .55 ? NEON[(i + j + BEAT.step) % NEON.length] : '#120f18'; g.fillRect(i * 16, j * 16, 15, 15); }
     danceTex.needsUpdate = true;
@@ -6670,7 +6702,16 @@ function updateClubs(dt) {
   }
   if (!AC || !noiseBuf || mode !== 'play') return;
   if (!BEAT.gain) { BEAT.gain = AC.createGain(); BEAT.gain.connect(master); BEAT.next = AC.currentTime + .1; }
-  const vol = near < 60 ? Math.pow(1 - near / 60, 2) * .5 : 0;
+  // each club's own loop, louder as you get closer; the synthesised beat only stands in for a club whose loop isn't ready
+  let nearC = null, nd = 1e9; MUSIC.nearP = null;
+  for (const C of CLUBS) {
+    const d = Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z); if (d < nd) { nd = d; nearC = C; }
+    const p = clubMusic(C, d); if (!p) continue;
+    p.g.gain.setTargetAtTime(d < 70 ? Math.pow(1 - d / 70, 2) * .7 : 0, AC.currentTime, .25);
+    if (d < 60 && (!MUSIC.nearP || d === nd)) MUSIC.nearP = p;
+    if (d < 22 && !MUSIC.heard.has(C)) { MUSIC.heard.add(C); toast(`♪ ${C.name}`, `Now playing: ${p.T.title} · ${p.T.by} (Pixabay)`); }
+  }
+  const vol = near < 60 && !(nearC && MUSIC.play.has(nearC)) ? Math.pow(1 - near / 60, 2) * .5 : 0;
   BEAT.gain.gain.setTargetAtTime(vol, AC.currentTime, .2);
   if (vol <= .001) { BEAT.next = AC.currentTime + .1; return; }
   const spb = 60 / 122 / 2, bass = [55, 55, 65.4, 55, 73.4, 55, 65.4, 49];
