@@ -143,6 +143,7 @@ body.touch #cross{opacity:.8}
 #tc .b.pill{width:auto;min-width:96px;height:46px;border-radius:24px;padding:0 16px;font-size:14px;background:rgba(214,174,95,.85);color:#1b1608}
 #tc .b.pill.sim{height:38px;font-size:12px;background:rgba(62,232,255,.8);color:#06222a}
 #tc .b.pill.sim.off{background:rgba(20,24,28,.7);color:#cfe9ef;border:1px solid rgba(62,232,255,.6)}
+#tc .b.lit{background:rgba(232,180,90,.9);color:#1b1608}
 #tc .b.on{background:rgba(214,174,95,.7);color:#1b1608;transform:scale(.94)}
 #tc .sys{position:absolute;left:calc(18px + env(safe-area-inset-left,0px));top:calc(86px + env(safe-area-inset-top,0px));display:flex;gap:8px}
 #tc .sys .b,#tc .more .b{position:static;width:46px;height:40px;border-radius:8px;font-size:13px}
@@ -228,6 +229,25 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 #arr .card .pr{color:var(--brass);font-size:13px}
 #arr .card.poor{opacity:.45}
 #arr .lbl{color:var(--brass);letter-spacing:.1em;text-transform:uppercase;font-size:13px}
+#arr .arrTabs button.fold{background:rgba(214,174,95,.18);border-color:var(--brass);color:var(--brass);min-width:40px}
+body.arrfold #arr .arrItems{display:none}
+body.arrfold #arr .arrTabs{margin-bottom:0}
+body.touch #arr .arrTop button{min-width:40px;min-height:38px}
+body.touch #arr .arrHold button{min-height:40px}
+@media (max-height:520px){
+  body.arrholding #arr .arrItems{display:none}
+  body.arrholding #arr .arrTabs{margin-bottom:0}
+  #arr .arrTop{padding:5px 10px;gap:5px;font-size:14px}
+  #arr .arrTop b{font-size:16px}
+  #arr .arrTop .lbl{display:none}
+  #arr .arrShop{padding-top:6px}
+  #arr .arrTabs{margin-bottom:6px}
+  #arr .arrTabs button{padding:4px 9px;font-size:13px}
+  #arr .card{flex-basis:150px;display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:center;padding:6px 8px}
+  #arr .card .ic{grid-row:1/3;font-size:22px}
+  #arr .card .nm{min-height:0;font-size:12px}
+}
+@media (orientation:portrait){#arr .arrTop{max-width:calc(100% - 12px)}#arr .arrTop .lbl{display:none}}
 body.arr #hud>*:not(#toast){display:none!important}
 body.arr #tc{display:none!important}
 body.arr #lmenu{display:none!important}
@@ -276,6 +296,7 @@ body.touch.fullhud .vitals{display:flex;top:calc(104px + env(safe-area-inset-top
 body.touch #tc .sys{left:calc(10px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));gap:6px}
 body.touch #tc .sys .b{width:44px;height:44px;border-radius:12px;font-size:18px;background:rgba(14,19,13,.72);border:1px solid rgba(214,174,95,.6)}
 #tc .b.simt{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));top:calc(60px + env(safe-area-inset-top,0px));width:auto;height:36px;border-radius:18px;padding:0 14px;font-size:12px;background:rgba(62,232,255,.8);color:#06222a}
+#tc .b.arrt{left:calc(126px + env(safe-area-inset-left,0px));background:rgba(214,174,95,.88);color:#1b1608}
 #tc .b.simt.off{background:rgba(20,24,28,.7);color:#cfe9ef;border:1px solid rgba(62,232,255,.6)}
 body.touch #mstat{display:flex;flex-direction:column;gap:4px;position:absolute;left:calc(112px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));min-width:112px;padding:5px 10px 6px;background:rgba(14,19,13,.72);border:1px solid rgba(214,174,95,.45);border-left:3px solid var(--brass);border-radius:4px;pointer-events:auto}
 #mstat .mm{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
@@ -294,6 +315,9 @@ body.touch #toast .big{font-size:22px}
 body.touch #toast .small{font-size:14px}
 body.touch #prompt{top:58%;max-width:min(56vw,420px);font-size:14px;text-align:center;padding:5px 12px}
 body.touch #talk,body.touch #lmenu{left:calc(10px + env(safe-area-inset-left,0px));transform:none;top:calc(60px + env(safe-area-inset-top,0px));bottom:auto;width:min(460px,56vw);max-height:calc(100% - 72px - env(safe-area-inset-top,0px));overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 8px}
+body.touch #talk .who,body.touch #lmenu .who{flex-wrap:wrap;gap:2px 10px}
+body.touch #talk .who b,body.touch #lmenu .who b{white-space:nowrap}
+body.touch #lmenu li small{padding-left:0}
 body.touch #talk li,body.touch #lmenu li{font-size:16px;padding:7px 0;border-top:1px solid rgba(214,174,95,.15)}
 body.touch #chatLog{top:calc(104px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));width:min(300px,42vw);font-size:13px}
 body.touch #odock{top:calc(8px + env(safe-area-inset-top,0px));right:calc(110px + env(safe-area-inset-right,0px));flex-direction:row;gap:8px;align-items:flex-start}
@@ -4288,6 +4312,7 @@ function gridCatchUp() {
 }
 // a ray against the collision boxes, walked through the spatial grid: cheap however much scenery there is
 const _rbSeen = new Set();
+const CAM_SEG = new THREE.Vector3();
 function rayBoxes(o, d, t0, t1) {
   let best = t1; _rbSeen.clear();
   const ix = 1 / (d.x || 1e-9), iy = 1 / (d.y || 1e-9), iz = 1 / (d.z || 1e-9);
@@ -8101,6 +8126,10 @@ function updateCamera(dt) {
     const ceil = room.two && P.pos.y < room.upper - .5 ? room.upper - .25 : room.top;
     camera.position.y = Math.min(camera.position.y, ceil - .35);
   }
+  // under a deck or a low roof (the multi-storey car park, flyovers, carports): the lift above can push the camera through
+  // the slab, so check the straight line from you to the camera and come in under whatever it meets
+  { const up = rayBoxes(target, CAM_SEG.set(0, 1, 0), .2, 8); if (up >= 0) camera.position.y = Math.min(camera.position.y, target.y + up - .35); }   // a ceiling over you: stay level under it
+  { const v = CAM_SEG.copy(camera.position).sub(target), L = v.length(); if (L > .5) { v.multiplyScalar(1 / L); const hc = rayBoxes(target, v, .2, L + .35); if (hc >= 0) camera.position.copy(target).addScaledVector(v, Math.max(.8, hc - .35)); } }
   const gh = heightAt(camera.position.x, camera.position.z) + .4;
   if (camera.position.y < gh) camera.position.y = gh;
   camera.lookAt(tmpB.copy(camera.position).add(d));
@@ -8802,19 +8831,21 @@ function touchOn() {
   // [label, key or action, hold?, group, right, bottom, extra class]
   const B = [
     ['JUMP', 'Space', true, 'foot', 0, 0, 'big'], ['FIRE', 'KeyX', true, 'fight', 88, 2], ['SLASH', 'KeyF', false, 'fight', 160, 2],
-    ['HOOK ▶', 'KeyC', true, 'foot', 4, 90], ['◀ HOOK', 'KeyQ', true, 'foot', 76, 76], ['REEL', 'ShiftLeft', true, 'reel', 148, 72],
+    ['HOOK ▶', 'KeyC', true, 'hook', 4, 90], ['◀ HOOK', 'KeyQ', true, 'hook', 76, 76], ['REEL', 'ShiftLeft', true, 'reel', 148, 72],
     ['SUPER', 'super', false, 'ground', 152, 142], ['BRAKE', 'KeyG', true, 'airborne', 152, 142],
     ['BRAKE', 'Space', true, 'ride', 0, 0, 'big'], ['SIREN', 'KeyB', false, 'siren', 88, 2],
     ['THR +', 'KeyW', true, 'fly', 4, 90], ['THR −', 'KeyS', true, 'fly', 76, 76],
     ['BLADE', 'KeyL', false, 'dozer', 88, 2],
     ['USE', 'KeyE', false, 'use', 0, 168, 'pill'],
     ['SIM VIEW', 'KeyK', false, 'indoor', 0, 0, 'simt'],   // up by the menu button, not in the pad
+    ['🛋 ARRANGE', 'KeyB', false, 'home', 0, 0, 'simt arrt'],   // in your own home: straight into arrange and shop
   ];
   for (const [label, key, hold, group, r, b, cls] of B) {
     const el = document.createElement('div'); el.className = 'b ' + (cls || ''); el.textContent = label; el.dataset.group = group;
-    if (cls === 'simt') tc.append(el); else { el.style.right = r + 'px'; el.style.bottom = b + 'px'; pad.append(el); }
+    if (cls?.startsWith('simt')) tc.append(el); else { el.style.right = r + 'px'; el.style.bottom = b + 'px'; pad.append(el); }
     if (key === 'KeyE') TOUCH.useBtn = el;
     if (key === 'KeyK') TOUCH.simBtn = el;
+    if (key === 'KeyL') TOUCH.bladeBtn = el;
     const down = () => {
       el.classList.add('on'); try { navigator.vibrate?.(8); } catch (err) {}
       if (key === 'super') { tKey('KeyM', true); tTap('Space'); tKey('KeyM', false); }
@@ -8899,16 +8930,17 @@ function updateTouch() {
     if (want.has(k)) { if (!keys[k]) tKey(k, true); TOUCH.dir.add(k); } else if (TOUCH.dir.has(k)) { tKey(k, false); TOUCH.dir.delete(k); }
   }
   TOUCH.airT = P.grounded || P.coyote > 0 ? 0 : (TOUCH.airT || 0) + 1 / 60;
-  const foot = playing && !d, hooked = hooks.some(h => h.state !== 'idle');
-  const groups = { foot, fight: foot && !peaceful, reel: foot && hooked, ground: foot && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: playing && !d && !firstPerson && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y) };
+  const foot = playing && !d, hooked = hooks.some(h => h.state !== 'idle'), inside = foot && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y);
+  const groups = { foot, hook: foot && (!inside || hooked), fight: foot && !peaceful, reel: foot && hooked, ground: foot && !inside && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: inside && !firstPerson, home: foot && !LM_.open && !!myHome() };
   for (const el of $('tc').querySelectorAll('.b[data-group]')) { const g = el.dataset.group, h = g === 'use' ? el.hidden : !groups[g]; if (el.hidden !== h) el.hidden = h; }
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
-  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish/.test(txt) ? 'HOME' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
+  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish|Your home/.test(txt) ? 'HOME' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
   TOUCH.useBtn.hidden = !playing || !label; TOUCH.useBtn.textContent = label;
+  if (d?.kind === 'dozer') { const bl = TOUCH.bladeBtn, t = d.bladeDown ? 'BLADE ▲ UP' : 'BLADE ▼ DOWN'; if (bl.textContent !== t) { bl.textContent = t; bl.classList.toggle('lit', !!d.bladeDown); } }
   if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW' : '⌂ SIM OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
-  if (txt) pr.textContent = txt.replace(/\bE · /g, '').replace(/ · (Space|E) · [^·]+/g, '');   // the buttons are labelled; drop keyboard hints
+  if (txt) pr.textContent = txt.replace(/\bE · /g, '').replace(/ · (Space|[A-Z]) · [^·]+/g, '');   // the buttons are labelled; drop keyboard hints
 }
 
 /* ---------- the ☰ drawer (touch): your stats in full, and every switch that used to be a key. The game keeps running
@@ -10155,6 +10187,7 @@ function arrUi() {
   $('arrFloorTxt').textContent = n > 1 ? (ARR.f ? (n > 2 ? `Floor ${ARR.f}` : 'Upstairs') : 'Ground floor') : `${(home.house.furn || []).length} pieces`;
   $('arrUp').hidden = $('arrDown').hidden = n < 2; $('arrUp').disabled = ARR.f >= n - 1; $('arrDown').disabled = ARR.f <= 0;
   $('arrTabs').innerHTML = '';
+  { const f = document.createElement('button'); f.type = 'button'; f.className = 'fold'; f.textContent = ARR.fold ? '▴ Shop' : '▾'; f.title = ARR.fold ? 'Show the shop' : 'Hide the shop: more room to see'; f.onclick = () => { ARR.fold = !ARR.fold; arrUi(); }; $('arrTabs').append(f); document.body.classList.toggle('arrfold', !!ARR.fold); }
   for (const [cat, name] of [...FURN_CATS, ['kits', 'Room kits']]) { const b = document.createElement('button'); b.type = 'button'; b.textContent = name; b.className = ARR.tab === cat ? 'on' : ''; b.onclick = () => { ARR.tab = cat; arrUi(); }; $('arrTabs').append(b); }
   const box = $('arrItems'); box.innerHTML = '';
   const card = (icon, name, price, poor, fn, note) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'card' + (poor ? ' poor' : ''); b.innerHTML = `<span class="ic"></span><span class="nm"></span><span class="pr"></span>`; b.children[0].textContent = icon; b.children[1].textContent = name; b.children[2].textContent = note || NAIRA(price); b.onclick = fn; box.append(b); };
@@ -10163,13 +10196,16 @@ function arrUi() {
   arrHoldUi();
 }
 function arrHoldUi() {
-  const h = ARR.hold, bar = $('arrHold'); bar.hidden = !h; if (!h) return;
+  const h = ARR.hold, bar = $('arrHold'); bar.hidden = !h; document.body.classList.toggle('arrholding', !!h); if (!h) return;
+  bar.style.bottom = `${document.querySelector('#arr .arrShop').offsetHeight + 10}px`;   // just above the shop, however tall it is now
   const it = FURN[h.id], K = ARR.kit;
   $('arrHoldTxt').textContent = `${K ? `${K.name} ${K.i + 1}/${K.ids.length} · ` : ''}${it.name}${h.from ? '' : ' · ' + NAIRA(it.price)}${h.ok ? '' : ' · ' + (ARR_WHY[h.why] || 'doesn’t fit')}`;
   $('arrPut').textContent = h.from ? 'Put here' : `Buy and put here`; $('arrPut').disabled = !h.ok;
   $('arrSell').hidden = !h.from; $('arrSell').textContent = `Sell back · ${NAIRA(Math.round(it.price / 2 / 100) * 100)}`;
   $('arrSkip').hidden = !K; $('arrTurn').hidden = !!it.wall;
 }
+// the hold bar rides just above the shop, whatever its height (folded, holding, turning the phone)
+try { new ResizeObserver(() => { if (ARR.hold) $('arrHold').style.bottom = `${document.querySelector('#arr .arrShop').offsetHeight + 10}px`; }).observe(document.querySelector('#arr .arrShop')); } catch (e) {}
 function arrStart() {
   const home = myHome(); if (!home) { toast('', 'Go inside your own home to arrange it'); return; }
   menuClose(); talkEnd();
@@ -10181,7 +10217,7 @@ function arrStart() {
 }
 function arrEnd(relock = true) {
   if (!ARR.on) return;
-  arrCancel(true); ARR.kit = null; ARR.on = false; document.body.classList.remove('arr'); $('arr').hidden = true;
+  arrCancel(true); ARR.kit = null; ARR.on = false; document.body.classList.remove('arr', 'arrholding'); $('arr').hidden = true;
   SIM.room = null; SIM.t = 0; SIM.cutY.constant = 1e5; hadLock = ARR.hadLock;
   // you were standing somewhere while you shopped: if a new piece landed on you, step clear of it
   const hs = ARR.home.hs, onIt = (x, z) => FURN_LIVE.some(q => q.col && q.key === ARR.home.key && x > q.col.x0 - .35 && x < q.col.x1 + .35 && z > q.col.z0 - .35 && z < q.col.z1 + .35 && P.pos.y + .5 > q.col.y0 && P.pos.y < q.col.y1);
