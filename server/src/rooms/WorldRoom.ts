@@ -27,9 +27,25 @@ export class ClubMusic extends Schema {
   @type("uint8") i = 0;
   @type("string") req = "";
 }
+// a house party: whose, where, its playlist (one of the clubs' "vibes") and what it's playing, and when it ends
+export class Party extends Schema {
+  @type("string") owner = "";   // account id
+  @type("string") name = "";
+  @type("string") key = "";     // the plot
+  @type("number") x = 0;
+  @type("number") y = 0;
+  @type("number") z = 0;
+  @type("string") vibe = "";    // a club's name: its playlist
+  @type("string") track = "";
+  @type("number") start = 0;
+  @type("number") end = 0;
+  @type("uint8") i = 0;
+  @type("number") until = 0;
+}
 export class WorldState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: ClubMusic }) clubs = new MapSchema<ClubMusic>();
+  @type({ map: Party }) parties = new MapSchema<Party>();
 }
 
 interface Auth { id: string; name: string; guest: boolean; look: string }
@@ -68,7 +84,35 @@ export class WorldRoom extends Room<WorldState> {
         if (c.req) { c.key = c.req; c.req = ""; } else { c.i = (c.i + 1) % list.length; c.key = list[c.i]; }   // after a request, the playlist carries on where it was
         c.start = start; c.end = start + trackMs(c.key);
       });
+      // house parties: the same, and they end at their time
+      this.state.parties.forEach((pa, key) => {
+        if (t > pa.until) { this.state.parties.delete(key); this.broadcast("partyend", { key, name: pa.name }); return; }
+        if (t < pa.end - XF * 1000) return;
+        const list = LISTS[pa.vibe], start = pa.end - XF * 1000;
+        pa.i = (pa.i + 1) % list.length; pa.track = list[pa.i]; pa.start = start; pa.end = start + trackMs(pa.track);
+      });
     }, 250);
+    // house parties: the owner of a home starts one (we check they own it), skips songs, or ends it
+    this.onMessage("party", async (client, m: any) => {
+      const me = this.state.players.get(client.sessionId), uid = (client as any).userData?.id;
+      if (!me || !uid || typeof m?.key !== "string" || m.key.length > 40) return;
+      const pa = this.state.parties.get(m.key), t = Date.now();
+      if (m.action === "start") {
+        if (pa || !(m.vibe in LISTS)) return;
+        for (const other of this.state.parties.values()) if (other.owner === uid) return;   // one party at a time
+        const q = await pool.query("SELECT 1 FROM plots WHERE key = $1 AND owner = $2 AND house IS NOT NULL", [m.key, uid]);
+        if (!q.rowCount) return client.send("partyres", { ok: false, why: "That isn't your home" });
+        const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, ZHI); if (x === null || y === null || z === null) return;
+        const p = new Party(), list = LISTS[m.vibe];
+        Object.assign(p, { owner: uid, name: me.name, key: m.key, x, y, z, vibe: m.vibe, i: 0, track: list[0], start: t, end: t + trackMs(list[0]), until: t + 30 * 60 * 1000 });
+        this.state.parties.set(m.key, p);
+        this.broadcast("partynews", { key: m.key, name: me.name, x, z, vibe: m.vibe });
+      } else if (pa && pa.owner === uid && m.action === "skip") {
+        const list = LISTS[pa.vibe]; pa.i = (pa.i + 1) % list.length; pa.track = list[pa.i]; pa.start = t; pa.end = t + trackMs(pa.track);
+      } else if (pa && pa.owner === uid && m.action === "end") {
+        this.state.parties.delete(m.key); this.broadcast("partyend", { key: m.key, name: pa.name });
+      }
+    });
     // the clock: each game measures its offset from ours, so they all agree where a track is
     this.onMessage("clk", (client, m: any) => { const t = Number(m?.t); client.send("clk", { t: Number.isFinite(t) ? t : 0, s: Date.now() }); });   // a ms timestamp arrives as a 64-bit integer (a BigInt)
     // a DJ booth request: play a track next, or now. The tip is the player's own money (their land record syncs it)
@@ -181,6 +225,8 @@ export class WorldRoom extends Room<WorldState> {
   onDispose() { this.stopNews?.(); this.stopTell?.(); }
 
   onLeave(client: Client) {
+    const uid = (client as any).userData?.id;   // the host leaving ends their party
+    if (uid) this.state.parties.forEach((pa, key) => { if (pa.owner === uid) { this.state.parties.delete(key); this.broadcast("partyend", { key, name: pa.name }); } });
     this.state.players.delete(client.sessionId);
     this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
   }

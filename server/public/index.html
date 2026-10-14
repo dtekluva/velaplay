@@ -6740,7 +6740,7 @@ for (const k in CLUB_TRACKS) CLUB_TRACKS[k].file = k + '-loop.mp3';
 // each club's playlist, in order; clubs start at different places in theirs
 const CLUB_LISTS = { 'Club Prestige': ['reach', 'feelings', 'smooth'], 'Neon Lounge': ['afrohouse', 'mylove', 'dirtyhouse'], 'The Lagoon Club': ['whistle', 'amabeat', 'amatry'], 'Bluewave Beach Club': ['godown', 'sunborn', 'closer'] };
 const ALL_LISTS = Object.values(CLUB_LISTS);
-const MUSIC = { PRE: .5, PASSES: 2, XF: 4, bufs: {}, clubs: new Map(), heard: new Set(), nearP: null };   // bufs: file -> AudioBuffer | 'loading' | 'failed'
+const MUSIC = { PRE: .5, PASSES: 2, XF: 4, bufs: {}, clubs: new Map(), heard: new Set(), nearP: null, partyC: new Map() };   // partyC: plot key -> a house party, treated like a club   // bufs: file -> AudioBuffer | 'loading' | 'failed'
 function loadTrack(T) {
   if (MUSIC.bufs[T.file] !== undefined) return;
   MUSIC.bufs[T.file] = 'loading';
@@ -6786,7 +6786,7 @@ function clubOnline(C, st, S, d) {
   st.online = true;
   const T = CLUB_TRACKS[S.key], sn = serverNow(), now = AC.currentTime, at = ((sn - S.start) / 1000 % T.len + T.len) % T.len;
   if (d < 140) loadTrack(T);
-  if (d < 300 && sn > S.end - 25000) { const nk = S.req || (CLUB_LISTS[C.name] || [])[(S.i + 1) % 3]; if (CLUB_TRACKS[nk]) loadTrack(CLUB_TRACKS[nk]); }
+  if (d < 300 && sn > S.end - 25000) { const nk = S.req || (CLUB_LISTS[C.listName || C.name] || [])[(S.i + 1) % 3]; if (CLUB_TRACKS[nk]) loadTrack(CLUB_TRACKS[nk]); }
   if (!(MUSIC.bufs[T.file] instanceof AudioBuffer)) return st.cur;   // keep whatever's playing until it's loaded
   const drift = st.cur && st.cur.T === T ? Math.abs(((now - st.cur.t0) % T.len + T.len) % T.len - at) : 0;
   if (!st.cur || st.cur.T !== T || (drift > .15 && drift < T.len - .15 && (st.chk = (st.chk || 0) + 1) > 30)) {   // a new track, or we've drifted (a pause, a better clock reading)
@@ -6802,9 +6802,11 @@ function clubOnline(C, st, S, d) {
 function danceClub() {
   if (P.driving || !P.grounded) return null;
   for (const C of CLUBS) if (C.at && Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z) < (C.beach ? 14 : 12) && Math.abs(P.pos.y - C.fy) < 3) return C;
+  for (const C of MUSIC.partyC.values()) if (Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z) < 11 && Math.abs(P.pos.y - C.fy) < 3) return C;   // a house party: anywhere in the house
   return null;
 }
 function onDanceFloor(C) {   // the floor itself: dancing beats chatting to whoever's next to you
+  if (C.party) return true;
   const f = C.floorAt || (C.dance.length && C.dance.reduce((a, p) => a.add(p), new V3()).multiplyScalar(1 / C.dance.length));
   return f && Math.hypot(f.x - P.pos.x, f.z - P.pos.z) < 5.5;
 }
@@ -6863,6 +6865,46 @@ function dancePose(r, style, t) {   // like the club-goers' dance, for you and o
       r.torso.rotation.set(-.04, 0, s * .16); r.head.rotation.z = -s * .1;
       r.thigh[0].rotation.set(0, 0, up * .22); r.thigh[1].rotation.set(0, 0, -dn * .22); r.shin[0].rotation.x = r.shin[1].rotation.x = -.06;
   }
+}
+/* ---------- house parties: a home's owner throws one (home menu); the server runs its playlist in step for everyone, the
+   home opens to all, there's a disco light on the beat, you can dance, and it's on the big map ---------- */
+const PARTY_VIBES = [['Club Prestige', 'Afrobeats'], ['Neon Lounge', 'Afro house'], ['The Lagoon Club', 'Amapiano'], ['Bluewave Beach Club', 'Beach vibes']];
+const partyAt = key => NET.room?.state?.parties?.get?.(key);
+function updateParties(nearClub) {
+  const PS = NET.room?.state?.parties, seen = new Set();
+  if (PS) PS.forEach((pa, key) => {
+    seen.add(key);
+    let C = MUSIC.partyC.get(key);
+    if (!C) { C = { name: `${pa.name}’s party`, listName: pa.vibe, at: [pa.x, pa.z], fy: pa.y, party: key, dance: [] }; MUSIC.partyC.set(key, C); }
+    let st = MUSIC.clubs.get(C);
+    if (!st) { st = { list: (CLUB_LISTS[pa.vibe] || []).map(k => CLUB_TRACKS[k]), i: 0, cur: null, G: AC.createGain() }; st.G.gain.value = 0; st.G.connect(master); MUSIC.clubs.set(C, st); }
+    const d = Math.hypot(pa.x - P.pos.x, pa.z - P.pos.z), p = clubOnline(C, st, { key: pa.track, start: pa.start, end: pa.end, i: pa.i, req: '' }, d);
+    if (!p) return;
+    st.G.gain.setTargetAtTime(d < 45 ? Math.pow(1 - d / 45, 2) * .75 : 0, AC.currentTime, .25);
+    if (d < 30 && d < nearClub) MUSIC.nearP = p;
+    // the disco light: a coloured glow over the room that pulses on the beat
+    if (d < 70) {
+      if (!C.light) { C.light = new THREE.PointLight(0xff3ec8, 0, 16, 1.6); C.light.position.set(pa.x, pa.y + 2.7, pa.z); scene.add(C.light); }
+      const beat = (AC.currentTime - p.t0) * p.T.bpm / 60, f = beat % 1;
+      C.light.intensity = 1.1 + 1.6 * (1 - f) * (1 - f); C.light.color.setHSL((Math.floor(beat) * .17) % 1, 1, .55);
+    } else if (C.light) { scene.remove(C.light); C.light = null; }
+    if (d < 20 && !MUSIC.heard.has(C)) { MUSIC.heard.add(C); toast(`🎉 ${C.name}`, `Now playing: ${p.T.title} · ${p.T.by} (Pixabay) · E on the floor to dance`); }
+  });
+  for (const [key, C] of MUSIC.partyC) if (!seen.has(key)) {   // over: fade out, lights off
+    const st = MUSIC.clubs.get(C);
+    if (st) { st.G.gain.setTargetAtTime(0, AC.currentTime, .4); const src = st.cur?.src; setTimeout(() => { try { src?.stop(); } catch (e) {} }, 2000); MUSIC.clubs.delete(C); }
+    if (C.light) scene.remove(C.light);
+    if (P.dance?.C === C) P.dance = null;
+    MUSIC.partyC.delete(key);
+  }
+}
+function partyMenu(home) {
+  const items = PARTY_VIBES.map(([club, vibe]) => ({ label: `🎶 ${vibe}`, note: (CLUB_LISTS[club] || []).map(k => CLUB_TRACKS[k].title).join(' · '), run: () => {
+    NET.room?.send('party', { action: 'start', key: home.key, vibe: club, x: home.hs.x, y: home.hs.floorY, z: home.hs.z }); menuClose();
+    toast('🎉 Party time', 'Everyone online is invited. Your home is open to all until the party ends');
+  } }));
+  items.push({ label: 'Close', run: menuClose });
+  menuShow('🎉 Throw a house party', 'Pick the music · lasts up to 30 minutes', items);
 }
 // the DJ booth: stand at the decks and pick what plays next (₦500 tip), or have it mixed in right now (₦1,500)
 function djBoothNear() {
@@ -6929,6 +6971,7 @@ function updateClubs(dt) {
     if (d < 60 && d === nd) MUSIC.nearP = p;
     if (d < 22 && !MUSIC.heard.has(C)) { MUSIC.heard.add(C); toast(`♪ ${C.name}`, `Now playing: ${p.T.title} · ${p.T.by} (Pixabay)`); }
   }
+  updateParties(nd);
   const vol = near < 60 && !(nearC && MUSIC.clubs.get(nearC)?.cur) ? Math.pow(1 - near / 60, 2) * .5 : 0;
   BEAT.gain.gain.setTargetAtTime(vol, AC.currentTime, .2);
   if (vol <= .001) { BEAT.next = AC.currentTime + .1; return; }
@@ -8445,7 +8488,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -8859,7 +8902,7 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
-  const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && (onDanceFloor(dnc) || !who);
+  const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
   $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
@@ -9017,6 +9060,7 @@ function drawBigMap() {
   for (const [k, o] of OTHERS) if (o.house && o.ownerName && !LAND.plots.has(k)) { const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz); label(o.ownerName, r.cx, r.cz, 11, '#bfe0ff', -PLOT * sc / 2 - 6); }
   if (LAND.plots.size) { const [k0] = LAND.plots.keys(), [qx, qz] = k0.split(',').map(Number), r = plotRect(qx, qz); label('Your land', r.cx, r.cz, 13, '#ffd3a8', -PLOT * sc / 2 - 8); }
   if (DOZER_YARD) label('Machinery', DOZER_YARD.x, DOZER_YARD.z, 12, '#f2c230', -12);
+  NET.room?.state?.parties?.forEach?.(pa => label(`🎉 ${pa.name}’s party`, pa.x, pa.z, 14, '#ff9ae0', -14));
   for (const C of CLUBS) label('♪ ' + C.name, C.at[0], C.at[1], 11, '#ff9ae0', -8);
   if (AP && AP.showSlots && AP.showSlots.length) { const q = AP.showSlots[Math.floor(AP.showSlots.length / 4)]; label('🚗 32 cars to drive', q[0], q[1], 12, '#f2c230', -10); }
   if (RR.car && P.driving !== RR.car) { const [bx, by] = toB(RR.car.x, RR.car.z); bg2.fillStyle = '#9fe0ff'; bg2.beginPath(); bg2.arc(bx, by, 4, 0, TAU); bg2.fill(); label('✦ Range Rover', RR.car.x, RR.car.z, 12, '#9fe0ff', 12); }   // the rare car, wherever it was left
@@ -10755,6 +10799,12 @@ function openHomeMenu() {
   const home = myHome(); if (!home) return; LM_.key = home.key;
   const n = (home.house.furn || []).length, f = floorIdx(home.hs), items = [];
   items.push({ label: 'Arrange and shop (B)…', note: 'pick up, move, turn and sell what you have · buy new pieces · set up a whole room', run: arrStart });
+  if (NET.room && NET.user) {   // house parties (online, signed in)
+    const pa = partyAt(home.key);
+    if (!pa) items.push({ label: '🎉 Throw a house party…', note: 'everyone online is invited; your home opens to all', run: () => partyMenu(home) });
+    else items.push({ label: '💃 Dance', note: 'E for another move, move to stop', run: () => { menuClose(); danceToggle(); } }, { label: `⏭ Next song`, note: `now: ${CLUB_TRACKS[pa.track]?.title || ''}`, run: () => { NET.room.send('party', { action: 'skip', key: home.key }); menuClose(); } },
+      { label: '🛑 End the party', note: `ends by itself at ${new Date(pa.until).toTimeString().slice(0, 5)}`, run: () => { NET.room.send('party', { action: 'end', key: home.key }); menuClose(); } });
+  }
   if (NEEDS.on) {   // daily needs: what this home has (a furnished house comes with a bed, a kitchen and a bathroom)
     const has = ids => !home.house.bare || (home.house.furn || []).some(r => ids.includes(r.id)), pc = k => `${Math.round(NEEDS[k])}%`;
     if (has(['dbed', 'sbed', 'kbed'])) items.push({ label: '😴 Sleep', note: `energy ${pc('e')} · you go to bed`, run: () => goDo('sleep') });
@@ -11113,6 +11163,13 @@ async function netJoin() {
     for (let k = 0; k < 6; k++) setTimeout(() => NET.room === room && room.send('clk', { t: Date.now() }), 200 + k * 400);
     clearInterval(NET.clkT); NET.clkT = setInterval(() => { if (NET.room === room) { NET.clk.rtt += 40; room.send('clk', { t: Date.now() }); } }, 20000);
     room.onMessage('ring', m => onRing(m));
+    room.onMessage('partynews', m => {
+      const vibe = (PARTY_VIBES.find(v => v[0] === m.vibe) || [])[1] || 'music', d = Math.round(Math.hypot(m.x - P.pos.x, m.z - P.pos.z));
+      if (NET.user && m.name === NET.user.name) return;
+      toast(`🎉 ${m.name} is throwing a party`, `${vibe} · ${d < 1000 ? d + ' m' : (d / 1000).toFixed(1) + ' km'} away · it's on the big map (P)`); doorbell();
+    });
+    room.onMessage('partyend', m => { const C = MUSIC.partyC.get(m.key); if (NET.user && m.name === NET.user.name) toast('', 'Your party is over'); else if (C && Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z) < 80) toast('', `${m.name}’s party is over`); });
+    room.onMessage('partyres', m => toast('', m.why || 'The party could not start'));
     room.onMessage('ringres', m => onRingResult(m));
     room.onMessage('djreq', m => {
       const C = CLUBS.find(c => c.name === m.club), T = CLUB_TRACKS[m.key]; if (!C || !T) return;
@@ -11393,7 +11450,7 @@ function tagOther(p) {   // mark a home as someone else's (not yours, not one so
   const hs = HOME_HS.get(p.key); if (!hs) return;
   hs.v.other = p.owner && !(NET.user && p.owner === NET.user.id) ? { key: p.key, owner: p.owner, name: p.ownerName || 'A scout' } : null;
 }
-const homeLocked = o => !!o && !LAND.plots.has(o.key) && !(NET.user && o.owner === NET.user.id) && !VISIT.ok.has(o.key);
+const homeLocked = o => !!o && !LAND.plots.has(o.key) && !(NET.user && o.owner === NET.user.id) && !VISIT.ok.has(o.key) && !partyAt(o.key);   // a party opens the house to everyone
 function ringSpot() {   // standing at the front door of a locked home
   if (P.driving) return null;
   for (const hs of HOME_HS.values()) { const o = hs.v.other; if (o && homeLocked(o) && hs.doorOut && Math.hypot(hs.doorOut.x - P.pos.x, hs.doorOut.z - P.pos.z) < 2.6 && Math.abs(P.pos.y - hs.floorY) < 3) return hs; }

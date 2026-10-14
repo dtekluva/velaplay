@@ -195,3 +195,11 @@ Other players' homes are locked in the game until the owner lets you in.
 
 - **`ring`** `{ key, owner }`: the visitor rings. The server sends `ring` `{ key, from, id }` to the owner's session (found by account id), or `ringres` `{ ok: false, why: "away" }` back if the owner isn't online. One ring per 6 s per player.
 - **`answer`** `{ id, key, ok }`: the owner replies. The server sends `ringres` `{ key, ok, name }` to the visitor, but only from the owner the ring went to (`rings` map), so nobody can answer their own ring.
+
+## House parties
+
+`state.parties` (plot key → `Party`: owner, name, where, vibe, track, start/end, i, until).
+
+- **`party` `{ action: "start", key, vibe, x, y, z }`:** starts a party. The server checks in the database that the sender owns that home and that it has a house, and allows one party per host. It runs the vibe's playlist on the server clock, like the clubs, and broadcasts `partynews`.
+- **`skip` and `end`:** the host only.
+- **Ending:** a party ends at `until` (30 minutes), on `end`, or when the host leaves the room, and the server broadcasts `partyend`.
