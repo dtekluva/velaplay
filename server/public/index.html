@@ -6658,30 +6658,60 @@ let danceT = 0;
    under the Pixabay Content License; see music/CREDITS.md). Each file carries half a second of the song either side of
    the loop, so the mp3's encoder padding never lands in it; we loop between the exact points. Until a loop has loaded
    (or if it can't), the club falls back to the synthesised beat. */
-const CLUB_TRACKS = [
-  { file: 'reach-loop.mp3', len: 40, bpm: 96, title: 'Reach', by: 'DMSOUNDWORKS' },
-  { file: 'afrohouse-loop.mp3', len: 64, bpm: 120, title: 'Afro House', by: 'ArtIssizm' },
-  { file: 'whistle-loop.mp3', len: 35.2529, bpm: 108.93, title: 'Sweet Whistle', by: 'OiBeats' },
-  { file: 'godown-loop.mp3', len: 34.909, bpm: 110, title: 'Go Down', by: 'WizzykeyzBeat' },
-];
-const CLUB_TRACK_OF = { 'Club Prestige': 0, 'Neon Lounge': 1, 'The Lagoon Club': 2, 'Bluewave Beach Club': 3 };
-const MUSIC = { PRE: .5, bufs: {}, play: new Map(), heard: new Set() };   // bufs: file -> AudioBuffer | 'loading' | 'failed'; play: club -> { src, g, T, t0, ls }
-const trackOf = C => CLUB_TRACKS[CLUB_TRACK_OF[C.name] ?? CLUBS.indexOf(C) % CLUB_TRACKS.length];
-function clubMusic(C, d) {   // load when you're getting close; start looping once decoded; returns the playing entry, if any
-  const T = trackOf(C), b = MUSIC.bufs[T.file];
-  if (b === undefined && d < 140) {
-    MUSIC.bufs[T.file] = 'loading';
-    fetch('music/' + T.file).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status)).then(a => new Promise((ok, no) => AC.decodeAudioData(a, ok, no)))
-      .then(buf => { MUSIC.bufs[T.file] = buf; }).catch(() => { MUSIC.bufs[T.file] = 'failed'; });
+const CLUB_TRACKS = {
+  reach: { len: 40, bpm: 96, title: 'Reach', by: 'DMSOUNDWORKS' },
+  feelings: { len: 39.5876, bpm: 97, title: 'Feelings', by: 'OiBeats' },
+  smooth: { len: 37.2718, bpm: 103, title: 'Smooth Afro Sound', by: 'OiBeats' },
+  afrohouse: { len: 64, bpm: 120, title: 'Afro House', by: 'ArtIssizm' },
+  mylove: { len: 31.4754, bpm: 122, title: 'My Love', by: 'SoundEden' },
+  dirtyhouse: { len: 30.9677, bpm: 124, title: 'Dirty House', by: 'kontraa' },
+  whistle: { len: 35.2529, bpm: 108.93, title: 'Sweet Whistle', by: 'OiBeats' },
+  amabeat: { len: 33.9823, bpm: 113, title: 'Amapiano Beat', by: 'u_0f1b2suimm' },
+  amatry: { len: 34.9091, bpm: 110, title: 'Amatry', by: 'artbybigvee' },
+  godown: { len: 34.909, bpm: 110, title: 'Go Down', by: 'WizzykeyzBeat' },
+  closer: { len: 60, bpm: 128, title: 'Closer', by: 'kontraa' },
+  sunborn: { len: 39.1742, bpm: 98, title: 'Where the Sun Is Born', by: 'RuslanSikunov' },
+};
+for (const k in CLUB_TRACKS) CLUB_TRACKS[k].file = k + '-loop.mp3';
+// each club's playlist, in order; clubs start at different places in theirs
+const CLUB_LISTS = { 'Club Prestige': ['reach', 'feelings', 'smooth'], 'Neon Lounge': ['afrohouse', 'mylove', 'dirtyhouse'], 'The Lagoon Club': ['whistle', 'amabeat', 'amatry'], 'Bluewave Beach Club': ['godown', 'sunborn', 'closer'] };
+const ALL_LISTS = Object.values(CLUB_LISTS);
+const MUSIC = { PRE: .5, PASSES: 2, XF: 4, bufs: {}, clubs: new Map(), heard: new Set(), nearP: null };   // bufs: file -> AudioBuffer | 'loading' | 'failed'
+function loadTrack(T) {
+  if (MUSIC.bufs[T.file] !== undefined) return;
+  MUSIC.bufs[T.file] = 'loading';
+  fetch('music/' + T.file).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status)).then(a => new Promise((ok, no) => AC.decodeAudioData(a, ok, no)))
+    .then(buf => { MUSIC.bufs[T.file] = buf; }).catch(() => { MUSIC.bufs[T.file] = 'failed'; });
+}
+function playTrack(st, T, at, fadeIn) {   // a looping voice for this track, into the club's own (distance) gain
+  const b = MUSIC.bufs[T.file], src = AC.createBufferSource(), g = AC.createGain(); src.buffer = b; src.loop = true;
+  const pad = b.duration - (T.len + 2 * MUSIC.PRE) > .02 ? 1105 / b.sampleRate : 0;   // a decoder that keeps the mp3's encoder delay shifts everything ~25 ms
+  const ls = MUSIC.PRE + pad; src.loopStart = ls; src.loopEnd = ls + T.len;
+  g.gain.setValueAtTime(fadeIn ? 0 : 1, at); if (fadeIn) g.gain.linearRampToValueAtTime(1, at + MUSIC.XF);
+  src.connect(g); g.connect(st.G); src.start(at, ls);
+  return { src, g, T, t0: at, end: at + T.len * MUSIC.PASSES };
+}
+function clubMusic(C, d) {   // a club's playlist: two passes of each loop, then a crossfade into the next; returns the voice playing now
+  let st = MUSIC.clubs.get(C);
+  if (!st) {
+    const list = CLUB_LISTS[C.name] || ALL_LISTS[CLUBS.indexOf(C) % ALL_LISTS.length];
+    st = { list: list.map(k => CLUB_TRACKS[k]), i: CLUBS.indexOf(C) % list.length, cur: null, G: AC.createGain() };
+    st.G.gain.value = 0; st.G.connect(master); MUSIC.clubs.set(C, st);
   }
-  let p = MUSIC.play.get(C);
-  if (!p && b instanceof AudioBuffer) {
-    const src = AC.createBufferSource(), g = AC.createGain(); g.gain.value = 0; src.buffer = b; src.loop = true;
-    const pad = b.duration - (T.len + 2 * MUSIC.PRE) > .02 ? 1105 / b.sampleRate : 0;   // a decoder that keeps the encoder delay shifts everything by ~25 ms
-    const ls = MUSIC.PRE + pad; src.loopStart = ls; src.loopEnd = ls + T.len;
-    src.connect(g); g.connect(master); src.start(0, ls); p = { src, g, T, t0: AC.currentTime, ls }; MUSIC.play.set(C, p);
+  const T = st.list[st.i], nextI = (st.i + 1) % st.list.length, N = st.list[nextI], now = AC.currentTime;
+  if (d < 140) loadTrack(T);
+  if (!st.cur) { if (MUSIC.bufs[T.file] instanceof AudioBuffer) st.cur = playTrack(st, T, now + .05, false); else if (MUSIC.bufs[T.file] === 'failed') st.i = nextI; return st.cur; }
+  if (now > st.cur.end - 25 && d < 300) loadTrack(N);   // fetch the next one in good time (a club far away just keeps looping)
+  if (now > st.cur.end - MUSIC.XF) {
+    const nb = MUSIC.bufs[N.file];
+    if (nb instanceof AudioBuffer && N !== T) {   // crossfade into the next track
+      const old = st.cur; old.g.gain.setValueAtTime(1, now); old.g.gain.linearRampToValueAtTime(0, now + MUSIC.XF); old.src.stop(now + MUSIC.XF + .1);
+      st.cur = playTrack(st, N, now, true); st.i = nextI;
+      if (d < 30) toast(`♪ ${C.name}`, `Now playing: ${N.title} · ${N.by} (Pixabay)`);
+    } else if (nb === 'failed') st.i = nextI;   // skip a track that won't load, keep this one going
+    else st.cur.end += T.len;   // not ready yet: another pass while it loads
   }
-  return p;
+  return st.cur;
 }
 function updateClubs(dt) {
   if (RR.car && !RR.seen && P.driving !== RR.car && Math.hypot(RR.car.x - P.pos.x, RR.car.z - P.pos.z) < 16) { RR.seen = true; toast('✦ Rare find', 'A Range Rover Sport. Press E to drive it'); }
@@ -6702,16 +6732,16 @@ function updateClubs(dt) {
   }
   if (!AC || !noiseBuf || mode !== 'play') return;
   if (!BEAT.gain) { BEAT.gain = AC.createGain(); BEAT.gain.connect(master); BEAT.next = AC.currentTime + .1; }
-  // each club's own loop, louder as you get closer; the synthesised beat only stands in for a club whose loop isn't ready
+  // each club's playlist, louder as you get closer; the synthesised beat only stands in for a club with nothing loaded yet
   let nearC = null, nd = 1e9; MUSIC.nearP = null;
   for (const C of CLUBS) {
     const d = Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z); if (d < nd) { nd = d; nearC = C; }
     const p = clubMusic(C, d); if (!p) continue;
-    p.g.gain.setTargetAtTime(d < 70 ? Math.pow(1 - d / 70, 2) * .7 : 0, AC.currentTime, .25);
-    if (d < 60 && (!MUSIC.nearP || d === nd)) MUSIC.nearP = p;
+    MUSIC.clubs.get(C).G.gain.setTargetAtTime(d < 70 ? Math.pow(1 - d / 70, 2) * .7 : 0, AC.currentTime, .25);
+    if (d < 60 && d === nd) MUSIC.nearP = p;
     if (d < 22 && !MUSIC.heard.has(C)) { MUSIC.heard.add(C); toast(`♪ ${C.name}`, `Now playing: ${p.T.title} · ${p.T.by} (Pixabay)`); }
   }
-  const vol = near < 60 && !(nearC && MUSIC.play.has(nearC)) ? Math.pow(1 - near / 60, 2) * .5 : 0;
+  const vol = near < 60 && !(nearC && MUSIC.clubs.get(nearC)?.cur) ? Math.pow(1 - near / 60, 2) * .5 : 0;
   BEAT.gain.gain.setTargetAtTime(vol, AC.currentTime, .2);
   if (vol <= .001) { BEAT.next = AC.currentTime + .1; return; }
   const spb = 60 / 122 / 2, bass = [55, 55, 65.4, 55, 73.4, 55, 65.4, 49];
