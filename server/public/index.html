@@ -1753,6 +1753,9 @@ function buildModernHouse(hs, shared) {
   L(.5, .85, 1.0, WL / 2 + .25, fl + .42, 1.6, MM.acGrey); L(.04, .55, .55, WL / 2 + .51, fl + .45, 1.6, MM.dark, 1, false);
 
   if (!hs.bare) {   // empty houses (ones you build) skip the furniture
+  { const fix = (need, lx, lz, fy, f, cx, cz, hx, hz) => { const [sx, sz] = toW(lx, lz), [ox, oz] = toW(cx, cz), hd = hx === undefined ? null : toW(hx, hz); (hs.fix ||= []).push({ need, x: sx, z: sz, y: fy, f, ox, oz, head: hd, top: fy + .6 }); };   // where you stand to use them (daily needs); a bed's head end, to lie the right way
+    fix('cook', -2.85, inZ1 - 1.2, fl, 0, -2.85, inZ1 - .33); fix('snack', .2, inZ1 - 1.25, fl, 0, .2, inZ1 - .36);
+    fix('sleep', inX0 + 1.3, -.2, ft, 1, inX0 + 1.05, -1.5, inX0 + .2, -1.5); fix('sleep', inX1 - 1.5, inZ0 + 1.2, ft, 1, inX1 - .5, inZ0 + 1.0, inX1 - .5, inZ0 + .2); }
   // ground floor: living room (sofa, armchair, coffee table, TV, AC), kitchen, dining
   L(2.4, .02, 2.6, -3.5, fl + .04, -1.4, cushion, 1, false);
   L(.9, .42, 2.4, -2.55, fl + .21, -1.4, sofa); L(.25, .58, 2.4, -2.0, fl + .55, -1.4, sofa, 1, false);
@@ -1909,6 +1912,8 @@ function buildBungalow(hs, b) {
   const pl = inZ1 - inZ0 - 1.4;
   L(.12, wallH, pl, 1.0, fl + wallH / 2, inZ0 + pl / 2, wallM, 2);
   if (!hs.bare) {
+  { const fix = (need, lx, lz, cx, cz, hx, hz) => { const a = pt(lx, lz), o = pt(cx, cz), h = hx === undefined ? null : pt(hx, hz); (hs.fix ||= []).push({ need, x: a.x, z: a.z, y: fl, f: 0, ox: o.x, oz: o.z, head: h && [h.x, h.z], top: fl + .6 }); };   // where you stand to use them (daily needs)
+    fix('cook', -3.6, inZ1 - 1.15, -3.6, inZ1 - .3); fix('snack', -.6, inZ1 - 1.2, -.6, inZ1 - .33); fix('sleep', inX1 - 1.3, .35, inX1 - 1.0, -1.2, inX1 - .2, -1.2); }
   // living room: TV on the left wall, sofa facing it, armchair, coffee table, AC
   L(2.2, .02, 2.4, -3.6, fl + .04, -.6, cushion, 1, false);
   L(.85, .42, 2.2, -2.4, fl + .21, -.6, sofa); L(.25, .55, 2.2, -1.88, fl + .55, -.6, sofa, 1, false);
@@ -8146,10 +8151,10 @@ function updateCamera(dt) {
     const ceil = room.two && P.pos.y < room.upper - .5 ? room.upper - .25 : room.top;
     camera.position.y = Math.min(camera.position.y, ceil - .35);
   }
-  // under a deck or a low roof (the multi-storey car park, flyovers, carports): the lift above can push the camera through
+  // under a deck or a low roof (the multi-storey car park, flyovers, carports; houses have their own room logic and sim view): the lift above can push the camera through
   // the slab, so check the straight line from you to the camera and come in under whatever it meets
-  { const up = rayBoxes(target, CAM_SEG.set(0, 1, 0), .2, 8); if (up >= 0) camera.position.y = Math.min(camera.position.y, target.y + up - .35); }   // a ceiling over you: stay level under it
-  { const v = CAM_SEG.copy(camera.position).sub(target), L = v.length(); if (L > .5) { v.multiplyScalar(1 / L); const hc = rayBoxes(target, v, .2, L + .35); if (hc >= 0) camera.position.copy(target).addScaledVector(v, Math.max(.8, hc - .35)); } }
+  if (!room) { const up = rayBoxes(target, CAM_SEG.set(0, 1, 0), .2, 8); if (up >= 0) camera.position.y = Math.min(camera.position.y, target.y + up - .35); }   // a ceiling over you: stay level under it
+  if (!room) { const v = CAM_SEG.copy(camera.position).sub(target), L = v.length(); if (L > .5) { v.multiplyScalar(1 / L); const hc = rayBoxes(target, v, .2, L + .35); if (hc >= 0) camera.position.copy(target).addScaledVector(v, Math.max(.8, hc - .35)); } }
   const gh = heightAt(camera.position.x, camera.position.z) + .4;
   if (camera.position.y < gh) camera.position.y = gh;
   camera.lookAt(tmpB.copy(camera.position).add(d));
@@ -8324,6 +8329,7 @@ function stepPlayer(dt) {
   if (P.jumpBuf > 0 && (P.coyote > 0 || P.inWater)) { P.vel.y = P.superJump ? 26 : P.inWater ? 11 : 13; if (P.superJump) { puff(10); sfx('hook'); } P.superJump = false; P.grounded = false; P.coyote = 0; P.jumpBuf = 0; P.jumpHold = true; }
   if (!keys.Space) P.jumpHold = false;
   let wx = fx * iz + rx * ix, wz = fz * iz + rz * ix; const wl = Math.hypot(wx, wz); if (wl > 0) { wx /= wl; wz /= wl; }
+  if (NEEDS.go && !iz && !ix) { const g = NEEDS.go, dx = g.x - P.pos.x, dz = g.z - P.pos.z, dl = Math.hypot(dx, dz); if (dl > .05) { wx = dx / dl; wz = dz / dl; } }   // walking yourself to the kitchen or the bed
 
   // hook flight
   for (const h of hooks) {
@@ -8363,7 +8369,7 @@ function stepPlayer(dt) {
   // movement
   if (P.grounded && !att.length) {
     const hs = Math.hypot(P.vel.x, P.vel.z), k = 1 - Math.exp(-(hs > 10 ? 2.5 : 14) * dt);
-    const run = 8 * needsSpeed();
+    const run = (NEEDS.go ? 3.2 : 8) * needsSpeed();
     P.vel.x += (wx * run - P.vel.x) * k; P.vel.z += (wz * run - P.vel.z) * k;
   } else {
     const ac = att.length ? 13 : P.inWater ? 16 : 6;
@@ -8448,6 +8454,8 @@ function updatePlayerModel(dt) {
   if (P.slashT > 0 && P.spin) spinA = (1 - P.slashT / P.slashDur) * TAU;
   playerModel.rotation.y = P.facing + spinA;
   playerModel.rotation.x = P.grounded ? 0 : -Math.min(.55, hs / 70);
+  const pose = NEEDS.pose; playerModel.rotation.order = pose?.rx ? 'YXZ' : 'XYZ';
+  if (pose?.rx) { playerModel.position.set(pose.x, pose.y, pose.z); playerModel.rotation.y = pose.ry; playerModel.rotation.x = pose.rx; }   // asleep on the bed
   if (P.grounded) {
     P.walk += hs * dt * (hs > 5 ? 1.25 : 1.9);
     animFigure(pm.rig, P.walk, Math.min(1, hs / 3), hs > 5 ? 'run' : 'walk', S.time);
@@ -8463,6 +8471,8 @@ function updatePlayerModel(dt) {
   } else if (!bike) {
     pm.arms[1].rotation.set(.25, 0, .12); pm.rig.fArm[1].rotation.x = .5;   // pistol held low
   }
+  if (NEEDS.pose?.cook) { const t = S.time * 7; pm.arms[0].rotation.set(1.0 + Math.sin(t) * .18, 0, -.15); pm.arms[1].rotation.set(1.1 + Math.cos(t * 1.3) * .3, 0, .2); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .6; }   // stirring the pot
+  else if (NEEDS.pose?.rx) { pm.arms[0].rotation.set(0, 0, -.12); pm.arms[1].rotation.set(0, 0, .12); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .1; }   // asleep, arms by the sides
   // ropes
   for (const h of hooks) {
     const vis = h.state !== 'idle';
@@ -9008,7 +9018,8 @@ function needSpot() {
   if (home) {
     const f = floorIdx(home.hs); let best = null, bd = 1.9;
     for (const q of FURN_LIVE) { if (q.key !== home.key || q.rec.f !== f || !HOME_NEED[q.rec.id]) continue; const d = Math.hypot(q.rec.x - P.pos.x, q.rec.z - P.pos.z); if (d < bd) { bd = d; best = q; } }
-    if (best) { const N = HOME_NEED[best.rec.id]; return { label: `E · ${N.label}`, run: () => N.run(best) }; }
+    if (best) { const N = HOME_NEED[best.rec.id]; return { label: `E · ${N.label}`, run: () => { NEEDS.spot = PIECE_NEED[best.rec.id] === 'sleep' ? homeSpots(home, 'sleep').find(o => o.piece === best) : null; N.run(best); } }; }
+    for (const F of home.hs.fix || []) if (F.f === f && Math.hypot(F.x - P.pos.x, F.z - P.pos.z) < 1.6) { const N = NEED_ACT[F.need]; return { label: `E · ${N.label}`, run: () => { NEEDS.spot = F; N.run(); } }; }
     return null;
   }
   for (const V of VENUES) if (Math.hypot(V.x - P.pos.x, V.z - P.pos.z) < V.r && Math.abs(P.pos.y - groundAt(P.pos.x, P.pos.z)) < 4)
@@ -9016,11 +9027,11 @@ function needSpot() {
   return null;
 }
 // do it: the screen dims for a moment, then the need is met
-function needDo(icon, title, sub, secs, apply) {
+function needDo(icon, title, sub, secs, apply, dim = .85) {
   if (NEEDS.busy) return; NEEDS.busy = true; menuClose(); P.vel.set(0, 0, 0);
-  const fade = $('fade'); fade.style.transition = 'opacity .45s'; fade.style.opacity = '.85';
+  const fade = $('fade'); fade.style.transition = 'opacity .45s'; fade.style.opacity = String(dim);
   toast(`${icon} ${title}`, sub);
-  setTimeout(() => { apply(); saveNeeds(); sfx('refill'); fade.style.opacity = '0'; NEEDS.busy = false; NEEDS.warn = {}; }, secs * 1000);
+  setTimeout(() => { apply(); saveNeeds(); sfx('refill'); fade.style.opacity = '0'; NEEDS.busy = false; NEEDS.warn = {}; NEEDS.pose = null; NEEDS.spot = null; }, secs * 1000);
 }
 const fillNeed = (k, v) => { NEEDS[k] = clamp(NEEDS[k] + v, 0, 100); };
 function eat(name, price, gain, where) {
@@ -9037,11 +9048,15 @@ function useToilet(price, where) {
 }
 function sleep(where, full) {
   if (NEEDS.e > 85) { toast('', 'You’re not tired yet'); return; }
-  const hr = tod * 24, night = hr >= 19 || hr < 5;
-  needDo('😴', night ? 'Good night' : 'A quick nap', where, 2.4, () => {
+  const hr = tod * 24, night = hr >= 19 || hr < 5, B = NEEDS.spot;
+  if (B && B.need === 'sleep' && B.head) {   // lie down on it, head on the pillow
+    let dx = B.head[0] - B.ox, dz = B.head[1] - B.oz; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+    NEEDS.pose = { x: B.ox - dx * .85, y: B.top, z: B.oz - dz * .85, ry: Math.atan2(dx, dz), rx: Math.PI / 2 };
+  }
+  needDo('😴', night ? 'Good night' : 'A quick nap', where, NEEDS.pose ? 3.4 : 2.4, () => {
     tod = night ? 7 / 24 : (tod + 3 / 24) % 1; NEEDS.e = full ? 100 : Math.max(NEEDS.e, 70); fillNeed('h', -15); fillNeed('b', -25);
     setTimeout(() => toast(night ? '☀ Good morning' : 'Refreshed', night ? 'You slept till 7 o’clock' : 'Three hours later'), 600);
-  });
+  }, NEEDS.pose ? .55 : .85);
 }
 function venueMenu(V) {
   const items = [];
@@ -9057,8 +9072,48 @@ for (const id of ['toilet']) HOME_NEED[id] = { label: 'Use the toilet', run: () 
 for (const [id, c, e, t] of [['shower', 100, 0, 'A hot shower'], ['bathtub', 100, 10, 'A long soak in the bath'], ['jacuzzi', 80, 25, 'Bubbles in the jacuzzi']])
   HOME_NEED[id] = { label: t === 'A hot shower' ? 'Take a shower' : t === 'Bubbles in the jacuzzi' ? 'Relax in the jacuzzi' : 'Have a bath', run: () => { if (NEEDS.c > 92 && e === 0) { toast('', 'You’re already clean'); return; } needDo('🛁', t, 'Fresh and clean', 2, () => { fillNeed('c', c); fillNeed('e', e); }); } };
 for (const id of ['dbed', 'sbed', 'kbed']) HOME_NEED[id] = { label: 'Sleep', run: () => sleep('Your own bed', true) };
-for (const id of ['cooker', 'stove', 'microwave']) HOME_NEED[id] = { label: 'Cook and eat · groceries ₦1,500', run: () => eat('A home-cooked meal', 1500, 90, 'your kitchen') };
+for (const id of ['cooker', 'stove', 'microwave', 'counter', 'island']) HOME_NEED[id] = { label: 'Cook and eat · groceries ₦1,500', run: () => eat('A home-cooked meal', 1500, 90, 'your kitchen') };
 HOME_NEED.fridge = { label: 'Snack from the fridge · ₦600', run: () => eat('Something from the fridge', 600, 35, 'your kitchen') };
+// the actions themselves, by need; and the places in your home where each one happens
+const NEED_ACT = {
+  sleep: { label: 'Sleep', run: () => sleep('Your own bed', true) },
+  cook: { label: 'Cook and eat · groceries ₦1,500', run: () => { if (NEEDS.h > 92) { toast('', 'You’re full. Maybe later'); return; } if (LAND.money < 1500) { toast('', 'Groceries are ₦1,500'); return; } LAND.money -= 1500; LAND.changed = true; saveLand(); NEEDS.pose = NEEDS.spot ? { cook: true } : null; needDo('🍳', 'Cooking…', 'Jollof rice and fried plantain, from your own kitchen', 3, () => { fillNeed('h', 90); fillNeed('b', -11); setTimeout(() => toast('🍲 Delicious', 'Home cooking hits different'), 500); }, NEEDS.spot ? .35 : .85); } },
+  snack: { label: 'Snack from the fridge · ₦600', run: () => eat('Something from the fridge', 600, 35, 'your kitchen') },
+  bath: { label: 'Take a shower', run: () => HOME_NEED.shower.run() },
+  toilet: { label: 'Use the toilet', run: () => HOME_NEED.toilet.run() },
+};
+const PIECE_NEED = { toilet: 'toilet', shower: 'bath', bathtub: 'bath', jacuzzi: 'bath', dbed: 'sleep', sbed: 'sleep', kbed: 'sleep', cooker: 'cook', stove: 'cook', microwave: 'cook', counter: 'cook', island: 'cook', fridge: 'snack' };
+function homeSpots(home, need) {   // the built-in ones, then pieces you've placed (stand just off the piece, on your side of it)
+  const out = (home.hs.fix || []).filter(F => F.need === need);
+  for (const q of FURN_LIVE) if (q.key === home.key && PIECE_NEED[q.rec.id] === need) {
+    const it = FURN[q.rec.id], r = Math.max(it.w, it.d) / 2 + .55, dx = P.pos.x - q.rec.x, dz = P.pos.z - q.rec.z, dl = Math.hypot(dx, dz) || 1;
+    const ry = q.g.rotation.y;
+    out.push({ need, x: q.rec.x + dx / dl * r, z: q.rec.z + dz / dl * r, y: q.g.position.y, f: q.rec.f, ox: q.rec.x, oz: q.rec.z, piece: q, head: [q.rec.x + Math.sin(ry), q.rec.z + Math.cos(ry)], top: q.g.position.y + .6 });
+  }
+  return out;
+}
+function goDo(need) {   // walk to the nearest place for it (same floor first), then do it there
+  const home = myHome(); if (!home) return; menuClose();
+  const f = floorIdx(home.hs), spots = homeSpots(home, need).sort((a, b) => (a.f !== f) - (b.f !== f) || Math.hypot(a.x - P.pos.x, a.z - P.pos.z) - Math.hypot(b.x - P.pos.x, b.z - P.pos.z));
+  const act = NEED_ACT[need].run;
+  if (!spots.length) { act(); return; }
+  const S = spots[0];
+  if (Math.hypot(S.x - P.pos.x, S.z - P.pos.z) < .9 && S.f === f) { NEEDS.spot = S; act(); return; }
+  NEEDS.go = { ...S, then: () => { NEEDS.spot = S; act(); }, t: 0, best: 1e9, stall: 0 };
+  toast('', { sleep: 'Off to bed…', cook: 'To the kitchen…', bath: 'To the bathroom…', toilet: 'To the toilet…', snack: 'To the fridge…' }[need]);
+}
+function updateGo(dt) {
+  const g = NEEDS.go; if (!g) return;
+  if (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD || keys.ArrowUp || keys.ArrowDown || P.driving || mode !== 'play' || !myHome()) { NEEDS.go = null; return; }   // you took the controls back
+  const home = myHome(), dl = Math.hypot(g.x - P.pos.x, g.z - P.pos.z), sameFloor = floorIdx(home.hs) === g.f;
+  g.t += dt; if (dl < g.best - .05) { g.best = dl; g.stall = 0; } else g.stall += dt;
+  const face = () => { P.facing = Math.atan2(P.pos.x - g.ox, P.pos.z - g.oz); yaw = P.facing; };   // turn to the cooker or the bed (same convention as the walk: atan2(-dx, -dz))
+  if (dl < .55 && sameFloor) { NEEDS.go = null; P.vel.set(0, 0, 0); face(); g.then(); return; }
+  if (!sameFloor || g.stall > 1.1 || g.t > 14) {   // stairs or a wall in the way: the screen dips and you're there
+    NEEDS.go = null; const fade = $('fade'); fade.style.transition = 'opacity .25s'; fade.style.opacity = '1';
+    setTimeout(() => { P.pos.set(g.x, g.y + .05, g.z); P.vel.set(0, 0, 0); face(); fade.style.opacity = '0'; setTimeout(g.then, 300); }, 280);
+  }
+}
 // a nap in a parked car (I, or NAP on touch)
 function carNap() {
   const c = P.driving; if (!NEEDS.on || !c || isAir(c) || c.kind === 'boat' || Math.abs(c.speed) > .5) return;
@@ -9066,6 +9121,7 @@ function carNap() {
 }
 // each frame: drain, warn, and the consequences
 function updateNeeds(dt) {
+  updateGo(dt);
   if (!NEEDS.on || mode !== 'play' || FLY.on || ARR.on || NEEDS.busy) { NEEDS.fly && (NEEDS.fly.visible = false); return; }
   const busyBody = P.vel.length() > 6 && !P.driving ? 1.6 : 1;
   NEEDS.h -= NEED_RATE.h * dt * busyBody; NEEDS.b -= NEED_RATE.b * dt; NEEDS.c -= NEED_RATE.c * dt * busyBody; NEEDS.e -= NEED_RATE.e * dt;
@@ -10402,10 +10458,10 @@ function openHomeMenu() {
   items.push({ label: 'Arrange and shop (B)…', note: 'pick up, move, turn and sell what you have · buy new pieces · set up a whole room', run: arrStart });
   if (NEEDS.on) {   // daily needs: what this home has (a furnished house comes with a bed, a kitchen and a bathroom)
     const has = ids => !home.house.bare || (home.house.furn || []).some(r => ids.includes(r.id)), pc = k => `${Math.round(NEEDS[k])}%`;
-    if (has(['dbed', 'sbed', 'kbed'])) items.push({ label: '😴 Sleep', note: `energy ${pc('e')}`, run: HOME_NEED.dbed.run });
-    if (has(['cooker', 'stove', 'microwave', 'fridge'])) items.push({ label: '🍲 Cook and eat · groceries ₦1,500', note: `hunger ${pc('h')}`, run: HOME_NEED.cooker.run });
-    if (has(['shower', 'bathtub', 'jacuzzi'])) items.push({ label: '🛁 Take a shower', note: `hygiene ${pc('c')}`, run: HOME_NEED.shower.run });
-    if (has(['toilet'])) items.push({ label: '🚽 Use the toilet', note: `bladder ${pc('b')}`, run: HOME_NEED.toilet.run });
+    if (has(['dbed', 'sbed', 'kbed'])) items.push({ label: '😴 Sleep', note: `energy ${pc('e')} · you go to bed`, run: () => goDo('sleep') });
+    if (has(['cooker', 'stove', 'microwave', 'fridge', 'counter', 'island'])) items.push({ label: '🍲 Cook and eat · groceries ₦1,500', note: `hunger ${pc('h')} · you go to the kitchen`, run: () => goDo('cook') });
+    if (has(['shower', 'bathtub', 'jacuzzi'])) items.push({ label: '🛁 Take a shower', note: `hygiene ${pc('c')}`, run: () => goDo('bath') });
+    if (has(['toilet'])) items.push({ label: '🚽 Use the toilet', note: `bladder ${pc('b')}`, run: () => goDo('toilet') });
   }
   const near = FURN_LIVE.filter(q => q.key === home.key && q.rec.f === f && FURN[q.rec.id].live && Math.hypot(q.rec.x - P.pos.x, q.rec.z - P.pos.z) < 4.5)
     .sort((a, b) => Math.hypot(a.rec.x - P.pos.x, a.rec.z - P.pos.z) - Math.hypot(b.rec.x - P.pos.x, b.rec.z - P.pos.z)).slice(0, 4);
