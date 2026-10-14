@@ -167,8 +167,8 @@ body.touch .vitals{top:calc(156px + env(safe-area-inset-top,0px))}
 #board dd{margin:0;font-weight:700;text-align:right}
 #board dt{color:var(--muted)}
 
-#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:linear-gradient(180deg,rgba(14,19,13,.25),rgba(14,19,13,.72));overflow:auto}
-.card{max-width:520px;width:100%;padding:28px 30px 26px;background:rgba(20,28,18,.86);border:1px solid var(--edge);border-top:3px solid var(--brass);display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+#overlay{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;background:linear-gradient(180deg,rgba(14,19,13,.25),rgba(14,19,13,.72));overflow:auto}
+.card{max-width:520px;width:100%;margin:auto;padding:28px 30px 26px;background:rgba(20,28,18,.86);border:1px solid var(--edge);border-top:3px solid var(--brass);display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .card h1{margin:0;font-family:var(--display);font-weight:800;font-size:clamp(30px,6vw,44px);letter-spacing:.06em;line-height:1.05;text-wrap:balance}
 .card p{margin:0;font-size:18px;line-height:1.4;color:var(--ink);max-width:60ch}
 .card .eyebrow{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--brass);font-weight:700}
@@ -190,9 +190,11 @@ button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .online .onbtns button{font:600 14px/1 var(--ui);letter-spacing:.06em;padding:9px 14px}
 .online .onbtns button.go{font-size:14px;letter-spacing:.1em;padding:10px 16px}
 .online a{color:var(--brass);font-weight:700}
-#vp{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;background:rgba(8,11,7,.6);overflow:auto}
+#vp{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px;background:rgba(8,11,7,.6);overflow:auto}
 #vp[hidden]{display:none}
-#vp>*{max-width:560px;width:100%}
+#vp>*{max-width:560px;width:100%;flex:none}
+#vp>:first-child{margin-top:auto}
+#vp>:last-child{margin-bottom:auto}
 #vp h2{margin:0 0 4px;font-family:var(--display);font-size:28px;letter-spacing:.05em;color:var(--brass)}
 #vp form,#vp{color:var(--ink)}
 #vp form{display:flex;flex-direction:column;gap:10px;padding:0}
@@ -266,6 +268,108 @@ body:not(.touch) #odock{display:none}
 .note{font-size:14px;color:var(--muted)}
 .best{font-size:15px;color:var(--muted)}
 
+/* ---------- phones and tablets (body.touch): a slim top bar, a ☰ drawer for everything else, a pad that shows only the
+   buttons that do something right now. Laid out for landscape and portrait. ---------- */
+#mstat,#drawer{display:none}
+body.touch .score,body.touch .banner,body.touch .vitals,body.touch .rotate{display:none}
+body.touch.fullhud .vitals{display:flex;top:calc(104px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));bottom:auto;transform:scale(.72);transform-origin:top left}
+body.touch #tc .sys{left:calc(10px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));gap:6px}
+body.touch #tc .sys .b{width:44px;height:44px;border-radius:12px;font-size:18px;background:rgba(14,19,13,.72);border:1px solid rgba(214,174,95,.6)}
+#tc .b.simt{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));top:calc(60px + env(safe-area-inset-top,0px));width:auto;height:36px;border-radius:18px;padding:0 14px;font-size:12px;background:rgba(62,232,255,.8);color:#06222a}
+#tc .b.simt.off{background:rgba(20,24,28,.7);color:#cfe9ef;border:1px solid rgba(62,232,255,.6)}
+body.touch #mstat{display:flex;flex-direction:column;gap:4px;position:absolute;left:calc(112px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));min-width:112px;padding:5px 10px 6px;background:rgba(14,19,13,.72);border:1px solid rgba(214,174,95,.45);border-left:3px solid var(--brass);border-radius:4px;pointer-events:auto}
+#mstat .mm{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+#mstat .mm b{font-size:16px;color:var(--brass);letter-spacing:.02em}
+#mstat .mm span{font-size:12px;color:var(--ink);font-weight:600}
+#mstat .mb{height:4px;background:rgba(255,255,255,.14);position:relative;overflow:hidden;border-radius:2px}
+#mstat .mb i{position:absolute;inset:0 auto 0 0;width:100%;background:var(--blood)}
+#mstat .mb.gas i{background:var(--gas)}
+#mstat .mb.gas i.low{background:#e8b45a}
+body.touch .mapwrap{right:calc(10px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));gap:2px;pointer-events:auto}
+body.touch #minimap{width:88px;height:88px;border-width:2px}
+body.touch #kmh{font-size:13px;margin-top:2px}
+body.touch #clock{font-size:11px;margin-top:0}
+body.touch #toast{top:20%;width:min(80vw,520px)}
+body.touch #toast .big{font-size:22px}
+body.touch #toast .small{font-size:14px}
+body.touch #prompt{top:58%;max-width:min(56vw,420px);font-size:14px;text-align:center;padding:5px 12px}
+body.touch #talk,body.touch #lmenu{left:calc(10px + env(safe-area-inset-left,0px));transform:none;top:calc(60px + env(safe-area-inset-top,0px));bottom:auto;width:min(460px,56vw);max-height:calc(100% - 72px - env(safe-area-inset-top,0px));overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px 8px}
+body.touch #talk li,body.touch #lmenu li{font-size:16px;padding:7px 0;border-top:1px solid rgba(214,174,95,.15)}
+body.touch #chatLog{top:calc(104px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));width:min(300px,42vw);font-size:13px}
+body.touch #odock{top:calc(8px + env(safe-area-inset-top,0px));right:calc(110px + env(safe-area-inset-right,0px));flex-direction:row;gap:8px;align-items:flex-start}
+body.touch #odock .dk{width:44px;height:44px;font-size:18px}
+body.touch #odock .dk small{font-size:8px;margin-top:1px}
+body.touch #odock .dk.talk{width:56px;height:56px;font-size:22px}
+body.touch #tc .pad{transform-origin:100% 100%}
+/* the drawer */
+body.touch #drawer:not([hidden]){display:block;position:absolute;inset:0;z-index:40;pointer-events:auto}
+#drawer .scrim{position:absolute;inset:0;background:rgba(6,9,5,.5)}
+#drawer aside{position:absolute;left:0;top:0;bottom:0;width:min(400px,62vw);display:flex;flex-direction:column;gap:10px;padding:calc(12px + env(safe-area-inset-top,0px)) 14px calc(14px + env(safe-area-inset-bottom,0px)) calc(14px + env(safe-area-inset-left,0px));background:rgba(16,22,15,.97);border-right:1px solid var(--edge);overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;animation:dIn .18s ease-out}
+@keyframes dIn{from{transform:translateX(-24px);opacity:0}to{transform:none;opacity:1}}
+#drawer .dh{display:flex;align-items:center;gap:10px}
+#drawer .dh div{flex:1;min-width:0}
+#drawer .dh b{display:block;font-family:var(--display);font-size:17px;letter-spacing:.1em;color:var(--brass)}
+#drawer .dh span{font-size:12px;color:var(--muted)}
+#drawer button{font-family:var(--ui);color:var(--ink);background:#0e130d;border:1px solid var(--edge);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#drawer .dx{width:42px;height:42px;font-size:18px;border-radius:10px;flex:none}
+#drawer .dstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 10px;border:1px solid rgba(214,174,95,.3);background:rgba(10,14,9,.5)}
+#drawer .dstats>div:not(.dbars){display:flex;flex-direction:column;gap:1px;min-width:0}
+#drawer .dstats b{font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#drawer .dstats b.m{color:var(--brass)}
+#drawer .dbars{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;font-size:13px;margin-top:4px}
+#drawer .dbars .lbl{font-size:10px}
+#drawer .dbars .t{height:6px;background:rgba(255,255,255,.12);position:relative;overflow:hidden;border-radius:3px}
+#drawer .dbars .t i{position:absolute;inset:0 auto 0 0;background:var(--blood)}
+#drawer .dbars .t.g i{background:var(--gas)}
+#drawer .dsec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);font-weight:700;margin-top:2px}
+#drawer .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+#drawer .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:64px;padding:6px 4px;border-radius:8px;text-align:center}
+#drawer .tile i{font-style:normal;font-size:20px;line-height:1}
+#drawer .tile span{font-size:13px;font-weight:600;line-height:1.1}
+#drawer .tile small{font-size:11px;color:var(--muted);line-height:1}
+#drawer .tile.on{border-color:var(--brass);background:rgba(214,174,95,.16)}
+#drawer .tile.on small{color:var(--brass)}
+#drawer .dfoot{display:flex;gap:8px;margin-top:auto;padding-top:4px}
+#drawer .dfoot button{flex:1;padding:12px;font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border-radius:6px}
+#drawer .dfoot button.go{background:var(--brass);color:#1b1608;border-color:var(--brass)}
+/* the big map fills the screen: map on the left in landscape, on top in portrait; pinch to zoom */
+body.touch #bigmap{background:rgba(8,11,7,.94);align-items:stretch;justify-content:stretch;pointer-events:auto;z-index:35}
+body.touch #bigmap .frame{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);padding:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px));border:0;background:transparent;gap:12px;min-height:0}
+body.touch #bigmapC{grid-column:1;grid-row:1/3;width:auto;height:100%;aspect-ratio:1;max-width:62vw;touch-action:none;align-self:center;max-height:100%}
+body.touch #bigmap .head{grid-column:2;grid-row:1;flex-direction:column;align-items:flex-start;gap:8px}
+body.touch #bigmap .bmz{flex-wrap:wrap;gap:6px}
+body.touch #bigmap .side{grid-column:2;grid-row:2;display:block;min-width:0;overflow-y:auto}
+body.touch #bigmap .bmz button{min-width:44px;height:40px;font-size:17px}
+body.touch #bigmap .key{font-size:12px;gap:3px 10px;max-width:none}
+#bigmap .side{display:contents}
+#bmX{display:none}
+body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;border-color:var(--brass)}
+@media (orientation:portrait){
+  body.touch #minimap{width:96px;height:96px}
+  body.touch #mstat{max-width:calc(100vw - 240px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));min-width:0}
+  #mstat .mm{flex-wrap:wrap;row-gap:0}
+  body.touch #odock{right:calc(10px + env(safe-area-inset-right,0px));top:calc(140px + env(safe-area-inset-top,0px));flex-direction:column;align-items:flex-end}
+  body.touch #talk,body.touch #lmenu{right:calc(10px + env(safe-area-inset-right,0px));width:auto;top:calc(142px + env(safe-area-inset-top,0px));max-height:calc(60% - 142px)}
+  body.touch #chatLog{width:min(300px,60vw)}
+  body.touch #prompt{max-width:80vw;top:52%}
+  body.touch #toast{top:22%}
+  #drawer aside{width:min(400px,88vw)}
+  body.touch #bigmap .frame{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+  body.touch #bigmapC{grid-row:1;width:100%;height:auto;max-width:100%;max-height:60vh;justify-self:center}
+  body.touch #bigmap .head{grid-column:1;grid-row:2}
+  body.touch #bigmap .side{grid-column:1;grid-row:3}
+}
+@media (max-width:480px){.card{padding:20px 18px;gap:11px}.card p{font-size:16px}body.touch .landhint{font-size:14px}}
+/* short landscape screens: tighter title card */
+@media (max-height:520px){
+  .card{padding:16px 20px;gap:9px}
+  .card h1{font-size:28px}
+  .card p{font-size:15px;line-height:1.35}
+  button.go{padding:12px 22px;font-size:16px}
+  .online{font-size:14px;padding:8px 10px}
+  body.touch .landhint{font-size:13px}
+  .card>*{order:2}.card .eyebrow,.card h1{order:0}.card .btnrow:not(.onbtns),.card #cStats{order:1}
+}
 @media (max-width:640px){
   #help,.banner .sub{display:none}
   #minimap{width:96px;height:96px}
@@ -281,9 +385,11 @@ body:not(.touch) #odock{display:none}
 <div id="app">
   <div id="fade"></div>
   <div id="hud" hidden>
-    <div id="tc"><div class="stick"><div class="knob"></div></div><div class="pad"></div><div class="sys"></div><div class="more" hidden></div></div>
+    <div id="tc"><div class="stick"><div class="knob"></div></div><div class="pad"></div><div class="sys"></div></div>
     <div class="score"><span class="lbl">Score</span><b id="score" class="num">0</b><div class="money"><b id="money" class="num">₦0</b></div><div class="slain"><i></i><b id="slain" class="num">0</b>titans slain</div></div>
     <div class="banner"><div class="mode" id="modeName">Free Roam</div><div class="sub" id="modeSub">The forest keeps sending titans</div><div class="pill num" id="nearby">Titans nearby 0 · Slain 0</div></div>
+    <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
+    <div id="drawer" hidden><div class="scrim"></div><aside id="dAside"></aside></div>
     <div class="mapwrap"><canvas id="minimap" width="300" height="300"></canvas><div id="kmh" class="num">0 km/h</div><div id="clock" class="num">08:00</div></div>
     <div id="cross">
       <svg viewBox="-23 -23 46 46" aria-hidden="true">
@@ -346,9 +452,9 @@ body:not(.touch) #odock{display:none}
     </dl>
     <button id="helpTab" type="button" title="Show the controls (H)">H · controls</button>
     <div id="bigmap" hidden><div class="frame">
-      <div class="head"><h3>Map of the Giantwood</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button></span><span class="hint">P to close · wheel zooms · drag to move</span></div>
+      <div class="head"><h3>Map of the Giantwood</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">P to close · wheel zooms · drag to move</span></div>
       <canvas id="bigmapC" width="960" height="960"></canvas>
-      <div class="key"><span><i style="background:#fff"></i>You</span><span><i style="background:#2f7fd0"></i>Supply depot</span><span><i style="background:#e0392b;border-radius:50%"></i>Titan</span><span><i style="background:#3a6fd0"></i>Police</span><span><i style="background:#d64a3c"></i>Hospital</span><span><i style="background:#e8742a"></i>Fire station</span><span><i style="background:#e8c84a"></i>School</span><span><i style="background:#9a5ad0"></i>Mall</span><span><i style="background:#7fd3e8"></i>Airport terminal</span><span><i style="background:rgba(242,194,48,.5);border-color:#f2c230"></i>Land for sale</span><span><i style="background:#e8742a"></i>Your land</span><span><i style="background:#b98a52"></i>Deliveries</span></div>
+      <div class="side"><div class="key"><span><i style="background:#fff"></i>You</span><span><i style="background:#2f7fd0"></i>Supply depot</span><span><i style="background:#e0392b;border-radius:50%"></i>Titan</span><span><i style="background:#3a6fd0"></i>Police</span><span><i style="background:#d64a3c"></i>Hospital</span><span><i style="background:#e8742a"></i>Fire station</span><span><i style="background:#e8c84a"></i>School</span><span><i style="background:#9a5ad0"></i>Mall</span><span><i style="background:#7fd3e8"></i>Airport terminal</span><span><i style="background:rgba(242,194,48,.5);border-color:#f2c230"></i>Land for sale</span><span><i style="background:#e8742a"></i>Your land</span><span><i style="background:#b98a52"></i>Deliveries</span></div></div>
     </div></div>
     <div id="lmenu" hidden><div class="who"><b id="lmTitle"></b><span id="lmSub"></span></div><ol id="lmOpts"></ol></div>
     <div id="talk" hidden><div class="who"><b id="talkName"></b><span id="talkWhere"></span></div><p id="talkYou" hidden></p><p id="talkLine"></p><ol id="talkOpts"></ol></div>
@@ -374,7 +480,7 @@ body:not(.touch) #odock{display:none}
     <div class="card" id="card">
       <div class="eyebrow" id="cEyebrow">Scout expedition · Giantwood</div>
       <h1 id="cTitle">Giantwood Scouts</h1>
-      <p class="touchhint">Left thumb moves (and steers), right thumb looks around. Hold the HOOK buttons to swing, JUMP twice to boost, and tap the gold button to talk, drive or ride the lift. ••• has the rest.</p>
+      <p class="touchhint">Left thumb moves (and steers), right thumb looks around. Hold the HOOK buttons to swing, JUMP twice to boost, and tap the gold button to talk, drive or ride the lift. ☰ has the map and everything else; tap the minimap for the big map.</p>
       <p class="rotate">Turn your device sideways for the best view.</p>
       <p class="landhint">Buy land: yellow squares on the map are for sale. Stand on one and press E (BUY on touch). The gated estates, Lekki Gardens north of the city and Eastwood Park past the airport, have level plots ready to build on. Bulldozers are sold at Meadowbrook Machinery on the coast road.</p>
       <p id="cText">Fire anchors into trees a hundred metres tall, swing to build speed, and cut titans at the nape. The faster you hit, the deeper the cut. They never stop coming.</p>
@@ -8403,6 +8509,7 @@ function updateHUD(dt) {
   const near = titans.filter(t => !t.dead && Math.hypot(t.g.position.x - P.pos.x, t.g.position.z - P.pos.z) < 60).length;
   $('nearby').textContent = peaceful ? `Titans off · T to bring back · Rescued ${S.rescued}` : `Titans nearby ${near} · Slain ${S.kills} · Rescued ${S.rescued}`;
   $('kmh').textContent = `${Math.round(P.vel.length() * 3.6)} km/h`;
+  updateMStat();
   $('hpFill').style.width = (P.health / HP_MAX * 100) + '%'; $('hpTxt').textContent = Math.ceil(P.health);
   $('gasFill').style.width = P.gas + '%'; $('gasTxt').textContent = Math.round(P.gas) + '%';
   $('gasFill').classList.toggle('low', P.gas < 25);
@@ -8639,7 +8746,7 @@ function setMode(m) {
   $('hud').hidden = m === 'title';
   $('overlay').hidden = m === 'play';
   $('board').hidden = true;
-  if (m !== 'play') { $('bigmap').hidden = true; talkEnd(); if (typeof TOUCH !== 'undefined') { TOUCH.stick = TOUCH.look = null; TOUCH.sx = TOUCH.sy = 0; TOUCH.dir.clear(); TOUCH.home?.(); } }
+  if (m !== 'play') { $('bigmap').hidden = true; $('drawer').hidden = true; talkEnd(); if (typeof TOUCH !== 'undefined') { TOUCH.stick = TOUCH.look = null; TOUCH.sx = TOUCH.sy = 0; TOUCH.dir.clear(); TOUCH.home?.(); } }
   if (m === 'play') return;
   for (const h of hooks) if (h.state !== 'idle') h.state = 'idle';
   if (document.pointerLockElement) document.exitPointerLock();
@@ -8687,23 +8794,25 @@ function tTap(code) { tKey(code, true); tKey(code, false); }
 function touchOn() {
   if (TOUCH.on) return; TOUCH.on = true; document.body.classList.add('touch');
   helpOn = false; $('help').hidden = true;
+  $('bmHint').textContent = 'Pinch to zoom · drag to move';
+  try { document.body.classList.toggle('fullhud', localStorage.getItem('giantwood-fullhud') === '1'); } catch (e) {}
 }
 (function buildTouchUI() {
-  const tc = $('tc'), pad = tc.querySelector('.pad'), sys = tc.querySelector('.sys'), more = tc.querySelector('.more');
+  const tc = $('tc'), pad = tc.querySelector('.pad'), sys = tc.querySelector('.sys');
   // [label, key or action, hold?, group, right, bottom, extra class]
   const B = [
-    ['JUMP', 'Space', true, 'foot', 0, 0, 'big'], ['FIRE', 'KeyX', true, 'foot', 88, 2], ['SLASH', 'KeyF', false, 'foot', 160, 2],
-    ['HOOK ▶', 'KeyC', true, 'foot', 4, 90], ['◀ HOOK', 'KeyQ', true, 'foot', 76, 76], ['REEL', 'ShiftLeft', true, 'foot', 148, 72],
-    ['SUPER', 'super', false, 'foot', 82, 148], ['BRAKE', 'KeyG', true, 'foot', 152, 142],
+    ['JUMP', 'Space', true, 'foot', 0, 0, 'big'], ['FIRE', 'KeyX', true, 'fight', 88, 2], ['SLASH', 'KeyF', false, 'fight', 160, 2],
+    ['HOOK ▶', 'KeyC', true, 'foot', 4, 90], ['◀ HOOK', 'KeyQ', true, 'foot', 76, 76], ['REEL', 'ShiftLeft', true, 'reel', 148, 72],
+    ['SUPER', 'super', false, 'ground', 152, 142], ['BRAKE', 'KeyG', true, 'airborne', 152, 142],
     ['BRAKE', 'Space', true, 'ride', 0, 0, 'big'], ['SIREN', 'KeyB', false, 'siren', 88, 2],
     ['THR +', 'KeyW', true, 'fly', 4, 90], ['THR −', 'KeyS', true, 'fly', 76, 76],
     ['BLADE', 'KeyL', false, 'dozer', 88, 2],
     ['USE', 'KeyE', false, 'use', 0, 168, 'pill'],
-    ['SIM VIEW', 'KeyK', false, 'indoor', 0, 224, 'pill sim'],
+    ['SIM VIEW', 'KeyK', false, 'indoor', 0, 0, 'simt'],   // up by the menu button, not in the pad
   ];
   for (const [label, key, hold, group, r, b, cls] of B) {
     const el = document.createElement('div'); el.className = 'b ' + (cls || ''); el.textContent = label; el.dataset.group = group;
-    el.style.right = r + 'px'; el.style.bottom = b + 'px'; pad.append(el);
+    if (cls === 'simt') tc.append(el); else { el.style.right = r + 'px'; el.style.bottom = b + 'px'; pad.append(el); }
     if (key === 'KeyE') TOUCH.useBtn = el;
     if (key === 'KeyK') TOUCH.simBtn = el;
     const down = () => {
@@ -8721,17 +8830,13 @@ function touchOn() {
     const pUp = e => { if (e.pointerType === 'touch' && 'ontouchstart' in window) return; up(); };
     el.addEventListener('pointerup', pUp); el.addEventListener('pointercancel', pUp);
   }
-  // the system row: pause, map, more
-  const sysB = (label, fn) => { const el = document.createElement('div'); el.className = 'b'; el.textContent = label; el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { navigator.vibrate?.(8); } catch (err) {} fn(); }); sys.append(el); return el; };
-  sysB('❚❚', () => setMode('pause'));
-  sysB('MAP', () => toggleBigMap());
-  sysB('•••', () => { more.hidden = !more.hidden; });
-  const moreB = (label, fn) => { const el = document.createElement('div'); el.className = 'b'; el.textContent = label; el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); fn(); more.hidden = true; }); more.append(el); };
-  moreB('Titans on / off', () => tTap('KeyT')); moreB('Day / night', () => tTap('KeyN'));
-  moreB('Camera view', () => tTap('KeyV')); moreB('Sim view on / off', () => tTap('KeyK')); moreB('Chat', () => openChat()); moreB('Voice chat on / off', () => voiceToggle()); moreB('Hat on / off', () => tTap('KeyY')); moreB('Sunglasses on / off', () => tTap('KeyU')); moreB('Swap blades', () => tTap('KeyR'));
-  moreB('Sound', () => tTap('KeyM')); moreB('Resolution', () => tTap('KeyO'));
-  moreB('Scoreboard', () => { $('board').hidden = !$('board').hidden; });
-  moreB('Full screen', () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); } catch (e) {} });
+  // the system row: the ☰ menu and pause. Everything else lives in the drawer
+  const sysB = (label, fn, aria) => { const el = document.createElement('div'); el.className = 'b'; el.textContent = label; el.setAttribute('aria-label', aria); el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { navigator.vibrate?.(8); } catch (err) {} fn(); }); sys.append(el); return el; };
+  sysB('☰', () => drawerOpen(), 'Menu');
+  sysB('❚❚', () => setMode('pause'), 'Pause');
+  // the pad shrinks on small screens and grows on tablets, so it never reaches the minimap or the joystick
+  const layout = () => { const k = clamp(innerHeight > innerWidth ? innerWidth / 400 : Math.min(innerHeight / 400, innerWidth / 440), .7, 1.12); pad.style.transform = `scale(${k.toFixed(3)})`; };
+  layout(); addEventListener('resize', layout); addEventListener('orientationchange', () => setTimeout(layout, 300));
   // the play area: left side is the joystick, right side looks around
   // the joystick lives in the bottom-left corner: always visible there, it slides a little toward your thumb but never leaves the lower-left area
   const stickEl = tc.querySelector('.stick'), knob = stickEl.querySelector('.knob');
@@ -8745,7 +8850,6 @@ function touchOn() {
   const ZX = .5, ZY = .3;   // the stick answers anywhere in the left half below the top 30% of the screen
   const startAt = (id, x, y) => {
     if (mode !== 'play') return;
-    more.hidden = true;
     if (x < innerWidth * ZX && y > innerHeight * ZY && !TOUCH.stick) {
       const r = rest(), cx = clamp(x, r.x, Math.max(r.x, innerWidth * ZX - 62)), cy = clamp(y, Math.min(r.y, innerHeight * ZY + 62), r.y);
       TOUCH.stick = { id, x: cx, y: cy }; place(cx, cy); stickEl.classList.add('live'); moveTo(id, x, y);
@@ -8794,15 +8898,77 @@ function updateTouch() {
   for (const k of ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown']) {   // only release keys the stick pressed, so a real keyboard still works
     if (want.has(k)) { if (!keys[k]) tKey(k, true); TOUCH.dir.add(k); } else if (TOUCH.dir.has(k)) { tKey(k, false); TOUCH.dir.delete(k); }
   }
-  const groups = { dozer: playing && d?.kind === 'dozer', foot: playing && !d, ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: playing && !d && !firstPerson && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y) };
-  for (const el of $('tc').querySelectorAll('.pad .b')) { const g = el.dataset.group; if (g !== 'use') el.hidden = !groups[g]; }
+  TOUCH.airT = P.grounded || P.coyote > 0 ? 0 : (TOUCH.airT || 0) + 1 / 60;
+  const foot = playing && !d, hooked = hooks.some(h => h.state !== 'idle');
+  const groups = { foot, fight: foot && !peaceful, reel: foot && hooked, ground: foot && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: playing && !d && !firstPerson && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y) };
+  for (const el of $('tc').querySelectorAll('.b[data-group]')) { const g = el.dataset.group, h = g === 'use' ? el.hidden : !groups[g]; if (el.hidden !== h) el.hidden = h; }
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
   let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish/.test(txt) ? 'HOME' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
   TOUCH.useBtn.hidden = !playing || !label; TOUCH.useBtn.textContent = label;
-  if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW ON' : '⌂ SIM VIEW OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
+  if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW' : '⌂ SIM OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
   if (txt) pr.textContent = txt.replace(/\bE · /g, '').replace(/ · (Space|E) · [^·]+/g, '');   // the buttons are labelled; drop keyboard hints
+}
+
+/* ---------- the ☰ drawer (touch): your stats in full, and every switch that used to be a key. The game keeps running
+   behind it (other players can't pause the world), but the stick and the camera let go. ---------- */
+const DRAWER = { open: false };
+function drawerOpen() {
+  if (mode !== 'play') return;
+  TOUCH.stick = TOUCH.look = null; TOUCH.sx = TOUCH.sy = 0; TOUCH.home?.();
+  DRAWER.open = true; $('drawer').hidden = false; drawerRender();
+}
+function drawerClose() { DRAWER.open = false; $('drawer').hidden = true; }
+function drawerTiles() {
+  const online = !!NET.room, look = LOOK;
+  return [
+    ['🗺', 'Map', 'Pinch & drag', () => { drawerClose(); toggleBigMap(true); }],
+    ['⚔', 'Titans', peaceful ? 'Off' : 'On', () => tTap('KeyT'), !peaceful],
+    ['🌗', 'Day / night', nightK > .5 ? 'Night' : 'Day', () => tTap('KeyN')],
+    ['🎥', 'Camera', firstPerson ? 'First person' : 'Behind', () => tTap('KeyV'), firstPerson],
+    ['⌂', 'Sim view', SIM.on ? 'On indoors' : 'Off', () => tTap('KeyK'), SIM.on],
+    ...(online ? [['💬', 'Chat', 'Say something', () => { drawerClose(); openChat(); }], ['🎧', 'Voice', VOICE.on ? 'On' : 'Off', () => voiceToggle(), VOICE.on]] : []),
+    ['🎩', 'Hat', look.hat === false ? 'Off' : 'On', () => tTap('KeyY')],
+    ['🕶', 'Sunglasses', look.shades === false ? 'Off' : 'On', () => tTap('KeyU')],
+    ...(!peaceful ? [['🗡', 'Swap blades', '×' + P.spares + ' spare', () => tTap('KeyR')]] : []),
+    ['🔊', 'Sound', VOL_NAMES[vol], () => tTap('KeyM'), vol > 0],
+    ['◐', 'Resolution', RENDER_MODES[renderIdx].name, () => tTap('KeyO')],
+    ['📋', 'Expedition log', 'Scores', () => { drawerClose(); $('board').hidden = false; setTimeout(() => { const off = () => { $('board').hidden = true; removeEventListener('pointerdown', off, true); }; addEventListener('pointerdown', off, true); }, 50); }],
+    ['📊', 'Vitals panel', document.body.classList.contains('fullhud') ? 'Shown' : 'Hidden', () => { const on = document.body.classList.toggle('fullhud'); try { localStorage.setItem('giantwood-fullhud', on ? '1' : '0'); } catch (e) {} }, document.body.classList.contains('fullhud')],
+    ['⛶', 'Full screen', document.fullscreenElement ? 'On' : 'Off', () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); } catch (e) {} setTimeout(drawerRender, 300); }, !!document.fullscreenElement],
+  ];
+}
+function drawerRender() {
+  const a = $('dAside'), hp = Math.ceil(P.health), gas = Math.round(P.gas);
+  a.innerHTML = `<div class="dh"><div><b>${$('modeName').textContent}</b><span>${peaceful ? 'Titans off · explore freely' : `${$('nearby').textContent}`}</span></div><button type="button" class="dx" data-x aria-label="Close the menu">✕</button></div>
+    <div class="dstats"><div><span class="lbl">Money</span><b class="m">${NAIRA(LAND.money)}</b></div><div><span class="lbl">Score</span><b>${Math.round(S.score).toLocaleString()}</b></div><div><span class="lbl">Slain</span><b>${S.kills}</b></div><div><span class="lbl">Rescued</span><b>${S.rescued}</b></div>
+      <div class="dbars"><span class="lbl">Health</span><div class="t"><i style="width:${P.health / HP_MAX * 100}%"></i></div><span class="num">${hp}</span>
+      <span class="lbl">Gas</span><div class="t g"><i style="width:${gas}%"></i></div><span class="num">${gas}%</span>
+      ${peaceful ? '' : `<span class="lbl">Pistol</span><span class="num">${Math.floor(P.ammo)} / ${AMMO_MAX}</span><span></span><span class="lbl">Blades</span><span class="num">${Math.round(P.sharp)}% · ×${P.spares} spare</span><span></span>`}</div></div>
+    <div class="dsec">Settings and tools</div><div class="tiles"></div>
+    <div class="dfoot"><button type="button" data-pause>❚❚ Pause</button><button type="button" class="go" data-x>Back to game</button></div>`;
+  const box = a.querySelector('.tiles');
+  for (const [ic, name, sub, fn, on] of drawerTiles()) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'tile' + (on ? ' on' : '');
+    b.innerHTML = `<i>${ic}</i><span>${name}</span><small>${sub}</small>`;
+    b.addEventListener('click', e => { e.stopPropagation(); try { navigator.vibrate?.(8); } catch (x) {} fn(); if (!$('drawer').hidden) setTimeout(drawerRender, 60); });
+    box.append(b);
+  }
+  for (const x of a.querySelectorAll('[data-x]')) x.addEventListener('click', drawerClose);
+  a.querySelector('[data-pause]').addEventListener('click', () => { drawerClose(); setMode('pause'); });
+}
+$('drawer').querySelector('.scrim').addEventListener('click', drawerClose);
+$('mstat').addEventListener('click', () => drawerOpen());
+document.querySelector('.mapwrap').addEventListener('click', () => { if (TOUCH.on && mode === 'play') toggleBigMap(true); });
+$('bmX').addEventListener('click', e => { e.stopPropagation(); toggleBigMap(false); });
+// the status chip under the menu button: money, health and gas at a glance (and titans near, when they're on)
+function updateMStat() {
+  if (!TOUCH.on) return;
+  const m = $('money').textContent; if ($('mMoney').textContent !== m) $('mMoney').textContent = m;
+  $('mHp').style.width = (P.health / HP_MAX * 100) + '%'; $('mGas').style.width = P.gas + '%'; $('mGas').classList.toggle('low', P.gas < 25);
+  const near = peaceful ? 0 : titans.filter(t => !t.dead && Math.hypot(t.g.position.x - P.pos.x, t.g.position.z - P.pos.z) < 60).length;
+  const t = peaceful ? '' : `⚔ ${near} · 🔫 ${Math.floor(P.ammo)}`; if ($('mTit').textContent !== t) $('mTit').textContent = t;
 }
 
 /* ---------- land and money: 24 m plots of open country for sale (hillier is cheaper), a bulldozer from Meadowbrook
@@ -10996,6 +11162,11 @@ function mapPick(px, py) {   // px, py: pixels on the big map's canvas
 bmC.addEventListener('click', e => { if (document.pointerLockElement || BMV.dragged) return; const r = bmC.getBoundingClientRect(); mapPick((e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height); });
 // drag to move the map, the wheel (or the buttons) to zoom
 const bmPx = e => { const r = bmC.getBoundingClientRect(); return [(e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height]; };
+// two fingers pinch to zoom (about the point between them)
+const BMP = new Map(), bmPinch = () => { const [a, b] = [...BMP.values()]; return { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] }; };
+bmC.addEventListener('pointerdown', e => { BMP.set(e.pointerId, bmPx(e)); if (BMP.size === 2) { BMV.pinch = bmPinch(); BMV.down = null; BMV.dragged = true; } });
+bmC.addEventListener('pointermove', e => { if (!BMP.has(e.pointerId)) return; BMP.set(e.pointerId, bmPx(e)); if (BMV.pinch && BMP.size >= 2) { const q = bmPinch(); if (q.d > 4) bmZoom(BMV.pinch.d / q.d, q.m[0], q.m[1]); BMV.pinch = q; } });
+for (const ev of ['pointerup', 'pointercancel']) bmC.addEventListener(ev, e => { BMP.delete(e.pointerId); if (BMP.size < 2) BMV.pinch = null; });
 bmC.addEventListener('pointerdown', e => { if (document.pointerLockElement) return; BMV.down = { id: e.pointerId, p: bmPx(e) }; BMV.dragged = false; try { bmC.setPointerCapture(e.pointerId); } catch (x) {} });
 bmC.addEventListener('pointermove', e => { const D = BMV.down; if (!D || e.pointerId !== D.id) return; const p = bmPx(e), sc = bmC.width / BMV.span; if (!BMV.dragged && Math.hypot(p[0] - D.p[0], p[1] - D.p[1]) < 8) return; BMV.dragged = true; BMV.cx -= (p[0] - D.p[0]) / sc; BMV.cz -= (p[1] - D.p[1]) / sc; D.p = p; bmClamp(); MAPCUR.dirty = true; });
 for (const ev of ['pointerup', 'pointercancel']) bmC.addEventListener(ev, e => { if (BMV.down && e.pointerId === BMV.down.id) BMV.down = null; setTimeout(() => { BMV.dragged = false; }, 0); });
