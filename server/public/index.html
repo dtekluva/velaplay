@@ -4165,6 +4165,7 @@ function animFigure(r, ph, amt, style, time = 0) {
   const s = Math.sin(ph), c = Math.cos(ph), run = style === 'run' || style === 'panic';
   const k = run ? Math.max(.75, r.stride ?? 1) : r.stride ?? 1;   // gowns and pencil skirts shorten the stride
   const thighA = (run ? .85 : .5) * k, kneeA = (run ? 1.4 : .75) * k, armA = run ? .9 : .45, elbow = run ? 1.3 : .3, lean = run ? .22 : .04, bob = run ? .05 : .025;
+  r.thigh[0].rotation.y = r.thigh[0].rotation.z = r.thigh[1].rotation.y = r.thigh[1].rotation.z = 0; r.head.rotation.z = 0;   // undo a dance's sideways leg or head tilt
   if (style === 'air') {
     r.thigh[0].rotation.x = .7; r.thigh[1].rotation.x = -.1; r.shin[0].rotation.x = -1.1; r.shin[1].rotation.x = -.5;
     r.uArm[0].rotation.set(-.3, 0, -.9); r.uArm[1].rotation.set(-.3, 0, .9); r.fArm[0].rotation.x = r.fArm[1].rotation.x = .5;
@@ -6631,10 +6632,7 @@ function danceStep(c, dt) {   // after the walk cycle: bounce, sway and arms in 
   r.torso.rotation.set(-.05, Math.sin(t * .5) * .35, s * .06);
   r.thigh[0].rotation.x = Math.max(0, s) * .35; r.thigh[1].rotation.x = Math.max(0, -s) * .35; r.shin[0].rotation.x = -Math.max(0, s) * .5; r.shin[1].rotation.x = -Math.max(0, -s) * .5;
   if (c.dj) { r.uArm[0].rotation.set(1.2, 0, -.2); r.uArm[1].rotation.set(1.2 + s * .15, 0, .2); r.fArm[0].rotation.x = r.fArm[1].rotation.x = .9; r.head.rotation.x = .25 + Math.abs(s) * .15; return; }
-  if (c.danceStyle === 0) { r.uArm[0].rotation.set(2.6 + s * .4, 0, -.35); r.uArm[1].rotation.set(2.6 - s * .4, 0, .35); r.fArm[0].rotation.x = r.fArm[1].rotation.x = .3; }
-  else if (c.danceStyle === 1) { r.uArm[0].rotation.set(.9 + s * .5, 0, -.5); r.uArm[1].rotation.set(.9 - s * .5, 0, .5); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.4; }
-  else { r.uArm[0].rotation.set(q > 0 ? 2.8 : .4, 0, -.3); r.uArm[1].rotation.set(.5 + Math.abs(q) * .4, 0, .4); r.fArm[0].rotation.x = .3; r.fArm[1].rotation.x = 1.2; }
-  r.head.rotation.x = Math.abs(s) * .12;
+  dancePose(r, c.danceMove ??= (c.danceStyle + 3 * Math.floor(Math.random() * 3)) % 9, t);   // the crowd does all the moves, every dancer their own
 }
 // drinks at any bar: a top-up of health, and a little colour
 const DRINKS = [['a Chapman', 1500], ['a chilled zobo', 1200], ['a tropical mocktail', 1800], ['a Coconut Cooler', 1500], ['palm wine', 1500], ['a ginger fizz', 1300]];
@@ -6745,7 +6743,7 @@ function onDanceFloor(C) {   // the floor itself: dancing beats chatting to whoe
   const f = C.floorAt || (C.dance.length && C.dance.reduce((a, p) => a.add(p), new V3()).multiplyScalar(1 / C.dance.length));
   return f && Math.hypot(f.x - P.pos.x, f.z - P.pos.z) < 5.5;
 }
-const DANCE_MOVES = ['hands in the air', 'the shoki', 'point and wind'];
+const DANCE_MOVES = ['hands in the air', 'the shoki', 'point and wind', 'zanku (legwork)', 'shaku shaku', 'azonto', 'gwara gwara', 'amapiano shuffle', 'shoulder bounce'];
 function danceToggle() {
   const C = danceClub(); if (!C) return;
   if (!P.dance) { P.dance = { style: 0, C }; toast('💃 Dancing', `${DANCE_MOVES[0]} · E for another move · move to stop`); }
@@ -6764,10 +6762,42 @@ function dancePose(r, style, t) {   // like the club-goers' dance, for you and o
   r.pelvis.position.y = r.baseY - .03 + Math.abs(s) * .07;
   r.torso.rotation.set(-.05, Math.sin(t * .5) * .35, s * .06);
   r.thigh[0].rotation.x = Math.max(0, s) * .35; r.thigh[1].rotation.x = Math.max(0, -s) * .35; r.shin[0].rotation.x = -Math.max(0, s) * .5; r.shin[1].rotation.x = -Math.max(0, -s) * .5;
-  if (style === 0) { r.uArm[0].rotation.set(2.6 + s * .4, 0, -.35); r.uArm[1].rotation.set(2.6 - s * .4, 0, .35); r.fArm[0].rotation.x = r.fArm[1].rotation.x = .3; }
-  else if (style === 1) { r.uArm[0].rotation.set(.9 + s * .5, 0, -.5); r.uArm[1].rotation.set(.9 - s * .5, 0, .5); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.4; }
-  else { r.uArm[0].rotation.set(q > 0 ? 2.8 : .4, 0, -.3); r.uArm[1].rotation.set(.5 + Math.abs(q) * .4, 0, .4); r.fArm[0].rotation.x = .3; r.fArm[1].rotation.x = 1.2; }
-  r.head.rotation.x = Math.abs(s) * .12;
+  for (const L of [...r.thigh, ...r.shin]) { L.rotation.y = L.rotation.z = 0; }
+  r.head.rotation.set(Math.abs(s) * .12, 0, 0);
+  const up = Math.max(0, s), dn = Math.max(0, -s);
+  switch (style) {
+    case 0: r.uArm[0].rotation.set(2.6 + s * .4, 0, -.35); r.uArm[1].rotation.set(2.6 - s * .4, 0, .35); r.fArm[0].rotation.x = r.fArm[1].rotation.x = .3; break;   // hands in the air
+    case 1: r.uArm[0].rotation.set(.9 + s * .5, 0, -.5); r.uArm[1].rotation.set(.9 - s * .5, 0, .5); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.4; break;   // the shoki
+    case 2: r.uArm[0].rotation.set(q > 0 ? 2.8 : .4, 0, -.3); r.uArm[1].rotation.set(.5 + Math.abs(q) * .4, 0, .4); r.fArm[0].rotation.x = .3; r.fArm[1].rotation.x = 1.2; break;   // point and wind
+    case 3:   // zanku: quick legwork, kicking out one foot then the other, arms swinging against the legs
+      r.thigh[0].rotation.set(up * .95, 0, up * .25); r.shin[0].rotation.x = -up * .25; r.thigh[1].rotation.set(dn * .95, 0, -dn * .25); r.shin[1].rotation.x = -dn * .25;
+      r.uArm[0].rotation.set(.6 - s * .7, 0, -.6); r.uArm[1].rotation.set(.6 + s * .7, 0, .6); r.fArm[0].rotation.x = r.fArm[1].rotation.x = .9;
+      r.torso.rotation.set(-.12, s * .2, 0); break;
+    case 4:   // shaku shaku: knees bent low, arms crossing and swinging in front, shoulders forward
+      r.pelvis.position.y = r.baseY - .13 + Math.abs(s) * .04;
+      for (let i = 0; i < 2; i++) { r.thigh[i].rotation.x = .55 + (i ? dn : up) * .25; r.shin[i].rotation.x = -.9; }
+      r.uArm[0].rotation.set(.5 + up * 1.3, 0, .45 * s); r.uArm[1].rotation.set(.5 + dn * 1.3, 0, .45 * s); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.6;
+      r.torso.rotation.set(.3, s * .3, 0); r.head.rotation.x = -.15; break;
+    case 5:   // azonto: miming jabs and steering, one arm then the other, with a little bounce
+      r.uArm[0].rotation.set(1.45 + up * .35, 0, -.2); r.fArm[0].rotation.x = 1.7 - up * 1.5;
+      r.uArm[1].rotation.set(1.45 + dn * .35, 0, .2); r.fArm[1].rotation.x = 1.7 - dn * 1.5;
+      r.torso.rotation.set(.05, q * .25, 0); break;
+    case 6:   // gwara gwara: the knee lifts out to the side and rolls round, that arm sweeping up and out
+      r.thigh[1].rotation.set(up * .9, 0, -up * .7); r.shin[1].rotation.x = -up * 1.1; r.thigh[0].rotation.set(.1, 0, 0); r.shin[0].rotation.x = -.15;
+      r.uArm[1].rotation.set(1.3 + s * .6, 0, .9); r.fArm[1].rotation.x = .5; r.uArm[0].rotation.set(.35, 0, -.35); r.fArm[0].rotation.x = 1.1;
+      r.torso.rotation.set(-.05, .2, s * .22); r.head.rotation.z = -s * .15; break;
+    case 7: {   // amapiano shuffle: a low double-time bounce on the log drum, relaxed arms, nodding head
+      const d2 = Math.abs(Math.sin(t * 2));
+      r.pelvis.position.y = r.baseY - .1 + d2 * .07;
+      for (let i = 0; i < 2; i++) { r.thigh[i].rotation.x = .4 + (i ? dn : up) * .2; r.shin[i].rotation.x = -.65; }
+      r.uArm[0].rotation.set(.45, 0, -(.3 + up * .35)); r.uArm[1].rotation.set(.45, 0, .3 + dn * .35); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.0;
+      r.torso.rotation.set(.12, s * .28, 0); r.head.rotation.x = d2 * .3; break;
+    }
+    default:   // shoulder bounce: hands at the waist, shoulders popping on the beat, stepping side to side
+      r.uArm[0].rotation.set(.25, 0, -.55); r.uArm[1].rotation.set(.25, 0, .55); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.9;
+      r.torso.rotation.set(-.04, 0, s * .16); r.head.rotation.z = -s * .1;
+      r.thigh[0].rotation.set(0, 0, up * .22); r.thigh[1].rotation.set(0, 0, -dn * .22); r.shin[0].rotation.x = r.shin[1].rotation.x = -.06;
+  }
 }
 // the DJ booth: stand at the decks and pick what plays next (₦500 tip), or have it mixed in right now (₦1,500)
 function djBoothNear() {
@@ -10972,7 +11002,7 @@ function updateRemotes(dt) {
     if (bike && r.vehG) { r.vehG.updateMatrixWorld(true); const lean = r.vehG.userData.lean; r.g.position.copy(lean ? lean.localToWorld(tmpA.copy(RIDE_SEAT)) : r.vehG.position); r.g.rotation.set(0, r.ry, 0); if (r.rig) seatPose(r.rig); }
     else { r.g.position.set(r.x, r.y, r.z); r.g.rotation.set(0, r.ry, 0); }
     if (r.rig && !bike && r.g.visible) {
-      if (p.anim.startsWith('dance')) dancePose(r.rig, +p.anim[5] || 0, danceBeat() + (r.phase0 ??= Math.random() * 2));   // another player dancing
+      if (p.anim.startsWith('dance')) dancePose(r.rig, parseInt(p.anim.slice(5)) || 0, danceBeat() + (r.phase0 ??= Math.random() * 2));   // another player dancing
       else if (p.anim === 'air') animFigure(r.rig, 0, 0, 'air');
       else { r.phase += r.speed * dt * (r.speed > 5 ? 1.25 : 1.9); animFigure(r.rig, r.phase, Math.min(1, r.speed / 3), r.speed > 5 ? 'run' : 'walk', S.time); }
     }
