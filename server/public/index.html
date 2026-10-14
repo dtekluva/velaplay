@@ -8114,9 +8114,11 @@ function updateSim(dt, target, d) {
   SIM.cutX.normal.set(sx, 0, 0); SIM.cutX.constant = -(sx * R.x + (Math.abs(hx) < .35 ? 1e4 : R.w / 2 - .45));
   SIM.cutZ.normal.set(0, 0, sz); SIM.cutZ.constant = -(sz * R.z + (Math.abs(hz) < .35 ? 1e4 : R.d / 2 - .45));
   // the camera: up and back, looking down into the room
-  const cp = Math.cos(SIM.pitch), sd = SIM.dir.set(hx * cp, Math.sin(SIM.pitch), hz * cp);
-  const dist = clamp(Math.max(R.w, R.d) * .55 + 5, 9, 18);
-  SIM.pos.copy(target).addScaledVector(sd, -dist);
+  const zk = 1 - ((SIM.close ?? 1) - .45) / .55, sp = SIM.pitch + (-1.32 - SIM.pitch) * clamp(zk, 0, 1);   // steeper, looking down over the wall, while you're doing something
+  const cp = Math.cos(sp), sd = SIM.dir.set(hx * cp, Math.sin(sp), hz * cp);
+  SIM.close = (SIM.close ?? 1) + ((NEEDS.pose ? .45 : 1) - (SIM.close ?? 1)) * Math.min(1, dt * 2.5);   // move in while you're cooking, sleeping or in the bathroom
+  const dist = clamp(Math.max(R.w, R.d) * .55 + 5, 9, 18) * SIM.close, np = NEEDS.pose;
+  SIM.pos.copy(np && np.x !== undefined ? (SIM.at ||= new V3()).set(np.x, np.y + .9, np.z) : target).addScaledVector(sd, -dist);
   camera.position.lerp(SIM.pos, e);
   camera.lookAt(SIM.pos.copy(camera.position).add(d.lerp(sd, e)));
 }
@@ -8454,8 +8456,8 @@ function updatePlayerModel(dt) {
   if (P.slashT > 0 && P.spin) spinA = (1 - P.slashT / P.slashDur) * TAU;
   playerModel.rotation.y = P.facing + spinA;
   playerModel.rotation.x = P.grounded ? 0 : -Math.min(.55, hs / 70);
-  const pose = NEEDS.pose; playerModel.rotation.order = pose?.rx ? 'YXZ' : 'XYZ';
-  if (pose?.rx) { playerModel.position.set(pose.x, pose.y, pose.z); playerModel.rotation.y = pose.ry; playerModel.rotation.x = pose.rx; }   // asleep on the bed
+  const pose = NEEDS.pose; pm.pistol.visible = !pose; if (pose) pm.blade.visible = false;   // put the gear down for a shower, the toilet, bed or the cooker
+  if (pose && pose.x !== undefined) { playerModel.position.set(pose.x, pose.y, pose.z); playerModel.rotation.y = pose.ry; playerModel.rotation.x = pose.rx || 0; }   // in bed, on the toilet, in the shower or the tub
   if (P.grounded) {
     P.walk += hs * dt * (hs > 5 ? 1.25 : 1.9);
     animFigure(pm.rig, P.walk, Math.min(1, hs / 3), hs > 5 ? 'run' : 'walk', S.time);
@@ -8472,7 +8474,13 @@ function updatePlayerModel(dt) {
     pm.arms[1].rotation.set(.25, 0, .12); pm.rig.fArm[1].rotation.x = .5;   // pistol held low
   }
   if (NEEDS.pose?.cook) { const t = S.time * 7; pm.arms[0].rotation.set(1.0 + Math.sin(t) * .18, 0, -.15); pm.arms[1].rotation.set(1.1 + Math.cos(t * 1.3) * .3, 0, .2); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .6; }   // stirring the pot
-  else if (NEEDS.pose?.rx) { pm.arms[0].rotation.set(0, 0, -.12); pm.arms[1].rotation.set(0, 0, .12); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .1; }   // asleep, arms by the sides
+  else if (NEEDS.pose?.sit) {   // seated: thighs level, shins down, hands on the knees
+    const r = pm.rig; for (let i = 0; i < 2; i++) { const sx = i ? 1 : -1; r.thigh[i].rotation.set(1.5, 0, -sx * .1); r.shin[i].rotation.set(-1.5, 0, 0); r.uArm[i].rotation.set(.7, 0, sx * .15); r.fArm[i].rotation.x = .6; }
+    r.torso.rotation.set(.12, 0, 0); r.head.rotation.set(NEEDS.pose.look || 0, 0, 0); r.pelvis.position.y = r.baseY;
+  } else if (NEEDS.pose?.shower) {   // scrubbing under the water, face up
+    const r = pm.rig, t = S.time * 6; r.uArm[0].rotation.set(2.5 + Math.sin(t) * .3, 0, -.5); r.uArm[1].rotation.set(2.3 + Math.cos(t * 1.2) * .35, 0, .5); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.5 + Math.sin(t * 2) * .2;
+    r.head.rotation.x = -.35; for (let i = 0; i < 2; i++) { r.thigh[i].rotation.set(0, 0, 0); r.shin[i].rotation.set(-.04, 0, 0); }
+  } else if (NEEDS.pose?.rx) { pm.arms[0].rotation.set(0, 0, -.12); pm.arms[1].rotation.set(0, 0, .12); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .1; }   // lying down, arms by the sides
   // ropes
   for (const h of hooks) {
     const vis = h.state !== 'idle';
@@ -9018,7 +9026,7 @@ function needSpot() {
   if (home) {
     const f = floorIdx(home.hs); let best = null, bd = 1.9;
     for (const q of FURN_LIVE) { if (q.key !== home.key || q.rec.f !== f || !HOME_NEED[q.rec.id]) continue; const d = Math.hypot(q.rec.x - P.pos.x, q.rec.z - P.pos.z); if (d < bd) { bd = d; best = q; } }
-    if (best) { const N = HOME_NEED[best.rec.id]; return { label: `E · ${N.label}`, run: () => { NEEDS.spot = PIECE_NEED[best.rec.id] === 'sleep' ? homeSpots(home, 'sleep').find(o => o.piece === best) : null; N.run(best); } }; }
+    if (best) { const N = HOME_NEED[best.rec.id]; return { label: `E · ${N.label}`, run: () => { NEEDS.spot = homeSpots(home, PIECE_NEED[best.rec.id]).find(o => o.piece === best) || null; N.run(best); } }; }
     for (const F of home.hs.fix || []) if (F.f === f && Math.hypot(F.x - P.pos.x, F.z - P.pos.z) < 1.6) { const N = NEED_ACT[F.need]; return { label: `E · ${N.label}`, run: () => { NEEDS.spot = F; N.run(); } }; }
     return null;
   }
@@ -9029,6 +9037,7 @@ function needSpot() {
 // do it: the screen dims for a moment, then the need is met
 function needDo(icon, title, sub, secs, apply, dim = .85) {
   if (NEEDS.busy) return; NEEDS.busy = true; menuClose(); P.vel.set(0, 0, 0);
+  if (!NEEDS.pose && NEEDS.spot?.piece) { NEEDS.pose = poseFor(NEEDS.spot.piece); if (NEEDS.pose) { dim = .35; secs = Math.max(secs, 3); } }
   const fade = $('fade'); fade.style.transition = 'opacity .45s'; fade.style.opacity = String(dim);
   toast(`${icon} ${title}`, sub);
   setTimeout(() => { apply(); saveNeeds(); sfx('refill'); fade.style.opacity = '0'; NEEDS.busy = false; NEEDS.warn = {}; NEEDS.pose = null; NEEDS.spot = null; }, secs * 1000);
@@ -9083,6 +9092,29 @@ const NEED_ACT = {
   toilet: { label: 'Use the toilet', run: () => HOME_NEED.toilet.run() },
 };
 const PIECE_NEED = { toilet: 'toilet', shower: 'bath', bathtub: 'bath', jacuzzi: 'bath', dbed: 'sleep', sbed: 'sleep', kbed: 'sleep', cooker: 'cook', stove: 'cook', microwave: 'cook', counter: 'cook', island: 'cook', fridge: 'snack' };
+// where and how you sit, stand or lie at a bathroom piece (its own frame: the toilet faces -z, the tub's tap is at +x)
+function poseFor(q) {
+  const id = q.rec.id, ry = q.g.rotation.y, fy = q.g.position.y, base = pm.rig.baseY;
+  const at = (lx, lz) => [q.rec.x + lx * Math.cos(ry) + lz * Math.sin(ry), q.rec.z - lx * Math.sin(ry) + lz * Math.cos(ry)];
+  if (id === 'toilet') { const [x, z] = at(0, -.02); return { x, y: fy + .44 - base, z, ry, sit: true, look: .25 }; }
+  if (id === 'jacuzzi') { const [x, z] = at(0, .55); return { x, y: fy + .32 - base, z, ry, sit: true, soak: true }; }
+  if (id === 'shower') return { x: q.rec.x, y: fy + .08, z: q.rec.z, ry: ry + Math.PI, shower: true, top: fy + 2.05 };
+  if (id === 'bathtub') { const hx = -Math.cos(ry), hz = Math.sin(ry); return { x: q.rec.x - hx * .8, y: fy + .3, z: q.rec.z - hz * .8, ry: Math.atan2(hx, hz), rx: 1.3 }; }   // reclined, head at the end away from the tap
+  return null;
+}
+// water from the shower head while you're under it
+function updateShowerWater(dt) {
+  const ps = NEEDS.pose?.shower ? NEEDS.pose : null;
+  if (!ps) { if (NEEDS.water) NEEDS.water.visible = false; return; }
+  if (!NEEDS.water) {
+    const n = 120, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3));
+    NEEDS.water = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xdff2ff, size: .09, transparent: true, opacity: .9 })); NEEDS.water.frustumCulled = false; scene.add(NEEDS.water);
+    NEEDS.drops = Array.from({ length: n }, () => ({ a: Math.random() * TAU, r: Math.random() * .3, h: Math.random() }));
+  }
+  const pa = NEEDS.water.geometry.attributes.position; NEEDS.water.visible = true;
+  NEEDS.drops.forEach((d, i) => { d.h -= dt * 2.2; if (d.h < 0) { d.h += 1; d.a = Math.random() * TAU; d.r = Math.random() * .3; } pa.setXYZ(i, ps.x + Math.cos(d.a) * d.r, ps.y + d.h * (ps.top - ps.y - .1), ps.z + Math.sin(d.a) * d.r); });
+  pa.needsUpdate = true;
+}
 function homeSpots(home, need) {   // the built-in ones, then pieces you've placed (stand just off the piece, on your side of it)
   const out = (home.hs.fix || []).filter(F => F.need === need);
   for (const q of FURN_LIVE) if (q.key === home.key && PIECE_NEED[q.rec.id] === need) {
@@ -9121,7 +9153,7 @@ function carNap() {
 }
 // each frame: drain, warn, and the consequences
 function updateNeeds(dt) {
-  updateGo(dt);
+  updateGo(dt); updateShowerWater(dt);
   if (!NEEDS.on || mode !== 'play' || FLY.on || ARR.on || NEEDS.busy) { NEEDS.fly && (NEEDS.fly.visible = false); return; }
   const busyBody = P.vel.length() > 6 && !P.driving ? 1.6 : 1;
   NEEDS.h -= NEED_RATE.h * dt * busyBody; NEEDS.b -= NEED_RATE.b * dt; NEEDS.c -= NEED_RATE.c * dt * busyBody; NEEDS.e -= NEED_RATE.e * dt;
