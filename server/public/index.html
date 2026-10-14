@@ -6635,14 +6635,52 @@ function danceStep(c, dt) {   // after the walk cycle: bounce, sway and arms in 
   dancePose(r, c.danceMove ??= (c.danceStyle + 3 * Math.floor(Math.random() * 3)) % 9, t);   // the crowd does all the moves, every dancer their own
 }
 // drinks at any bar: a top-up of health, and a little colour
-const DRINKS = [['a Chapman', 1500], ['a chilled zobo', 1200], ['a tropical mocktail', 1800], ['a Coconut Cooler', 1500], ['palm wine', 1500], ['a ginger fizz', 1300]];
 const nearBar = () => !P.driving && CLUBS.find(C => C.barFront && Math.hypot(C.barFront.x - P.pos.x, C.barFront.z - P.pos.z) < 2.6 && Math.abs(P.pos.y - C.fy) < 2);
-function buyDrink(C) {
-  const [what, price] = DRINKS[Math.floor(Math.random() * DRINKS.length)];
-  if (LAND.money < price) { toast('', `${what[0].toUpperCase() + what.slice(1)} is ${NAIRA(price)}`); return; }
-  LAND.money -= price; LAND.changed = true; P.health = Math.min(HP_MAX, P.health + 40); sfx('refill'); fillNeed('h', 5); fillNeed('b', -18);
-  const bt = civilians.find(c => c.club === C && c.clubRole === 'bartender'); if (bt) showBubble(bt, rp(['Coming right up!', 'Enjoy!', 'On ice, the way you like it.', 'Best in town, trust me.']), 3);
-  toast(`🍹 ${what}`, `${NAIRA(price)} · feeling refreshed (+40 health)`);
+// the club bar's menu: soft drinks, and (on its own page) beer, stout and palm wine, which leave you a little tipsy;
+// or buy a round for the whole house. Every drink tops up health; some fill you a little, all send you to the toilet sooner
+const DRINK_MENU = [
+  { name: 'Chapman', price: 1500, hp: 40, h: 5, b: 15, note: 'the Lagos classic: fizz, bitters, citrus and cucumber' },
+  { name: 'Chilled zobo', price: 1200, hp: 30, b: 15, note: 'hibiscus, ginger and pineapple, on ice' },
+  { name: 'Kunu', price: 1000, hp: 25, h: 10, b: 12, note: 'tiger nut and millet, lightly spiced' },
+  { name: 'Fresh coconut water', price: 1300, hp: 35, b: 10, note: 'straight from the coconut' },
+  { name: 'Tropical mocktail', price: 1800, hp: 45, b: 15, note: 'mango, passion fruit and lime' },
+  { name: 'Energy drink', price: 1500, hp: 15, e: 25, b: 12, note: '+25 energy, for a long night' },
+  { name: 'Bottle of water', price: 300, hp: 10, b: 8, note: 'stay hydrated' },
+  { name: 'Palm wine', price: 1500, hp: 30, b: 18, tipsy: 25, bar: true, note: 'fresh from the tapper, sweet and fizzy' },
+  { name: 'Cold lager', price: 1800, hp: 20, b: 22, tipsy: 30, bar: true, note: 'a big bottle, ice cold' },
+  { name: 'Stout', price: 2000, hp: 25, h: 5, b: 20, tipsy: 35, bar: true, note: 'dark, bitter and strong' },
+];
+const ROUND_PRICE = 15000;
+function bartenderOf(C) { return civilians.find(c => c.club === C && c.clubRole === 'bartender'); }
+function buyDrink(C, D) {
+  if (LAND.money < D.price) { toast('', `${D.name} is ${NAIRA(D.price)}; you have ${NAIRA(LAND.money)}`); return; }
+  LAND.money -= D.price; LAND.changed = true; saveLand(); sfx('refill'); menuClose();
+  P.health = Math.min(HP_MAX, P.health + D.hp); if (NEEDS.on) { fillNeed('h', D.h || 0); fillNeed('b', -(D.b || 0)); fillNeed('e', D.e || 0); }
+  if (D.tipsy) P.tipsy = Math.min(90, (P.tipsy || 0) + D.tipsy);
+  const bt = bartenderOf(C); if (bt) showBubble(bt, rp(['Coming right up!', 'Enjoy!', 'On ice, the way you like it.', 'Best in town, trust me.', 'One ' + D.name.toLowerCase() + ', sharp sharp!']), 3);
+  toast(`🍹 ${D.name}`, `${NAIRA(D.price)} · +${D.hp} health${D.e ? ' · +' + D.e + ' energy' : ''}${D.tipsy ? ' · feeling a little tipsy' : ''}`);
+}
+function buyRound(C) {   // drinks for everyone: the bartender and the whole floor cheer
+  if (LAND.money < ROUND_PRICE) { toast('', `A round for the house is ${NAIRA(ROUND_PRICE)}`); return; }
+  LAND.money -= ROUND_PRICE; LAND.changed = true; saveLand(); sfx('refill'); menuClose();
+  P.health = Math.min(HP_MAX, P.health + 40);
+  const bt = bartenderOf(C); if (bt) showBubble(bt, 'Drinks on the big man! 🍾', 3.5);
+  let k = 0; for (const c of civilians) if (c.club === C && c !== bt && k < 8 && Math.random() < .8) { k++; setTimeout(() => showBubble(c, rp(['Cheers! 🥂', 'Odogwu! 🙌', 'Big man ting!', 'God bless you o!', 'Na you biko!', 'Enjoyment! 🎉']), 3), 300 + k * 350); }
+  toast('🍾 A round for the house', `${NAIRA(ROUND_PRICE)} · everyone in ${C.name} is drinking on you`);
+}
+function barMenu(C, page) {
+  const list = DRINK_MENU.filter(D => !!D.bar === !!page), items = list.map(D => ({ label: `${D.name} · ${NAIRA(D.price)}`, note: D.note, run: () => buyDrink(C, D), off: LAND.money < D.price }));
+  if (!page) items.push({ label: 'Beer, stout and palm wine…', note: 'from the bar', run: () => barMenu(C, true) }, { label: `🍾 Buy a round for the house · ${NAIRA(ROUND_PRICE)}`, note: 'drinks for everyone in the club', run: () => buyRound(C), off: LAND.money < ROUND_PRICE });
+  else items.push({ label: '← Soft drinks', run: () => barMenu(C, false) });
+  items.push({ label: 'Close', run: menuClose });
+  menuShow(`🍹 ${C.name} bar`, `${page ? 'From the bar' : 'Drinks menu'} · ${NAIRA(LAND.money)}`, items); LM_.venue = { x: C.barFront.x, z: C.barFront.z, r: 2.6 };   // stays open while you're at the bar
+  const bt = bartenderOf(C); if (bt && !page) showBubble(bt, rp(['What are you having?', 'Welcome! What can I get you?', 'The Chapman is fresh tonight.']), 2.5);
+}
+// tipsy: the view sways a little, fading as it wears off
+function updateTipsy(dt) {
+  if (!(P.tipsy > 0)) return;
+  P.tipsy = Math.max(0, P.tipsy - dt); const k = Math.min(1, P.tipsy / 20) * (mode === 'play' ? 1 : 0);
+  yaw += Math.sin(S.time * .9) * .0028 * k; pitch = clamp(pitch + Math.cos(S.time * 1.3) * .0016 * k, -1.35, 1.35);
 }
 // the beat: a four-on-the-floor kick, off-beat hats and a bass line, louder the closer you are to a club
 const BEAT = { next: 0, step: 0, gain: null };
@@ -8380,7 +8418,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } { const dC = danceClub(); if (P.dance || (dC && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(bar, false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } { const dC = danceClub(); if (P.dance || (dC && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -8808,7 +8846,7 @@ function updateHUD(dt) {
   else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
-  else if (bar) $('prompt').textContent = `E · Buy a drink at the bar · from ${NAIRA(1200)}`;
+  else if (bar) $('prompt').textContent = `E · Bar: drinks menu · from ${NAIRA(300)}`;
   else if (P.dance) $('prompt').textContent = `💃 ${DANCE_MOVES[P.dance.style]} · E · Another move · move to stop`;
   else if (dncF) $('prompt').textContent = 'E · Dance';
   else if (djB) $('prompt').textContent = `E · DJ booth: pick the next song · ${MUSIC.clubs.get(djB).cur.T.title} is on`;
@@ -11735,7 +11773,7 @@ function frame(now) {
   updateHUD(dt);
   updateLand(dt);
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch(); updateNeeds(dt); updateDance();
+  updateTouch(); updateNeeds(dt); updateDance(); updateTipsy(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
