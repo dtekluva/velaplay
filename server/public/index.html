@@ -288,6 +288,18 @@ body:not(.touch) #odock{display:none}
 .note{font-size:14px;color:var(--muted)}
 .best{font-size:15px;color:var(--muted)}
 
+/* daily needs */
+.needs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.needs .nd{display:flex;align-items:center;gap:4px}
+.needs .nd i{font-style:normal;font-size:13px;line-height:1}
+.needs .t{flex:1;height:5px;background:rgba(255,255,255,.12);position:relative;overflow:hidden;border-radius:2px}
+.needs .t b{position:absolute;inset:0 auto 0 0;background:#7fc06a}
+.needs .t b.mid{background:#e8b45a}
+.needs .t b.lo{background:#e5372b;animation:ndlo 1s ease-in-out infinite alternate}
+@keyframes ndlo{to{opacity:.45}}
+body.noneeds .needs{display:none}
+#mstat .mneeds{font-size:14px;letter-spacing:1px;animation:ndlo 1s ease-in-out infinite alternate}
+#mstat .mneeds:empty{display:none}
 /* ---------- phones and tablets (body.touch): a slim top bar, a ☰ drawer for everything else, a pad that shows only the
    buttons that do something right now. Laid out for landscape and portrait. ---------- */
 #mstat,#drawer{display:none}
@@ -412,7 +424,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     <div id="tc"><div class="stick"><div class="knob"></div></div><div class="pad"></div><div class="sys"></div></div>
     <div class="score"><span class="lbl">Score</span><b id="score" class="num">0</b><div class="money"><b id="money" class="num">₦0</b></div><div class="slain"><i></i><b id="slain" class="num">0</b>titans slain</div></div>
     <div class="banner"><div class="mode" id="modeName">Free Roam</div><div class="sub" id="modeSub">The forest keeps sending titans</div><div class="pill num" id="nearby">Titans nearby 0 · Slain 0</div></div>
-    <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
+    <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span><span id="mNeeds" class="mneeds"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
     <div id="drawer" hidden><div class="scrim"></div><aside id="dAside"></aside></div>
     <div class="mapwrap"><canvas id="minimap" width="300" height="300"></canvas><div id="kmh" class="num">0 km/h</div><div id="clock" class="num">08:00</div></div>
     <div id="cross">
@@ -443,6 +455,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
           <div class="bladehint">spare pairs<br>R to swap</div>
         </div>
       </div>
+      <div class="needs" id="needsRow"></div>
     </div>
     <dl id="help" hidden>
       <dt>LMB / RMB</dt><dd>left / right anchor (hold)</dd>
@@ -468,6 +481,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
       <dt>Q / C</dt><dd>alt anchor keys</dd>
       <dt>T</dt><dd>titans on · off (peaceful)</dd>
       <dt>N</dt><dd>skip to day · night</dd>
+      <dt>I</dt><dd>nap in a parked car</dd>
       <dt>B</dt><dd>siren (police car, ambulance)</dd>
       <dt>M + SPACE</dt><dd>super jump (4× height)</dd>
       <dt>M</dt><dd>tap: sound full · half · off</dd>
@@ -519,7 +533,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
         <dt>F</dt><dd>Slash the nape (needs speed)</dd>
         <dt>E</dt><dd>Refill at blue depots; help knocked-down villagers up</dd>
       </dl>
-      <div class="btnrow"><button class="go" id="goBtn" type="button">Deploy</button><button class="alt" id="peaceBtn" type="button" aria-pressed="true">Titans: Off</button><button class="alt" id="photoBtn" type="button" hidden>📷 Photo mode</button></div>
+      <div class="btnrow"><button class="go" id="goBtn" type="button">Deploy</button><button class="alt" id="peaceBtn" type="button" aria-pressed="true">Titans: Off</button><button class="alt" id="needsBtn" type="button" aria-pressed="true">Daily needs: On</button><button class="alt" id="photoBtn" type="button" hidden>📷 Photo mode</button></div>
       <div class="online" id="online"><div><b>Play online</b> · <span id="onStatus">checking the server…</span></div><div class="btnrow onbtns" id="onBtns"></div></div>
       <div class="best num" id="cBest"></div>
       <div class="note">Plays with a keyboard and mouse, or touch.</div>
@@ -1389,6 +1403,7 @@ RUINS.forEach(([x, z], n) => {
   b.build();
 });
 const SUPPLIES = [];
+const VENUES = [];   // places to eat or use the toilet (see the daily needs)
 const DEPOTS = [[15, 11], [-38, -32], [44, 40], [-56, -2]].filter(([x, z]) => !nearVillage(x, z, VR + 8));
 for (const v of VILLAGES) DEPOTS.push([v.x + 6.5, v.z - 3.5]);
 if (TOWN) { const [dx, dz] = blockAt('towers4'); DEPOTS.push([dx, dz]); }
@@ -6621,7 +6636,7 @@ const nearBar = () => !P.driving && CLUBS.find(C => C.barFront && Math.hypot(C.b
 function buyDrink(C) {
   const [what, price] = DRINKS[Math.floor(Math.random() * DRINKS.length)];
   if (LAND.money < price) { toast('', `${what[0].toUpperCase() + what.slice(1)} is ${NAIRA(price)}`); return; }
-  LAND.money -= price; LAND.changed = true; P.health = Math.min(HP_MAX, P.health + 40); sfx('refill');
+  LAND.money -= price; LAND.changed = true; P.health = Math.min(HP_MAX, P.health + 40); sfx('refill'); fillNeed('h', 5); fillNeed('b', -18);
   const bt = civilians.find(c => c.club === C && c.clubRole === 'bartender'); if (bt) showBubble(bt, rp(['Coming right up!', 'Enjoy!', 'On ice, the way you like it.', 'Best in town, trust me.']), 3);
   toast(`🍹 ${what}`, `${NAIRA(price)} · feeling refreshed (+40 health)`);
 }
@@ -6773,6 +6788,7 @@ if (YABA) withSeed(9191, () => {
       b.box(16, 3, 4, cx, Y + 1.5, cz + 9, LM(0x2a2c30), 1, true, 'house'); b.box(15, 2.2, .1, cx, Y + 1.4, cz + 11.05, winM, 1, false);
       for (const sx of [-5, 0, 5]) tree(b, cx + sx, cz + 4);
     } else if (kind === 'gas') {   // a filling station: canopy, pumps and a kiosk
+      VENUES.push({ name: 'Mainland Fuels kiosk', x: cx, z: cz + 6, r: 10, food: 'kiosk', toilet: 50 });
       b.box(16, .5, 10, cx, Y + 5.2, cz, LM(0xf2f0ea), 1, true, 'roof'); b.box(16.2, .8, 10.2, cx, Y + 5.6, cz, LM(0xd8342c), 1, false);
       for (const sx of [-6, 6]) for (const sz of [-3.5, 3.5]) b.box(.4, 5, .4, cx + sx, Y + 2.5, cz + sz, whiteM, 1, true, 'house');
       for (const sx of [-3, 3]) b.box(1, 1.6, .6, cx + sx, Y + .8, cz, LM(0xd8342c), 1, true, 'house');
@@ -6792,6 +6808,7 @@ if (YABA) withSeed(9191, () => {
       for (const k of [-3, 3]) b.box(.05, .05, 5, cx + k, Y + 2, cz, darkM, 1, false);   // washing lines
     } else if (kind === 'bukas') {   // roadside bukas: tin-roofed shacks, benches, cooking pots
       for (const [ox, oz] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) {
+        VENUES.push({ name: 'the buka', x: cx + ox, z: cz + oz - 4.6, r: 3.6, food: 'buka' });
         b.box(8, 2.6, 6, cx + ox, Y + 1.3, cz + oz, ri2([LM(0x8a6a4a), LM(0x6a7a5a), LM(0x9a7a5a)]), 1, true, 'house'); b.box(9, .15, 7.5, cx + ox, Y + 2.8, cz + oz - .6, rustM, 1, false);
         bench(b, cx + ox, cz + oz - 4.6, Y, false); b.box(.7, .6, .7, cx + ox + 2.5, Y + .3, cz + oz - 4, darkM, 1, false);
         const [txt, bg] = SHOPS[shopN++ % SHOPS.length]; ySign(ySignMat(ri2(['IYA BASIRA BUKA', 'MAMA PUT', 'AMALA SPOT', 'CALABAR KITCHEN', 'FISH PEPPER SOUP']), ri2(['#b8261e', '#e8742a', '#2f8a4a'])), 6, .9, cx + ox, Y + 3.3, cz + oz - 3.02, Math.PI);
@@ -7201,6 +7218,7 @@ if (YB) withSeed(9494, () => {
       cottage(cx, nz - 11, 16, 6, 1, 'pz', zinc, walls[2], '#e8e6df'); sign('REST STOP SHOP · ATM · TOILETS', '', '#2a2c30', 9, .9, cx, Y + 2.6, nz - 7.95, 0);
       for (const ox of [-16, -6, 4, 14]) { b.box(6, .2, 5, cx + ox, Y + 2.8, sz - 4, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, -2.3], [-2.8, 2.3], [2.8, 2.3]]) b.box(.15, 2.8, .15, cx + ox + px, Y + 1.4, sz - 4 + pz, M.bark, 1, false); b.box(4, .9, 1.2, cx + ox, Y + .45, sz - 4, M.oak, 1, true, 'house'); }
       sign('MAMA OGERE BUKA', 'AMALA · EWEDU · GBEGIRI', '#8a2a1a', 6, 1, cx - 6, Y + 3.4, sz - 1.4, 0);
+      VENUES.push({ name: 'Mama Ogere Buka', x: cx - 6, z: sz - 3, r: 5, food: 'buka' }, { name: 'the Ogere rest stop', x: cx, z: nz - 7, r: 6, food: 'rest', toilet: 50, motel: 6000 });
       for (const [ox, kind] of [[-14, 'tipper'], [-2, 'tanker'], [10, 'tipper']]) { const g = kind === 'tanker' ? makeTanker() : makeTipper(); g.position.set(cx + ox, Y + .02, sz + 9); g.rotation.y = Math.PI / 2; addStatic(g); colliders.push({ x0: cx + ox - 4, x1: cx + ox + 4, y0: Y, y1: Y + 3, z0: sz + 7.5, z1: sz + 10.5, tag: 'house' }); }
       people('village', 10, [H.x0 + 4, H.x1 - 4, H.zc - 16, H.zc + 16]);
       OYO_PLACES.push(['Ogere rest stop', cx, H.zc]);
@@ -7641,6 +7659,7 @@ if (YB) withSeed(9696, () => {
   /* ---- fuel stations: a canopy over four pumps, the shop behind, the price board on a pole by the road ---- */
   const BRAND = { PETROLINK: ['#1f5fa8', '#f2c230'], SUNOIL: ['#e8742a', '#ffffff'], AFRIGAS: ['#2f8a4a', '#f2c230'] };
   const station = (x, z, fx, fz, brand) => {   // centred at (x, z), the road on the (fx, fz) side
+    VENUES.push({ name: `the ${brand} kiosk`, x: x - fx * 9, z: z - fz * 9, r: 6, food: 'kiosk', toilet: 50 });
     const [c1, c2] = BRAND[brand], col = LM(parseInt(c1.slice(1), 16)), tx = -fz, tz = fx, at = (a, o) => [x + fx * a + tx * o, z + fz * a + tz * o];
     for (const [a, o] of [[-5, -9], [-5, 9], [5, -9], [5, 9]]) { const [px, pz] = at(a, o); b.box(.6, 5.6, .6, px, Y + 2.8, pz, white, 1, true, 'house'); }
     { const [cx, cz] = at(0, 0); b.box(Math.abs(fx) * 14 + Math.abs(tx) * 24, .9, Math.abs(fz) * 14 + Math.abs(tz) * 24, cx, Y + 6, cz, col, 1, true, 'roof'); b.box(Math.abs(fx) * 14.3 + Math.abs(tx) * 24.3, .3, Math.abs(fz) * 14.3 + Math.abs(tz) * 24.3, cx, Y + 6.55, cz, white, 1, false); }
@@ -7683,6 +7702,7 @@ if (YB) withSeed(9696, () => {
     for (let k = 0; k < 6; k++) { const z = zc - 27.5 + k * 11; b.box(.1, 2.6, 8, back - H.side * 8.05, Y + 1.5, z, new THREE.MeshLambertMaterial({ color: 0x5a8aa8, emissive: 0x0c1c2a }), 1, false); b.box(2, .15, 9, back - H.side * 9, Y + 3.1, z, shopsC[k % shopsC.length], 1, false); }
     const SHOPS2 = [['FOODCO SUPERMARKET', '#d8342c'], ['PHONES & GADGETS', '#2f8fd0'], ['ASO-OKE FASHION HOUSE', '#8a5ad0'], ['HEALTHPLUS PHARMACY', '#3fae5a'], ['CHICKEN PALACE', '#e8742a'], ['BANK · ATM · POS', '#1f3f6a']];
     SHOPS2.forEach(([t, c], k) => ySign(ySignMat(t, c), 8, .9, back - H.side * 8.1, Y + 4, zc - 27.5 + k * 11, H.side > 0 ? -Math.PI / 2 : Math.PI / 2));
+    VENUES.push({ name: 'Magboro Shopping Plaza', x: back - H.side * 11, z: zc + 16, r: 6, food: 'plaza', toilet: 100 });
     sign('MAGBORO SHOPPING PLAZA', 'SHOPS · SUPERMARKET · CINEMA · FOOD COURT', '#1f3f8a', 22, 2.2, back - H.side * 8.15, Y + 7.4, zc, H.side > 0 ? -Math.PI / 2 : Math.PI / 2);
     for (let x = Math.min(x0, x1) + 6; x < Math.max(x0, x1) - 22; x += 3.2) for (const z of [zc - 20, zc - 8, zc + 8, zc + 20]) if (((x * 7 + z) | 0) % 3) addCar(null, x, z, Y, false);
     for (const [x, z] of [[x0 + 4, zc - 32], [x1 - 4, zc + 32]]) { b.box(.25, 7.5, .25, x, Y + 3.75, z, darkM, 1, true, 'house'); b.box(.6, .2, .6, x, Y + 7.5, z, lampMat, 1, false); LAMPS.push([x, z, Y]); }
@@ -8159,7 +8179,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -8175,6 +8195,7 @@ addEventListener('keydown', e => {
     case 'KeyC': fireHook(1); break;
     case 'KeyT': setPeaceful(!peaceful, true); break;
     case 'KeyN': skipDayNight(); break;
+    case 'KeyI': carNap(); break;
     case 'KeyB': if (P.driving && (P.driving.police || P.driving.ambulance || P.driving.fire)) { if (siren) sirenOff(); else sirenOn(); } else if (myHome()) arrStart(); break;
     case 'KeyM': mCombo = false; break;
     case 'KeyH': setHelp(!helpOn); break;
@@ -8342,7 +8363,7 @@ function stepPlayer(dt) {
   // movement
   if (P.grounded && !att.length) {
     const hs = Math.hypot(P.vel.x, P.vel.z), k = 1 - Math.exp(-(hs > 10 ? 2.5 : 14) * dt);
-    const run = 8;
+    const run = 8 * needsSpeed();
     P.vel.x += (wx * run - P.vel.x) * k; P.vel.z += (wz * run - P.vel.z) * k;
   } else {
     const ac = att.length ? 13 : P.inWater ? 16 : 6;
@@ -8538,7 +8559,7 @@ function updateHUD(dt) {
   const near = titans.filter(t => !t.dead && Math.hypot(t.g.position.x - P.pos.x, t.g.position.z - P.pos.z) < 60).length;
   $('nearby').textContent = peaceful ? `Titans off · T to bring back · Rescued ${S.rescued}` : `Titans nearby ${near} · Slain ${S.kills} · Rescued ${S.rescued}`;
   $('kmh').textContent = `${Math.round(P.vel.length() * 3.6)} km/h`;
-  updateMStat();
+  updateMStat(); updateNeedsHud();
   $('hpFill').style.width = (P.health / HP_MAX * 100) + '%'; $('hpTxt').textContent = Math.ceil(P.health);
   $('gasFill').style.width = P.gas + '%'; $('gasTxt').textContent = Math.round(P.gas) + '%';
   $('gasFill').classList.toggle('low', P.gas < 25);
@@ -8560,7 +8581,8 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
-  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !JOBS.del || !!TC.conv || LM_.open;
+  const ndS = !P.driving && !bar && !lift && !downed && needSpot();
+  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
@@ -8570,10 +8592,11 @@ function updateHUD(dt) {
   else if (P.driving && TAXI.job) $('prompt').textContent = taxiPrompt();
   else if (P.driving && TAXI.hails.length) $('prompt').textContent = '✋ Someone wants a taxi · stop beside them';
   else if (P.driving && P.driving.kind === 'dozer') $('prompt').textContent = (P.driving.bladeDown ? `BLADE DOWN · levelling to ${P.driving.levelY} m${ownedAt(P.driving.x, P.driving.z) ? '' : ' · not your land'} · L · Raise` : 'L · Lower the blade') + ' · E · Get out';
-  else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake';
+  else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
   else if (bar) $('prompt').textContent = `E · Buy a drink at the bar · from ${NAIRA(1200)}`;
+  else if (ndS) $('prompt').textContent = ndS.label;
   else if (lift) $('prompt').textContent = lift.up ? `E · Take the lift to ${lift.L.name}` : 'E · Take the lift down';
   else if (desk) $('prompt').textContent = `E · Oyo Skylink: fly to ${desk.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`;
   else if (who) $('prompt').textContent = who.persona?.met ? `E · Talk to ${who.persona.name}` : 'E · Say hello';
@@ -8836,6 +8859,7 @@ function touchOn() {
     ['BRAKE', 'Space', true, 'ride', 0, 0, 'big'], ['SIREN', 'KeyB', false, 'siren', 88, 2],
     ['THR +', 'KeyW', true, 'fly', 4, 90], ['THR −', 'KeyS', true, 'fly', 76, 76],
     ['BLADE', 'KeyL', false, 'dozer', 88, 2],
+    ['NAP', 'KeyI', false, 'nap', 88, 76],
     ['USE', 'KeyE', false, 'use', 0, 168, 'pill'],
     ['SIM VIEW', 'KeyK', false, 'indoor', 0, 0, 'simt'],   // up by the menu button, not in the pad
     ['🛋 ARRANGE', 'KeyB', false, 'home', 0, 0, 'simt arrt'],   // in your own home: straight into arrange and shop
@@ -8931,16 +8955,151 @@ function updateTouch() {
   }
   TOUCH.airT = P.grounded || P.coyote > 0 ? 0 : (TOUCH.airT || 0) + 1 / 60;
   const foot = playing && !d, hooked = hooks.some(h => h.state !== 'idle'), inside = foot && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y);
-  const groups = { foot, hook: foot && (!inside || hooked), fight: foot && !peaceful, reel: foot && hooked, ground: foot && !inside && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, voice: playing && VOICE.on, indoor: inside && !firstPerson, home: foot && !LM_.open && !!myHome() };
+  const groups = { foot, hook: foot && (!inside || hooked), fight: foot && !peaceful, reel: foot && hooked, ground: foot && !inside && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, nap: playing && !!d && !air && d.kind !== 'boat' && NEEDS.on && NEEDS.e < 60 && Math.abs(d.speed) < .5, voice: playing && VOICE.on, indoor: inside && !firstPerson, home: foot && !LM_.open && !!myHome() };
   for (const el of $('tc').querySelectorAll('.b[data-group]')) { const g = el.dataset.group, h = g === 'use' ? el.hidden : !groups[g]; if (el.hidden !== h) el.hidden = h; }
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
-  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish|Your home/.test(txt) ? 'HOME' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
+  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
   TOUCH.useBtn.hidden = !playing || !label; TOUCH.useBtn.textContent = label;
   if (d?.kind === 'dozer') { const bl = TOUCH.bladeBtn, t = d.bladeDown ? 'BLADE ▲ UP' : 'BLADE ▼ DOWN'; if (bl.textContent !== t) { bl.textContent = t; bl.classList.toggle('lit', !!d.bladeDown); } }
   if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW' : '⌂ SIM OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
   if (txt) pr.textContent = txt.replace(/\bE · /g, '').replace(/ · (Space|[A-Z]) · [^·]+/g, '');   // the buttons are labelled; drop keyboard hints
+}
+
+/* ---------- daily needs: hunger, bladder, hygiene and energy. They drain slowly while you play (faster when you run and
+   swing), and you look after them at home (toilet, shower or bath, bed, cooker) or out in the world: bukas, the food
+   court, fuel-station kiosks, the beach bars, the Ogere rest stop. Gentle, not punishing: hunger nibbles at your health,
+   an empty bladder is embarrassing, the smell draws flies and comments, and tiredness slows you down. Saved here. ---------- */
+const NEEDS = (() => { try { return { on: true, h: 85, b: 80, c: 90, e: 90, ...JSON.parse(localStorage.getItem('giantwood-needs') || '{}') }; } catch (e) { return { on: true, h: 85, b: 80, c: 90, e: 90 }; } })();
+Object.assign(NEEDS, { busy: false, warn: {}, saveT: 0, flyT: 0, smellT: 8 });
+const NEED_INFO = [['h', '🍲', 'Hunger'], ['b', '🚽', 'Bladder'], ['c', '🛁', 'Hygiene'], ['e', '😴', 'Energy']];
+const NEED_RATE = { h: 1.25 / 60, b: 1.8 / 60, c: .9 / 60, e: .7 / 60 };   // points a second: about 80, 55, 110 and 140 minutes from full
+function saveNeeds() { try { const { on, h, b, c, e } = NEEDS; localStorage.setItem('giantwood-needs', JSON.stringify({ on, h: Math.round(h), b: Math.round(b), c: Math.round(c), e: Math.round(e) })); } catch (x) {} }
+const needsSpeed = () => NEEDS.on && NEEDS.e < 15 ? .75 : 1;
+function setNeedsOn(on) {
+  NEEDS.on = on; saveNeeds(); document.body.classList.toggle('noneeds', !on);
+  const b = $('needsBtn'); if (b) { b.textContent = `Daily needs: ${on ? 'On' : 'Off'}`; b.setAttribute('aria-pressed', on); }
+}
+// what you can eat where (name, price, hunger restored)
+const MENUS = {
+  buka: [['Amala, ewedu and gbegiri', 1500, 60], ['Jollof rice and chicken', 2500, 75], ['Pounded yam and egusi', 2000, 70], ['Puff-puff, five pieces', 300, 12]],
+  kiosk: [['Meat pie and a Coke', 1200, 22], ['Gala and La Casera', 500, 15], ['Chin-chin', 400, 10]],
+  mall: [['Chicken and chips', 4500, 70], ['Shawarma', 3000, 50], ['Small chops platter', 3500, 45], ['Ice cream', 1500, 12]],
+  suya: [['Suya, beef, extra pepper', 2000, 40], ['Asun and a cold drink', 3000, 45]],
+  mamat: [['Fried rice, dodo and fish', 3500, 75], ['Catfish pepper soup', 2500, 45]],
+  coconut: [['Fresh coconut', 800, 10], ['Zobo and chin-chin', 700, 12]],
+  rest: [['Bread and akara', 800, 35], ['Jollof rice and turkey', 3500, 80], ['Roasted corn and pear', 500, 15]],
+  plaza: [['Chicken Palace: rice and chicken', 3800, 75], ['Foodco: sandwich and juice', 2200, 35]],
+  village: [['Pounded yam and egusi', 1200, 70], ['Roasted yam and palm oil', 600, 35]],
+  market: [['Amala and ewedu', 1200, 60], ['Ofada rice and ayamase', 2000, 70], ['Boli and groundnut', 400, 18]],
+};
+{   // venues known after the world is built (the ones inside builders push themselves into VENUES as they're made)
+  if (TOWN && blockAt('gas')) { const [gx, gz] = blockAt('gas'); VENUES.push({ name: 'Gas & Go kiosk', x: gx, z: gz + 4, r: 10, food: 'kiosk', toilet: 50 }); }
+  if (TOWN && TOWN.mall) VENUES.push({ name: 'the mall food court', x: TOWN.mall.x, z: TOWN.mall.z, r: 11, food: 'mall', toilet: 0 });
+  for (const [x, name, food] of [[-45, 'Suya & Chill', 'suya'], [45, 'Coconut Bar', 'coconut'], [105, 'Mama T’s Kitchen', 'mamat']]) if (COAST) VENUES.push({ name, x, z: 286.5, r: 4.5, food });
+  VILLAGES.forEach((v, k) => VENUES.push({ name: k ? 'the village cook pot' : 'Mama’s cook pot', x: v.x, z: v.z, r: 6, food: 'village' }));
+  if (YB) VENUES.push({ name: 'Akesan market', x: (AKESAN.x0 + AKESAN.x1) / 2, z: (AKESAN.z0 + AKESAN.z1) / 2, r: 30, food: 'market' });
+}
+// the spot you're standing at: a fixture in your own home, or a venue
+function needSpot() {
+  if (!NEEDS.on || P.driving || NEEDS.busy || FLY.on) return null;
+  const home = myHome();
+  if (home) {
+    const f = floorIdx(home.hs); let best = null, bd = 1.9;
+    for (const q of FURN_LIVE) { if (q.key !== home.key || q.rec.f !== f || !HOME_NEED[q.rec.id]) continue; const d = Math.hypot(q.rec.x - P.pos.x, q.rec.z - P.pos.z); if (d < bd) { bd = d; best = q; } }
+    if (best) { const N = HOME_NEED[best.rec.id]; return { label: `E · ${N.label}`, run: () => N.run(best) }; }
+    return null;
+  }
+  for (const V of VENUES) if (Math.hypot(V.x - P.pos.x, V.z - P.pos.z) < V.r && Math.abs(P.pos.y - groundAt(P.pos.x, P.pos.z)) < 4)
+    return { label: `E · ${V.name[0].toUpperCase() + V.name.slice(1)}: ${[V.food && 'eat', V.toilet !== undefined && 'toilet', V.motel && 'a room'].filter(Boolean).join(' · ')}`, run: () => venueMenu(V) };
+  return null;
+}
+// do it: the screen dims for a moment, then the need is met
+function needDo(icon, title, sub, secs, apply) {
+  if (NEEDS.busy) return; NEEDS.busy = true; menuClose(); P.vel.set(0, 0, 0);
+  const fade = $('fade'); fade.style.transition = 'opacity .45s'; fade.style.opacity = '.85';
+  toast(`${icon} ${title}`, sub);
+  setTimeout(() => { apply(); saveNeeds(); sfx('refill'); fade.style.opacity = '0'; NEEDS.busy = false; NEEDS.warn = {}; }, secs * 1000);
+}
+const fillNeed = (k, v) => { NEEDS[k] = clamp(NEEDS[k] + v, 0, 100); };
+function eat(name, price, gain, where) {
+  if (LAND.money < price) { toast('', `${name} is ${NAIRA(price)}; you have ${NAIRA(LAND.money)}`); return; }
+  if (NEEDS.h > 92) { toast('', 'You’re full. Maybe later'); return; }
+  LAND.money -= price; LAND.changed = true; saveLand();
+  needDo('🍲', name, `${NAIRA(price)} · ${where}`, 1.6, () => { fillNeed('h', gain); fillNeed('b', -Math.round(gain / 8)); });
+}
+function useToilet(price, where) {
+  if (NEEDS.b > 90) { toast('', 'You don’t need to go'); return; }
+  if (LAND.money < price) { toast('', `The toilet is ${NAIRA(price)}`); return; }
+  if (price) { LAND.money -= price; LAND.changed = true; saveLand(); }
+  needDo('🚽', 'Ahh, better', price ? `${NAIRA(price)} · ${where}` : where, 1.4, () => { NEEDS.b = 100; fillNeed('c', -3); });
+}
+function sleep(where, full) {
+  if (NEEDS.e > 85) { toast('', 'You’re not tired yet'); return; }
+  const hr = tod * 24, night = hr >= 19 || hr < 5;
+  needDo('😴', night ? 'Good night' : 'A quick nap', where, 2.4, () => {
+    tod = night ? 7 / 24 : (tod + 3 / 24) % 1; NEEDS.e = full ? 100 : Math.max(NEEDS.e, 70); fillNeed('h', -15); fillNeed('b', -25);
+    setTimeout(() => toast(night ? '☀ Good morning' : 'Refreshed', night ? 'You slept till 7 o’clock' : 'Three hours later'), 600);
+  });
+}
+function venueMenu(V) {
+  const items = [];
+  if (V.food) for (const [n, p, g] of MENUS[V.food]) items.push({ label: `${n} · ${NAIRA(p)}`, note: `+${g} hunger`, run: () => eat(n, p, g, V.name), off: LAND.money < p });
+  if (V.toilet !== undefined) items.push({ label: `Use the toilet${V.toilet ? ' · ' + NAIRA(V.toilet) : ' · free'}`, run: () => useToilet(V.toilet, V.name) });
+  if (V.motel) items.push({ label: `Rent a room for the night · ${NAIRA(V.motel)}`, note: 'sleep: full energy', run: () => { if (LAND.money < V.motel) { toast('', `A room is ${NAIRA(V.motel)}`); return; } if (NEEDS.e > 85) { toast('', 'You’re not tired yet'); return; } LAND.money -= V.motel; LAND.changed = true; saveLand(); sleep(V.name, true); } });
+  items.push({ label: 'Close', run: menuClose });
+  menuShow(V.name[0].toUpperCase() + V.name.slice(1), `Hunger ${Math.round(NEEDS.h)}% · bladder ${Math.round(NEEDS.b)}% · ${NAIRA(LAND.money)}`, items); LM_.venue = V;
+}
+// fixtures at home and what they do
+const HOME_NEED = {};
+for (const id of ['toilet']) HOME_NEED[id] = { label: 'Use the toilet', run: () => useToilet(0, 'Your own toilet. Nothing like it') };
+for (const [id, c, e, t] of [['shower', 100, 0, 'A hot shower'], ['bathtub', 100, 10, 'A long soak in the bath'], ['jacuzzi', 80, 25, 'Bubbles in the jacuzzi']])
+  HOME_NEED[id] = { label: t === 'A hot shower' ? 'Take a shower' : t === 'Bubbles in the jacuzzi' ? 'Relax in the jacuzzi' : 'Have a bath', run: () => { if (NEEDS.c > 92 && e === 0) { toast('', 'You’re already clean'); return; } needDo('🛁', t, 'Fresh and clean', 2, () => { fillNeed('c', c); fillNeed('e', e); }); } };
+for (const id of ['dbed', 'sbed', 'kbed']) HOME_NEED[id] = { label: 'Sleep', run: () => sleep('Your own bed', true) };
+for (const id of ['cooker', 'stove', 'microwave']) HOME_NEED[id] = { label: 'Cook and eat · groceries ₦1,500', run: () => eat('A home-cooked meal', 1500, 90, 'your kitchen') };
+HOME_NEED.fridge = { label: 'Snack from the fridge · ₦600', run: () => eat('Something from the fridge', 600, 35, 'your kitchen') };
+// a nap in a parked car (I, or NAP on touch)
+function carNap() {
+  const c = P.driving; if (!NEEDS.on || !c || isAir(c) || c.kind === 'boat' || Math.abs(c.speed) > .5) return;
+  sleep('In the driver’s seat', false);
+}
+// each frame: drain, warn, and the consequences
+function updateNeeds(dt) {
+  if (!NEEDS.on || mode !== 'play' || FLY.on || ARR.on || NEEDS.busy) { NEEDS.fly && (NEEDS.fly.visible = false); return; }
+  const busyBody = P.vel.length() > 6 && !P.driving ? 1.6 : 1;
+  NEEDS.h -= NEED_RATE.h * dt * busyBody; NEEDS.b -= NEED_RATE.b * dt; NEEDS.c -= NEED_RATE.c * dt * busyBody; NEEDS.e -= NEED_RATE.e * dt;
+  if (P.inWater) NEEDS.c = Math.min(70, NEEDS.c + 4 * dt);   // a swim freshens you up a bit
+  for (const k of 'hbce') NEEDS[k] = clamp(NEEDS[k], 0, 100);
+  const warn = (k, at, big, small) => { if (NEEDS[k] < at && !NEEDS.warn[k + at]) { NEEDS.warn[k + at] = true; toast(big, small); } };
+  warn('h', 25, '🍲 Hungry', 'Find a buka, the food court or your kitchen'); warn('h', 8, '🍲 Starving', 'You’re losing health. Eat something');
+  warn('b', 20, '🚽 You need the toilet', 'Fuel stations, the mall, or home'); warn('c', 20, '🛁 You smell', 'Time for a shower');
+  warn('e', 20, '😴 Tired', 'Sleep at home, or nap in a parked car (I · NAP)');
+  if (NEEDS.h <= 0 && P.health > HP_MAX * .25) P.health -= 1.5 * dt;
+  if (NEEDS.b <= 0) {   // an accident
+    NEEDS.b = 100; NEEDS.c = 0; NEEDS.warn = {}; toast('😳 Oops', 'You couldn’t hold it. Get to a shower');
+    for (const c of civilians) if (!c.dead && Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z) < 9) { showBubble(c, rp(['Ehn ehn! In public?!', 'Ah! Wetin be this?', 'Eww! Abeg comot!', 'Jesus!']), 3); break; }
+  }
+  if (NEEDS.e <= 0 && !P.driving && P.grounded) {   // you doze off where you stand
+    NEEDS.e = 1; needDo('💤', 'You dozed off', 'Right where you were standing', 2.4, () => { NEEDS.e = 45; tod = (tod + 3 / 24) % 1; });
+  }
+  // smelly: flies round your head, and people say so
+  const smelly = NEEDS.c < 20;
+  if (smelly) {
+    if (!NEEDS.fly) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(18), 3)); NEEDS.fly = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x111111, size: .07 })); scene.add(NEEDS.fly); }
+    const pa = NEEDS.fly.geometry.attributes.position, t = performance.now() / 1000; NEEDS.fly.visible = !P.driving;
+    for (let i = 0; i < 6; i++) pa.setXYZ(i, P.pos.x + Math.cos(t * (3 + i) + i) * .45, P.pos.y + 1.9 + Math.sin(t * (5 + i)) * .15, P.pos.z + Math.sin(t * (3.4 + i) + i * 2) * .45);
+    pa.needsUpdate = true;
+    if ((NEEDS.smellT -= dt) < 0) { NEEDS.smellT = 14; const c = civilians.find(c => !c.dead && Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z) < 5); if (c) showBubble(c, rp(['Abeg go baff!', 'Wetin dey smell like this?', 'Bros, shower dey o.', 'Who get this odour?']), 3); }
+  } else if (NEEDS.fly) NEEDS.fly.visible = false;
+  if ((NEEDS.saveT += dt) > 5) { NEEDS.saveT = 0; saveNeeds(); }
+}
+// the meters: a row in the vitals panel, the phone's status chip (only what's getting low) and the ☰ drawer
+function updateNeedsHud() {
+  const row = $('needsRow'); if (!row) return;
+  if (!row.children.length) row.innerHTML = NEED_INFO.map(([k, ic, n]) => `<div class="nd" title="${n}"><i>${ic}</i><div class="t"><b id="nd_${k}"></b></div></div>`).join('');
+  for (const [k] of NEED_INFO) { const el = $('nd_' + k), v = NEEDS[k]; el.style.width = v + '%'; el.className = v < 20 ? 'lo' : v < 45 ? 'mid' : ''; }
+  const low = NEEDS.on ? NEED_INFO.filter(([k]) => NEEDS[k] < 30).map(([, ic]) => ic).join('') : '', m = $('mNeeds'); if (m.textContent !== low) m.textContent = low;
 }
 
 /* ---------- the ☰ drawer (touch): your stats in full, and every switch that used to be a key. The game keeps running
@@ -8957,6 +9116,8 @@ function drawerTiles() {
   return [
     ['🗺', 'Map', 'Pinch & drag', () => { drawerClose(); toggleBigMap(true); }],
     ['⚔', 'Titans', peaceful ? 'Off' : 'On', () => tTap('KeyT'), !peaceful],
+    ['🍲', 'Daily needs', NEEDS.on ? 'On' : 'Off', () => setNeedsOn(!NEEDS.on), NEEDS.on],
+    ...(P.driving && !isAir(P.driving) && NEEDS.on ? [['💤', 'Nap in the car', Math.abs(P.driving.speed) < .5 ? 'Restores energy' : 'Stop first', () => { drawerClose(); carNap(); }]] : []),
     ['🌗', 'Day / night', nightK > .5 ? 'Night' : 'Day', () => tTap('KeyN')],
     ['🎥', 'Camera', firstPerson ? 'First person' : 'Behind', () => tTap('KeyV'), firstPerson],
     ['⌂', 'Sim view', SIM.on ? 'On indoors' : 'Off', () => tTap('KeyK'), SIM.on],
@@ -8977,6 +9138,7 @@ function drawerRender() {
     <div class="dstats"><div><span class="lbl">Money</span><b class="m">${NAIRA(LAND.money)}</b></div><div><span class="lbl">Score</span><b>${Math.round(S.score).toLocaleString()}</b></div><div><span class="lbl">Slain</span><b>${S.kills}</b></div><div><span class="lbl">Rescued</span><b>${S.rescued}</b></div>
       <div class="dbars"><span class="lbl">Health</span><div class="t"><i style="width:${P.health / HP_MAX * 100}%"></i></div><span class="num">${hp}</span>
       <span class="lbl">Gas</span><div class="t g"><i style="width:${gas}%"></i></div><span class="num">${gas}%</span>
+      ${NEEDS.on ? NEED_INFO.map(([k, ic, n]) => `<span class="lbl">${ic} ${n}</span><div class="t n"><i style="width:${Math.round(NEEDS[k])}%;background:${NEEDS[k] < 20 ? '#e5372b' : NEEDS[k] < 45 ? '#e8b45a' : '#7fc06a'}"></i></div><span class="num">${Math.round(NEEDS[k])}%</span>`).join('') : ''}
       ${peaceful ? '' : `<span class="lbl">Pistol</span><span class="num">${Math.floor(P.ammo)} / ${AMMO_MAX}</span><span></span><span class="lbl">Blades</span><span class="num">${Math.round(P.sharp)}% · ×${P.spares} spare</span><span></span>`}</div></div>
     <div class="dsec">Settings and tools</div><div class="tiles"></div>
     <div class="dfoot"><button type="button" data-pause>❚❚ Pause</button><button type="button" class="go" data-x>Back to game</button></div>`;
@@ -9229,7 +9391,8 @@ function updateLand(dt) {
   const [px, pz] = plotAt(P.pos.x, P.pos.z), info = onFoot ? plotInfo(px, pz) : null;
   const show = !!info && (info.ok || LAND.plots.has(info.key));
   if (show && LAND.cur !== info.key) { drawOutline(info); LAND.cur = info.key; }
-  if (LM_.open && (!info || bigK(LAND.cur) !== LM_.key)) menuClose();   // walking off the plot closes its menu
+  if (LM_.open && !LM_.venue && (!info || bigK(LAND.cur) !== LM_.key)) menuClose();   // walking off the plot closes its menu
+  if (LM_.open && LM_.venue && Math.hypot(LM_.venue.x - P.pos.x, LM_.venue.z - P.pos.z) > LM_.venue.r + 3) menuClose();   // and walking away from a buka closes its menu
   plotLine.visible = show; if (!show) LAND.cur = null;
   if ((LAND.rebuildT -= dt) <= 0 && LAND.dirty.size) {
     LAND.rebuildT = .25;
@@ -9672,12 +9835,12 @@ function plotValue(key) {
 // the land menu: a panel like the conversation one, picked with 1-5, a tap, or a click
 const LM_ = { open: false, items: [] };
 function menuShow(title, sub, items) {
-  LM_.open = true; LM_.items = items; $('lmenu').hidden = false; $('help').hidden = true;
+  LM_.open = true; LM_.items = items; LM_.venue = null; $('lmenu').hidden = false; $('help').hidden = true;
   $('lmTitle').textContent = title; $('lmSub').textContent = sub;
   const el = $('lmOpts'); el.innerHTML = '';
   items.forEach((it, k) => { const li = document.createElement('li'); li.innerHTML = `<kbd>${k + 1}</kbd>`; const sp = document.createElement('span'); sp.textContent = it.label; li.append(sp); if (it.note) { const n = document.createElement('small'); n.textContent = it.note; li.append(n); } if (it.off) li.classList.add('off'); li.onclick = () => menuPick(k); el.append(li); });
 }
-function menuClose() { LM_.open = false; $('lmenu').hidden = true; $('help').hidden = !helpOn || TOUCH.on; }
+function menuClose() { LM_.open = false; LM_.venue = null; $('lmenu').hidden = true; $('help').hidden = !helpOn || TOUCH.on; }
 function menuPick(k) { const it = LM_.items[k]; if (!it) return; it.run(); }
 function openLandMenu(key) {
   const p = LAND.plots.get(key); if (!p) return; LM_.key = key;
@@ -10237,6 +10400,13 @@ function openHomeMenu() {
   const home = myHome(); if (!home) return; LM_.key = home.key;
   const n = (home.house.furn || []).length, f = floorIdx(home.hs), items = [];
   items.push({ label: 'Arrange and shop (B)…', note: 'pick up, move, turn and sell what you have · buy new pieces · set up a whole room', run: arrStart });
+  if (NEEDS.on) {   // daily needs: what this home has (a furnished house comes with a bed, a kitchen and a bathroom)
+    const has = ids => !home.house.bare || (home.house.furn || []).some(r => ids.includes(r.id)), pc = k => `${Math.round(NEEDS[k])}%`;
+    if (has(['dbed', 'sbed', 'kbed'])) items.push({ label: '😴 Sleep', note: `energy ${pc('e')}`, run: HOME_NEED.dbed.run });
+    if (has(['cooker', 'stove', 'microwave', 'fridge'])) items.push({ label: '🍲 Cook and eat · groceries ₦1,500', note: `hunger ${pc('h')}`, run: HOME_NEED.cooker.run });
+    if (has(['shower', 'bathtub', 'jacuzzi'])) items.push({ label: '🛁 Take a shower', note: `hygiene ${pc('c')}`, run: HOME_NEED.shower.run });
+    if (has(['toilet'])) items.push({ label: '🚽 Use the toilet', note: `bladder ${pc('b')}`, run: HOME_NEED.toilet.run });
+  }
   const near = FURN_LIVE.filter(q => q.key === home.key && q.rec.f === f && FURN[q.rec.id].live && Math.hypot(q.rec.x - P.pos.x, q.rec.z - P.pos.z) < 4.5)
     .sort((a, b) => Math.hypot(a.rec.x - P.pos.x, a.rec.z - P.pos.z) - Math.hypot(b.rec.x - P.pos.x, b.rec.z - P.pos.z)).slice(0, 4);
   for (const q of near) { const it = FURN[q.rec.id]; items.push({ label: `${q.rec.on ? 'Switch off' : 'Switch on'}: ${it.name.split(',')[0].toLowerCase()}`, note: q.rec.on ? '' : it.live === 'tv' ? 'the match is on' : it.live === 'jacuzzi' ? 'warm, with bubbles' : it.live === 'cooker' ? 'light the gas' : '', run: () => { furnToggle(q); openHomeMenu(); } }); }
@@ -11231,6 +11401,7 @@ function setPeaceful(on, announce) {
   if (announce) toast('', on ? 'Peaceful: titans removed' : 'Titans are back. Watch your back');
 }
 $('peaceBtn').addEventListener('click', () => setPeaceful(!peaceful, false));
+$('needsBtn').addEventListener('click', () => setNeedsOn(!NEEDS.on)); setNeedsOn(NEEDS.on);
 setPeaceful(peaceful, false);
 let last = performance.now(), shadowTick = 0, looping = true;
 function frame(now) {
@@ -11262,7 +11433,7 @@ function frame(now) {
   updateHUD(dt);
   updateLand(dt);
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch();
+  updateTouch(); updateNeeds(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
