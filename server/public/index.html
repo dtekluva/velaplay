@@ -8637,7 +8637,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -8907,7 +8907,8 @@ function updatePlayerModel(dt) {
   if (P.slashT > 0 && P.spin) spinA = (1 - P.slashT / P.slashDur) * TAU;
   playerModel.rotation.y = P.facing + spinA;
   playerModel.rotation.x = P.grounded ? 0 : -Math.min(.55, hs / 70);
-  const pose = NEEDS.pose; pm.pistol.visible = !pose && !P.dance; if (pose) pm.blade.visible = false;   // put the gear down for a shower, the toilet, bed or the cooker
+  if (RIDE.on) { playerModel.visible = playerModel.visible && NET.others.get(RIDE.driver)?.vehKey === 'bike'; playerModel.rotation.set(0, P.facing, 0); }   // riding: seen only on a bike's pillion
+  const pose = NEEDS.pose; pm.pistol.visible = !pose && !P.dance && !RIDE.on; if (pose) pm.blade.visible = false;   // put the gear down for a shower, the toilet, bed or the cooker
   if (pose && pose.x !== undefined) { playerModel.position.set(pose.x, pose.y, pose.z); playerModel.rotation.y = pose.ry; playerModel.rotation.x = pose.rx || 0; }   // in bed, on the toilet, in the shower or the tub
   if (P.grounded) {
     P.walk += hs * dt * (hs > 5 ? 1.25 : 1.9);
@@ -8924,7 +8925,8 @@ function updatePlayerModel(dt) {
   } else if (!bike) {
     pm.arms[1].rotation.set(.25, 0, .12); pm.rig.fArm[1].rotation.x = .5;   // pistol held low
   }
-  if (P.dance && !P.driving) dancePose(pm.rig, P.dance.style, danceBeat());   // on the floor, on the beat
+  if (RIDE.on) seatPose(pm.rig);
+  else if (P.dance && !P.driving) dancePose(pm.rig, P.dance.style, danceBeat());   // on the floor, on the beat
   else if (NEEDS.pose?.cook) { const t = S.time * 7; pm.arms[0].rotation.set(1.0 + Math.sin(t) * .18, 0, -.15); pm.arms[1].rotation.set(1.1 + Math.cos(t * 1.3) * .3, 0, .2); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .6; }   // stirring the pot
   else if (NEEDS.pose?.sit) {   // seated: thighs level, shins down, hands on the knees
     const r = pm.rig; for (let i = 0; i < 2; i++) { const sx = i ? 1 : -1; r.thigh[i].rotation.set(1.5, 0, -sx * .1); r.shin[i].rotation.set(-1.5, 0, 0); r.uArm[i].rotation.set(.7, 0, sx * .15); r.fArm[i].rotation.x = .6; }
@@ -9052,7 +9054,7 @@ function updateHUD(dt) {
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
   const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !JOBS.del || !!TC.conv || LM_.open;
+  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
@@ -9063,6 +9065,8 @@ function updateHUD(dt) {
   else if (P.driving && TAXI.hails.length) $('prompt').textContent = '✋ Someone wants a taxi · stop beside them';
   else if (P.driving && P.driving.kind === 'dozer') $('prompt').textContent = (P.driving.bladeDown ? `BLADE DOWN · levelling to ${P.driving.levelY} m${ownedAt(P.driving.x, P.driving.z) ? '' : ' · not your land'} · L · Raise` : 'L · Lower the blade') + ' · E · Get out';
   else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
+  else if (RIDE.on) $('prompt').textContent = `🚗 Riding with ${NET.room?.state.players.get(RIDE.driver)?.name || 'a friend'} · E · Get out`;
+  else if (rideSpot()) $('prompt').textContent = `E · Ask ${rideSpot().name} for a ride`;
   else if (!P.driving && surrenderNear()) $('prompt').textContent = 'E · Give yourself up · a quarter off the fine';
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
@@ -9439,7 +9443,7 @@ function updateTouch() {
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
-  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Give yourself up/.test(txt) ? 'SURRENDER' : /doorbell/.test(txt) ? 'RING' : /DJ booth/.test(txt) ? 'DJ' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
+  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /for a ride/.test(txt) ? 'RIDE' : /Riding with/.test(txt) ? 'GET OUT' : /Give yourself up/.test(txt) ? 'SURRENDER' : /doorbell/.test(txt) ? 'RING' : /DJ booth/.test(txt) ? 'DJ' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
   TOUCH.useBtn.hidden = !playing || !label; TOUCH.useBtn.textContent = label;
   if (d?.kind === 'dozer') { const bl = TOUCH.bladeBtn, t = d.bladeDown ? 'BLADE ▲ UP' : 'BLADE ▼ DOWN'; if (bl.textContent !== t) { bl.textContent = t; bl.classList.toggle('lit', !!d.bladeDown); } }
   if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW' : '⌂ SIM OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
@@ -11248,14 +11252,62 @@ function remoteFor(id, p) {
 function dropRemote(r) {
   scene.remove(r.g); if (r.vehG) scene.remove(r.vehG); dropSprite(r.tag); dropSprite(r.bubble); NET.others.delete(r.id);
 }
+/* ---------- riding together (online): ask a driver for a ride (E by their vehicle); they say yes or no; up to 3
+   passengers (1 on a motorbike). Passengers are drawn in the driver's seats on every screen, so they never lag behind
+   the car; a tag over the vehicle names everyone in it. E hops out; everyone's dropped if the driver gets out or leaves. ---------- */
+const RIDE = { on: false, driver: '', seat: 0 };
+const SEATS = { car: [[.45, 0], [-.45, .95], [.45, .95]], bike: [[0, .5]] };   // [right, behind] in metres, in the vehicle's frame
+const seatCap = veh => !veh || veh === 'dozer' ? 0 : veh === 'bike' ? 1 : veh === 'truck' ? 2 : 3;
+function seatWorld(x, z, ry, veh, seat, out) {
+  const [lx, lz] = (veh === 'bike' ? SEATS.bike : SEATS.car)[seat - 1] || [0, 0];
+  out.x = x + lx * Math.cos(ry) + lz * Math.sin(ry); out.z = z - lx * Math.sin(ry) + lz * Math.cos(ry); return out;
+}
+const SEAT_V = new V3();
+function occupants() {   // driver session -> passenger names
+  const occ = new Map(); NET.room?.state.players.forEach(p => { if (p.ride) { if (!occ.has(p.ride)) occ.set(p.ride, []); occ.get(p.ride).push(p.name); } }); return occ;
+}
+function rideSpot() {   // standing by another player's vehicle with a free seat
+  if (!NET.room || P.driving || RIDE.on) return null;
+  const occ = occupants();
+  for (const [id, r] of NET.others) {
+    const p = NET.room.state.players.get(id); if (!p || !p.veh || p.anim !== 'drive' || p.ride) continue;
+    if ((occ.get(id) || []).length >= seatCap(p.veh)) continue;
+    if (Math.hypot(r.x - P.pos.x, r.z - P.pos.z) < 6 && Math.abs(r.y - P.pos.y) < 3) return { id, name: p.name };
+  }
+  return null;
+}
+function askRide(sp) { NET.room.send('ridereq', { to: sp.id }); toast('🚗 Asking for a ride', `Waiting for ${sp.name} to say yes…`); }
+function onRideReq(m) {
+  doorbell();
+  const answer = ok => { NET.room?.send('rideans', { id: m.id, ok }); menuClose(); };
+  menuShow(`🚗 ${m.from} wants a ride`, P.driving ? 'They’ll ride along in your vehicle' : 'Get in a vehicle to give rides', [{ label: 'Let them in', run: () => answer(true) }, { label: 'No thanks', run: () => answer(false) }]);
+  LM_.venue = { x: 0, z: 0, r: 1e9 };
+}
+function onRideRes(m) { toast(m.ok ? '🚗 Hop in!' : '', m.ok ? `${m.name} picked you up · E to get out` : m.why === 'full' ? `${m.name}’s vehicle is full` : `${m.name} can’t give you a ride right now`); }
+function updateRide() {   // riding: you sit in the driver's seat-to-the-side, wherever their vehicle goes
+  const me = NET.room?.state.players.get(NET.room.sessionId), want = me?.ride || '';
+  if (want && !RIDE.on) { Object.assign(RIDE, { on: true, driver: want, seat: me.seat }); P.dance = null; }
+  if (RIDE.on && (!want || !NET.room)) {   // out: step down beside the vehicle
+    RIDE.on = false; const r = NET.others.get(RIDE.driver);
+    if (r) { seatWorld(r.x, r.z, r.ry, r.vehKey, RIDE.seat, SEAT_V); const sx = Math.cos(r.ry) * 1.8, sz = -Math.sin(r.ry) * 1.8; P.pos.set(SEAT_V.x + sx, groundAt(SEAT_V.x + sx, SEAT_V.z + sz) + .1, SEAT_V.z + sz); }
+    P.vel.set(0, 0, 0); toast('', 'You got out'); return false;
+  }
+  if (!RIDE.on) return false;
+  RIDE.seat = me.seat;
+  const r = NET.others.get(RIDE.driver); if (!r || !r.vehKey) return true;   // wait for them
+  seatWorld(r.x, r.z, r.ry, r.vehKey, RIDE.seat, SEAT_V);
+  P.pos.set(SEAT_V.x, r.y + (r.vehKey === 'bike' ? .25 : .3), SEAT_V.z); P.vel.set(0, 0, 0); P.facing = r.ry; P.grounded = true;
+  return true;
+}
 function updateRemotes(dt) {
   const room = NET.room; if (!room) return;
-  const seen = new Set();
+  const seen = new Set(), occ = occupants();
   room.state.players.forEach((p, id) => {
     if (id === room.sessionId) return; seen.add(id);
     const r = remoteFor(id, p);
     if (r.lookStr !== p.look) remoteLook(r, p.look);
-    if (r.name !== p.name) { r.name = p.name; dropSprite(r.tag); r.tag = textSprite(p.name, { size: 26, bg: 'rgba(16,20,15,.55)' }); r.tag.position.y = 2.25; r.g.add(r.tag); }
+    const label = p.veh ? '🚗 ' + [p.name, ...(occ.get(id) || [])].join(' · ') : p.name;   // in a vehicle: everyone in it
+    if (r.tagStr !== label) { r.name = p.name; r.tagStr = label; dropSprite(r.tag); r.tag = textSprite(label, { size: 26, bg: p.veh ? 'rgba(20,40,70,.7)' : 'rgba(16,20,15,.55)' }); r.tag.position.y = 2.25; r.g.add(r.tag); }
     // glide toward where they are now; snap if they jumped far (a respawn or a lift)
     const dx = p.x - r.x, dz = p.z - r.z, far = Math.hypot(dx, dz) > 25, k = far ? 1 : Math.min(1, dt * 10);
     const px = r.x, pz = r.z; r.x += dx * k; r.y += (p.y - r.y) * k; r.z += dz * k;
@@ -11279,13 +11331,31 @@ function updateRemotes(dt) {
     if (r.speak) { r.speak.visible = !!p.talk && r.g.visible; r.speak.position.y = (r.tag ? r.tag.position.y : 2.25) + .45; }
     if (r.bubble && (r.bubbleT -= dt) <= 0) { dropSprite(r.bubble); r.bubble = null; }
   });
+  // passengers: in their driver's seats (yours, if they're riding with you); hidden in a car like a driver, seen on a bike
+  room.state.players.forEach((p, id) => {
+    const r = NET.others.get(id); if (!p.ride || !r) return;
+    let x, y, z, ry, veh;
+    if (p.ride === room.sessionId) { const c = P.driving; if (!c) return; x = c.x; y = c.y; z = c.z; ry = c.yaw; veh = VEH_KEY(c); }
+    else { const d = NET.others.get(p.ride); if (!d || !d.vehKey) return; x = d.x; y = d.y; z = d.z; ry = d.ry; veh = d.vehKey; }
+    seatWorld(x, z, ry, veh, p.seat, SEAT_V); r.x = SEAT_V.x; r.z = SEAT_V.z; r.y = y;
+    r.g.position.set(SEAT_V.x, y + (veh === 'bike' ? .25 : .3), SEAT_V.z); r.g.rotation.set(0, ry, 0);
+    r.g.visible = veh === 'bike' && Math.hypot(SEAT_V.x - P.pos.x, SEAT_V.z - P.pos.z) < 160; if (r.rig) seatPose(r.rig);
+    if (r.tag) r.tag.visible = false;
+  });
+  // your own vehicle's tag, when you've got passengers
+  const mine = P.driving && occ.get(room.sessionId), myLabel = mine ? '🚗 ' + [NET.user?.name || NET.guest || 'You', ...mine].join(' · ') : '';
+  if (NET.myTagStr !== myLabel || (NET.myTag && NET.myTag.parent !== P.driving?.g)) {
+    if (NET.myTag) { NET.myTag.parent?.remove(NET.myTag); dropSprite(NET.myTag); NET.myTag = null; }
+    NET.myTagStr = myLabel;
+    if (myLabel) { NET.myTag = textSprite(myLabel, { size: 26, bg: 'rgba(20,40,70,.7)' }); NET.myTag.position.y = 2.9; P.driving.g.add(NET.myTag); }
+  }
   for (const [id, r] of NET.others) if (!seen.has(id)) dropRemote(r);
 }
 // ---- what I send: 20 times a second ----
 function sendMine(dt) {
   if (!NET.room || (NET.sendT -= dt) > 0) return; NET.sendT = .05;
   const d = P.driving, hs = Math.hypot(P.vel.x, P.vel.z);
-  const m = d ? { x: d.x, y: d.y, z: d.z, ry: d.yaw, anim: 'drive', veh: VEH_KEY(d) } : { x: P.pos.x, y: P.pos.y, z: P.pos.z, ry: P.facing, anim: P.dance ? 'dance' + P.dance.style : !P.grounded ? 'air' : hs > 5 ? 'run' : hs > .5 ? 'walk' : 'idle', veh: '' };
+  const m = d ? { x: d.x, y: d.y, z: d.z, ry: d.yaw, anim: 'drive', veh: VEH_KEY(d) } : { x: P.pos.x, y: P.pos.y, z: P.pos.z, ry: P.facing, anim: RIDE.on ? 'ride' : P.dance ? 'dance' + P.dance.style : !P.grounded ? 'air' : hs > 5 ? 'run' : hs > .5 ? 'walk' : 'idle', veh: '' };
   const s = NET.sent; if (s && Math.hypot(m.x - s.x, m.z - s.z) > 30) m.warp = true;
   if (s && !m.warp && Math.abs(m.x - s.x) + Math.abs(m.y - s.y) + Math.abs(m.z - s.z) < .01 && Math.abs(m.ry - s.ry) < .005 && m.anim === s.anim && m.veh === s.veh) return;   // nothing changed
   NET.room.send('move', m); NET.sent = m;
@@ -11314,6 +11384,8 @@ async function netJoin() {
     for (let k = 0; k < 6; k++) setTimeout(() => NET.room === room && room.send('clk', { t: Date.now() }), 200 + k * 400);
     clearInterval(NET.clkT); NET.clkT = setInterval(() => { if (NET.room === room) { NET.clk.rtt += 40; room.send('clk', { t: Date.now() }); } }, 20000);
     room.onMessage('ring', m => onRing(m));
+    room.onMessage('ridereq', m => onRideReq(m));
+    room.onMessage('rideres', m => onRideRes(m));
     room.onMessage('partynews', m => {
       const vibe = (PARTY_VIBES.find(v => v[0] === m.vibe) || [])[1] || 'music', d = Math.round(Math.hypot(m.x - P.pos.x, m.z - P.pos.z));
       if (NET.user && m.name === NET.user.name) return;
@@ -12044,7 +12116,7 @@ function frame(now) {
   if (mode === 'play') {
     updateAim();
     S.time += dt;
-    if (FLY.on) flightStep(dt); else if (P.driving) (isAir(P.driving) ? flyStep : P.driving.kind === 'boat' ? boatStep : driveStep)(dt); else for (let i = 0; i < 3; i++) stepPlayer(dt / 3);
+    if (FLY.on) flightStep(dt); else if (P.driving) (isAir(P.driving) ? flyStep : P.driving.kind === 'boat' ? boatStep : driveStep)(dt); else if (!updateRide()) for (let i = 0; i < 3; i++) stepPlayer(dt / 3);
     playerTimers(dt);
     autoPan(dt);
   }

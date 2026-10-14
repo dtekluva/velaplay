@@ -203,3 +203,11 @@ Other players' homes are locked in the game until the owner lets you in.
 - **`party` `{ action: "start", key, vibe, x, y, z }`:** starts a party. The server checks in the database that the sender owns that home and that it has a house, and allows one party per host. It runs the vibe's playlist on the server clock, like the clubs, and broadcasts `partynews`.
 - **`skip` and `end`:** the host only.
 - **Ending:** a party ends at `until` (30 minutes), on `end`, or when the host leaves the room, and the server broadcasts `partyend`.
+
+## Riding together
+
+- **`Player.ride`:** the driver's session id while riding. **`Player.seat`:** 1 to 3, or 1 on a bike.
+- **`ridereq` `{ to }`:** passenger → driver, if within 15 m, a seat is free, and at most one ask every 4 s.
+- **`rideans` `{ id, ok }`:** driver → server. Only the driver who was asked can answer. The server assigns the first free seat and sends `rideres` to the passenger.
+- **`rideleave`:** a passenger hops out.
+- **Drops:** passengers are dropped when the driver's `move` has no vehicle, or when the driver leaves.

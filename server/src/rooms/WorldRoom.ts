@@ -18,7 +18,11 @@ export class Player extends Schema {
   @type("string") look = "{}";
   @type("boolean") voice = false;   // in voice chat
   @type("boolean") talk = false;    // holding push-to-talk
+  @type("string") ride = "";        // riding in another player's vehicle: the driver's session id
+  @type("uint8") seat = 0;          // which seat (1 = front passenger, 2-3 behind; a motorbike's pillion is 1)
 }
+// how many passengers a vehicle takes (besides the driver)
+const seatsIn = (veh: string) => !veh || veh === "dozer" ? 0 : veh === "bike" ? 1 : veh === "truck" ? 2 : 3;
 // what a club is playing: the track, when it started and when it ends (server ms), where it is in its playlist, a queued request
 export class ClubMusic extends Schema {
   @type("string") key = "";
@@ -61,6 +65,8 @@ export class WorldRoom extends Room<WorldState> {
   private stopTell?: () => void;
   private lastDJ = new Map<string, number>();
   private lastRing = new Map<string, number>();
+  private lastRideReq = new Map<string, number>();
+  private rideReqs = new Map<string, string>();   // passenger session -> the driver they asked
   private rings = new Map<string, string>();   // visitor session + key -> the owner's session it went to (only they can answer)
 
   onCreate() {
@@ -146,6 +152,31 @@ export class WorldRoom extends Room<WorldState> {
       this.rings.delete(k); to.send("ringres", { key: m.key, ok: !!m.ok, name: me.name });
     });
 
+    // riding together: ask a driver for a ride; they say yes or no; a passenger can hop out; seats run out at 3 (1 on a bike)
+    const passengers = (driver: string) => [...this.state.players.values()].filter((q) => q.ride === driver);
+    const dropAll = (driver: string) => this.state.players.forEach((q) => { if (q.ride === driver) { q.ride = ""; q.seat = 0; } });
+    this.onMessage("ridereq", (client, m: any) => {
+      const me = this.state.players.get(client.sessionId), d = typeof m?.to === "string" ? this.state.players.get(m.to) : undefined, to = this.clients.find((c) => c.sessionId === m?.to);
+      if (!me || !d || !to || to === client || me.veh || me.ride || !d.veh || d.ride) return;
+      const t = Date.now(); if (t - (this.lastRideReq.get(client.sessionId) || 0) < 4000) return;
+      this.lastRideReq.set(client.sessionId, t);
+      if (Math.hypot(me.x - d.x, me.z - d.z) > 15) return;
+      if (passengers(m.to).length >= seatsIn(d.veh)) return client.send("rideres", { ok: false, name: d.name, why: "full" });
+      this.rideReqs.set(client.sessionId, m.to);
+      to.send("ridereq", { id: client.sessionId, from: me.name });
+    });
+    this.onMessage("rideans", (client, m: any) => {
+      const d = this.state.players.get(client.sessionId), pid = typeof m?.id === "string" ? m.id : "", q = this.state.players.get(pid), qc = this.clients.find((c) => c.sessionId === pid);
+      if (!d || !q || !qc || this.rideReqs.get(pid) !== client.sessionId) return;   // only the driver they asked can answer
+      this.rideReqs.delete(pid);
+      const taken = new Set(passengers(client.sessionId).map((x) => x.seat)), cap = seatsIn(d.veh);
+      let seat = 0; for (let k = 1; k <= cap; k++) if (!taken.has(k)) { seat = k; break; }
+      if (!m.ok || !seat || q.veh || q.ride) return qc.send("rideres", { ok: false, name: d.name, why: !seat && m.ok ? "full" : "no" });
+      q.ride = client.sessionId; q.seat = seat;
+      qc.send("rideres", { ok: true, name: d.name });
+    });
+    this.onMessage("rideleave", (client) => { const q = this.state.players.get(client.sessionId); if (q) { q.ride = ""; q.seat = 0; } });
+
     this.onMessage("move", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p || !m) return;
       const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, ZHI), ry = num(m.ry, -10, 10);
@@ -158,7 +189,7 @@ export class WorldRoom extends Room<WorldState> {
       }
       p.x = x; p.y = y; p.z = z; p.ry = ry;
       if (typeof m.anim === "string" && m.anim.length <= 16) p.anim = m.anim;
-      if (typeof m.veh === "string" && m.veh.length <= 24) p.veh = m.veh;
+      if (typeof m.veh === "string" && m.veh.length <= 24) { if (p.veh && !m.veh) dropAll(client.sessionId); p.veh = m.veh; }   // the driver got out: everyone out
     });
 
     // a new look (the character creator, or hat and sunglasses on or off)
@@ -225,6 +256,8 @@ export class WorldRoom extends Room<WorldState> {
   onDispose() { this.stopNews?.(); this.stopTell?.(); }
 
   onLeave(client: Client) {
+    this.state.players.forEach((q) => { if (q.ride === client.sessionId) { q.ride = ""; q.seat = 0; } });   // the driver's gone: passengers are dropped
+    this.rideReqs.delete(client.sessionId); this.lastRideReq.delete(client.sessionId);
     const uid = (client as any).userData?.id;   // the host leaving ends their party
     if (uid) this.state.parties.forEach((pa, key) => { if (pa.owner === uid) { this.state.parties.delete(key); this.broadcast("partyend", { key, name: pa.name }); } });
     this.state.players.delete(client.sessionId);
