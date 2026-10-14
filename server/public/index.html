@@ -6698,21 +6698,52 @@ function clubMusic(C, d) {   // a club's playlist: two passes of each loop, then
     st = { list: list.map(k => CLUB_TRACKS[k]), i: CLUBS.indexOf(C) % list.length, cur: null, G: AC.createGain() };
     st.G.gain.value = 0; st.G.connect(master); MUSIC.clubs.set(C, st);
   }
-  const T = st.list[st.i], nextI = (st.i + 1) % st.list.length, N = st.list[nextI], now = AC.currentTime;
+  const T = st.list[st.i], nextI = (st.i + 1) % st.list.length, req = st.req && CLUB_TRACKS[st.req], N = req || st.list[nextI], now = AC.currentTime;
   if (d < 140) loadTrack(T);
   if (!st.cur) { if (MUSIC.bufs[T.file] instanceof AudioBuffer) st.cur = playTrack(st, T, now + .05, false); else if (MUSIC.bufs[T.file] === 'failed') st.i = nextI; return st.cur; }
   if (now > st.cur.end - 25 && d < 300) loadTrack(N);   // fetch the next one in good time (a club far away just keeps looping)
   if (now > st.cur.end - MUSIC.XF) {
     const nb = MUSIC.bufs[N.file];
-    if (nb instanceof AudioBuffer && N !== T) {   // crossfade into the next track
+    if (nb instanceof AudioBuffer && N !== st.cur.T) {   // crossfade into the next track (a request from the DJ booth jumps the queue)
       const old = st.cur; old.g.gain.setValueAtTime(1, now); old.g.gain.linearRampToValueAtTime(0, now + MUSIC.XF); old.src.stop(now + MUSIC.XF + .1);
-      st.cur = playTrack(st, N, now, true); st.i = nextI;
-      if (d < 30) toast(`♪ ${C.name}`, `Now playing: ${N.title} · ${N.by} (Pixabay)`);
-    } else if (nb === 'failed') st.i = nextI;   // skip a track that won't load, keep this one going
-    else st.cur.end += T.len;   // not ready yet: another pass while it loads
+      st.cur = playTrack(st, N, now, true); if (req) st.req = null; else st.i = nextI;   // after a request, the playlist carries on where it was
+      if (d < 30) toast(`♪ ${C.name}`, `${req ? 'Your request: ' : 'Now playing: '}${N.title} · ${N.by} (Pixabay)`);
+    } else if (nb === 'failed' || N === st.cur.T) { if (req) st.req = null; else st.i = nextI; }   // skip a track that won't load (or is already on), keep this one going
+    else st.cur.end += st.cur.T.len;   // not ready yet: another pass while it loads
   }
   return st.cur;
 }
+// the DJ booth: stand at the decks and pick what plays next (₦500 tip), or have it mixed in right now (₦1,500)
+function djBoothNear() {
+  if (P.driving || !AC) return null;
+  for (const C of CLUBS) if (C.djAt && Math.hypot(C.djAt.x - P.pos.x, C.djAt.z - P.pos.z) < 3.4 && Math.abs(P.pos.y - C.fy) < 2.5 && MUSIC.clubs.get(C)?.cur) return C;
+  return null;
+}
+function djSay(C, line) { const dj = civilians.find(c => c.dj && Math.hypot(c.g.position.x - C.djAt.x, c.g.position.z - C.djAt.z) < 3); if (dj) showBubble(dj, line, 3); }
+function djRequest(C, key, now) {
+  const st = MUSIC.clubs.get(C), T = CLUB_TRACKS[key], tip = now ? 1500 : 500;
+  if (LAND.money < tip) { toast('', `The DJ wants a ${NAIRA(tip)} tip`); return; }
+  LAND.money -= tip; LAND.changed = true; saveLand(); loadTrack(T); st.req = key; menuClose();
+  const t = AC.currentTime, cur = st.cur, passEnd = cur.t0 + Math.ceil((t - cur.t0 + .5) / cur.T.len) * cur.T.len;
+  cur.end = now ? t + MUSIC.XF : Math.min(cur.end, passEnd);   // now: start the crossfade at once; next: at the end of this pass of the loop
+  djSay(C, now ? rp(['Say no more! Dropping it now 🔥', 'Selector! Here we go!', 'Una ready? Make una dance!']) : rp(['Request in! It’s up next.', 'Good choice. Coming right up.', 'I got you. Next one.']));
+  toast(`🎧 ${T.title}`, `${now ? 'Mixing it in now' : 'Up next, after this pass'} · tip ${NAIRA(tip)}`);
+}
+function openDJ(C, all) {
+  const st = MUSIC.clubs.get(C), cur = st.cur.T, up = st.req ? CLUB_TRACKS[st.req] : st.list[(st.i + 1) % st.list.length];
+  const own = CLUB_LISTS[C.name] || [], keys = all ? Object.keys(CLUB_TRACKS).filter(k => !own.includes(k)) : own, items = [];
+  for (const k of keys) {
+    const T = CLUB_TRACKS[k], on = T === cur;
+    items.push({ label: `${on ? '▶ ' : ''}${T.title} · ${T.by}`, note: on ? 'playing now' : `${T.bpm | 0} bpm · up next ₦500 · now ₦1,500`, run: on ? () => {} : () => djMenu(C, `🎧 ${T.title}`, `${T.by} · ${T.bpm | 0} bpm`, [
+      { label: 'Play it next · ₦500 tip', note: 'after this pass of the current track', run: () => djRequest(C, k, false), off: LAND.money < 500 },
+      { label: 'Play it now · ₦1,500 tip', note: 'the DJ mixes it in straight away', run: () => djRequest(C, k, true), off: LAND.money < 1500 },
+      { label: 'Back', run: () => openDJ(C, all) }]) });
+  }
+  items.push(all ? { label: '← This club’s playlist', run: () => openDJ(C, false) } : { label: 'More tracks (from the other clubs)…', run: () => openDJ(C, true) });
+  items.push({ label: 'Close', run: menuClose });
+  djMenu(C, `🎧 DJ booth · ${C.name}`, `Now: ${cur.title} · Up next: ${up.title}`, items);
+}
+function djMenu(C, title, sub, items) { menuShow(title, sub, items); LM_.venue = { x: C.djAt.x, z: C.djAt.z, r: 3.4 }; }   // stays open while you're at the decks
 function updateClubs(dt) {
   if (RR.car && !RR.seen && P.driving !== RR.car && Math.hypot(RR.car.x - P.pos.x, RR.car.z - P.pos.z) < 16) { RR.seen = true; toast('✦ Rare find', 'A Range Rover Sport. Press E to drive it'); }
   // the floor tiles change colour on the beat; beams sweep; the mirror ball turns
@@ -8257,7 +8288,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { buyDrink(bar); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -8670,8 +8701,8 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
-  const ndS = !P.driving && !bar && !lift && !downed && needSpot();
-  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !JOBS.del || !!TC.conv || LM_.open;
+  const ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear();
+  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
@@ -8685,6 +8716,7 @@ function updateHUD(dt) {
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
   else if (bar) $('prompt').textContent = `E · Buy a drink at the bar · from ${NAIRA(1200)}`;
+  else if (djB) $('prompt').textContent = `E · DJ booth: pick the next song · ${MUSIC.clubs.get(djB).cur.T.title} is on`;
   else if (ndS) $('prompt').textContent = ndS.label;
   else if (lift) $('prompt').textContent = lift.up ? `E · Take the lift to ${lift.L.name}` : 'E · Take the lift down';
   else if (desk) $('prompt').textContent = `E · Oyo Skylink: fly to ${desk.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`;
@@ -9049,7 +9081,7 @@ function updateTouch() {
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
   const pr = $('prompt'), txt = !pr.hidden ? pr.textContent : '';
-  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
+  let label = LM_.open ? 'CLOSE' : TC.conv ? 'BYE' : d ? (d.kind === 'boat' ? 'GET OFF' : 'EXIT') : /delivery job/.test(txt) ? 'TAKE' : /drink/.test(txt) ? 'DRINK' : /DJ booth/.test(txt) ? 'DJ' : /Furnish|Your home/.test(txt) ? 'HOME' : /Cook|fridge|: eat/.test(txt) ? 'EAT' : /toilet/i.test(txt) ? 'TOILET' : /shower|bath|jacuzzi/i.test(txt) ? 'BATH' : /Sleep/.test(txt) ? 'SLEEP' : /: a room|: toilet/.test(txt) ? 'USE' : /Talk|hello/.test(txt) ? 'TALK' : /Buy/.test(txt) ? 'BUY' : /Your land/.test(txt) ? 'LAND' : /lift/i.test(txt) ? 'LIFT' : /Drive|Ride|Fly|speedboat/.test(txt) ? 'ENTER' : /Help/.test(txt) ? 'HELP' : /Resupply|Fill|treated/.test(txt) ? 'USE' : '';
   TOUCH.useBtn.hidden = !playing || !label; TOUCH.useBtn.textContent = label;
   if (d?.kind === 'dozer') { const bl = TOUCH.bladeBtn, t = d.bladeDown ? 'BLADE ▲ UP' : 'BLADE ▼ DOWN'; if (bl.textContent !== t) { bl.textContent = t; bl.classList.toggle('lit', !!d.bladeDown); } }
   if (!TOUCH.simBtn.hidden) { const t = SIM.on ? '⌂ SIM VIEW' : '⌂ SIM OFF'; if (TOUCH.simBtn.textContent !== t) TOUCH.simBtn.textContent = t; TOUCH.simBtn.classList.toggle('off', !SIM.on); }
