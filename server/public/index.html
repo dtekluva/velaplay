@@ -4811,7 +4811,7 @@ const NPC_HUM = { max: LITE ? 6 : 14, set: new Set(), t: 0 };
 function civLookOf(c) {
   const S = c.spec;
   S.morph ||= [...faceMorphs(S.face, S.feat, .45, S.beard ? 'beard' : '').slice(0, 6), ...buildMorphs(S.body, S.build)].map((x, i) => i >= 6 ? clamp(x + (Math.random() - .5) * .3, 0, 1) : x);
-  return [{ female: c.female, build: S.build || 1, skin: S.skin, hair: S.hair, hairStyle: S.hairStyle || (c.female ? 'long' : 'short'), facial: S.beard ? 'beard' : S.stubble ? (S.stubble === 'heavy' ? 'heavy' : 'stubble') : S.moustache ? 'stubble' : 'none' },
+  return [{ female: c.female, build: S.build || 1, body: S.body, skin: S.skin, hair: S.hair, hairStyle: S.hairStyle || (c.female ? 'long' : 'short'), facial: S.beard ? 'beard' : S.stubble ? (S.stubble === 'heavy' ? 'heavy' : 'stubble') : S.moustache ? 'stubble' : 'none' },
     { dress: specDress(S), morph: S.morph, child: c.child, desync: true }];
 }
 function pickNpcHumans(dt) {
@@ -11299,20 +11299,40 @@ function texAverage(tex) {   // the mean colour of a skin texture (its centre, w
   for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; k++; }
   return new THREE.Color(r / k / 255, gg / k / 255, b / k / 255).convertSRGBToLinear();
 }
+// the bodies: superhero builds (m, f; slimmed, for fit and big people), regular builds (mr, fr; most adults) and
+// teens (b, g; children). The superhero pair loads first, the rest just after, so the world never waits for them.
+const BODY_FILES = { mr: ['man_regular.glb', 'skin_regular_male_light.jpg'], fr: ['woman_regular.glb', 'skin_regular_female_light.jpg'], b: ['boy.glb', 'skin_teen_male_light.jpg'], g: ['girl.glb', 'skin_teen_female_light.jpg'] };
+const isBodyMat = m => /^MI_(Superhero|Regular|Teen)/i.test(m.name);
+function prepBody(k, g, light) {
+  HUM.base[k] = g.scene;
+  g.scene.traverse(o => { if (o.isSkinnedMesh && isBodyMat(o.material)) { HUM.tex[k + 'dark'] = o.material.map; HUM.avg[k + 'dark'] = texAverage(o.material.map); if (k === 'm' || k === 'f') slimBody(o); addMorphs(o, g.scene); } });
+  HUM.tex[k + 'light'] = light; HUM.avg[k + 'light'] = texAverage(light);
+}
 async function loadHumans() {
   if (!THREE.GLTFLoader || !THREE.SkeletonUtils) { HUM.failed = true; return; }
   try {
     const [man, woman, anims, hc, hn, ml, wl] = await Promise.all([humLoad('man.glb'), humLoad('woman.glb'), humLoad('anims.glb'), humTex('hair_color.png'), humTex('hair_normal.jpg', false), humTex('skin_man_light.jpg'), humTex('skin_woman_light.jpg')]);
-    for (const [k, g] of [['m', man], ['f', woman]]) {
-      HUM.base[k] = g.scene;
-      g.scene.traverse(o => { if (o.isSkinnedMesh && /Superhero/i.test(o.material.name)) { HUM.tex[k + 'dark'] = o.material.map; HUM.avg[k + 'dark'] = texAverage(o.material.map); slimBody(o); addMorphs(o, g.scene); } });
-    }
-    HUM.tex.mlight = ml; HUM.tex.flight = wl; HUM.avg.mlight = texAverage(ml); HUM.avg.flight = texAverage(wl);
+    prepBody('m', man, ml); prepBody('f', woman, wl);
     HUM.tex.hair = hc; HUM.tex.hairN = hn;
     for (const c of anims.animations) HUM.clips[c.name] = c;
     HUM.ready = true;
     humansReady();
-  } catch (e) { console.warn('humans:', e); HUM.failed = true; }
+  } catch (e) { console.warn('humans:', e); HUM.failed = true; return; }
+  // then the regular and teen bodies; once they're in, everyone near you is rebuilt on the right one
+  try {
+    const got = await Promise.all(Object.entries(BODY_FILES).map(([k, [f, t]]) => Promise.all([humLoad(f), humTex(t)]).then(([g, l]) => [k, g, l]).catch(() => null)));
+    for (const x of got) if (x) prepBody(...x);
+    humansReady();
+    for (const c of civilians) if (c.human) { disposeHuman(c.human); c.human = null; }
+  } catch (e) { console.warn('humans (more bodies):', e); }
+}
+// which body a person gets
+function bodyKey(L, opts) {
+  const F = !!L.female, has = k => !!HUM.base[k];
+  if (opts.child) return has(F ? 'g' : 'b') ? (F ? 'g' : 'b') : F ? 'f' : 'm';
+  const hero = ['fit', 'athletic', 'big'].includes(L.body);
+  const k = hero ? (F ? 'f' : 'm') : (F ? 'fr' : 'mr');
+  return has(k) ? k : F ? 'f' : 'm';
 }
 function hairFile(name) {   // a hairstyle, loaded once and shared
   if (!name) return Promise.resolve(null);
@@ -11597,14 +11617,14 @@ function printGeometry(geo, print) {
 // face, feat, body) and, for passers-by, opts: dress (from specDress), morph (their face, kept), child, desync
 function makeHuman(L0, opts = {}) {
   if (!HUM.ready) return null;
-  const L = { ...BASE_LOOK, ...(L0 || {}) }, sex = L.female ? 'f' : 'm', D = opts.dress || lookDress(L);
+  const L = { ...BASE_LOOK, ...(L0 || {}) }, sex = bodyKey(L, opts), D = opts.dress || lookDress(L);
   const scene = THREE.SkeletonUtils.clone(HUM.base[sex]), root = new THREE.Group(), wrap = new THREE.Group();
   wrap.rotation.y = Math.PI; wrap.scale.setScalar(.965 * (L.build || 1) ** .35); wrap.add(scene); root.add(wrap);
   let body = null, brows = null; const bones = {};
   scene.traverse(o => {
     if (o.isBone) bones[o.name] = o;
     if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); }
-    if (o.isSkinnedMesh && /Superhero/i.test(o.material.name)) body = o;
+    if (o.isSkinnedMesh && isBodyMat(o.material)) body = o;
     if (o.isSkinnedMesh && /Hair/i.test(o.material.name)) brows = o;
   });
   // skin: the nearer of the light and dark textures, tinted to the exact tone
@@ -11668,7 +11688,7 @@ function makeHuman(L0, opts = {}) {
     if (h.cur && acts[h.cur]) a.crossFadeFrom(acts[h.cur], fade, false);
     a.play(); h.cur = name;
   };
-  const h = { root, scene, body, bones, mixer, play, cur: '', parts, extra, hairMat, headScale: opts.child ? 1.16 : 0 }; easeRig(h);
+  const h = { root, scene, body, bones, mixer, play, cur: '', parts, extra, hairMat, headScale: opts.child ? (sex === 'b' || sex === 'g' ? 1.06 : 1.16) : 0 }; easeRig(h);
   // what's on the head, glasses, a backpack (the passers-by's; the scout's hat and shades come from wearGear)
   const near = [];
   if (D.head) near.push(headwear(D.head[0], D.head[1], D.head[2]));
