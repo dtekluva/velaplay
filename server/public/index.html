@@ -5037,6 +5037,7 @@ function makeCivilian(v, opts = {}) {
     body: child ? '' : elder ? (!female && Math.random() < .4 ? 'big' : '') : ri(female ? ['', 'slim', 'curvy', 'curvy', 'thick', 'athletic'] : ['', 'slim', 'fit', 'fit', 'big']) };
   let spec;
   if (opts.fire) spec = { ...base, hairStyle: female ? 'bun' : 'short', shirt: '#c9a640', sleeve: '#c9a640', collar: '#2a2c30', belt: '#2a2c30', pants: '#c9a640', boots: '#1a1a1a', shoes: '#1a1a1a', helmet: '#b8261e', reflect: true, earrings: null };
+  else if (opts.crook) spec = crookKit(base);
   else if (opts.cop) spec = { ...base, hairStyle: female ? 'bun' : ri(['short', 'fade', 'bald']), shirt: '#1e2a44', sleeve: '#1e2a44', longSleeve: Math.random() < .5, collar: '#1e2a44', belt: '#111111', pants: '#1a2236', shoes: '#101010', hat: 'police', badge: true, buttons: true };
   else {
     const o = opts.jog ? jogKit(female) : outfitFor(pl, female, child, elder, ng), rural = pl === 'country' || pl === 'village';
@@ -5238,8 +5239,10 @@ function updateCivilians(dt) {
     const indoors = houseAt(c.v, px, pz);
     if (threat && !indoors && td < threat.H * .16 + 1.2) { knockDown(c); continue; }
     let mx = 0, mz = 0, sp = 0;
-    const toP = c.cop && LAW.stars && !LAW.arresting && !threat && mode === 'play' ? Math.hypot(P.pos.x - px, P.pos.z - pz) : 1e9;
-    if (toP < 90) {   // wanted: officers run you down; one who reaches you (on foot) makes the arrest
+    const crime = (c.crook || c.copTask) && !threat && mode !== 'title' ? crimeStep(c, dt, px, pz) : null;   // thieves and the officers after them
+    const toP = !crime && c.cop && LAW.stars && !LAW.arresting && !threat && mode === 'play' ? Math.hypot(P.pos.x - px, P.pos.z - pz) : 1e9;
+    if (crime) { mx = crime[0]; mz = crime[1]; sp = crime[2]; }
+    else if (toP < 90) {   // wanted: officers run you down; one who reaches you (on foot) makes the arrest
       c.state = 'chase'; c.path.length = 0; mx = P.pos.x - px; mz = P.pos.z - pz; sp = toP > 1.3 ? 6.3 + LAW.stars * .4 : 0;
       if (toP < 1.6 && !P.driving) arrestPlayer();
     } else if (c.cop && threat && mode !== 'title') {
@@ -9047,7 +9050,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const ds = doorSpot(); if (ds) { ds.run(); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -9466,9 +9469,9 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
-  const doorS = !P.driving && doorSpot();
+  const thS = !P.driving && nearThief(), doorS = !thS && !P.driving && doorSpot();
   const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
+  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
@@ -9480,6 +9483,7 @@ function updateHUD(dt) {
   else if (P.driving && P.driving.kind === 'dozer') $('prompt').textContent = (P.driving.bladeDown ? `BLADE DOWN · levelling to ${P.driving.levelY} m${ownedAt(P.driving.x, P.driving.z) ? '' : ' · not your land'} · L · Raise` : 'L · Lower the blade') + ' · E · Get out';
   else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
   else if (RIDE.on) $('prompt').textContent = `🚗 Riding with ${NET.room?.state.players.get(RIDE.driver)?.name || 'a friend'} · E · Get out`;
+  else if (thS) $('prompt').textContent = '🦸 E · Grab the thief!';
   else if (doorS) $('prompt').textContent = doorS.label;
   else if (rideSpot()) $('prompt').textContent = `E · Ask ${rideSpot().name} for a ride`;
   else if (!P.driving && surrenderNear()) $('prompt').textContent = 'E · Give yourself up · a quarter off the fine';
@@ -9556,7 +9560,8 @@ function drawMinimap() {
     if (!c.active) continue; const [x, y] = toM(c.g.position.x, c.g.position.z);
     const down = c.state === 'down';
     if (down && Math.floor(S.time * 4) % 2) continue;
-    mg.fillStyle = down ? '#f2c14e' : c.cop ? '#5a8cff' : '#f4efe2'; mg.beginPath(); mg.arc(x, y, down ? 5 : 3, 0, TAU); mg.fill();
+    const thief = c.crook?.mode === 'flee';
+    mg.fillStyle = thief ? '#ff3b30' : down ? '#f2c14e' : c.cop ? '#5a8cff' : '#f4efe2'; mg.beginPath(); mg.arc(x, y, down || thief ? 5 : 3, 0, TAU); mg.fill();
   }
   for (const p of PICKUPS) { const [x, y] = toM(p.x, p.z); if (x > -10 && y > -10 && x < W + 10 && y < W + 10) { mg.fillStyle = '#b98a52'; mg.strokeStyle = '#fff'; mg.lineWidth = 1.5; mg.fillRect(x - 6, y - 5, 12, 10); mg.strokeRect(x - 6, y - 5, 12, 10); } }
   { const jt = jobTarget(); if (jt) { let [x, y] = toM(jt[0], jt[1]); const cx = W / 2, cy = W / 2, dd = Math.hypot(x - cx, y - cy), R = W / 2 - 12; if (dd > R) { x = cx + (x - cx) * R / dd; y = cy + (y - cy) * R / dd; } mg.fillStyle = jt[2]; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2; mg.beginPath(); mg.arc(x, y, 9, 0, TAU); mg.fill(); mg.stroke(); } }
@@ -13693,6 +13698,133 @@ INT.ents = [...(IKOYI?.ents || []).map(e => ({ ...e, gy: IKOYI.y, top: 0 })), ..
 for (const e of INT.ents) if (!e.top) { let t = 0; for (const c of queryGrid(solidGrid, e.bx, e.bz, e.br || 10)) t = Math.max(t, c.y1); e.top = t; }
 intDoors(INT.ents); for (const e of INT.ents) intGridAdd(e);
 gridCatchUp();   // (and the rooms)
+/* ---------- criminals: a gang of pickpockets based in Magboro and Mowe on the expressway. They loiter round the hamlets,
+   pick a mark (someone passing, or you, at most every couple of minutes), walk up and lift their money, then run.
+   The victim shouts; officers nearby get the call and two more come running from up the road; they chase the thief
+   down and arrest him, and anything he took from you comes back. You can grab a thief yourself (E) for your money and
+   a reward. A thief who gets clear away keeps what he took. ---------- */
+const CRIME = { crooks: [], responders: [], lastPlayer: -999, homes: [] };
+const thiefMat = (() => {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 48; const g = c.getContext('2d');
+  g.fillStyle = '#d8342c'; g.beginPath(); g.roundRect ? g.roundRect(2, 2, 124, 44, 10) : g.rect(2, 2, 124, 44); g.fill(); g.strokeStyle = '#1b1608'; g.lineWidth = 4; g.stroke();
+  g.fillStyle = '#fff'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('THIEF', 64, 26);
+  return new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false });
+})();
+function crookKit(base) {
+  const dark = ri(['#141414', '#1f2328', '#2a2c30', '#3a2a22', '#1f2f2a']);
+  return { ...base, female: false, hairStyle: ri(['short', 'fade', 'bald', 'short']), shirt: dark, sleeve: dark, collar: dark, longSleeve: true, hood: dark, pants: ri(['#1b1b1b', '#26365a', '#2a2c30']), jeans: true,
+    shoes: ri(['#f2f2f2', '#141414', '#d8342c']), sole: '#f4f4f2', hat: Math.random() < .6 ? 'cap' : null, hatColor: ri(['#141414', '#b8261e', '#1f2f6a']), stubble: true, earrings: null };
+}
+// the gang, and a few more people about in each hamlet to be robbed
+function crimeSetup() {
+  for (const H of HAMLETS) {
+    if (H.name !== 'Magboro' && H.name !== 'Mowe') continue;
+    const v = { name: H.name, x: (H.x0 + H.x1) / 2, z: H.zc, y: TOWN.y, houses: [], civs: [], sand: [H.x0 - 6, H.x1 + 6, H.z0 - 6, H.z1 + 6], place: 'village' };
+    CRIME.homes.push(v);
+    for (let k = 0; k < 8; k++) makeCivilian({ ...v, civs: [], place: k % 2 ? 'city' : 'village' }, { adult: true });
+    for (let k = 0; k < 5; k++) {
+      const c = makeCivilian(v, { adult: true, female: false, crook: true });
+      c.crook = { home: v, mode: 'lurk', t: RM(6, 30), target: null, loot: 0, fromPlayer: false };
+      const m = new THREE.Sprite(thiefMat); m.scale.set(1.6, .6, 1); m.position.y = 2.6; m.visible = false; c.g.add(m); c.thiefMark = m;
+      CRIME.crooks.push(c);
+    }
+  }
+}
+const crookFree = c => c.crook && (c.crook.mode === 'lurk');
+// what a crook or a responding officer does this frame: [mx, mz, speed], or null to carry on as usual
+function crimeStep(c, dt, px, pz) {
+  if (c.copTask) {
+    const t = c.copTask.crook;
+    if (!t || !t.crook || t.crook.mode !== 'flee' || !t.active) { c.copTask = null; c.state = 'idle'; return null; }
+    const dx = t.g.position.x - px, dz = t.g.position.z - pz, d = Math.hypot(dx, dz);
+    c.state = 'chase';
+    if (d < 1.7) { arrestCrook(t, c); c.copTask = null; c.state = 'idle'; return [0, 0, 0]; }
+    if (Math.random() < dt * .25) showBubble(c, rp(['Stop! Police!', 'Hold it there!', 'You can run but you can’t hide!', 'Stop that man!']), 2.2);
+    return [dx, dz, 7.6];
+  }
+  const K = c.crook; if (!K) return null;
+  K.t -= dt;
+  if (K.mode === 'caught') { c.state = 'idle'; if (K.t < 0) { const v = K.home; c.g.position.set(RM(v.sand[0], v.sand[1]), v.y, RM(v.sand[2], v.sand[3])); Object.assign(K, { mode: 'lurk', t: RM(30, 90), loot: 0, fromPlayer: false }); c.thiefMark.visible = false; } return [0, 0, 0]; }
+  if (K.mode === 'lurk') {
+    if (K.t > 0) return null;
+    const near = Math.hypot(P.pos.x - px, P.pos.z - pz);
+    if (!P.driving && !INSIDE.at && mode === 'play' && near < 38 && S.time - CRIME.lastPlayer > 120 && LAND.money > 2000 && Math.random() < .55) { K.target = 'player'; K.mode = 'stalk'; K.t = 22; return null; }
+    let best = null, bd = 34;
+    for (const o of civilians) { if (o === c || !o.active || o.cop || o.crook || o.child || o.riding || o.state === 'down' || o.fixedY !== undefined || o.robbedT > 0) continue; const d = Math.hypot(o.g.position.x - px, o.g.position.z - pz); if (d < bd) { bd = d; best = o; } }
+    if (best) { K.target = best; K.mode = 'stalk'; K.t = 22; } else K.t = RM(8, 20);
+    return null;
+  }
+  if (K.mode === 'stalk') {
+    const T = K.target === 'player' ? P.pos : K.target?.g?.position; if (!T) { K.mode = 'lurk'; K.t = RM(8, 20); return null; }
+    const dx = T.x - px, dz = T.z - pz, d = Math.hypot(dx, dz);
+    if (K.t < 0 || d > 45 || (K.target === 'player' && (P.driving || INSIDE.at))) { K.mode = 'lurk'; K.t = RM(10, 25); return null; }
+    c.state = 'walk';
+    if (d < 1.3) { steal(c); return [0, 0, 0]; }
+    return [dx, dz, d < 6 ? 1.6 : 2.2];
+  }
+  if (K.mode === 'flee') {
+    // run from whoever's closest behind: an officer, or you
+    let fx = 0, fz = 0, chased = 70;
+    for (const o of civilians) if (o.copTask?.crook === c) { const d = Math.hypot(o.g.position.x - px, o.g.position.z - pz); chased = Math.min(chased, d); fx += (px - o.g.position.x) / (d + 1); fz += (pz - o.g.position.z) / (d + 1); }
+    const dp = Math.hypot(P.pos.x - px, P.pos.z - pz); if (dp < 45 && K.fromPlayer) { chased = Math.min(chased, dp); fx += (px - P.pos.x) / (dp + 1) * 1.5; fz += (pz - P.pos.z) / (dp + 1) * 1.5; }
+    if (!fx && !fz) { const v = K.home; fx = v.x - px + Math.sin(c.phase) * 20; fz = v.z + 80 - pz; }
+    c.state = 'chase';
+    if (K.t < 0 && chased >= 70) {   // clean away
+      if (K.fromPlayer && dp < 300) toast('💨 The thief got away', `${NAIRA(K.loot)} gone. Next time chase him down, or stay out of reach`);
+      Object.assign(K, { mode: 'lurk', t: RM(40, 90), loot: 0, fromPlayer: false }); c.thiefMark.visible = false; return null;
+    }
+    return [fx, fz, 4.9];
+  }
+  return null;
+}
+function steal(c) {
+  const K = c.crook;
+  if (K.target === 'player') {
+    const amt = Math.max(1000, Math.min(60000, Math.round(LAND.money * RM(.015, .04) / 100) * 100));
+    LAND.money -= amt; LAND.changed = true; K.loot = amt; K.fromPlayer = true; CRIME.lastPlayer = S.time;
+    toast('👜 Pickpocketed!', `A thief took ${NAIRA(amt)}. Chase him and press E to grab him, or leave it to the police`); sfx('hurt');
+    showBubble(c, rp(['Sharp sharp!', 'Thank you o!', 'Na God dey give!']), 2);
+  } else {
+    const v = K.target; K.loot = Math.round(RM(2000, 15000) / 100) * 100; K.fromPlayer = false; v.robbedT = 30;
+    showBubble(v, rp(['Thief! Thief!', 'Ole! Ole! My bag!', 'Help! He took my money!', 'Police! Thief!']), 4);
+    v.state = 'idle'; v.timer = 6;
+  }
+  K.mode = 'flee'; K.t = 25; c.thiefMark.visible = true;
+  callPolice(c);
+}
+// the call: officers within reach go, and two more come running in from down the road
+function callPolice(c) {
+  const px = c.g.position.x, pz = c.g.position.z; let n = 0;
+  for (const o of civilians) if (o.cop && o.active && !o.copTask && Math.hypot(o.g.position.x - px, o.g.position.z - pz) < 140 && n < 2) { o.copTask = { crook: c }; n++; }
+  for (let k = n; k < 3; k++) {
+    const a = RM(0, TAU), x = px + Math.sin(a) * 55, z = pz + Math.cos(a) * 55;
+    const v = { x, z, y: TOWN.y, houses: [], civs: [], sand: [x - 2, x + 2, z - 2, z + 2], place: 'city' };
+    const o = makeCivilian(v, { adult: true, cop: true }); o.g.position.set(x, groundAt(x, z), z); o.copTask = { crook: c }; o.responder = true; o.active = true; CRIME.responders.push(o);
+    showBubble(o, 'Police! Stop that man!', 2.5);
+  }
+}
+function arrestCrook(t, by) {
+  const K = t.crook; if (!K || K.mode !== 'flee') return;
+  showBubble(by || t, by ? rp(['You’re under arrest!', 'Hands where I can see them!', 'Game over, my friend.']) : 'Okay, okay!', 3);
+  if (K.fromPlayer) { LAND.money += K.loot; LAND.changed = true; toast('👮 Thief caught!', `${by ? 'The police got' : 'You got'} your ${NAIRA(K.loot)} back${by ? '' : ' · +₦5,000 reward'}`); if (!by) earn(5000, null); }
+  else if (!by) { earn(10000, null); toast('🦸 Thief caught!', `You stopped a pickpocket and returned ${NAIRA(K.loot)} · +₦10,000 reward`); }
+  else if (Math.hypot(t.g.position.x - P.pos.x, t.g.position.z - P.pos.z) < 80) toast('👮 Thief arrested', 'The police caught a pickpocket');
+  Object.assign(K, { mode: 'caught', t: 7, loot: 0, fromPlayer: false }); t.thiefMark.visible = false;
+  for (const o of civilians) if (o.copTask?.crook === t) o.copTask = null;
+}
+// you, grabbing a running thief
+function nearThief() { if (P.driving) return null; for (const c of CRIME.crooks) if (c.crook.mode === 'flee' && Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z) < 2.4 && Math.abs(c.g.position.y - P.pos.y) < 2) return c; return null; }
+// responding officers go back where they came from once it's over
+function crimeTidy(dt) {
+  CRIME.responders = CRIME.responders.filter(o => {
+    if (o.copTask) return true;
+    o.goneT = (o.goneT || 0) + dt;
+    if (o.goneT > 20 && Math.hypot(o.g.position.x - P.pos.x, o.g.position.z - P.pos.z) > 60) { civRoot.remove(o.g); if (o.human) { disposeHuman(o.human); o.human = null; } const i = civilians.indexOf(o); if (i >= 0) civilians.splice(i, 1); return false; }
+    return true;
+  });
+  for (const c of civilians) if (c.robbedT > 0) c.robbedT -= dt;
+}
+crimeSetup();
 /* ---------- main loop ---------- */
 if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(30);
 /* Peaceful mode: no titans at all. Toggle with T in game or the button on the start screen. */
@@ -13718,7 +13850,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
-  updateInside();
+  updateInside(); crimeTidy(dt);
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
   if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
