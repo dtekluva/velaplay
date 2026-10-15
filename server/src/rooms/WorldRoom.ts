@@ -7,6 +7,7 @@ import { onPlotNews, onTell } from "../land";
 import { TRACKS, LISTS, XF, trackMs } from "../music";
 import { startVisit, sampleVisit, saveVisit, live, type Visit } from "../visits";
 import { onTitle, progressOf, titleOf, GUEST_REP_MAX } from "../progress";
+import { storeText, userByName } from "../phone";
 
 // what everyone sees of a player: position, facing, animation, vehicle, and their look
 export class Player extends Schema {
@@ -69,6 +70,7 @@ export class WorldRoom extends Room<WorldState> {
   private stopTell?: () => void;
   private stopTitle?: () => void;
   private lastRep = new Map<string, number>();
+  private lastSms = new Map<string, number>();
   private lastDJ = new Map<string, number>();
   private lastRing = new Map<string, number>();
   private lastRideReq = new Map<string, number>();
@@ -229,6 +231,22 @@ export class WorldRoom extends Room<WorldState> {
       const now = Date.now(); if (now - (this.lastRep.get(client.sessionId) || 0) < 3000) return; this.lastRep.set(client.sessionId, now);
       p.title = titleOf(Math.min(GUEST_REP_MAX, Math.max(0, Math.round(+m?.rep || 0))));
     });
+    this.onMessage("sms", async (client, m: any) => {   // a text to another player: { to: their name, text }. Live if they're here; kept for an account that's away
+      const me = this.state.players.get(client.sessionId); if (!me) return;
+      const now = Date.now(); if (now - (this.lastSms.get(client.sessionId) || 0) < 1200) return client.send("smserr", { error: "Slow down a little" }); this.lastSms.set(client.sessionId, now);
+      const text = String(m?.text || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 240), to = String(m?.to || "").trim().slice(0, 40);
+      if (!text || !to) return;
+      const myId = (client as any).userData?.id || null, base = (n: string) => n.replace(/ \(guest\)$/, "").toLowerCase();
+      const there = this.clients.find((c) => { const p = this.state.players.get(c.sessionId); return p && c !== client && (p.name.toLowerCase() === to.toLowerCase() || base(p.name) === base(to)); });
+      const acct = there ? null : await userByName(to).catch(() => undefined);
+      const toId = there ? ((there as any).userData?.id || null) : acct?.id || null;
+      if (!there && !toId) return client.send("smserr", { error: `${to} isn't online` + (myId ? " and has no account to leave it for" : "") });
+      const toName = there ? this.state.players.get(there.sessionId)!.name : acct!.name;
+      if (toId && myId) storeText(myId, me.name, toId, text, !!there).catch(() => {});
+      else if (toId && !myId) storeText(null, me.name, toId, text, !!there).catch(() => {});
+      if (there) there.send("sms", { from: me.name, text, at: now });
+      client.send("smsok", { to: toName, text, at: now, live: !!there });
+    });
     this.onMessage("chat", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p) return;
       const text = typeof m?.text === "string" ? m.text.replace(/\s+/g, " ").trim().slice(0, 160) : "";
@@ -283,6 +301,6 @@ export class WorldRoom extends Room<WorldState> {
     const uid = (client as any).userData?.id;   // the host leaving ends their party
     if (uid) this.state.parties.forEach((pa, key) => { if (pa.owner === uid) { this.state.parties.delete(key); this.broadcast("partyend", { key, name: pa.name }); } });
     this.state.players.delete(client.sessionId);
-    this.lastChat.delete(client.sessionId); this.lastRep.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
+    this.lastChat.delete(client.sessionId); this.lastRep.delete(client.sessionId); this.lastSms.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
   }
 }

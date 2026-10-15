@@ -149,6 +149,16 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #phone .phBtn{align-self:flex-start;border:0;border-radius:10px;padding:5px 10px;background:var(--brass);color:#14100a;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 #phone .phLadder{display:flex;flex-wrap:wrap;gap:4px}#phone .phLadder span{font-size:10.5px;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.06);opacity:.55}#phone .phLadder span.got{opacity:1;background:rgba(214,174,95,.25)}
 #phone input,#phone textarea,#phone select{font:inherit;font-size:13px;color:#f1ebda;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:7px 9px;width:100%;box-sizing:border-box}
+#phone .phIcon{position:relative}#phone .phBadge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#d8342c;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}#phone .phBadge:empty{display:none}
+#phone .phThread{flex:1;min-height:200px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:4px 0}
+#phone .phMsg{align-self:flex-start;max-width:80%;background:rgba(255,255,255,.12);padding:7px 10px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.35;overflow-wrap:anywhere}#phone .phMsg.mine{align-self:flex-end;background:#2f7a4a;border-radius:14px 14px 4px 14px}
+#phone .phSend{display:flex;gap:6px}#phone .phSend input{flex:1}#phone .phSend .phBtn{align-self:stretch}
+#phone .phChips{display:flex;flex-wrap:wrap;gap:6px}#phone .phChip{border:0;border-radius:12px;padding:4px 9px;background:rgba(255,255,255,.1);color:#f1ebda;font:inherit;font-size:12px;cursor:pointer}
+#phone .phRow{display:flex;flex-direction:column;gap:2px;text-align:left;border:0;border-radius:12px;padding:9px 11px;background:rgba(255,255,255,.07);color:#f1ebda;font:inherit;cursor:pointer}#phone .phRow:hover{background:rgba(255,255,255,.12)}
+#phone .phWide{align-self:stretch;padding:10px;font-size:14px;text-align:center}#phone .phSub{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
+#phone .phList{display:flex;flex-direction:column;gap:4px}#phone .phLine{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.06)}#phone .phLine span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#phone .pos{color:#7fd08a}#phone .neg{color:#f08a7a}
+#phone .phGallery{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}#phone .phGallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;cursor:pointer}#phone .phPhoto{width:100%;border-radius:10px}
+#phone a.phBtn{text-decoration:none}#phone.flash .phScreen{animation:phFlash .3s}@keyframes phFlash{0%{filter:brightness(3)}100%{filter:none}}
 @media (max-width:760px){#phone{right:8px;left:8px;width:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));height:min(520px,calc(100% - 200px))}}
 #exhibit{position:absolute;right:16px;top:190px;width:min(400px,40vw);max-height:calc(100% - 270px);overflow:auto;padding:14px 18px 12px;background:rgba(18,25,16,.93);border:1px solid var(--edge);border-top:3px solid var(--brass);display:flex;flex-direction:column;gap:8px;pointer-events:auto;color:var(--ink)}
 #exhibit .exNo{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -8795,7 +8805,7 @@ function trainDest(st) {   // where you're going: the station nearest your map p
 }
 function boardTrain(st) {
   if (LAND.money < TRAIN.fare) { toast('', `A ticket is ${NAIRA(TRAIN.fare)}; you have ${NAIRA(LAND.money)}`); return; }
-  LAND.money -= TRAIN.fare; saveLand(); sfx('refill');
+  LAND.money -= TRAIN.fare; saveLand(); bankSpend(TRAIN.fare, 'Naija Rail ticket'); sfx('refill');
   const to = trainDest(st), R = TRAIN.ride; if (!R.T) { R.T = makeTrain(); R.T.rider = true; }
   const dir = to.s > st.s ? 1 : -1, end = st === TRAIN.stations[0] || st === TRAIN.stations[TRAIN.stations.length - 1], Bk = end && endBlocks()[dir > 0 ? 0 : 1], X = end && !(Bk && blockBusy(Bk, R.T)) && RAILW.XOV[dir > 0 ? 0 : 1];   // (with another train in at the end, yours waits on the far side of the platform and goes straight out)
   Object.assign(R.T, { s: end ? st.s + dir * 30 : st.s, dir, v: 0, dwell: 3, cruise: 34, stopFor: 6, next: null, cross: X ? { a: X.a, b: X.b, inc: dir > 0, from: -dir, to: dir } : null });   // (from a terminus it leaves on the line trains come in on and crosses over)
@@ -8883,7 +8893,7 @@ function flyFrom(d) {
   if (FLIGHT.busy || FLY.on || !AIR_ROUTES) return;
   const city = CITY_NAMES[d.to];
   if (LAND.money < FLIGHT.fare) { toast('', `A seat to ${city} is ${NAIRA(FLIGHT.fare)}; you have ${NAIRA(LAND.money)}`); return; }
-  LAND.money -= FLIGHT.fare; saveLand(); FLIGHT.busy = true; sfx('refill');
+  LAND.money -= FLIGHT.fare; saveLand(); bankSpend(FLIGHT.fare, `Oyo Skylink to ${CITY_NAMES[d.to]}`); FLIGHT.busy = true; sfx('refill');
   const fade = $('fade'); fade.style.transition = 'opacity .6s'; fade.style.opacity = '1';
   toast(`✈ Oyo Skylink OS ${FLIGHT.no} · ${CITY_NAMES[d.city]} → ${city}`, `${NAIRA(FLIGHT.fare)} · boarding now · Space skips to the landing`);
   setTimeout(() => {
@@ -9168,7 +9178,7 @@ function enterCar(c) {
     DRIVABLES.push(c);
   }
   for (const h of hooks) h.state = 'idle';
-  P.driving = c; P.vel.set(0, 0, 0); yaw = c.yaw; pitch = -.12;
+  P.driving = c; P.vel.set(0, 0, 0); yaw = c.yaw; pitch = -.12; if (c.cab) taxiBoarded(c);
   if (isAir(c)) { engineOn(); sfx('clank'); toast('', 'Hold W for full throttle: it lifts off by itself · ↑↓ pitch · A/D bank and turn · Space brakes · E to get out once stopped'); return; }
   if (c.kind === 'boat') { engineOn(); sfx('clank'); toast('', 'W/S throttle · A/D steer · Space slows · E to get off at the jetty or the beach'); return; }
   if (c.kind === 'dozer') { engineOn(); sfx('clank'); toast('Bulldozer', 'W/S drive · A/D steer · L lowers the blade to level your land at this height · E to get out'); return; }
@@ -9662,7 +9672,7 @@ addEventListener('mousemove', e => {
 });
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
 document.addEventListener('pointerlockchange', () => {
-  if (document.pointerLockElement) hadLock = true;
+  if (document.pointerLockElement) { hadLock = true; if (PHONE.open) phoneToggle(false); }
   else if (mode === 'play' && hadLock && !ARR.on && !PHONE.open) setMode('pause');   // (the phone frees the mouse without pausing)
 });
 
@@ -10510,7 +10520,7 @@ const fillNeed = (k, v) => { NEEDS[k] = clamp(NEEDS[k] + v, 0, 100); };
 function eat(name, price, gain, where) {
   if (LAND.money < price) { toast('', `${name} is ${NAIRA(price)}; you have ${NAIRA(LAND.money)}`); return; }
   if (NEEDS.h > 92) { toast('', 'You’re full. Maybe later'); return; }
-  LAND.money -= price; LAND.changed = true; saveLand(); goalEv('eat');
+  LAND.money -= price; LAND.changed = true; saveLand(); goalEv('eat'); bankSpend(price, name);
   needDo('🍲', name, `${NAIRA(price)} · ${where}`, 1.6, () => { fillNeed('h', gain); fillNeed('b', -Math.round(gain / 8)); });
 }
 function useToilet(price, where) {
@@ -10731,8 +10741,8 @@ function saveLand() {
   LAND.changed = false;
   cloudSaveSoon();   // signed in: the same save goes to your account a moment later
 }
-function earn(n, why) {
-  LAND.money += n; LAND.changed = true;
+function earn(n, why, label) {
+  LAND.money += n; LAND.changed = true; try { bankNote(n, label || why || 'Earnings'); BANK.earned += n; } catch (e) {}   // (on the bank's statement)
   const el = $('money'); if (el) { el.classList.remove('gain'); void el.offsetWidth; el.classList.add('gain'); }
   if (why) toast(`+${NAIRA(n)}`, why);
 }
@@ -13042,10 +13052,10 @@ async function netJoin() {
     const Colyseus = await loadColyseus();
     const opts = { x: P.pos.x, y: P.pos.y, z: P.pos.z, look: lookOut(), device: TOUCH.on ? 'phone' : 'desktop', ...(NET.token ? { token: NET.token } : { name: NET.guest, rep: GOALS.rep }) };   // device: for the visit log
     const room = await new Colyseus.Client(NET.base.replace(/^http/, 'ws')).joinOrCreate('world', opts);
-    NET.room = room; NET.retry = 0; NET.sent = null; goalsLoad();
+    NET.room = room; NET.retry = 0; NET.sent = null; goalsLoad(); smsLoad();
     room.onMessage('chat', m => chatIn(m));
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
-    room.onMessage('trade', tradeNews);
+    room.onMessage('trade', tradeNews); room.onMessage('sms', smsIn); room.onMessage('smsok', smsSent); room.onMessage('smserr', m => toast('💬 Not sent', m.error || ''));
     room.onMessage('rtc', m => onRtc(m));
     // the server's clock (for the shared club music): keep the reading with the shortest round trip
     NET.clk = { off: 0, rtt: 1e9 };
@@ -13689,7 +13699,7 @@ function driverHire(x, z) {
 function driverStop(msg, arrived) {
   if (!DRIVER.on) return; DRIVER.on = false;
   const fare = arrived ? DRIVER.fare : Math.round(1500 + 8 * Math.min(DRIVER.done, DRIVER.dist));
-  LAND.money = Math.max(0, LAND.money - fare); saveLand();
+  LAND.money = Math.max(0, LAND.money - fare); saveLand(); bankSpend(fare, `Driver: ${DRIVER.name}`);
   toast(arrived ? `🚕 You’ve arrived` : '🚕 Driver dismissed', `${msg ? msg + ' · ' : ''}paid ${DRIVER.name} ${NAIRA(fare)}`);
   DRIVER.path = null; DRIVER.dest = null;
 }
@@ -15079,11 +15089,11 @@ function goalDone(g) {
   if (GOALS.claimed.includes(g.id)) return;
   GOALS.claimed.push(g.id); const tier0 = repTier(GOALS.rep);
   const mult = 1 + repTier(GOALS.rep) * .05, pay = Math.round(GOAL_PAY[g.tier] * mult / 100) * 100;
-  earn(pay, null); GOALS.rep += GOAL_REP[g.tier];
+  earn(pay, null, `Daily goal: ${g.text}`); GOALS.rep += GOAL_REP[g.tier];
   let extra = '';
   if (GOALS.claimed.length >= 3 && GOALS.set.every(q => GOALS.claimed.includes(q.id))) {   // all three: the streak and the bonus
     GOALS.streak = GOALS.fullDay === lagosDay(Date.now() - 86400e3) ? GOALS.streak + 1 : 1; GOALS.fullDay = GOALS.day;
-    const bonus = Math.round(GOAL_ALL.pay * Math.min(2, 1 + (GOALS.streak - 1) * .25) / 100) * 100; earn(bonus, null); GOALS.rep += GOAL_ALL.rep;
+    const bonus = Math.round(GOAL_ALL.pay * Math.min(2, 1 + (GOALS.streak - 1) * .25) / 100) * 100; earn(bonus, null, 'Daily goals: all three'); GOALS.rep += GOAL_ALL.rep;
     extra = ` · all three done: +${NAIRA(bonus)} · ${GOALS.streak}-day streak 🔥`;
   }
   toast(`🏅 Goal done: ${g.text}`, `+${NAIRA(pay)} · +${GOAL_REP[g.tier]} reputation${extra}`); sfx('refill');
@@ -15134,7 +15144,7 @@ const ph = (tag, cls, text, attrs = {}) => { const e = document.createElement(ta
 PHONE.apps.home = { render: () => {
   const grid = ph('div', 'phGrid');
   for (const [id, icon, name] of PHONE_APPS) grid.append(ph('button', 'phApp', null, { type: 'button', on: { click: () => phoneApp(id) } }));
-  [...grid.children].forEach((b, i) => { b.append(ph('span', 'phIcon', PHONE_APPS[i][1]), ph('span', 'phName', PHONE_APPS[i][2])); });
+  [...grid.children].forEach((b, i) => { const ic = ph('span', 'phIcon', PHONE_APPS[i][1]); ic.append(ph('span', 'phBadge', PHONE_APPS[i][0] === 'messages' ? (SMS.unread || '') : '', { 'data-badge': PHONE_APPS[i][0] })); b.append(ic, ph('span', 'phName', PHONE_APPS[i][2])); });
   const who = ph('div', 'phWho'); who.append(ph('b', null, (NET.user?.name || NET.guest || 'You')), ph('span', null, `🏅 ${repTitle(GOALS.rep)} · ${GOALS.rep} rep`));
   return [who, grid, ph('div', 'phHint', 'G to put the phone away')];
 } };
@@ -15157,6 +15167,140 @@ PHONE.apps.goals = { render: () => {
 } };
 const phHead = (title, sub) => { const h = ph('div', 'phHead'); h.append(ph('button', 'phBack', '‹', { type: 'button', 'aria-label': 'Back', on: { click: () => phoneApp('home') } }), ph('b', null, title)); if (sub) h.append(ph('span', 'phDim', sub)); return h; };
 const PHONE_APPS = [['goals', '🏅', 'Goals']];
+// ---- Messages: text anyone online by name (accounts also get texts left for them while away, and keep their history) ----
+const SMS = { list: [], thread: null, draftTo: '', unread: 0, loaded: false };
+const SMS_STORE = 'giantwood-texts';
+try { SMS.list = JSON.parse(localStorage.getItem(SMS_STORE) || '[]'); } catch (e) {}
+const smsSave = () => { try { localStorage.setItem(SMS_STORE, JSON.stringify(SMS.list.slice(-300))); } catch (e) {} };
+const smsWho = m => (m.mine ? m.to : m.from).replace(/ \(guest\)$/, '');
+const myNames = () => [NET.user?.name, NET.guest, NET.guest && NET.guest + ' (guest)'].filter(Boolean).map(s => s.toLowerCase());
+function smsCount() { SMS.unread = SMS.list.filter(m => !m.mine && !m.read).length; const b = document.querySelector('#phone [data-badge=messages]'); if (b) b.textContent = SMS.unread || ''; }
+function smsIn(m) {   // a text arrived
+  SMS.list.push({ from: m.from, to: NET.user?.name || NET.guest, text: m.text, at: m.at || Date.now(), mine: false, read: PHONE.open && PHONE.app === 'messages' && SMS.thread === m.from.replace(/ \(guest\)$/, '') });
+  smsSave(); smsCount(); sfx('swap'); if (!PHONE.open || PHONE.app !== 'messages') toast(`💬 ${m.from}`, m.text.length > 70 ? m.text.slice(0, 68) + '…' : m.text); phoneRefresh();
+}
+function smsSend(to, text) {
+  to = String(to || '').trim(); text = String(text || '').trim(); if (!to || !text) return;
+  if (!NET.room) { toast('', 'Texts go through the online world: you’re offline right now'); return; }
+  NET.room.send('sms', { to, text: text.slice(0, 240) });
+}
+function smsSent(m) { SMS.list.push({ from: NET.user?.name || NET.guest, to: m.to, text: m.text, at: m.at, mine: true, read: true }); SMS.thread = m.to.replace(/ \(guest\)$/, ''); smsSave(); phoneRefresh(); if (!m.live) toast('💬 Sent', `${m.to} isn’t on right now: they’ll get it next time they play`); }
+async function smsLoad() {   // an account's history from the server, merged with this device's
+  if (!NET.token) return;
+  try { const r = await api('/phone/messages'); const seen = new Set(SMS.list.map(m => m.at + '|' + m.text)); for (const m of r.messages) if (!seen.has(m.at + '|' + m.text)) SMS.list.push(m); SMS.list.sort((a, b) => a.at - b.at); smsSave(); smsCount(); const n = r.messages.filter(m => !m.mine && !m.read).length; if (n) toast(`💬 ${n} new text${n > 1 ? 's' : ''}`, 'Open your phone (G) · Messages'); phoneRefresh(); } catch (e) {}
+}
+PHONE.apps.messages = { render: () => {
+  if (SMS.thread) {   // one conversation
+    const who = SMS.thread, msgs = SMS.list.filter(m => smsWho(m).toLowerCase() === who.toLowerCase()), out = [phHead('💬 ' + who)];
+    for (const m of msgs) if (!m.mine && !m.read) { m.read = true; if (NET.token) api('/phone/read', 'POST', { from: m.from }).catch(() => {}); }
+    smsSave(); smsCount();
+    const box = ph('div', 'phThread'); for (const m of msgs.slice(-60)) { const b = ph('div', 'phMsg' + (m.mine ? ' mine' : ''), m.text); b.title = new Date(m.at).toLocaleString(); box.append(b); }
+    if (!msgs.length) box.append(ph('div', 'phDim', 'Say hello.'));
+    const f = ph('form', 'phSend'), inp = ph('input', null, null, { name: 'text', maxlength: '240', placeholder: 'Message', autocomplete: 'off' });
+    f.append(inp, ph('button', 'phBtn', 'Send', { type: 'submit' })); f.addEventListener('submit', e => { e.preventDefault(); smsSend(who, inp.value); inp.value = ''; });
+    const back = out[0].querySelector('.phBack'); back.onclick = () => { SMS.thread = null; phoneRefresh(); };
+    setTimeout(() => { box.scrollTop = box.scrollHeight; inp.focus(); }, 0);
+    return [...out, box, f];
+  }
+  const out = [phHead('💬 Messages', NET.room ? 'Text anyone in the world by name' : 'Offline: texts need the online world')];
+  const f = ph('form', 'phSend'), inp = ph('input', null, null, { name: 'to', placeholder: 'Name', autocomplete: 'off', list: 'phPeople' });
+  const dl = ph('datalist', null, null, { id: 'phPeople' }); NET.room?.state.players.forEach((p, id) => { if (id !== NET.room.sessionId) dl.append(ph('option', null, null, { value: p.name.replace(/ \(guest\)$/, '') })); });
+  f.append(inp, dl, ph('button', 'phBtn', 'New', { type: 'submit' })); f.addEventListener('submit', e => { e.preventDefault(); const n = inp.value.trim(); if (n) { SMS.thread = n; phoneRefresh(); } }); out.push(f);
+  const online = []; NET.room?.state.players.forEach((p, id) => { if (id !== NET.room.sessionId) online.push(p.name); });
+  if (online.length) { const row = ph('div', 'phChips'); for (const n of online.slice(0, 12)) row.append(ph('button', 'phChip', '🟢 ' + n.replace(/ \(guest\)$/, ''), { type: 'button', on: { click: () => { SMS.thread = n.replace(/ \(guest\)$/, ''); phoneRefresh(); } } })); out.push(row); }
+  const threads = new Map(); for (const m of SMS.list) threads.set(smsWho(m), m);
+  if (!threads.size) out.push(ph('div', 'phDim', 'No texts yet.'));
+  for (const [who, m] of [...threads].sort((a, b) => b[1].at - a[1].at)) {
+    const unread = SMS.list.filter(q => !q.mine && !q.read && smsWho(q) === who).length, row = ph('button', 'phRow', null, { type: 'button', on: { click: () => { SMS.thread = who; phoneRefresh(); } } });
+    row.append(ph('b', null, who + (unread ? ` · ${unread} new` : '')), ph('span', 'phDim', (m.mine ? 'You: ' : '') + (m.text.length > 46 ? m.text.slice(0, 44) + '…' : m.text))); out.push(row);
+  }
+  return out;
+} };
+
+// ---- Taxi: one comes to the nearest road; get in and it drives you to your map pin (or pick one on the map) ----
+const CAB = { car: null, state: '', t: 0 };
+function taxiCall() {
+  if (CAB.state) { toast('', CAB.state === 'coming' ? 'Your taxi is on its way' : 'Your taxi is waiting on the road nearby'); return; }
+  if (P.driving || INSIDE.at || FLY.on || TRAIN.ride.on) { toast('', 'Call a taxi when you’re outside and on foot'); return; }
+  let best = null, bd = 1e9; for (let r = 6; r <= 90 && !best; r += 6) for (let a = 0; a < 24; a++) { const x = P.pos.x + Math.cos(a / 24 * TAU) * r, z = P.pos.z + Math.sin(a / 24 * TAU) * r; if (kindAt(x, z) === 6 && Math.abs(heightAt(x, z) - P.pos.y) < 6) { const d = r; if (d < bd) { bd = d; best = [x, z]; } } }
+  if (!best) { toast('🚕 No taxis here', 'Walk to a road first'); return; }
+  CAB.state = 'coming'; CAB.t = 5 + Math.random() * 4; CAB.at = best; toast('🚕 Taxi on the way', `${['Musa', 'Tunde', 'Chinedu', 'Emeka', 'Sola', 'Ibrahim'][Math.floor(Math.random() * 6)]} is about ${Math.ceil(CAB.t)} seconds away · it’ll stop on the road near you`); phoneRefresh();
+}
+function updateTaxi(dt) {
+  if (CAB.state === 'coming' && (CAB.t -= dt) <= 0) {
+    const [x, z] = CAB.at, yaw = Math.atan2(P.pos.x - x, P.pos.z - z) + Math.PI / 2, c = makeDrivable(x, z, yaw, 'car');
+    scene.remove(c.g); c.g = makeTaxi(); scene.add(c.g); beamsFor(c.g, 'car').visible = false; placeCar(c); c.cab = true; CAB.car = c; CAB.state = 'waiting';
+    toast('🚕 Your taxi is here', WAY.on ? `Get in (E) and it’ll take you to ${WAY.name || 'your pin'}` : 'Get in (E), then pick where to go on the map (P)'); sfx('clank'); phoneRefresh();
+  }
+  if (CAB.state === 'riding' && P.driving !== CAB.car) CAB.state = 'done';
+  if ((CAB.state === 'done' || CAB.state === 'waiting') && CAB.car && Math.hypot(CAB.car.x - P.pos.x, CAB.car.z - P.pos.z) > (CAB.state === 'done' ? 50 : 400) && P.driving !== CAB.car) {   // it drives off once you're done (or gives up if you walked away)
+    scene.remove(CAB.car.g); const i = DRIVABLES.indexOf(CAB.car); if (i >= 0) DRIVABLES.splice(i, 1); CAB.car = null; CAB.state = ''; phoneRefresh();
+  }
+}
+function taxiBoarded(c) { if (c !== CAB.car) return; CAB.state = 'riding'; if (WAY.on) setTimeout(() => { if (P.driving === c && !DRIVER.on) driverHire(WAY.x, WAY.z); }, 400); }
+PHONE.apps.taxi = { render: () => {
+  const out = [phHead('🚕 Taxi', 'A driver to anywhere with a road')], card = ph('div', 'phCard');
+  if (WAY.on) { const d = Math.hypot(WAY.x - P.pos.x, WAY.z - P.pos.z); card.append(ph('b', null, `To ${WAY.name || 'your pin'}`), ph('span', 'phDim', `${(d / 1000).toFixed(1)} km away · about ${NAIRA(drvFare(d * 1.3))}`)); }
+  else card.append(ph('b', null, 'No destination yet'), ph('span', 'phDim', 'Pin a spot on the map (P, then click), or get in and pick one then'));
+  out.push(card);
+  const st = { coming: 'On its way…', waiting: 'Waiting on the road near you: get in (E)', riding: 'On the way', done: '' }[CAB.state] || '';
+  if (st) out.push(ph('div', 'phCard', st));
+  else out.push(ph('button', 'phBtn phWide', '🚕 Call a taxi', { type: 'button', on: { click: () => { taxiCall(); } } }));
+  out.push(ph('div', 'phDim', 'Fares are ₦1,500 plus ₦8 a metre, paid when you arrive. Take the wheel any time with W/S/A/D or E.'));
+  return out;
+} };
+
+// ---- Bank: your balance, money in and out today, the statement; send money ----
+const BANK = { log: [], last: null, earned: 0 };
+const BANK_STORE = 'giantwood-bank';
+try { Object.assign(BANK, JSON.parse(localStorage.getItem(BANK_STORE) || '{}')); } catch (e) {}
+BANK.last = null; BANK.earned = 0;
+const bankSave = () => { try { localStorage.setItem(BANK_STORE, JSON.stringify({ log: BANK.log.slice(-80) })); } catch (e) {} };
+function bankSpend(n, what) { try { bankNote(-n, what); BANK.earned -= n; } catch (e) {} }   // a purchase, named on the statement
+function bankNote(n, what) { if (!n) return; BANK.log.push({ at: Date.now(), n: Math.round(n), what }); if (BANK.log.length > 120) BANK.log.splice(0, BANK.log.length - 80); }
+function updateBank() {   // every second: anything not already noted (spending, mostly) goes on the statement too
+  if (BANK.last === null) { BANK.last = LAND.money; return; }
+  const d = LAND.money - BANK.last - BANK.earned; BANK.earned = 0; BANK.last = LAND.money;
+  if (Math.abs(d) >= 50) { bankNote(d, d < 0 ? 'Spent' : 'Received'); bankSave(); if (PHONE.open && PHONE.app === 'bank') phoneRefresh(); }
+}
+PHONE.apps.bank = { render: () => {
+  const out = [phHead('🏦 Bank', 'NaijaBank · current account')], card = ph('div', 'phCard'), today = new Date(Date.now() + 3600e3).toISOString().slice(0, 10);
+  const todays = BANK.log.filter(e => new Date(e.at + 3600e3).toISOString().slice(0, 10) === today), inn = todays.filter(e => e.n > 0).reduce((a, e) => a + e.n, 0), outn = -todays.filter(e => e.n < 0).reduce((a, e) => a + e.n, 0);
+  card.append(ph('span', 'phDim', 'Balance'), ph('b', 'phBig', NAIRA(LAND.money)), ph('span', 'phDim', `Today: +${NAIRA(inn)} in · −${NAIRA(outn)} out`)); out.push(card);
+  const btns = ph('div', 'phChips'); btns.append(ph('button', 'phBtn', '💸 Send money', { type: 'button', on: { click: () => openPay() } }), ph('button', 'phBtn', '🏠 Land offers', { type: 'button', on: { click: () => openOffers() } })); out.push(btns);
+  out.push(ph('b', 'phSub', 'Recent'));
+  const list = ph('div', 'phList'); for (const e of BANK.log.slice(-25).reverse()) { const r = ph('div', 'phLine'); r.append(ph('span', null, e.what), ph('b', e.n < 0 ? 'neg' : 'pos', (e.n < 0 ? '−' : '+') + NAIRA(Math.abs(e.n)))); list.append(r); }
+  if (!BANK.log.length) list.append(ph('div', 'phDim', 'Nothing yet.')); out.push(list);
+  if (NET.token) { const s = ph('div', 'phList'); s.append(ph('div', 'phDim', 'Loading payments with other players…')); out.push(ph('b', 'phSub', 'With other players'), s);
+    api('/phone/bank').then(r => { s.replaceChildren(); for (const e of r.rows) { const row = ph('div', 'phLine'); row.append(ph('span', null, `${e.out ? 'To' : 'From'} ${e.who || 'someone'} · ${e.kind === 'land' ? 'land' : e.kind === 'market' ? 'market' : 'sent'}`), ph('b', e.out ? 'neg' : 'pos', (e.out ? '−' : '+') + NAIRA(e.amount))); s.append(row); } if (!r.rows.length) s.append(ph('div', 'phDim', 'None yet.')); }).catch(() => { s.replaceChildren(ph('div', 'phDim', 'Couldn’t reach the bank.')); }); }
+  return out;
+} };
+
+// ---- Camera: a photo of what you see (without the screen's overlays), kept on this device ----
+const CAM = { snap: false, view: null, photos: [] };
+const camDB = () => new Promise((ok, no) => { try { const r = indexedDB.open('naijlife-photos', 1); r.onupgradeneeded = () => r.result.createObjectStore('p', { keyPath: 'at' }); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); } catch (e) { no(e); } });
+async function camAll() { try { const db = await camDB(); return await new Promise(ok => { const q = db.transaction('p').objectStore('p').getAll(); q.onsuccess = () => ok(q.result.sort((a, b) => b.at - a.at)); q.onerror = () => ok([]); }); } catch (e) { return []; } }
+async function camPut(p) { try { const db = await camDB(); db.transaction('p', 'readwrite').objectStore('p').put(p); const all = await camAll(); for (const o of all.slice(40)) db.transaction('p', 'readwrite').objectStore('p').delete(o.at); } catch (e) {} }
+async function camDel(at) { try { const db = await camDB(); db.transaction('p', 'readwrite').objectStore('p').delete(at); } catch (e) {} }
+function camTake() { CAM.snap = true; $('phone').classList.add('flash'); setTimeout(() => $('phone').classList.remove('flash'), 300); sfx('swap'); }
+function camAfterRender() {   // called right after the frame is drawn, while its pixels are still there to copy
+  if (!CAM.snap) return; CAM.snap = false;
+  try { const url = renderer.domElement.toDataURL('image/jpeg', .86), p = { at: Date.now(), url, where: (() => { let b = '', bd = 400; for (const [n, x, z] of fareSpots()) { const d = Math.hypot(x - mapPos().x, z - mapPos().z); if (d < bd) { bd = d; b = n; } } return b; })() };
+    camPut(p).then(() => { CAM.view = null; toast('📷 Photo saved', p.where ? 'Near ' + p.where.replace(/^the /i, '') : 'In your phone’s gallery'); phoneRefresh(); }); } catch (e) { toast('', 'The camera couldn’t take that one'); }
+}
+PHONE.apps.camera = { render: () => {
+  const out = [phHead('📷 Camera', 'Photos of what you see, kept on this device')];
+  if (CAM.view) { const p = CAM.view, img = ph('img', 'phPhoto', null, { src: p.url, alt: 'Your photo' }); out.push(img, ph('span', 'phDim', `${new Date(p.at).toLocaleString()}${p.where ? ' · near ' + p.where.replace(/^the /i, '') : ''}`));
+    const row = ph('div', 'phChips'), dl = ph('a', 'phBtn', '⬇ Save', { href: p.url, download: `naijlife-${p.at}.jpg` }); row.append(dl, ph('button', 'phBtn', '🗑 Delete', { type: 'button', on: { click: () => camDel(p.at).then(() => { CAM.view = null; phoneRefresh(); }) } }), ph('button', 'phBtn', '‹ Gallery', { type: 'button', on: { click: () => { CAM.view = null; phoneRefresh(); } } })); out.push(row); return out; }
+  out.push(ph('button', 'phBtn phWide', '📸 Take a photo', { type: 'button', on: { click: camTake } }), ph('div', 'phDim', 'Turn the camera first (put the phone away with G, frame your shot, open it again). The phone itself isn’t in the picture.'));
+  const grid = ph('div', 'phGallery'); out.push(grid);
+  camAll().then(all => { grid.replaceChildren(); for (const p of all) grid.append(ph('img', null, null, { src: p.url, alt: p.where || 'Photo', on: { click: () => { CAM.view = p; phoneRefresh(); } } })); if (!all.length) grid.append(ph('div', 'phDim', 'No photos yet.')); });
+  return out;
+} };
+PHONE_APPS.push(['messages', '💬', 'Messages'], ['taxi', '🚕', 'Taxi'], ['bank', '🏦', 'Bank'], ['camera', '📷', 'Camera']);
+setInterval(() => { if (mode === 'play') updateBank(); }, 1000);
+smsCount();
+
 $('phHome').addEventListener('click', () => phoneApp('home'));
 $('phClose').addEventListener('click', () => { phoneToggle(false); lockPointer(); });
 goalsDay(); repHud();
@@ -15186,7 +15330,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
-  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
+  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateTaxi(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
   if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
@@ -15216,7 +15360,7 @@ function frame(now) {
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
-  renderer.render(scene, camera);
+  renderer.render(scene, camera); camAfterRender();
 }
 requestAnimationFrame(frame);
 })();
