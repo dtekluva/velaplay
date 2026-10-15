@@ -10,6 +10,7 @@ import { trade } from "./trade";
 import { visits } from "./visits";
 import { progress } from "./progress";
 import { phone } from "./phone";
+import { market, settleAuctions } from "./market";
 import { WorldRoom } from "./rooms/WorldRoom";
 
 async function main() {
@@ -30,6 +31,7 @@ async function main() {
   app.use("/api", visits);
   app.use("/api", progress);
   app.use("/api", phone);
+  app.use("/api", market);
   app.get("/stats", (_req, res) => res.sendFile(path.join(__dirname, "..", "public", "stats.html")));   // the admin stats page
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -42,5 +44,6 @@ async function main() {
   game.define("world", WorldRoom);
   const port = Number(process.env.PORT || 2567);
   server.listen(port, () => console.log(`VelaPlay server on :${port}`));
+  setInterval(() => { settleAuctions().catch((e) => console.error("auctions", e)); }, 15_000);   // auctions that have ended
 }
 main().catch((e) => { console.error(e); process.exit(1); });

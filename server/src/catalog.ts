@@ -45,3 +45,16 @@ export function fenceCost(type: HouseType, fence: any, house?: any): number {
 }
 // which plot a bulldozer cell belongs to (cell index = i * 720 + j, i and j in metres from the map corner)
 export const plotOfCell = (idx: number) => `${Math.floor(Math.floor(idx / 720) / PLOT)},${Math.floor((idx % 720) / PLOT)}`;
+
+// cars sold at the Ikoyi showrooms (the game's models): price new. A dealer buys one back at 60% of what you paid.
+export const CARS: Record<string, { name: string; price: number }> = {
+  beetle72: { name: "1972 Volkswagen Beetle", price: 300_000 }, peugeot504: { name: "1978 Peugeot 504", price: 350_000 }, corolla88: { name: "1988 Toyota Corolla", price: 380_000 },
+  golf2: { name: "1989 Volkswagen Golf", price: 400_000 }, sunny93: { name: "1993 Nissan Sunny", price: 420_000 }, w123: { name: "1982 Mercedes-Benz 230E", price: 550_000 },
+  civic98: { name: "1998 Honda Civic", price: 600_000 }, picanto18: { name: "2018 Kia Picanto", price: 900_000 }, corolla05: { name: "2005 Toyota Corolla", price: 1_100_000 },
+  accord05: { name: "2005 Honda Accord", price: 1_200_000 }, camry08: { name: "2008 Toyota Camry", price: 1_500_000 }, danfo: { name: "1996 Toyota Hiace danfo", price: 1_400_000 },
+  sienna10: { name: "2010 Toyota Sienna", price: 1_900_000 }, elantra17: { name: "2017 Hyundai Elantra", price: 2_200_000 }, highlander15: { name: "2015 Toyota Highlander", price: 3_000_000 },
+  hilux19: { name: "2019 Toyota Hilux", price: 3_500_000 }, corolla21: { name: "2021 Toyota Corolla", price: 3_200_000 }, accord22: { name: "2022 Honda Accord", price: 4_500_000 },
+  camry23: { name: "2023 Toyota Camry", price: 5_000_000 }, saloon: { name: "Luxury saloon", price: 6_500_000 }, lc200: { name: "2016 Toyota Land Cruiser", price: 7_000_000 },
+  lux: { name: "Range Rover Sport", price: 9_000_000 }, lx570: { name: "2019 Lexus LX 570", price: 9_500_000 }, gwagon: { name: "G-Wagon", price: 12_000_000 },
+  sport: { name: "Sports coupé", price: 14_000_000 }, cullinan: { name: "2023 Rolls-Royce Cullinan", price: 16_000_000 }, huracan: { name: "2022 Lamborghini Huracán", price: 18_000_000 },
+};

@@ -158,7 +158,9 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #phone .phWide{align-self:stretch;padding:10px;font-size:14px;text-align:center}#phone .phSub{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
 #phone .phList{display:flex;flex-direction:column;gap:4px}#phone .phLine{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.06)}#phone .phLine span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#phone .pos{color:#7fd08a}#phone .neg{color:#f08a7a}
 #phone .phGallery{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}#phone .phGallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;cursor:pointer}#phone .phPhoto{width:100%;border-radius:10px}
-#phone a.phBtn{text-decoration:none}#phone.flash .phScreen{animation:phFlash .3s}@keyframes phFlash{0%{filter:brightness(3)}100%{filter:none}}
+#phone a.phBtn{text-decoration:none}#phone .phChip.on{background:var(--brass);color:#14100a;font-weight:600}
+#phone .phSwatch{width:26px;height:26px;border-radius:13px;border:2px solid rgba(255,255,255,.25);cursor:pointer}#phone .phSwatch.on{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass)}
+#phone .phCarRow{align-items:center}#phone .phCarRow .phBtn{padding:3px 9px}#phone .phForm{display:flex;flex-direction:column;gap:6px}#phone .phListing .phSend input{width:auto}#phone.flash .phScreen{animation:phFlash .3s}@keyframes phFlash{0%{filter:brightness(3)}100%{filter:none}}
 @media (max-width:760px){#phone{right:8px;left:8px;width:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));height:min(520px,calc(100% - 200px))}}
 #exhibit{position:absolute;right:16px;top:190px;width:min(400px,40vw);max-height:calc(100% - 270px);overflow:auto;padding:14px 18px 12px;background:rgba(18,25,16,.93);border:1px solid var(--edge);border-top:3px solid var(--brass);display:flex;flex-direction:column;gap:8px;pointer-events:auto;color:var(--ink)}
 #exhibit .exNo{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -9617,7 +9619,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -10042,7 +10044,7 @@ function updateHUD(dt) {
   const stn = !P.driving && stationNear(), stnA = stn && landAction();   // a station platform: the train, ahead of the people waiting on it
   const thS = !P.driving && nearThief(), doorS = !thS && !P.driving && doorSpot(), exS = !doorS && !P.driving && exhibitNear();
   const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !stn && !exS && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
+  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !stn && !exS && !salesDesk() && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (TRAIN.ride.on) { $('prompt').hidden = false; $('prompt').textContent = trainPrompt(); }
   else if (INSPECT.on) { $('prompt').hidden = false; $('prompt').textContent = 'Mouse · turn it   ·   wheel / W S · closer   ·   A D · next piece   ·   E · step back'; }
@@ -10059,6 +10061,7 @@ function updateHUD(dt) {
   else if (thS) $('prompt').textContent = '🦸 E · Grab the thief!';
   else if (doorS) $('prompt').textContent = doorS.label;
   else if (exS) $('prompt').textContent = `🔍 E · Look closer: ${exS.title}`;
+  else if (salesDesk()) $('prompt').textContent = '🔑 E · See the sales manager: buy a car';
   else if (rideSpot()) $('prompt').textContent = `E · Ask ${rideSpot().name} for a ride`;
   else if (!P.driving && surrenderNear()) $('prompt').textContent = 'E · Give yourself up · a quarter off the fine';
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
@@ -13052,10 +13055,10 @@ async function netJoin() {
     const Colyseus = await loadColyseus();
     const opts = { x: P.pos.x, y: P.pos.y, z: P.pos.z, look: lookOut(), device: TOUCH.on ? 'phone' : 'desktop', ...(NET.token ? { token: NET.token } : { name: NET.guest, rep: GOALS.rep }) };   // device: for the visit log
     const room = await new Colyseus.Client(NET.base.replace(/^http/, 'ws')).joinOrCreate('world', opts);
-    NET.room = room; NET.retry = 0; NET.sent = null; goalsLoad(); smsLoad();
+    NET.room = room; NET.retry = 0; NET.sent = null; goalsLoad(); smsLoad(); garageLoad();
     room.onMessage('chat', m => chatIn(m));
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
-    room.onMessage('trade', tradeNews); room.onMessage('sms', smsIn); room.onMessage('smsok', smsSent); room.onMessage('smserr', m => toast('💬 Not sent', m.error || ''));
+    room.onMessage('trade', tradeNews); room.onMessage('sms', smsIn); room.onMessage('market', marketNews); room.onMessage('smsok', smsSent); room.onMessage('smserr', m => toast('💬 Not sent', m.error || ''));
     room.onMessage('rtc', m => onRtc(m));
     // the server's clock (for the shared club music): keep the reading with the shortest round trip
     NET.clk = { off: 0, rtt: 1e9 };
@@ -15300,6 +15303,161 @@ PHONE.apps.camera = { render: () => {
 PHONE_APPS.push(['messages', '💬', 'Messages'], ['taxi', '🚕', 'Taxi'], ['bank', '🏦', 'Bank'], ['camera', '📷', 'Camera']);
 setInterval(() => { if (mode === 'play') updateBank(); }, 1000);
 smsCount();
+
+// ---- Garage: cars you own. Buy at a showroom on the Ikoyi boulevard (Ikoyi Motors, Eko Auto Mall, Prestige Cars Lagos);
+// have one brought to you anywhere; sell back to a dealer for 60%, or on the market. Accounts' cars are on the server;
+// a guest's on this device. ----
+const CAR_PRICES = {   // (the server's list: catalog.ts CARS)
+  beetle72: 300000, peugeot504: 350000, corolla88: 380000, golf2: 400000, sunny93: 420000, w123: 550000, civic98: 600000, picanto18: 900000, corolla05: 1100000, accord05: 1200000,
+  camry08: 1500000, danfo: 1400000, sienna10: 1900000, elantra17: 2200000, highlander15: 3000000, hilux19: 3500000, corolla21: 3200000, accord22: 4500000, camry23: 5000000,
+  saloon: 6500000, lc200: 7000000, lux: 9000000, lx570: 9500000, gwagon: 12000000, sport: 14000000, cullinan: 16000000, huracan: 18000000,
+};
+const carName = id => CAR_MODELS[id]?.name || (LUX[id]?.name ? LUX[id].name.replace(/^\w/, c => c.toUpperCase()) : id);
+const CAR_COLOURS = [0xf2f0ea, 0x15171a, 0x8a9096, 0xb83a2e, 0x1f4a7a, 0x2f6a3a, 0xd8b828, 0x6a2a3a];
+const GARAGE = { cars: [], out: new Map(), view: 'mine', pick: null, colour: 0, loaded: false };
+const GARAGE_STORE = 'giantwood-garage';
+function garageLocal() { try { return JSON.parse(localStorage.getItem(GARAGE_STORE) || '[]'); } catch (e) { return []; } }
+async function garageLoad() {
+  if (NET.token) { try { const r = await api('/garage'); GARAGE.cars = r.cars; } catch (e) {} }
+  else GARAGE.cars = garageLocal();
+  GARAGE.loaded = true; for (const [id, c] of GARAGE.out) if (!GARAGE.cars.some(v => v.id === id)) garageRecall(id); phoneRefresh();
+}
+// money the server changed (a purchase, a bid, a sale): take its figure and version; land it handed over: reload the land
+async function walletPost(path, body = {}) {
+  if (!(await flushLand())) throw new Error('Saving your land first: try again in a moment');
+  try {
+    const r = await api(path, 'POST', { ...body, base: LAND_VER });
+    if (r.state) { LAND_VER = r.state.version; adoptLand(r.state, `${r.title || 'It'} is yours. Loading your land`); return r; }
+    if (r.version != null) { LAND_VER = r.version; try { localStorage.setItem('velaplay-land-version', String(LAND_VER)); } catch (e) {} LAND.money = r.money; NET.quiet = true; saveLand(); NET.quiet = false; }
+    return r;
+  } catch (x) { if (x.status === 409 && x.body && x.body.state) { LAND_VER = x.body.state.version; adoptLand(x.body.state, 'Your land changed. Loading it, then try again'); } throw x; }
+}
+const atShowroom = () => INSIDE.at && INSIDE.at.R.type === 'showroom';
+function salesDesk() { if (!atShowroom()) return null; const R = INSIDE.at.R; return Math.hypot(P.pos.x - (R.x1 - 5), P.pos.z - (R.z1 - 7)) < 4.5 ? R : null; }
+async function carBuy(model, colour) {
+  const price = CAR_PRICES[model]; if (!price) return;
+  if (!atShowroom()) { toast('', 'Buy at a showroom: Ikoyi Motors, Eko Auto Mall or Prestige Cars Lagos, on the Ikoyi boulevard'); return; }
+  if (LAND.money < price) { toast('', `The ${carName(model)} is ${NAIRA(price)}; you have ${NAIRA(LAND.money)}`); return; }
+  try {
+    if (NET.token) { const r = await walletPost('/garage/buy', { model, color: colour }); GARAGE.cars.push(r.car); }
+    else { LAND.money -= price; saveLand(); const car = { id: 'g' + Date.now().toString(36), model, name: carName(model), color: colour, paid: price, listed: false }; GARAGE.cars.push(car); localStorage.setItem(GARAGE_STORE, JSON.stringify(GARAGE.cars)); }
+    bankSpend(price, `Bought a ${carName(model)}`); sfx('refill'); toast(`🔑 The ${carName(model)} is yours`, 'It’s in your garage: open Garage on your phone and have it brought to you');
+    GARAGE.view = 'mine'; phoneRefresh();
+  } catch (e) { toast('', e.message || String(e)); }
+}
+async function carSellBack(v) {
+  const back = Math.round(v.paid * .6 / 100) * 100;
+  try {
+    if (NET.token) await walletPost(`/garage/${v.id}/sell`); else { LAND.money += back; saveLand(); }
+    GARAGE.cars = GARAGE.cars.filter(q => q.id !== v.id); if (!NET.token) localStorage.setItem(GARAGE_STORE, JSON.stringify(GARAGE.cars));
+    garageRecall(v.id); bankNote(back, `Sold the ${carName(v.model)} to a dealer`); BANK.earned += back; toast('💵 Sold to a dealer', `${NAIRA(back)} for the ${carName(v.model)}`); phoneRefresh();
+  } catch (e) { toast('', e.message || String(e)); }
+}
+function garageRecall(id) { const c = GARAGE.out.get(id); if (!c) return; if (P.driving === c) exitCar(); scene.remove(c.g); const i = DRIVABLES.indexOf(c); if (i >= 0) DRIVABLES.splice(i, 1); GARAGE.out.delete(id); }
+function carBring(v) {   // brought to the nearest road (moved there if it's already out)
+  if (P.driving || INSIDE.at || FLY.on || TRAIN.ride.on) { toast('', 'Have it brought when you’re outside and on foot'); return; }
+  let spot = null; for (let r = 5; r <= 80 && !spot; r += 5) for (let a = 0; a < 24; a++) { const x = P.pos.x + Math.cos(a / 24 * TAU) * r, z = P.pos.z + Math.sin(a / 24 * TAU) * r; if ((kindAt(x, z) === 6 || kindAt(x, z) === 7) && Math.abs(heightAt(x, z) - P.pos.y) < 5) { spot = [x, z]; break; } }
+  if (!spot) { toast('', 'No road near here for it: walk to a road'); return; }
+  garageRecall(v.id);
+  const [x, z] = spot, yaw = Math.atan2(P.pos.x - x, P.pos.z - z) + Math.PI / 2;
+  let c;
+  if (LUX[v.model] && !CAR_MODELS[v.model]) c = makeLux(v.model, x, z, yaw, v.color);
+  else { c = makeDrivable(x, z, yaw, 'car'); scene.remove(c.g); c.g = makeModel(v.model, v.color || undefined); scene.add(c.g); beamsFor(c.g, 'car').visible = false; placeCar(c); }
+  c.mine = v.id; GARAGE.out.set(v.id, c); sfx('clank'); toast(`🔑 Your ${carName(v.model)} is here`, 'Parked on the road beside you · E to get in'); setWaypoint(x, z);
+}
+PHONE.apps.garage = { render: () => {
+  const out = [phHead('🚗 Garage', atShowroom() ? 'You’re at a showroom: buy here' : 'Your cars · showrooms are on the Ikoyi boulevard')];
+  if (!GARAGE.loaded) garageLoad();
+  const tabs = ph('div', 'phChips'); for (const [k, n] of [['mine', `My cars (${GARAGE.cars.length})`], ['shop', 'Showroom']]) tabs.append(ph('button', 'phChip' + (GARAGE.view === k ? ' on' : ''), n, { type: 'button', on: { click: () => { GARAGE.view = k; phoneRefresh(); } } })); out.push(tabs);
+  if (GARAGE.view === 'shop') {
+    if (!atShowroom()) out.push(ph('div', 'phCard', 'Prices are the same at all three showrooms. Walk into one on the Ikoyi boulevard to buy.'));
+    const sw = ph('div', 'phChips'); CAR_COLOURS.forEach((c, i) => { const b = ph('button', 'phSwatch' + (GARAGE.colour === i ? ' on' : ''), null, { type: 'button', 'aria-label': 'Colour', on: { click: () => { GARAGE.colour = i; phoneRefresh(); } } }); b.style.background = '#' + c.toString(16).padStart(6, '0'); sw.append(b); }); out.push(sw);
+    for (const [id, price] of Object.entries(CAR_PRICES).sort((a, b) => a[1] - b[1])) {
+      const row = ph('div', 'phLine phCarRow'); row.append(ph('span', null, carName(id)), ph('b', null, NAIRA(price)));
+      if (atShowroom()) row.append(ph('button', 'phBtn', 'Buy', { type: 'button', on: { click: () => carBuy(id, CAR_COLOURS[GARAGE.colour]) } }));
+      out.push(row);
+    }
+    return out;
+  }
+  if (!GARAGE.cars.length) out.push(ph('div', 'phDim', 'No cars yet. The Range Rover you started beside, and the cars that come with your homes, aren’t for sale: these are cars you buy.'));
+  for (const v of GARAGE.cars) {
+    const card = ph('div', 'phCard'); card.append(ph('b', null, carName(v.model)), ph('span', 'phDim', `Paid ${NAIRA(v.paid)}${v.listed ? ' · on the market' : ''}${GARAGE.out.has(v.id) ? ' · out on the road' : ''}`));
+    const row = ph('div', 'phChips'); row.append(ph('button', 'phBtn', '📍 Bring it here', { type: 'button', on: { click: () => carBring(v) } }));
+    if (!v.listed) row.append(ph('button', 'phChip', `Sell to a dealer (${NAIRA(Math.round(v.paid * .6 / 100) * 100)})`, { type: 'button', on: { click: () => carSellBack(v) } }));
+    if (NET.token && !v.listed) row.append(ph('button', 'phChip', 'Sell on the market', { type: 'button', on: { click: () => { MKT.view = 'sell'; MKT.sellRef = 'car:' + v.id; phoneApp('market'); } } }));
+    card.append(row); out.push(card);
+  }
+  return out;
+} };
+
+// ---- Market: land, houses and cars from other players, at a fixed price or by auction (accounts only) ----
+const MKT = { view: 'browse', filter: 'all', data: null, t: 0, sellRef: '', busy: false };
+const keyXZ = k => { if (typeof isUnit === 'function' && isUnit(k)) { const r = unitRect(k); return [r.cx, r.cz]; } const [px, pz] = k.split(',').map(Number); const r = plotRect(px, pz); return [r.cx, r.cz]; };
+const placeName = (x, z) => { let b = '', bd = 1e9; for (const [n, px, pz] of fareSpots()) { const d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; b = n; } } return b.replace(/^the /i, ''); };
+const timeLeft = ms => { const s = Math.max(0, Math.round((ms - Date.now()) / 1000)); return s > 86400 ? `${Math.floor(s / 86400)}d ${Math.floor(s % 86400 / 3600)}h` : s > 3600 ? `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m` : s > 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`; };
+async function marketLoad() { if (!NET.token) return; try { MKT.data = await api('/market'); MKT.t = Date.now(); } catch (e) { MKT.err = e.message; } phoneRefresh(); }
+async function marketAct(fn, okMsg) { if (MKT.busy) return; MKT.busy = true; try { const r = await fn(); if (okMsg) toast(...[].concat(okMsg(r))); await marketLoad(); if (NET.token) garageLoad(); } catch (e) { toast('🛒 Market', e.message || String(e)); } finally { MKT.busy = false; } }
+function listingCard(L) {
+  const card = ph('div', 'phCard phListing'), where = L.kind === 'plot' ? (() => { const [x, z] = keyXZ(L.ref); return placeName(x, z); })() : '';
+  card.append(ph('span', 'phTier ' + (L.mode === 'auction' ? 'hard' : 'medium'), L.mode === 'auction' ? 'auction' : 'buy now'), ph('b', null, L.title + (where ? ` · ${where}` : '')),
+    ph('span', 'phDim', `${L.seller}${L.mine ? ' (you)' : ''} · worth about ${NAIRA(L.value)}`));
+  if (L.mode === 'auction') card.append(ph('span', null, L.top != null ? `Top bid ${NAIRA(L.top)}${L.leading ? ' · you’re winning' : ''} · ${L.bids} bid${L.bids === 1 ? '' : 's'}` : `Opening bid ${NAIRA(L.price)}`), ph('span', 'phDim', L.status === 'open' ? `Ends in ${timeLeft(L.ends)}` : L.status));
+  else card.append(ph('span', null, NAIRA(L.price)));
+  const row = ph('div', 'phChips');
+  if (L.kind === 'plot') row.append(ph('button', 'phChip', '📍 Show me', { type: 'button', on: { click: () => { const [x, z] = keyXZ(L.ref); setWaypoint(x, z); toast('📍 Pinned', L.title); } } }));
+  if (L.status === 'open' && L.mine) { if (L.top == null) row.append(ph('button', 'phChip', 'Take it off', { type: 'button', on: { click: () => marketAct(() => api(`/market/${L.id}/cancel`, 'POST', {}), () => ['🛒 Taken off the market', L.title]) } })); }
+  else if (L.status === 'open' && L.mode === 'fixed') row.append(ph('button', 'phBtn', `Buy for ${NAIRA(L.price)}`, { type: 'button', on: { click: () => marketAct(() => walletPost(`/market/${L.id}/buy`), r => [`🛒 Bought: ${L.title}`, r.kind === 'car' ? 'It’s in your garage' : 'Loading your land']) } }));
+  else if (L.status === 'open') { const f = ph('form', 'phSend'), inp = ph('input', null, null, { type: 'number', min: String(L.next), step: '1000', value: String(L.next), 'aria-label': 'Your bid' });
+    f.append(inp, ph('button', 'phBtn', 'Bid', { type: 'submit' })); f.addEventListener('submit', e => { e.preventDefault(); marketAct(() => walletPost(`/market/${L.id}/bid`, { amount: Math.round(+inp.value) }), r => [`🛒 You bid ${NAIRA(r.amount)}`, `${L.title} · your money is held until you’re outbid or win${r.extended ? ' · two minutes added' : ''}`]); }); card.append(f); }
+  if (row.children.length) card.append(row);
+  return card;
+}
+PHONE.apps.market = { render: () => {
+  const out = [phHead('🛒 Market', 'Land, houses and cars from other players')];
+  if (!NET.token) { out.push(ph('div', 'phCard', 'Sign in to buy and sell on the market: what’s sold moves between accounts on the online server.')); return out; }
+  if (!MKT.data || Date.now() - MKT.t > 20000) marketLoad();
+  const tabs = ph('div', 'phChips'); for (const [k, n] of [['browse', 'Browse'], ['sell', 'Sell'], ['history', 'Mine']]) tabs.append(ph('button', 'phChip' + (MKT.view === k ? ' on' : ''), n, { type: 'button', on: { click: () => { MKT.view = k; phoneRefresh(); } } })); out.push(tabs);
+  const D = MKT.data; if (!D) { out.push(ph('div', 'phDim', MKT.err || 'Loading…')); return out; }
+  if (MKT.view === 'browse') {
+    const fl = ph('div', 'phChips'); for (const [k, n] of [['all', 'All'], ['plot', 'Land & houses'], ['car', 'Cars']]) fl.append(ph('button', 'phChip' + (MKT.filter === k ? ' on' : ''), n, { type: 'button', on: { click: () => { MKT.filter = k; phoneRefresh(); } } })); out.push(fl);
+    const list = D.open.filter(L => MKT.filter === 'all' || L.kind === MKT.filter);
+    if (!list.length) out.push(ph('div', 'phDim', 'Nothing for sale right now. Be the first: Sell.'));
+    for (const L of list) out.push(listingCard(L));
+    out.push(ph('div', 'phDim phFoot', `You can spend ${NAIRA(D.limits.left)} more on the market today${D.limits.canPay ? '' : ' (from your account’s second day)'}`));
+    return out;
+  }
+  if (MKT.view === 'sell') {
+    const items = [], seen = new Set();
+    for (const k of LAND.plots.keys()) { const p = LAND.plots.get(k), big = BIG?.keys?.includes(k), id = big ? 'big' : p?.house?.units ? 'u:' + [...p.house.units].sort()[0] : k; if (seen.has(id)) continue; seen.add(id); const [x, z] = keyXZ(k); items.push(['plot:' + k, `${p?.house ? (houseType(p.house.type)?.name || 'House') : big ? 'Banana Island lot' : 'Plot'} · ${placeName(x, z)}`]); }
+    for (const v of GARAGE.cars) if (!v.listed) items.push(['car:' + v.id, carName(v.model)]);
+    if (!items.length) { out.push(ph('div', 'phCard', 'You have nothing to sell yet: buy land, build, or buy a car.')); return out; }
+    const f = ph('form', 'phForm'), sel = ph('select', null, null, { name: 'item', 'aria-label': 'What to sell' }); for (const [v, n] of items) { const o = ph('option', null, n, { value: v }); if (v === MKT.sellRef) o.selected = true; sel.append(o); }
+    const mode = ph('select', null, null, { name: 'mode', 'aria-label': 'How to sell' }); mode.append(ph('option', null, 'Fixed price: first to pay gets it', { value: 'fixed' }), ph('option', null, 'Auction: highest bid wins', { value: 'auction' }));
+    const price = ph('input', null, null, { name: 'price', type: 'number', min: '1000', step: '1000', placeholder: 'Price (or opening bid), ₦', required: '' });
+    const hours = ph('select', null, null, { name: 'hours', 'aria-label': 'How long' }); for (const [h, n] of [[1, '1 hour'], [6, '6 hours'], [24, '1 day'], [72, '3 days']]) { const o = ph('option', null, n, { value: String(h) }); if (h === 24) o.selected = true; hours.append(o); }
+    f.append(ph('span', 'phDim', 'What'), sel, ph('span', 'phDim', 'How'), mode, ph('span', 'phDim', 'Price'), price, ph('span', 'phDim', 'Auction length'), hours, ph('button', 'phBtn phWide', 'Put it up for sale', { type: 'submit' }));
+    f.addEventListener('submit', e => { e.preventDefault(); const [kind, ...rest] = sel.value.split(':'), ref = rest.join(':'); MKT.sellRef = sel.value;
+      marketAct(async () => { if (kind === 'plot') await flushLand(); return api('/market', 'POST', { kind, ref, mode: mode.value, price: Math.round(+price.value), hours: +hours.value }); }, () => ['🛒 It’s on the market', 'Everyone online can see it in their Market app']).then(() => { MKT.view = 'browse'; phoneRefresh(); }); });
+    out.push(f, ph('div', 'phDim', 'Prices can be up to half as much again as what land and houses are worth, or 30% over a new car’s price. Auctions with bids run to the end; the money for a sale reaches you on your next sync.'));
+    return out;
+  }
+  const mine = D.open.filter(L => L.mine || L.leading); if (mine.length) { out.push(ph('b', 'phSub', 'Open')); for (const L of mine) out.push(listingCard(L)); }
+  if (D.won.length) { out.push(ph('b', 'phSub', 'Bought')); for (const L of D.won) { const r = ph('div', 'phLine'); r.append(ph('span', null, L.title), ph('b', 'neg', NAIRA(L.top ?? L.price))); out.push(r); } }
+  if (D.history.length) { out.push(ph('b', 'phSub', 'Your past sales')); for (const L of D.history) { const r = ph('div', 'phLine'); r.append(ph('span', null, `${L.title} · ${L.status}`), ph('b', L.status === 'sold' ? 'pos' : '', L.status === 'sold' ? NAIRA(L.top ?? L.price) : '—')); out.push(r); } }
+  if (!mine.length && !D.won.length && !D.history.length) out.push(ph('div', 'phDim', 'Nothing yet.'));
+  return out;
+} };
+// news from the market (through the world room)
+function marketNews(m) {
+  const t = { sold: [`🛒 Sold: ${m.title}`, `To ${m.to} for ${NAIRA(m.price)} · the money reaches you on your next sync`], outbid: [`🛒 Outbid on ${m.title}`, `${m.by} bid ${NAIRA(m.amount)} · your money’s been returned (next sync)`],
+    bid: [`🛒 New bid on ${m.title}`, `${m.by}: ${NAIRA(m.amount)}`], won: [`🛒 You won ${m.title}`, `for ${NAIRA(m.price)}${m.plot ? ' · loading your land' : ' · it’s in your garage'}`],
+    unsold: [`🛒 No bids on ${m.title}`, 'The auction ended: it’s still yours'], void: [`🛒 ${m.title} fell through`, `The seller no longer had it · your ${NAIRA(m.amount)} has been returned`] }[m.kind];
+  if (t) { toast(...t); sfx('swap'); }
+  if (m.kind === 'sold' || m.kind === 'won' || m.kind === 'outbid' || m.kind === 'void') landSyncSoon(400);
+  garageLoad(); if (PHONE.open && PHONE.app === 'market') marketLoad();
+}
+PHONE_APPS.push(['garage', '🚗', 'Garage'], ['market', '🛒', 'Market']);
+setInterval(() => { if (PHONE.open && PHONE.app === 'market' && MKT.view === 'browse' && !(document.activeElement && $('phone').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName))) phoneRefresh(); }, 1000);   // (auction clocks; not while you're typing a bid)
 
 $('phHome').addEventListener('click', () => phoneApp('home'));
 $('phClose').addEventListener('click', () => { phoneToggle(false); lockPointer(); });
