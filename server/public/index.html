@@ -5234,7 +5234,7 @@ function makeCivilian(v, opts = {}) {
   const base = { skin, hair: elder ? ri(['#9a9a9a', '#c8c4bc', '#7a7a7a']) : ng ? ri(NG_HAIR) : hx(pick(HAIRS)), eye: ng ? ri(['#2a1a10', '#1a1210', '#3b2a1e']) : pick(EYES),
     female, child, build: female ? RM(.9, 1.02) : RM(.95, 1.15), earrings: female && !child && Math.random() < .6 ? ri(['#d6ae5f', '#d6ae5f', '#c9d0d4']) : null,
     face: ri(female ? ['oval', 'oval', 'heart', 'round', 'long'] : ['jaw', 'jaw', 'square', 'oval', 'round', 'long']), feat: Math.random() < (ng ? .8 : .2) ? 1 : 0,
-    body: child ? '' : elder ? (!female && Math.random() < .4 ? 'big' : '') : ri(female ? ['', 'slim', 'curvy', 'curvy', 'thick', 'athletic'] : ['', 'slim', 'fit', 'fit', 'big']) };
+    body: child ? '' : elder ? (!female && Math.random() < .4 ? 'big' : '') : ri(female ? ['', '', 'slim', 'curvy', 'curvy', 'thick', 'athletic'] : ['', '', '', 'slim', 'slim', 'fit', 'big']) };   // mostly ordinary builds: about 1 in 7 is gym-fit
   let spec;
   if (opts.fire) spec = { ...base, hairStyle: female ? 'bun' : 'short', shirt: '#c9a640', sleeve: '#c9a640', collar: '#2a2c30', belt: '#2a2c30', pants: '#c9a640', boots: '#1a1a1a', shoes: '#1a1a1a', helmet: '#b8261e', reflect: true, earrings: null };
   else if (opts.crook) spec = crookKit(base);
@@ -12540,7 +12540,7 @@ function texAverage(tex) {   // the mean colour of a skin texture (its centre, w
   for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; k++; }
   return new THREE.Color(r / k / 255, gg / k / 255, b / k / 255).convertSRGBToLinear();
 }
-// the bodies: superhero builds (m, f; slimmed, for fit and big people), regular builds (mr, fr; most adults) and
+// the bodies: superhero builds (m, f; slimmed, for fit and athletic people only), regular builds (mr, fr; everyone else, big people included) and
 // teens (b, g; children). The superhero pair loads first, the rest just after, so the world never waits for them.
 const BODY_FILES = { mr: ['man_regular.glb', 'skin_regular_male_light.jpg'], fr: ['woman_regular.glb', 'skin_regular_female_light.jpg'], b: ['boy.glb', 'skin_teen_male_light.jpg'], g: ['girl.glb', 'skin_teen_female_light.jpg'] };
 const isBodyMat = m => /^MI_(Superhero|Regular|Teen)/i.test(m.name);
@@ -12571,7 +12571,7 @@ async function loadHumans() {
 function bodyKey(L, opts) {
   const F = !!L.female, has = k => !!HUM.base[k];
   if (opts.child) return has(F ? 'g' : 'b') ? (F ? 'g' : 'b') : F ? 'f' : 'm';
-  const hero = ['fit', 'athletic', 'big'].includes(L.body);
+  const hero = ['fit', 'athletic'].includes(L.body);   // the muscular pair only for gym builds; big people are regular bodies with the heavy shape
   const k = hero ? (F ? 'f' : 'm') : (F ? 'fr' : 'mr');
   return has(k) ? k : F ? 'f' : 'm';
 }
