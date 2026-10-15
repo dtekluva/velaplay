@@ -1457,6 +1457,16 @@ const STATION_YARDS = YB ? [
   { x0: 324, x1: 332, z0: -4996, z1: -4962, level: 3, kind: 6 }, { x0: 300, x1: 335, z0: -4964, z1: -4908, level: 3, kind: 7, blend: 3, park: 'Ibadan' },
   ...(ED ? [{ x0: 966, x1: 974, z0: -5112, z1: -5005, level: 3, kind: 6, edo: true }, { x0: 893, x1: 974, z0: -5139, z1: -5112, level: 3, kind: 7, edo: true, park: 'Ile-Ife' },
     { x0: 1386, x1: 1394, z0: -5112, z1: -5005, level: 3, kind: 6, edo: true }, { x0: 1316, x1: 1394, z0: -5139, z1: -5112, level: 3, kind: 7, edo: true, park: 'Ore' }] : []),
+  // streets that ran straight into a hillside: a level cutting through to the flat beyond, or a paved turning bay dug into
+  // the slope where the hill is a mountain (found by the road audit: a road heading into ground 1.5 m+ higher, no wall or house in the way)
+  { x0: -176, x1: -142, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 }, { x0: 20, x1: 45, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 },   // the north edge of the city grid, east and west
+  { x0: -144, x1: -126, z0: -570, z1: -558, level: 3, kind: 6, blend: 5 }, { x0: -111, x1: -93, z0: -570, z1: -558, level: 3, kind: 6, blend: 5 },   // turning bays at the tops of its streets
+  { x0: -35, x1: -17, z0: -574, z1: -558, level: 3, kind: 6, blend: 5 }, { x0: 2, x1: 20, z0: -574, z1: -558, level: 3, kind: 6, blend: 5 },
+  { x0: 286, x1: 295, z0: 124, z1: 140, level: 4, kind: 6, blend: 3 },   // the Meadowbrook lane's end
+  { x0: -290, x1: -229, z0: 32, z1: 40, level: 3, kind: 6, blend: 2 },
+  { x0: 177, x1: 182, z0: -138, z1: -106, level: 3, kind: 6, blend: 2 },   // the airport-road stub that stopped short of the forecourt south of it
+  { x0: -12, x1: -5, z0: -191, z1: -171, level: 3, kind: 6, blend: 3 },   // the city street broken by a knoll between its two halves   // the missing link between the west avenue and the road that stopped 60 m short of it
+  { x0: -150, x1: -138, z0: -2058, z1: -2047, level: 3, kind: 6, blend: 3 }, { x0: -196, x1: -180, z0: -3595, z1: -3581, level: 3, kind: 6, blend: 5 },   // two side roads off the expressway
 ] : [];
 const stationYardAt = (x, z, m = 0) => STATION_YARDS.some(Y => Y.kind && x > Y.x0 - m && x < Y.x1 + m && z > Y.z0 - m && z < Y.z1 + m);
 // the state museums' sites (the Edo one is the National Museum on King's Square): w along x, d along z, the side the front faces,
@@ -3985,7 +3995,7 @@ withSeed(4242, () => { for (let tries = 0, added = 0; tries < 9000 && added < 19
 } });
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 for (const t of TREES) {
-  const { x, z } = t, b = new Builder(), cut = YB && (linkDist(x, z) < 16 || railDist(x, z) < 9), nc = colliders.length;   // cut: in the way of the road to Yaba (built, then dropped, so the forest keeps its layout)
+  const { x, z } = t, b = new Builder(), cut = YB && (linkDist(x, z) < 16 || railDist(x, z) < 9 || stationYardAt(x, z, 8)), nc = colliders.length;   // cut: in the way of the road to Yaba (built, then dropped, so the forest keeps its layout)
   const base = heightAt(x, z) - 1.5, w = Math.round(R(4, 6.5)), h = R(52, 84);
   t.w = w;
   b.box(w, h, w, x, base + h / 2, z, M.bark, 2, true, 'trunk');
@@ -4144,6 +4154,7 @@ function sfx(n) {
   if (!AC) return;
   if (n === 'hook') { noise(.12, 3000, 600, 'bandpass', .5); tone(.08, 400, 120, 'square', .08); }
   if (n === 'clank') tone(.1, 900, 500, 'triangle', .18);
+  if (n === 'horn') { tone(.32, 415, 415, 'square', .09); tone(.32, 523, 523, 'square', .07); }
   if (n === 'slash') noise(.18, 1500, 7000, 'highpass', .45);
   if (n === 'cut') { noise(.35, 900, 200, 'lowpass', .6); tone(.6, 90, 38, 'sine', .55); }
   if (n === 'hurt') { tone(.25, 160, 60, 'sawtooth', .25); noise(.2, 600, 100, 'lowpass', .4); }
@@ -12602,7 +12613,7 @@ function drape(pos, nor, iters, ease = 0, flare = 0) {
 }
 // the packs' bodies are superhero builds: draw each limb and the chest in toward its bone a little (in the rest pose,
 // once per body, before any clothing is cut from it) for an everyday build
-const SLIM = { upperarm: ['lowerarm', .13], lowerarm: ['hand', .08], clavicle: ['upperarm', .12], spine_03: ['neck_01', .08], spine_02: ['spine_03', .05], neck_01: ['Head', .06], thigh: ['calf', .06], calf: ['foot', .04] };
+const SLIM = { upperarm: ['lowerarm', .24], lowerarm: ['hand', .13], clavicle: ['upperarm', .22], spine_03: ['neck_01', .15], spine_02: ['spine_03', .09], neck_01: ['Head', .1], thigh: ['calf', .09], calf: ['foot', .06] };   // everyday people, not bodybuilders: arms, shoulders, chest and neck pulled in
 function slimBody(body) {
   const sk = body.skeleton, names = sk.bones.map(b => b.name), at = n => { const i = names.indexOf(n); return i < 0 ? null : new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sk.boneInverses[i]).invert()); };
   const seg = {};
@@ -12685,7 +12696,7 @@ function faceMorphs(face, feat, jitter, facial) {
   return out;
 }
 function buildMorphs(body, build) {   // the creator's or a passer-by's body type -> heavy / slim
-  const h = { big: .9, thick: .65, curvy: .45, '': .1 }[body] ?? 0, sl = { slim: .85, fit: .35, athletic: .3 }[body] ?? 0;
+  const h = { big: .9, thick: .65, curvy: .45, '': .1 }[body] ?? 0, sl = { slim: .95, fit: .4, athletic: .35, '': .45 }[body] ?? 0;   // the average build leans slim too
   return [clamp(h + Math.max(0, (build || 1) - 1.05) * 3, 0, 1), sl];
 }
 // a skirt (a dress to the knee, a kaftan, agbada or boubou to the ankle): a flared tube measured off this body, hung
@@ -12988,7 +12999,11 @@ function remoteHuman(r, lookStr) {
   r.g.add(r.human.root); if (r.rig) r.rig.root.visible = false;
   if (r.hs) wearGear(r.human, r.hs.hat, r.hs.shades, null, L.hairStyle === 'afro' || L.hairStyle === 'curly');
 }
-function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); if (h.headScale) h.bones.Head.scale.setScalar(h.headScale); }
+function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); narrowShoulders(h); if (h.headScale) h.bones.Head.scale.setScalar(h.headScale); }
+// the animations set every bone's position each frame, so after each update the collarbones are shortened: shoulders an
+// ordinary width rather than a superhero's
+const SHOULDER_K = .78;
+function narrowShoulders(h) { for (const n of ['upperarm_l', 'upperarm_r']) { const b = h.bones[n]; if (b) b.position.multiplyScalar(SHOULDER_K); } }
 
 function remoteLook(r, lookStr) {
   r.lookStr = lookStr; let L = {}; try { L = JSON.parse(lookStr || '{}'); } catch (e) {}
@@ -13704,15 +13719,34 @@ function updateOnline(dt) {
   if ((NET.headT = (NET.headT || 0) - dt) <= 0) { NET.headT = 2; renderChat(); }
 }
 
-/* ---------- a hired driver: in a car, open the big map (P) and tap a spot; a driver takes the wheel and follows the roads there.
-   The route is an A* search over a 2 m grid of the ground itself: asphalt is cheap, pavement dearer, a short hop over open grass
-   allowed where nothing solid stands. The driver keeps right, slows for bends, stops for cars, people and you, backs out of
-   trouble, and is paid on arrival (N1,500 plus N8 a metre, pro rata if you take the wheel early). W/S/A/D or E takes over. ---------- */
-const DRIVER = { on: false, path: null, i: 0, dest: null, dist: 0, done: 0, stuckT: 0, revT: 0, name: '' };
-const DRV_CELL = 2, DRV_NI = Math.ceil(2 * HALF / DRV_CELL), DRV_Z0 = typeof ZN === 'number' && YB ? ZN : -HALF, DRV_NJ = Math.ceil((HALF + SD - DRV_Z0) / DRV_CELL);
-const drvW = (i, j) => [-HALF + (i + .5) * DRV_CELL, DRV_Z0 + (j + .5) * DRV_CELL];
-function drvCost(i, j, tight) {   // the cost of driving through a cell, or Infinity (tight: less room needed, for getting away from where you parked)
-  const [x, z] = drvW(i, j), h = heightAt(x, z); if (h <= 1) return Infinity;
+/* ---------- a hired driver (and the phone's taxi): in a car, open the big map (P) and tap a spot; a driver takes the wheel.
+   Planning: A* on an 8 m grid over the whole country (the west strip and the Edo road to Benin included) finds a corridor
+   along the roads; a fine A* on a 2 m grid inside that corridor finds the actual way (asphalt cheap, pavement dearer, open
+   ground only to reach a road, nothing solid). The cells are pulled straight where the road allows, smoothed into curves,
+   moved into the right-hand lane, and given a speed plan: a limit from the road (town or highway), slower for every bend
+   by its curvature, and braking in good time for bends and the stop at the end.
+   Driving: pure pursuit (steer for a point a speed-dependent distance down the route, as real self-driving cars do), the
+   intelligent driver model for following traffic (keeps a time gap, brakes smoothly for slower cars, stops for people and
+   titans), overtaking anything parked or stopped when the other lane is clear, a horn for people who won't move, and
+   three-point turns and backing out when stuck. Paid on arrival (N1,500 plus N8 a metre, pro rata if you take the wheel
+   early). W/S/A/D or E takes over. ---------- */
+const DRIVER = { on: false, path: null, i: 0, dest: null, dist: 0, done: 0, name: '' };
+const DRV_CELL = 2, DRV_X0 = XW, DRV_Z0 = YB ? ZN : -HALF, DRV_NI = Math.ceil((HALF + ED - DRV_X0) / DRV_CELL), DRV_NJ = Math.ceil((HALF + SD - DRV_Z0) / DRV_CELL);
+const DRV_CC = 8, DRV_CNI = Math.ceil((HALF + ED - DRV_X0) / DRV_CC), DRV_CNJ = Math.ceil((HALF + SD - DRV_Z0) / DRV_CC);
+const drvW = (i, j) => [DRV_X0 + (i + .5) * DRV_CELL, DRV_Z0 + (j + .5) * DRV_CELL];
+const drvIsRoad = (x, z) => { const k = kindAt(x, z); return k === 6 || k === 8 || k === 9; };
+const drvInWorld = (x, z) => z > DRV_Z0 + 12 && z < ZHI && x > DRV_X0 + 12 && x < xHi(z);
+// parked cars and anything the driver found blocking the road, on a 16 m grid, kept clear by the planner
+let drvAvoid = new Map();
+function drvAvoidBuild(self, extra = []) {
+  drvAvoid = new Map(); const add = (x, z, r) => { const k = Math.floor(x / 16) + ',' + Math.floor(z / 16); let l = drvAvoid.get(k); if (!l) drvAvoid.set(k, l = []); l.push([x, z, r]); };
+  for (const d of DRIVABLES) if (d !== self && !isAir(d) && d.kind !== 'boat' && Math.abs(d.speed || 0) < .5) add(d.x, d.z, (d.kind === 'bus' || d.kind === 'truck' ? 2.2 : 1.5));   // its width and a little: a car parked at the kerb must not close the lane beside it
+  for (const o of extra) add(o.x, o.z, o.r);
+}
+function drvCost(x, z, tight) {   // the cost of driving through a 2 m cell, or Infinity (tight: less room needed, for getting away from where you parked)
+  if (!drvInWorld(x, z)) return Infinity;
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const [ox, oz, r] of drvAvoid.get((Math.floor(x / 16) + a) + ',' + (Math.floor(z / 16) + b)) || []) if (Math.hypot(x - ox, z - oz) < r + (tight ? .3 : .8)) return Infinity;
+  const h = heightAt(x, z); if (h <= 1) return Infinity;
   const k = kindAt(x, z), road = k === 6 || k === 8 || k === 9;
   if (k === 1 || k === 2 || k === 3) return Infinity;
   const cl = tight ? .9 : road ? 1.2 : 3.2;   // room for the car: walls, trees and buildings block every kind of ground, paved floors included
@@ -13723,53 +13757,128 @@ function drvCost(i, j, tight) {   // the cost of driving through a cell, or Infi
   }
   return (road ? 1 : k === 7 ? 3.5 : 14) + low;   // asphalt, then pavement, then open ground (only to reach a road)
 }
-function drvRoute(x0, z0, x1, z1) {
-  const NI = DRV_NI, NJ = DRV_NJ, cell = (x, z) => [clamp(Math.floor((x + HALF) / DRV_CELL), 0, NI - 1), clamp(Math.floor((z - DRV_Z0) / DRV_CELL), 0, NJ - 1)];
-  const [si, sj] = cell(x0, z0), [ti, tj] = cell(x1, z1);   // any drivable cell within 20 m of the spot picked will do (it may be fenced in)
-  const N = NI * NJ, g = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), costC = new Float32Array(N).fill(-1), closed = new Uint8Array(N);
-  const cost = k => { if (costC[k] < 0) { const i = Math.floor(k / NJ), j = k % NJ; costC[k] = drvCost(i, j, Math.hypot(i - si, j - sj) < 5 || Math.hypot(i - ti, j - tj) < 5); } return costC[k]; };
-  const heap = [], push = (k, f) => { heap.push([f, k]); let n = heap.length - 1; while (n) { const p = (n - 1) >> 1; if (heap[p][0] <= heap[n][0]) break; [heap[p], heap[n]] = [heap[n], heap[p]]; n = p; } };
+function drvCoarseCost(i, j, near) {   // an 8 m cell: mostly road is cheap; open ground only near the start and the end
+  const x0 = DRV_X0 + i * DRV_CC, z0 = DRV_Z0 + j * DRV_CC; let road = 0, pave = 0, open = 0;
+  for (let a = .75; a < DRV_CC; a += 1.5) for (let b = .75; b < DRV_CC; b += 1.5) {   // 1.5 m apart: a narrow lane or a strip of pavement is never missed
+    const x = x0 + a, z = z0 + b; if (!drvInWorld(x, z) || heightAt(x, z) <= 1) continue;
+    const k = kindAt(x, z); if (k === 6 || k === 8 || k === 9) road++; else if (k === 7) pave++; else if (k !== 1 && k !== 2 && k !== 3) open++;
+  }
+  return road >= 5 ? 1 : road ? 1.6 : pave ? 3.5 : near && open >= 10 ? 14 : Infinity;
+}
+// A* on a grid of NI × NJ cells (sparse, so only what it touches costs memory); h: weight on the straight-line estimate
+function drvAstar(NI, NJ, cost, si, sj, ti, tj, reach, maxSteps, step) {
+  const g = new Map(), from = new Map(), closed = new Set(), heap = [];
+  const push = (k, f) => { heap.push([f, k]); let n = heap.length - 1; while (n) { const p = (n - 1) >> 1; if (heap[p][0] <= heap[n][0]) break; [heap[p], heap[n]] = [heap[n], heap[p]]; n = p; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let n = 0; for (;;) { const l = 2 * n + 1, r = l + 1; let m = n; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === n) break; [heap[m], heap[n]] = [heap[n], heap[m]]; n = m; } } return top; };
-  const start = si * NJ + sj; let goal = -1; g[start] = 0; push(start, 0);
   const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
-  let steps = 0;
-  while (heap.length && steps++ < 2500000) {
-    const [, k] = pop(); if (closed[k]) continue; closed[k] = 1; if (Math.hypot(Math.floor(k / NJ) - ti, k % NJ - tj) <= 10) { goal = k; break; }
-    const i = Math.floor(k / NJ), j = k % NJ, hk = heightAt(...drvW(i, j));
+  const start = si * NJ + sj; g.set(start, 0); push(start, 0); let goal = -1, steps = 0;
+  while (heap.length && steps++ < maxSteps) {
+    const [, k] = pop(); if (closed.has(k)) continue; closed.add(k);
+    const i = Math.floor(k / NJ), j = k % NJ; if (Math.hypot(i - ti, j - tj) <= reach) { goal = k; break; }
+    const gk = g.get(k);
     for (const [di, dj, w] of D) {
       const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= NI || nj >= NJ) continue;
-      const nk = ni * NJ + nj; if (closed[nk]) continue; const c = cost(nk); if (c === Infinity) continue;
-      if (Math.abs(heightAt(...drvW(ni, nj)) - hk) > 1.05) continue;   // a car climbs a block at most
-      const ng = g[k] + w * c; if (ng < g[nk]) { g[nk] = ng; from[nk] = k; push(nk, ng + 1.4 * Math.hypot(ni - ti, nj - tj)); }   // leaning toward the goal: fast, near enough the best road
+      const nk = ni * NJ + nj; if (closed.has(nk)) continue;
+      const c = cost(ni, nj, i, j); if (c === Infinity) continue;
+      const ng = gk + w * c; if (ng < (g.get(nk) ?? Infinity)) { g.set(nk, ng); from.set(nk, k); push(nk, ng + step * Math.hypot(ni - ti, nj - tj)); }
     }
   }
   if (goal < 0) return null;
-  const cells = []; for (let k = goal; k >= 0; k = from[k]) { cells.push(k); if (k === start) break; }
-  cells.reverse();
-  // every few cells a waypoint, shifted to the right-hand side of wide roads
-  const pts = []; for (let n = 0; n < cells.length; n += 3) pts.push(drvW(Math.floor(cells[n] / NJ), cells[n] % NJ));
-  pts.push(drvW(Math.floor(goal / NJ), goal % NJ));
-  // keep right: find the road's two edges across each waypoint, then sit in the middle of the right-hand half
-  const isRoad = (x, z) => { const k = kindAt(x, z); return k === 6 || k === 8 || k === 9; };
-  const out = pts.map(([x, z], n) => {
-    const [ax, az] = pts[Math.max(0, n - 2)], [bx, bz] = pts[Math.min(pts.length - 1, n + 2)], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz) || 1, rx = -dz / L, rz = dx / L;
-    if (!isRoad(x, z) || n === pts.length - 1) return { x, z };
-    let eR = 0, eL = 0; while (eR < 10 && isRoad(x + rx * (eR + .5), z + rz * (eR + .5))) eR += .5; while (eL < 10 && isRoad(x - rx * (eL + .5), z - rz * (eL + .5))) eL += .5;
-    const width = eR + eL, mid = (eR - eL) / 2, lane = width >= 6 ? width / 4 : 0;   // narrow lanes: just the middle
-    return { x: x + rx * (mid + lane), z: z + rz * (mid + lane) };
+  const cells = []; for (let k = goal; ; k = from.get(k)) { cells.push(k); if (k === start || !from.has(k)) break; }
+  return cells.reverse();
+}
+function drvRoute(x0, z0, x1, z1, V = VEH.car) {
+  const fc = (x, z) => [clamp(Math.floor((x - DRV_X0) / DRV_CELL), 0, DRV_NI - 1), clamp(Math.floor((z - DRV_Z0) / DRV_CELL), 0, DRV_NJ - 1)];
+  const [si, sj] = fc(x0, z0), [ti, tj] = fc(x1, z1), far = Math.hypot(x1 - x0, z1 - z0) > 260;
+  // 1. the corridor: coarse cells along the way, widened, that the fine search may use
+  let allow = null;
+  const corridor = wide => {
+    const cc = (x, z) => [clamp(Math.floor((x - DRV_X0) / DRV_CC), 0, DRV_CNI - 1), clamp(Math.floor((z - DRV_Z0) / DRV_CC), 0, DRV_CNJ - 1)];
+    const [ci, cj] = cc(x0, z0), [di, dj] = cc(x1, z1), memo = new Map();
+    const cost = (i, j) => { const k = i * DRV_CNJ + j; let c = memo.get(k); if (c === undefined) { c = drvCoarseCost(i, j, Math.hypot(i - ci, j - cj) < 9 || Math.hypot(i - di, j - dj) < 9); memo.set(k, c); } return c; };
+    const cells = drvAstar(DRV_CNI, DRV_CNJ, cost, ci, cj, di, dj, 2, 600000, 1.15); if (!cells) return null;
+    const set = new Set(); for (const k of cells) { const i = Math.floor(k / DRV_CNJ), j = k % DRV_CNJ; for (let a = -wide; a <= wide; a++) for (let b = -wide; b <= wide; b++) set.add((i + a) * DRV_CNJ + j + b); }
+    return set;
+  };
+  const fine = strict => {   // strict: open ground only within 24 m of the start and the end (no cutting across fields and verges mid-trip)
+    const memo = new Map(), hm = new Map(), H = k => { let h = hm.get(k); if (h === undefined) { h = heightAt(...drvW(Math.floor(k / DRV_NJ), k % DRV_NJ)); hm.set(k, h); } return h; };
+    const box = !allow && [Math.min(si, ti) - 70, Math.max(si, ti) + 70, Math.min(sj, tj) - 70, Math.max(sj, tj) + 70];
+    const cost = (i, j, pi, pj) => {
+      if (allow ? !allow.has(Math.floor(i * DRV_CELL / DRV_CC) * DRV_CNJ + Math.floor(j * DRV_CELL / DRV_CC)) : i < box[0] || i > box[1] || j < box[2] || j > box[3]) return Infinity;
+      const k = i * DRV_NJ + j; let c = memo.get(k);
+      if (c === undefined) { c = drvCost(...drvW(i, j), Math.hypot(i - si, j - sj) < 5 || Math.hypot(i - ti, j - tj) < 5); memo.set(k, c); }
+      if (c === Infinity || (strict && c >= 14 && Math.hypot(i - si, j - sj) > 12 && Math.hypot(i - ti, j - tj) > 12)) return Infinity;
+      const dh = Math.abs(H(k) - H(pi * DRV_NJ + pj));
+      if (dh > 1.05) return Infinity;   // a car climbs a block at most...
+      return dh > .55 ? c + 150 : c;     // ...and only when there's no other way (no driving up the pyramid's steps or a hillside)
+    };
+    return drvAstar(DRV_NI, DRV_NJ, cost, si, sj, ti, tj, 10, 1500000, 1.25);
+  };
+  let cells = null;
+  if (far) { for (const w of [2, 5, 10]) { allow = corridor(w); if (!allow) break; cells = fine(true); if (cells) break; } }
+  if (!cells) { allow = null; cells = fine(true); }
+  if (!cells && far) { allow = corridor(5); if (allow) cells = fine(false); }   // no way by road alone: open ground allowed after all
+  if (!cells) { allow = null; cells = fine(false); }
+  if (!cells || cells.length < 2) return null;
+  // 2. pull the path straight where the road allows (no grid staircase), never across anything dearer than the path took
+  const pts = cells.map(k => drvW(Math.floor(k / DRV_NJ), k % DRV_NJ)), cmemo = new Map();
+  const cAt = (x, z) => { const [i, j] = fc(x, z), k = i * DRV_NJ + j; let c = cmemo.get(k); if (c === undefined) { c = drvCost(...drvW(i, j), Math.hypot(i - si, j - sj) < 5 || Math.hypot(i - ti, j - tj) < 5); cmemo.set(k, c); } return c; };
+  const pc = pts.map(([x, z]) => cAt(x, z));
+  const los = (a, b) => { let worst = 0; for (let n = a; n <= b; n++) worst = Math.max(worst, pc[n]); const [ax, az] = pts[a], [bx, bz] = pts[b], L = Math.hypot(bx - ax, bz - az);
+    let hp = heightAt(ax, az); for (let s = 1; s < L; s += 1) { const x = ax + (bx - ax) * s / L, z = az + (bz - az) * s / L, c = cAt(x, z), h = heightAt(x, z); if (c > worst + .01 || Math.abs(h - hp) > .55) return false; hp = h; } return true; };
+  const pulled = [pts[0]]; for (let a = 0; a < pts.length - 1;) { let b = Math.min(pts.length - 1, a + 18); while (b > a + 1 && !los(a, b)) b--; pulled.push(pts[b]); a = b; }
+  // 3. every 2 m, then rounded into curves (Chaikin, keeping the ends)
+  let line = []; for (let n = 0; n < pulled.length - 1; n++) { const [ax, az] = pulled[n], [bx, bz] = pulled[n + 1], L = Math.hypot(bx - ax, bz - az), m = Math.max(1, Math.round(L / 2)); for (let s = 0; s < m; s++) line.push([ax + (bx - ax) * s / m, az + (bz - az) * s / m]); }
+  line.push(pulled[pulled.length - 1]);
+  for (let it = 0; it < 2; it++) { const o = [line[0]]; for (let n = 0; n < line.length - 1; n++) { const [ax, az] = line[n], [bx, bz] = line[n + 1]; o.push([ax * .75 + bx * .25, az * .75 + bz * .25], [ax * .25 + bx * .75, az * .25 + bz * .75]); } o.push(line[line.length - 1]); line = o; }
+  const thin = [line[0]]; for (const p of line) { const q = thin[thin.length - 1]; if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= 1.6) thin.push(p); } if (thin[thin.length - 1] !== line[line.length - 1]) thin.push(line[line.length - 1]); line = thin;
+  // 4. keep right: find the road's edges across each point and sit in the middle of the right-hand half (smoothed, so no jumps)
+  const offs = line.map(([x, z], n) => {
+    const [ax, az] = line[Math.max(0, n - 3)], [bx, bz] = line[Math.min(line.length - 1, n + 3)], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz) || 1, rx = -dz / L, rz = dx / L;
+    if (!drvIsRoad(x, z)) return [rx, rz, 0];
+    let eR = 0, eL = 0; while (eR < 10 && drvIsRoad(x + rx * (eR + .5), z + rz * (eR + .5))) eR += .5; while (eL < 10 && drvIsRoad(x - rx * (eL + .5), z - rz * (eL + .5))) eL += .5;
+    const width = eR + eL, mid = (eR - eL) / 2; if (width >= 14) return [rx, rz, null];   // a junction or a paved square: no edges to go by
+    return [rx, rz, mid + (width >= 6 ? width / 4 : 0)];   // narrow lanes: just the middle
   });
-  let len = 0; for (let n = 1; n < out.length; n++) len += Math.hypot(out[n].x - out[n - 1].x, out[n].z - out[n - 1].z);
-  return { pts: out, len };
+  // through junctions, keep the lane the road had on either side (eased from one to the other) rather than swerving across the square
+  for (let n = 0; n < offs.length; n++) if (offs[n][2] === null) {
+    let a = n - 1; while (a >= 0 && offs[a][2] === null) a--; let b = n + 1; while (b < offs.length && offs[b][2] === null) b++;
+    const va = a >= 0 ? offs[a][2] : null, vb = b < offs.length ? offs[b][2] : null;
+    for (let m = n; m < b; m++) offs[m][2] = va === null ? (vb ?? 0) : vb === null ? va : va + (vb - va) * (m - a) / (b - a);
+    n = b - 1;
+  }
+  const out = line.map(([x, z], n) => {
+    let s = 0, w = 0; for (let m = Math.max(0, n - 3); m <= Math.min(line.length - 1, n + 3); m++) { s += offs[m][2]; w++; }
+    let o = n === 0 ? 0 : s / w;
+    for (const f of [1, .5, 0]) { if (!f || cAt(x + offs[n][0] * o * f, z + offs[n][1] * o * f) < Infinity) { o *= f; break; } }   // never shifted into something solid
+    return { x: x + offs[n][0] * o, z: z + offs[n][1] * o, v: 0 };
+  });
+  // 5. the speed plan: the road's limit, slower through bends (lateral grip), braking ahead of time for bends and the end
+  const cum = [0]; for (let n = 1; n < out.length; n++) cum.push(cum[n - 1] + Math.hypot(out[n].x - out[n - 1].x, out[n].z - out[n - 1].z));
+  const ang = n => Math.atan2(out[n + 1].x - out[n].x, out[n + 1].z - out[n].z), A_LAT = 4.4, A_DEC = 4.2;
+  for (let n = 0; n < out.length; n++) {
+    const p = out[n], open = !drvIsRoad(p.x, p.z), hwy = p.z < -HALF - 450 || p.x > HALF + 40;   // the expressway north and the Edo road: highway speeds
+    let lim = Math.min(V.maxF * .85, open ? 6 : hwy ? (builtUp(p.x, p.z) ? 21 : 26) : 15);   // under 80 km/h wherever there are buildings (the speeding law)
+    let k = 0; for (let m = Math.max(1, n - 2); m <= Math.min(out.length - 2, n + 2); m++) { let d = ang(m) - ang(m - 1); d = Math.atan2(Math.sin(d), Math.cos(d)); k = Math.max(k, Math.abs(d) / Math.max(.5, cum[m + 1] - cum[m - 1]) * 2); }
+    if (k > 1e-4) lim = Math.min(lim, Math.max(3.5, Math.sqrt(A_LAT / k)));
+    p.v = lim;
+  }
+  out[out.length - 1].v = 0;
+  for (let n = out.length - 2; n >= 0; n--) out[n].v = Math.min(out[n].v, Math.sqrt(out[n + 1].v ** 2 + 2 * A_DEC * (cum[n + 1] - cum[n])));
+  return { pts: out, len: cum[cum.length - 1], cum };
 }
 const drvFare = m => Math.round(1500 + 8 * m);
 function driverHire(x, z) {
   const c = P.driving;
   if (!c || isAir(c) || c.kind === 'boat' || c.kind === 'dozer' || c.kind === 'bike') { toast('🚕 Hire a driver', 'Get in a car first, then pick a spot on the map'); return false; }
-  const r = drvRoute(c.x, c.z, x, z); if (!r || r.pts.length < 2) { toast('', 'Your driver can’t find a road there. Try a spot nearer a road'); return false; }
+  drvAvoidBuild(c);
+  const r = drvRoute(c.x, c.z, x, z, vehOf(c)); if (!r || r.pts.length < 2) { toast('', 'Your driver can’t find a road there. Try a spot nearer a road'); return false; }
   const fare = drvFare(r.len); if (LAND.money < fare) { toast('', `That trip is about ${NAIRA(fare)}; you have ${NAIRA(LAND.money)}`); return false; }
   DRIVER.name = ri(['Musa', 'Tunde', 'Chinedu', 'Emeka', 'Sola', 'Ibrahim', 'Kunle', 'Uche']);
-  Object.assign(DRIVER, { on: true, path: r.pts, i: 0, dest: r.pts[r.pts.length - 1], dist: r.len, done: 0, stuckT: 0, revT: 0, stucks: 0, snags: 0, best: undefined, noGain: 0, lx: c.x, lz: c.z, fare });
-  toast(`🚕 ${DRIVER.name} is driving`, `${Math.round(r.len)} m · about ${NAIRA(fare)} · W/S/A/D or E to take the wheel`);
+  Object.assign(DRIVER, { on: true, path: r.pts, cum: r.cum, len: r.len, i: 0, dest: r.pts[r.pts.length - 1], dist: r.len, done: 0, lx: c.x, lz: c.z, fare,
+    revT: 0, turn: null, stuckT: 0, snags: 0, waitT: 0, hornT: 0, ovt: null, replanCD: 0, avoid: [], nRe: 0, nRev: 0, hops: 0, nOvt: 0, best: undefined, noGain: 0, seen: new Map() });
+  const mins = Math.max(1, Math.round(r.len / (r.pts.reduce((a, p) => a + p.v, 0) / r.pts.length || 10) / 60));
+  toast(`🚕 ${DRIVER.name} is driving`, `${fmtDist(r.len)} · about ${mins} min · ${NAIRA(fare)} · W/S/A/D or E to take the wheel`);
   return true;
 }
 function driverStop(msg, arrived) {
@@ -13779,55 +13888,136 @@ function driverStop(msg, arrived) {
   toast(arrived ? `🚕 You’ve arrived` : '🚕 Driver dismissed', `${msg ? msg + ' · ' : ''}paid ${DRIVER.name} ${NAIRA(fare)}`);
   DRIVER.path = null; DRIVER.dest = null;
 }
-// the driver's hands and feet: steering and throttle toward a point a little way down the route
+function driverReplan(c, V) {   // a fresh route from where the car is now
+  drvAvoidBuild(c, DRIVER.avoid || []);
+  const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw), r = drvRoute(c.x + fx * 2, c.z + fz * 2, DRIVER.dest.x, DRIVER.dest.z, V);
+  DRIVER.replanCD = 4;
+  if (r && r.pts.length > 1) { Object.assign(DRIVER, { path: r.pts, cum: r.cum, len: r.len, i: 0, ovt: null, best: undefined, noGain: 0 }); return true; }
+  return false;
+}
+// everyone the driver has to look out for: other cars (with their speed, from how far they moved), people, titans, players
+function drvAgents(c, dt) {
+  const out = [], seen = DRIVER.seen, R = 70, add = (key, x, z, r, kind) => {
+    if (Math.abs(x - c.x) > R || Math.abs(z - c.z) > R) return;
+    const was = seen.get(key); let vx = 0, vz = 0; if (was && dt > 0) { vx = (x - was[0]) / dt; vz = (z - was[1]) / dt; if (Math.hypot(vx, vz) > 60) vx = vz = 0; }
+    seen.set(key, [x, z]); out.push({ x, z, r, vx, vz, kind, key });
+  };
+  for (const o of traffic) { const [x, z] = laneXY(o); add(o, x, z, o.kind === 'bike' ? .8 : 1.2, 'car'); }
+  for (const o of RTRAFFIC) add(o, o.g.position.x, o.g.position.z, 1.2, 'car');
+  for (const d of DRIVABLES) if (d !== c && !isAir(d) && d.kind !== 'boat') add(d, d.x, d.z, d.kind === 'bus' || d.kind === 'truck' ? 1.6 : d.kind === 'bike' ? .7 : 1.1, 'car');
+  for (const p of civilians) if (p.active) add(p, p.g.position.x, p.g.position.z, .5, 'ped');
+  for (const t of titans) if (!t.dead) add(t, t.g.position.x, t.g.position.z, t.H * .2 + 1, 'titan');
+  if (NET.room) for (const r of NET.others.values()) if (r.g) add(r, r.g.position.x, r.g.position.z, r.vehKey ? 1.2 : .5, r.vehKey ? 'car' : 'ped');
+  if (seen.size > 600) seen.clear();
+  return out;
+}
+// the driver's eyes, hands and feet
 function driverInputs(c, V, dt) {
-  const P0 = DRIVER.path; let i = DRIVER.i;
-  DRIVER.done += Math.hypot(c.x - DRIVER.lx, c.z - DRIVER.lz); DRIVER.lx = c.x; DRIVER.lz = c.z;
-  const look = 2.8 + Math.abs(c.speed) * .5;   // short at low speed, so corners are not cut
-  while (i < P0.length - 1 && Math.hypot(P0[i].x - c.x, P0[i].z - c.z) < look) i++;
-  DRIVER.i = i;
-  const tg = P0[i], dx = tg.x - c.x, dz = tg.z - c.z, toEnd = Math.hypot(DRIVER.dest.x - c.x, DRIVER.dest.z - c.z);
-  if (toEnd < 6 && i >= P0.length - 2) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }
-  // progress watch: getting no closer for a while near the end counts as arrived; elsewhere the driver moves on past the snag
-  const togo = (P0.length - 1 - i) * 6 + Math.hypot(dx, dz);
-  if (DRIVER.best === undefined || togo < DRIVER.best - 2) { DRIVER.best = togo; DRIVER.noGain = 0; } else DRIVER.noGain += dt;
-  if (toEnd < 25 && DRIVER.noGain > 6) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }
-  if (DRIVER.noGain > 20) {
-    const n = Math.min(P0.length - 1, i + 3), q = P0[n], q2 = P0[Math.min(P0.length - 1, n + 1)];
-    c.x = q.x; c.z = q.z; c.y = carGround(q.x, q.z, c.yaw, V); if (q2 !== q) c.yaw = Math.atan2(-(q2.x - q.x), -(q2.z - q.z)); c.speed = 0;
-    DRIVER.i = n; DRIVER.lx = c.x; DRIVER.lz = c.z; DRIVER.best = undefined; DRIVER.revT = 0; return { thr: 0, st: 0, brake: true };
-  }
-  let err = Math.atan2(-dx, -dz) - c.yaw; err = Math.atan2(Math.sin(err), Math.cos(err));
-  // how sharp is the road ahead? slow down for bends and near the end
-  let bend = 0; const j = Math.min(P0.length - 1, i + 4); if (j > i) { const a1 = Math.atan2(P0[j].x - tg.x, P0[j].z - tg.z), a0 = Math.atan2(dx, dz); bend = Math.abs(Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0))); }
-  let want = Math.min(V.maxF * .78, 6 + 14 / (1 + bend * 2.2 + Math.abs(err) * 3), toEnd * .6 + 2);
-  // something in the way? cars, people, titans and you (when you're out of the car you are not in it, so: everyone else)
-  const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw); let blocked = false, people = false;
-  const ahead = (px, pz, r) => { const ex = px - c.x, ez = pz - c.z, al = ex * fx + ez * fz, lat = Math.abs(ex * fz - ez * fx); return al > 1 && al < 6 + Math.abs(c.speed) * .9 && lat < r; };
-  for (const t of titans) if (!t.dead && ahead(t.g.position.x, t.g.position.z, t.H * .2 + 1)) blocked = true;
-  for (const o of traffic) { const [ox, oz] = laneXY(o); if (ahead(ox, oz, 1.6)) people = true; }
-  for (const o of RTRAFFIC) if (ahead(o.g.position.x, o.g.position.z, 1.6)) people = true;
-  for (const p of civilians) if (p.active && ahead(p.g.position.x, p.g.position.z, 1.3)) people = true;
-  if (people && !blocked) { DRIVER.waitT = (DRIVER.waitT || 0) + dt; if (DRIVER.waitT < 3) blocked = true; else want = Math.min(want, 2); }   // wait for people and cars, then edge past (cars wait for you too)
-  else DRIVER.waitT = 0;
-  if (blocked) want = 0;
-  if (toEnd < 15 && Math.abs(c.speed) < .5 && (DRIVER.waitT > 3 || DRIVER.snags)) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }   // close enough
-  // the way on is behind us: a three-point turn (reverse with the wheel the other way), since the car can't turn tighter than ~9 m
-  DRIVER.turnCD = Math.max(0, (DRIVER.turnCD || 0) - dt);
-  if (Math.abs(err) > 1.3 && DRIVER.revT <= 0 && !DRIVER.turnCD && !blocked) { DRIVER.revT = 1.3; DRIVER.turnCD = 2.5; }
-  if (Math.abs(err) > .7) want = Math.min(want, 4);
-  // stuck against something: back up a little, then carry on
-  if (DRIVER.revT > 0) { DRIVER.revT -= dt; return { thr: c.speed > 1 ? 0 : -1, st: err > 0 ? -1 : 1, brake: c.speed > 1 }; }
-  if (!blocked && Math.abs(c.speed) < .6 && want > 1) {
-    if ((DRIVER.stuckT += dt) > 2.5) {   // stuck: back up, and after the second time find a new way from here
-      DRIVER.stuckT = 0; DRIVER.revT = 1.4; DRIVER.snags = (DRIVER.snags || 0) + 1;
-      if (DRIVER.snags >= 3) {   // still stuck after backing up and a new route: ease the car a little way on along the route, past the snag
-        DRIVER.snags = 0; DRIVER.revT = 0; const n = Math.min(P0.length - 1, i + 2), q = P0[n], q2 = P0[Math.min(P0.length - 1, n + 1)];
-        c.x = q.x; c.z = q.z; c.y = carGround(q.x, q.z, c.yaw, V); if (q2 !== q) c.yaw = Math.atan2(-(q2.x - q.x), -(q2.z - q.z)); c.speed = 0; DRIVER.i = n; DRIVER.lx = c.x; DRIVER.lz = c.z;
-      } else { const r = drvRoute(c.x - fx * 3, c.z - fz * 3, DRIVER.dest.x, DRIVER.dest.z); if (r && r.pts.length > 1) { DRIVER.path = r.pts; DRIVER.i = 0; } }
+  const D = DRIVER; let P0 = D.path;
+  D.done += Math.hypot(c.x - D.lx, c.z - D.lz); D.lx = c.x; D.lz = c.z;
+  D.replanCD = Math.max(0, D.replanCD - dt); D.hornT = Math.max(0, D.hornT - dt);
+  const v = c.speed, fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
+  // where on the route are we? (the nearest point a little way around the last one)
+  let i = D.i, bd = Infinity; for (let n = Math.max(0, D.i - 3); n < Math.min(P0.length, D.i + 45); n++) { const d = Math.hypot(P0[n].x - c.x, P0[n].z - c.z); if (d < bd) { bd = d; i = n; } }
+  D.i = i;
+  if (bd > 12 && !D.replanCD && D.revT <= 0) { if (driverReplan(c, V)) return { thr: 0, st: 0, brake: true }; }   // pushed off the route: find a new way
+  const toEnd = D.len - D.cum[i] + bd, endD = Math.hypot(D.dest.x - c.x, D.dest.z - c.z);
+  if ((endD < 4.5 || (i >= P0.length - 3 && endD < 8)) && Math.abs(v) < 1.5) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }
+  // progress watch: a long time without getting nearer
+  if (D.best === undefined || toEnd < D.best - 2) { D.best = toEnd; D.noGain = 0; } else D.noGain += dt;
+  if (endD < 25 && D.noGain > 8) { driverStop('', true); return { thr: 0, st: 0, brake: true }; }
+  // the overtaking offset: a smooth sideways shift of the route around something stopped
+  const off = n => { const o = D.ovt; if (!o || n < o.a - 6 || n > o.b + 6) return 0; const e = n < o.a ? (n - o.a + 6) / 6 : n > o.b ? (o.b + 6 - n) / 6 : 1; return o.off * e * e * (3 - 2 * e); };
+  const at = n => { const p = P0[n], q = P0[Math.min(P0.length - 1, n + 1)], r0 = P0[Math.max(0, n - 1)], dx = q.x - r0.x, dz = q.z - r0.z, L = Math.hypot(dx, dz) || 1, o = off(n); return [p.x - dz / L * o, p.z + dx / L * o, dx / L, dz / L]; };
+  if (D.ovt && (i > D.ovt.b + 8 || (D.ovt.t += dt) > 15)) D.ovt = null;   // past it (or it didn't work out)
+  // steering: pure pursuit on a point down the route, further ahead the faster we go
+  const Ld = clamp(3.2 + Math.abs(v) * .42, 3.2, 16); let k = i; while (k < P0.length - 1 && D.cum[k] - D.cum[i] < Ld) k++;
+  const [tx, tz] = at(k), dx = tx - c.x, dz = tz - c.z, L = Math.hypot(dx, dz) || 1;
+  let alpha = Math.atan2(-dx, -dz) - c.yaw; alpha = Math.atan2(Math.sin(alpha), Math.cos(alpha));
+  let st = clamp(Math.atan(2 * V.wb * Math.sin(alpha) / L) / V.steer, -1, 1);
+  // the speed the route allows here and just ahead
+  let want = Math.min(P0[i].v, P0[Math.min(P0.length - 1, i + 2)].v + 1); D.why = 'plan';
+  if (toEnd < 30) want = Math.min(want, Math.sqrt(2 * 3.5 * Math.max(0, toEnd - 1.5)) + .3);
+  if (Math.abs(alpha) > .8) want = Math.min(want, 3.5);
+  // three-point turn: the way on is behind us and the car can't turn tighter than ~9 m
+  // (back with the wheel one way, forward with it the other, and again, until the car points down the road; a wall
+  // behind or in front just switches the move early)
+  if (D.turn) {
+    const T = D.turn; T.t += dt;
+    if (Math.abs(alpha) < .6) D.turn = null;
+    else {
+      if (T.t > .7 && Math.abs(v) < .25 || T.t > (T.rev ? 2 : 2.4)) { T.rev = !T.rev; T.t = 0; if (++T.n > 8) { D.turn = null; driverReplan(c, V); } }
+      if (D.turn) return T.rev ? { thr: v > .4 ? 0 : -1, st: alpha > 0 ? -1 : 1, brake: v > .4 } : { thr: v < -.4 ? 0 : v < 2.5 ? 1 : 0, st: alpha > 0 ? 1 : -1, brake: v < -.4 };
     }
-  } else { DRIVER.stuckT = 0; if (c.speed > 3 && DRIVER.revT <= 0) { DRIVER.goodT = (DRIVER.goodT || 0) + dt; if (DRIVER.goodT > 3) DRIVER.snags = 0; } else DRIVER.goodT = 0; }   // only real forward progress clears the snags
-  const st = clamp(err * 2.4, -1, 1), thr = c.speed < want - .5 ? 1 : 0, brake = c.speed > want + 1.5 || blocked;
+  }
+  if (Math.abs(alpha) > 1.7 && Math.abs(v) < 2) { D.turn = { t: 0, n: 0, rev: true }; return { thr: 0, st: 0, brake: true }; }
+  // backing out after getting stuck
+  if (D.revT > 0) { D.revT -= dt; if (D.revT <= 0 && D.revSt) driverReplan(c, V); return { thr: v > .5 ? 0 : -1, st: D.revSt, brake: v > .5 }; }
+  // traffic: find the first thing in our path, and how fast it moves along it (the intelligent driver model)
+  const look = 10 + Math.abs(v) * 2.2 + v * v / 7, ag = drvAgents(c, dt); let lead = null;
+  for (let n = i; n < P0.length && D.cum[n] - D.cum[i] < look; n += 1) {
+    const [px, pz, ux, uz] = at(n);
+    for (const a of ag) {
+      if (Math.abs(a.x - px) > 9 || Math.abs(a.z - pz) > 9 || (D.ignoreT > 0 && a.key === D.ignoreKey)) continue;
+      // people: where they are and where they'll be in a moment (someone stepping off the kerb), with a wide berth
+      const ped = a.kind === 'ped', tAhead = ped ? Math.min(1.6, (D.cum[n] - D.cum[i]) / Math.max(2, Math.abs(v))) : 0;
+      let hit = false;
+      for (const q of ped ? [0, tAhead] : [0]) {
+        const ax = a.x + a.vx * q, az = a.z + a.vz * q, lat = Math.abs((ax - px) * uz - (az - pz) * ux), lon = (ax - px) * ux + (az - pz) * uz;
+        if (lat < (ped ? 2.6 : a.r + V.hw + .35) && Math.abs(lon) < 1.2) hit = true;
+        if (ped && lat < 3.4 && Math.abs(lon) < 1.2 && D.cum[n] - D.cum[i] < 16 && want > 3.5) { want = 3.5; D.why = 'ped-near'; }   // people right by the road ahead: walking pace (under the 4 m/s that counts as running someone down)
+      }
+      if (hit && (a.x - c.x) * fx + (a.z - c.z) * fz > V.hl * .5) {
+        const s = D.cum[n] - D.cum[i] - V.hl - a.r, va = a.vx * ux + a.vz * uz;
+        if (!lead || s < lead.s) lead = { s, va, a, n };
+      }
+    }
+    if (lead && D.cum[n] - D.cum[i] > lead.s + 6) break;
+  }
+  D.lead = lead;
+  // the same person keeps stepping in front (someone waving for a taxi walks up to the car): after a while, ease past at walking pace
+  D.ignoreT = Math.max(0, (D.ignoreT || 0) - dt);
+  if (D.ignoreT > 0) want = Math.min(want, 2.5);
+  if (lead && lead.a.kind === 'ped' && Math.abs(v) < 1.5) { if (D.pedKey === lead.a.key) D.pedT = (D.pedT || 0) + dt; else { D.pedKey = lead.a.key; D.pedT = 0; } if (D.pedT > 6) { D.ignoreKey = lead.a.key; D.ignoreT = 5; D.pedT = 0; lead = null; D.waitT = 0; D.revT = 0; } }
+  if (lead) {
+    const ped = lead.a.kind !== 'car', s0 = ped ? 3.5 : lead.a.kind === 'titan' ? 8 : 2.5, T = 1.4, aM = Math.min(V.acc, 3), bC = 3.5;
+    const vl = Math.max(0, lead.va), s = Math.max(.1, lead.s), sStar = s0 + Math.max(0, v * T + v * (v - vl) / (2 * Math.sqrt(aM * bC)));
+    const acc = aM * (1 - Math.pow(Math.max(0, v) / Math.max(want, .5), 4) - (sStar / s) ** 2);
+    const wi = Math.max(0, v + acc * .6); if (wi < want) { want = wi; D.why = 'idm-' + lead.a.kind; }
+    if (s < s0 * .6) want = 0;
+    // stopped behind something that isn't moving: overtake if the other side is clear, else wait (and honk at people)
+    if (vl < .4 && s < 14 && Math.abs(v) < 1.2) {
+      D.waitT += dt;
+      if (lead.s < 2.2 && D.waitT > 1.5 && !D.ovt && D.revT <= 0 && lead.a.kind !== 'titan') { D.revT = 1.1; D.revSt = 0; D.waitT = 1; }   // too close to get round: back off a little first
+      else if (D.waitT > (ped ? 2.5 : 1.5) && !D.ovt && lead.a.kind !== 'titan') {
+        for (const side of [-3.2, 2.6, -4.4]) {   // the other lane first, then the kerb side, then wider
+          let ok = true;
+          for (let n = Math.max(i, lead.n - 7); n <= Math.min(P0.length - 1, lead.n + 9) && ok; n++) {
+            const [px, pz, ux, uz] = at(n), ox = px - uz * side, oz = pz + ux * side;
+            if (drvCost(ox, oz, true) > 3.6) ok = false;
+            for (const a of ag) if (a !== lead.a && Math.hypot(a.x - ox, a.z - oz) < a.r + 1.6) ok = false;
+          }
+          if (ok) { D.nOvt++; D.ovt = { a: Math.max(i + 4, lead.n - 4), b: Math.min(P0.length - 1, lead.n + 6), off: side, t: 0 }; D.waitT = 0; break; }
+        }
+      }
+      if (!ped && !D.ovt && D.waitT > (DRIVABLES.includes(lead.a.key) ? 2.5 : 10) && !D.replanCD) { D.avoid.push({ x: lead.a.x, z: lead.a.z, r: lead.a.r + 1.6 }); if (D.avoid.length > 12) D.avoid.shift(); D.waitT = 0; driverReplan(c, V); }   // no way past: plan around it
+      if (ped && D.waitT > 2 && !D.hornT) { sfx('horn'); D.hornT = 4; }
+      if (D.waitT > 14) want = Math.max(want, 1.2);   // nothing else for it: edge forward and let them step aside
+    } else D.waitT = 0;
+  } else D.waitT = 0;
+  // stuck against something while the road ahead is clear: back up with the wheel turned the other way, then plan anew
+  if (want > 1.5 && Math.abs(v) < .4 && !(lead && lead.s < 6)) {
+    if ((D.stuckT += dt) > 1.8) {
+      D.stuckT = 0; D.snags++;
+      if (D.snags >= 4) {   // still stuck after backing out and new routes: ease the car a little way on along the route, past the snag
+        D.snags = 0; D.hops = (D.hops || 0) + 1; const n = Math.min(P0.length - 1, i + 4), q = P0[n], q2 = P0[Math.min(P0.length - 1, n + 1)];
+        c.x = q.x; c.z = q.z; c.y = carGround(q.x, q.z, c.yaw, V); if (q2 !== q) c.yaw = Math.atan2(-(q2.x - q.x), -(q2.z - q.z)); c.speed = 0; D.i = n; D.lx = c.x; D.lz = c.z;
+      } else { D.revT = 1.3; D.revSt = alpha > 0 ? -1 : 1; D.nRev = (D.nRev || 0) + 1; }
+    }
+  } else { D.stuckT = 0; if (v > 4) D.snags = 0; }
+  if (D.noGain > 30) { driverReplan(c, V); D.noGain = 0; }
+  // the feet: throttle to hold the wanted speed, brake firmly when well over it
+  const thr = v < want - .4 ? 1 : 0, brake = v > want + 1 || want === 0;
   return { thr, st, brake };
 }
 // the big map: pick a spot while in a car; the route and the destination are drawn on both maps
@@ -14582,7 +14772,7 @@ function musStatue(spec) {
   if (!HUM.ready) return null;
   const L = { ...BASE_LOOK, female: !!spec.female, skin: '#5a3a24', hairStyle: spec.hair || (spec.female ? 'braids' : 'short'), build: spec.build || 1, facial: spec.beard ? 'beard' : 'none' };
   const h = makeHuman(L, { dress: specDress(spec.dress || { robe: '#888888', longSleeve: true, pants: '#777777' }) }); if (!h) return null;
-  h.mixer.stopAllAction(); h.cur = ''; h.play(spec.pose || 'Idle_Loop', 0); h.mixer.update(spec.at ?? .5);   // posed once and left (stopping the clip would put it back in its bind pose)
+  h.mixer.stopAllAction(); h.cur = ''; h.play(spec.pose || 'Idle_Loop', 0); h.mixer.update(spec.at ?? .5); narrowShoulders(h);   // posed once and left (stopping the clip would put it back in its bind pose)
   const mat = MUSM[spec.mat || 'bronze'], conv = () => h.root.traverse(o => { if (!o.isMesh || o.userData.stat) return; o.userData.stat = true;
     o.material = Object.assign(mat.clone(), { skinning: !!o.isSkinnedMesh, morphTargets: !!(o.morphTargetInfluences && o.morphTargetInfluences.length) }); });
   conv(); setTimeout(conv, 1500); setTimeout(conv, 5000);   // (hair arrives a moment later)
