@@ -9913,7 +9913,7 @@ const C_DAY = new THREE.Color(SKY), C_DUSK = new THREE.Color(0xe7a27a), C_NIGHT 
 const H_DAY = new THREE.Color(0xe2eff2), H_NIGHT = new THREE.Color(0x2c3d66), G_DAY = new THREE.Color(0x587538), G_NIGHT = new THREE.Color(0x0a0f14);
 const S_DAY = new THREE.Color(0xfff0d2), S_DUSK = new THREE.Color(0xffb27a), S_NIGHT = new THREE.Color(0x8fa8d8);
 const WIN_DAY = new THREE.Color(0x10202c), WIN_NIGHT = new THREE.Color(0xc08a3a);
-const _c = new THREE.Color();
+const _c = new THREE.Color(), tmpCol = new THREE.Color();
 const poolTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,214,150,1)'); gr.addColorStop(.6, 'rgba(255,200,120,.35)'); gr.addColorStop(1, 'rgba(255,200,120,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
 const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(9, 9).rotateX(-Math.PI / 2), poolMat, Math.max(1, LAMPS.length));
@@ -9934,9 +9934,14 @@ function updateDayNight(dt) {
   const day = smooth(-.12, .22, sh), night = 1 - day, dusk = clamp(1 - Math.abs(sh) * 3.5, 0, 1);
   nightK = night;
   _c.copy(C_NIGHT).lerp(C_DAY, day).lerp(C_DUSK, dusk * .45);
+  const wk = WX.k, wl = wk * (.25 + .75 * day);   // rain greys the sky (less so at night, which is dark anyway)
+  if (wk) _c.lerp(tmpCol.copy(WX_GREY).multiplyScalar(.35 + .65 * day), wl * .75);
+  if (wk && WX.flash > 0) _c.lerp(tmpCol.set(0xdfe6ff), WX.flash * .6);
   scene.background.copy(_c); scene.fog.color.copy(_c);
+  { scene.fog.far = WX.fogFar * (1 - .4 * wk); scene.fog.near = WX.fogNear * (1 - .5 * wk); }
   hemi.color.copy(H_NIGHT).lerp(H_DAY, day); hemi.groundColor.copy(G_NIGHT).lerp(G_DAY, day); hemi.intensity = .3 + .48 * day;
   sun.color.copy(S_NIGHT).lerp(S_DAY, day).lerp(S_DUSK, dusk * .6); sun.intensity = .2 + .75 * day;
+  if (wk) { sun.intensity *= 1 - .55 * wk; hemi.intensity *= 1 - .22 * wk; if (WX.flash > 0) hemi.intensity += WX.flash * .9; }
   // the sun arcs overhead by day; at night the same light is the moon on the opposite side
   SUN_DIR.set(Math.cos(ang) * .75, Math.abs(sh) * .9 + .15, .35).normalize(); if (sh < 0) SUN_DIR.x *= -1;
   _c.copy(WIN_DAY).lerp(WIN_NIGHT, night);
@@ -9954,7 +9959,57 @@ function updateDayNight(dt) {
     headlight.intensity = night * 2.4;
   } else headlight.intensity = 0;
   const hrs = tod * 24, hh = Math.floor(hrs), mm = Math.floor((hrs - hh) * 60);
-  $('clock').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} · ${night > .5 ? 'Night' : dusk > .3 ? (sh > 0 && tod < .5 ? 'Dawn' : 'Dusk') : 'Day'}`;
+  $('clock').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} · ${night > .5 ? 'Night' : dusk > .3 ? (sh > 0 && tod < .5 ? 'Dawn' : 'Dusk') : 'Day'}${wk > .3 ? ' · 🌧' : ''}`;
+}
+
+/* ---------- weather: rain. Real time is cut into 6-minute slots and each slot has a 1 in 10 chance of rain, from a hash
+   of the slot number, so every player online sees the same sky without the server. ?rain=1 forces it (testing).
+   Streaks fall in a box that travels with the camera (wrapped in world space, so they don't ride along with you), the
+   sky greys, the fog closes in, the light dims, rain hisses, and a heavy shower now and then throws lightning. ---------- */
+const WX = { k: 0, want: 0, heavy: 0, slot: -1, force: /[?&]rain=1/.test(location.search), boltT: 20, flash: 0, gain: null, cam: new V3(), fogFar: scene.fog.far, fogNear: scene.fog.near };
+const WX_SLOT = 6 * 60e3;
+const wxHash = n => { let h = Math.imul(n | 0, 2654435761 | 0) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h >>> 0) / 4294967296; };
+const WX_GREY = new THREE.Color(0x7d868c);
+const rainFx = (() => {
+  const n = LITE ? 1100 : 2400, BX = 56, BY = 34, pos = new Float32Array(n * 6), off = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { off[i * 3] = RM(-BX / 2, BX / 2); off[i * 3 + 1] = RM(-BY / 2, BY / 2); off[i * 3 + 2] = RM(-BX / 2, BX / 2); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xc4d2dc, transparent: true, opacity: 0, depthWrite: false }));
+  m.frustumCulled = false; m.visible = false; scene.add(m);
+  return { m, n, BX, BY, pos, off };
+})();
+function updateRain(dt) {
+  const slot = Math.floor(Date.now() / WX_SLOT);
+  if (slot !== WX.slot) { WX.slot = slot; const r = wxHash(slot); WX.want = WX.force || r < .1 ? 1 : 0; WX.heavy = WX.force ? 1 : WX.want ? wxHash(slot + 7919) : 0; }
+  const was = WX.k > .5;
+  WX.k += (WX.want * (.55 + .45 * WX.heavy) - WX.k) * Math.min(1, dt / 25);   // showers build and ease off over half a minute
+  if (Math.abs(WX.k) < .002 && !WX.want) WX.k = 0;
+  if (mode === 'play' && (WX.k > .5) !== was) toast('', WX.k > .5 ? '🌧 Rain is falling over Naija City' : '🌤 The rain has stopped');
+  const R = rainFx, k = WX.k, inside = !!INSIDE.at || (!P.driving && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y));
+  R.m.visible = k > .01 && mode !== 'title' && !inside;
+  // the sound: a low wash of noise, quieter indoors
+  if (AC && !WX.gain && k > 0) {
+    const src = AC.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; WX.lp = lp;
+    WX.gain = AC.createGain(); WX.gain.gain.value = 0; src.connect(lp).connect(WX.gain).connect(master); src.start();
+  }
+  if (WX.gain) { WX.gain.gain.setTargetAtTime(mode === 'play' ? k * (inside ? .07 : .2) : 0, AC.currentTime, .3); WX.lp.frequency.setTargetAtTime(inside ? 700 : 2600, AC.currentTime, .3); }
+  // lightning in a heavy shower
+  WX.flash = Math.max(0, WX.flash - dt * 3);
+  if (mode === 'play' && k > .8 && (WX.boltT -= dt) <= 0) { WX.boltT = RM(18, 55); WX.flash = 1; setTimeout(() => { noise(2.2, 120, 40, 'lowpass', inside ? .35 : .8); }, RM(500, 2500)); }
+  if (!R.m.visible) { WX.cam.copy(camera.position); return; }
+  const dx = camera.position.x - WX.cam.x, dy = camera.position.y - WX.cam.y, dz = camera.position.z - WX.cam.z; WX.cam.copy(camera.position);
+  const fall = 24 * dt, wx = 2.2, wz = 1.2, len = .9, hx = R.BX / 2, hy = R.BY / 2, o = R.off, p = R.pos, live = Math.floor(R.n * Math.min(1, k * 1.15));
+  for (let i = 0; i < R.n; i++) {
+    const j = i * 3; let x = o[j] - dx + wx * dt, y = o[j + 1] - dy - fall, z = o[j + 2] - dz + wz * dt;
+    x = ((x + hx) % R.BX + R.BX) % R.BX - hx; y = ((y + hy) % R.BY + R.BY) % R.BY - hy; z = ((z + hx) % R.BX + R.BX) % R.BX - hx;
+    o[j] = x; o[j + 1] = y; o[j + 2] = z;
+    const q = i * 6;
+    if (i >= live) { p[q] = p[q + 3] = x; p[q + 1] = p[q + 4] = -1e4; p[q + 2] = p[q + 5] = z; continue; }
+    p[q] = x; p[q + 1] = y; p[q + 2] = z; p[q + 3] = x - wx * .04; p[q + 4] = y + len; p[q + 5] = z - wz * .04;
+  }
+  R.m.geometry.attributes.position.needsUpdate = true; R.m.position.copy(camera.position);
+  R.m.material.opacity = (.32 + .2 * (1 - nightK)) * Math.min(1, k * 1.4);
 }
 
 /* ---------- HUD ---------- */
@@ -15529,7 +15584,7 @@ function frame(now) {
   sun.position.copy(P.pos).addScaledVector(SUN_DIR, 110); sun.target.position.copy(P.pos);
   updateAds(dt);
   updatePolice();
-  updateDayNight(dt);
+  updateRain(dt); updateDayNight(dt);
   updateGrass(); updateForest(); if (mode !== 'pause') updateTrains(dt);
   updateHUD(dt);
   updateLand(dt);
