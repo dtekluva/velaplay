@@ -1184,7 +1184,7 @@ const OYO = { x0: -270, x1: 270, z0: -5866, z1: -5560 }, AFIN = { x0: -120, x1: 
 const OROADS = YB ? [
   [0, -4724, 0, -5700, 5],                                   // Oyo Road: the expressway's end, through Ibadan and north to the Alaafin's palace
   [-330, -4740 + 0, -22, -4740, 4],                          // Mapo: the old core's ring of lanes
-  [-330, -5000, 330, -5000, 4.5],                            // Iwo Road, across the city
+  [-330, -5000, 362, -5000, 4.5],                            // Iwo Road, across the city and on east toward Ife and Benin
   [22, -4740, 330, -4740, 4.5], [22, -4880, 330, -4880, 4.5], [170, -4740, 170, -5000, 4.5],   // Dugbe's streets
   [0, -5178, 330, -5178, 4.5], [110, -5178, 110, -5440, 4], [230, -5178, 230, -5440, 4], [0, -5310, 330, -5310, 4],   // Bodija
   [0, -5090, AGODI.x0 + 30, -5090, 4.5],                     // Agodi Government House's drive
@@ -1367,6 +1367,47 @@ if (IKOYI) {
     NWHm[k] = h; NWKIND[k] = kd;
   }
 }
+/* ---------- Edo: the Ibadan–Benin road. Iwo Road leaves Ibadan eastward (z -5000) onto new land past the old east edge,
+   x 360 to 2280, a 400 m band (z -5200 to -4800) of rolling forest: Ile-Ife on the way, the Ore junction stop, rubber
+   plantations, the old moat, then Benin City round King's Square. Its own grid (EHm / EKIND, columns N..N+ED). ---------- */
+const ED = YB ? 1920 : 0, EZ0 = -5200, EZ1 = -4800, EJ0 = EZ0 + HALF, EJ1 = EZ1 + HALF, EBOUND = HALF + ED - 14, ERD = -5000;
+const EHm = new Int16Array(Math.max(1, ED * (EJ1 - EJ0))), EKIND = new Uint8Array(Math.max(1, ED * (EJ1 - EJ0)));
+const eIdx = (x, z) => clamp(Math.floor(x + HALF) - N, 0, ED - 1) * (EJ1 - EJ0) + clamp(Math.floor(z + HALF) - EJ0, 0, EJ1 - EJ0 - 1);
+const inEdo = (x, z) => ED > 0 && x >= HALF && x < HALF + ED && z >= EZ0 && z < EZ1;
+const EDO = ED ? { ife: [820, 1010], ore: [1300, 1390], rubber: [1440, 1690], moat: [1745, 1759], benin: [1700, 2266, -5190, -4810], kc: [1985, -5000], kr: 38,
+  ooni: { x0: 870, x1: 960, z0: -5100, z1: -5030 }, palace: { x0: 2010, x1: 2140, z0: -5150, z1: -5052 }, igun: { x0: 2150, x1: 2260, z0: -5150, z1: -5104 },
+  market: { x0: 2055, x1: 2180, z0: -4930, z1: -4878 }, museum: { x0: 1973, x1: 1997, z0: -5012, z1: -4988 }, station: { x0: 1815, x1: 1835, z0: -4913, z1: -4897 } } : null;
+// Benin's streets: King's Square's ring, the four arms from it, a grid every 64 m
+function edoRoad(x, z) {
+  if (!EDO) return false;
+  if (Math.abs(z - ERD) < 4.5 && x < EDO.benin[1]) return true;   // the road from Ibadan, and on through the city
+  const [bx0, bx1, bz0, bz1] = EDO.benin; if (x < bx0 || x > bx1 || z < bz0 || z > bz1) return false;
+  const [kx, kz] = EDO.kc, d = Math.hypot(x - kx, z - kz);
+  if (Math.abs(d - EDO.kr) < 5) return true;   // the Ring Road round King's Square
+  if (d > EDO.kr && Math.abs(x - kx) < 4.5) return true;   // the north and south arms
+  for (let gx = kx - 192; gx <= bx1; gx += 64) if (Math.abs(x - gx) < 3.5 && gx !== kx && x > 1790) return true;
+  for (let gz = kz - 128; gz <= bz1; gz += 64) if (Math.abs(z - gz) < 3.5 && gz !== kz && x > 1790) return true;
+  return false;
+}
+if (ED) {
+  const Y = TOWN.y, H = EJ1 - EJ0, [bx0, bx1, bz0, bz1] = EDO.benin;
+  const flat = (x, z) => { let m = Math.abs(z - ERD) - 14;   // how far from anywhere that must be level (the road, the towns)
+    for (const [a, c] of [EDO.ife, EDO.ore]) m = Math.min(m, Math.max(a - x, x - c, Math.abs(z - ERD) - 110));
+    m = Math.min(m, Math.max(bx0 - 10 - x, x - bx1, bz0 - z, z - bz1)); m = Math.min(m, x - 400); return m; };   // (and level beside Ibadan, where it joins)
+  for (let i = 0; i < ED; i++) for (let j = 0; j < H; j++) {
+    const x = N + i - HALF + .5, z = EJ0 + j - HALF + .5, k = i * H + j;
+    let h = Y + Math.max(0, fbm(x / 70 + 31, z / 70 - 12) - .38) * 26 + fbm(x / 18, z / 18) * 2.2, kd = 0;
+    const m = flat(x, z); if (m <= 0) h = Y; else if (m < 22) { const t = 1 - m / 22, e = t * t * (3 - 2 * t); h += (Y - h) * e; }
+    if (x > EDO.moat[0] && x < EDO.moat[1] && Math.abs(z - ERD) > 9) { h = Y - 5; kd = 0; }   // the old moat, crossed by the road on its causeway
+    if (x > bx0 && x < bx1 && z > bz0 && z < bz1 && h === Y) kd = 5;   // Benin's red earth
+    if (edoRoad(x, z)) kd = 6; else if (edoRoad(x + 1.2, z) || edoRoad(x - 1.2, z) || edoRoad(x, z + 1.2) || edoRoad(x, z - 1.2)) kd = 7;
+    if (Math.hypot(x - EDO.kc[0], z - EDO.kc[1]) < EDO.kr - 5) { kd = 0; h = Y; }   // the square's lawn
+    if (inR(EDO.palace, x, z) || inR(EDO.ooni, x, z)) kd = 0;   // the palace grounds
+    EHm[k] = Math.round(h); EKIND[k] = kd;
+  }
+}
+const xHi = z => ED && z > EZ0 + 10 && z < EZ1 - 10 ? EBOUND : BOUND;   // how far east you can go: out along the Edo road in its band
+const edoKeep = (x, z) => ED && x > BOUND + 3 ? clamp(z, EZ0 + 12, EZ1 - 12) : z;   // out on the Edo strip, z stays between its walls
 const xLo = z => WD && z > IKZ0 + 10 ? -WBOUND : -BOUND;   // how far west you can go: out to the new edge, except up on the mainland
 const inBIW = (x, z, m = 0) => !!BIW && x > BIW.x0 - m && x < BIW.x1 + m && z > BIW.z0 - m && z < BIW.z1 + m;
 if (BIW) {
@@ -1386,13 +1427,13 @@ if (BIW) {
     WHm[k] = h; WKIND[k] = kd;
   }
 }
-const kindAt = (x, z) => x < -HALF && WD ? (z < -HALF ? (z >= IKZ0 ? NWKIND[nwIdx(x, z)] : 0) : z >= HALF ? 1 : WKIND[wIdx(x, z)]) : z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
+const kindAt = (x, z) => inEdo(x, z) ? EKIND[eIdx(x, z)] : x >= HALF ? 0 : x < -HALF && WD ? (z < -HALF ? (z >= IKZ0 ? NWKIND[nwIdx(x, z)] : 0) : z >= HALF ? 1 : WKIND[wIdx(x, z)]) : z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
 // the coastal road's smooth surface where you're on it (else -Infinity); groundAt is the terrain or the road, whichever is higher
 function roadSurf(x, z) {
   if (!COAST || !(x < COAST.xw + 24 || z > COAST.rz - 24 || Math.abs(z - TOWN.z) < 24 || x > COAST.xe - 24)) return -Infinity;
   const p = crProject(x, z); return p.dist > crHW(p.s) + 1.55 ? -Infinity : COAST.surf(p.s) + .03;
 }
-const colH = (i, j) => i < 0 && i >= -WD ? (j < -NWD ? EDGE_H : j < 0 ? NWHm[(i + WD) * NWD + j + NWD] : j < N ? WHm[(i + WD) * N + j] : 0) : (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
+const colH = (i, j) => i >= N && i < N + ED && j >= EJ0 && j < EJ1 ? EHm[(i - N) * (EJ1 - EJ0) + j - EJ0] : i < 0 && i >= -WD ? (j < -NWD ? EDGE_H : j < 0 ? NWHm[(i + WD) * NWD + j + NWD] : j < N ? WHm[(i + WD) * N + j] : 0) : (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
 const heightAt = (x, z) => colH(Math.floor(x + HALF), Math.floor(z + HALF));
 const groundAt = (x, z) => Math.max(heightAt(x, z), roadSurf(x, z));
 const WATER_Y = 1.5;
@@ -1404,8 +1445,8 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   const KMATS = [[M.grassTop, M.grassSide, M.dirt], [M.sand, M.sand, M.dirt], [M.snowTop, M.snowSide, M.rock], [M.rock, M.rock, M.rock], [M.wheat, M.grassSide, M.dirt], [M.path, M.path, M.dirt],
     [M.asphalt, M.concrete, M.dirt], [M.concrete, M.concrete, M.dirt], [M.lineX, M.concrete, M.dirt], [M.lineZ, M.concrete, M.dirt]];
   const CHUNKS = new Map();
-  const HH = (i, j) => i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => i < 0 ? (j < 0 ? (j >= -NWD ? NWKIND[(i + WD) * NWD + j + NWD] : 0) : j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid, the mainland strip, the sea and port, or the west strip   // the old grid or the mainland strip
-  TERRAIN_CHUNK = (ci, cj) => {
+  const HH = (i, j) => i < 0 || i >= N ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => i >= N ? (j >= EJ0 && j < EJ1 ? EKIND[(i - N) * (EJ1 - EJ0) + j - EJ0] : 0) : i < 0 ? (j < 0 ? (j >= -NWD ? NWKIND[(i + WD) * NWD + j + NWD] : 0) : j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid, the mainland strip, the sea and port, or the west strip   // the old grid or the mainland strip
+  TERRAIN_CHUNK = (ci, cj, jEnd) => {
     const ckey = ci + ',' + cj, made = [];
     for (const m of CHUNKS.get(ckey) || []) { scene.remove(m); m.geometry.dispose(); }
     const buf = new Map();
@@ -1418,7 +1459,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
       B.ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
     };
     // tops: grow rectangles over cells of the same height and ground kind (one quad instead of hundreds on flat ground)
-    const i1 = Math.min(N, ci + CH), j1 = Math.min(N + SD, cj + CH), used = new Uint8Array(CH * CH), U = (i, j) => (i - ci) * CH + (j - cj);
+    const i1 = Math.min(ci >= N ? N + ED : N, ci + CH), j1 = Math.min(jEnd ?? N + SD, cj + CH), used = new Uint8Array(CH * CH), U = (i, j) => (i - ci) * CH + (j - cj);
     for (let i = ci; i < i1; i++) for (let j = cj; j < j1; j++) {
       if (used[U(i, j)]) continue;
       const h = HH(i, j), kd = KK(i, j), same = (a, b) => !used[U(a, b)] && HH(a, b) === h && KK(a, b) === kd;
@@ -1458,7 +1499,8 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     CHUNKS.set(ckey, made);
   };
   for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N + SD; cj += CH) TERRAIN_CHUNK(ci, cj);
-  for (let ci = -WD; ci < 0; ci += CH) for (let cj = -NWD; cj < N + 96 * 2; cj += CH) TERRAIN_CHUNK(ci, cj);   // (and Ikoyi, north of it)   // Banana Island West and the sea off it
+  for (let ci = -WD; ci < 0; ci += CH) for (let cj = -NWD; cj < N + 96 * 2; cj += CH) TERRAIN_CHUNK(ci, cj);   // (and Ikoyi, north of it)
+  for (let ci = N; ci < N + ED; ci += CH) for (let cj = EJ0; cj < EJ1; cj += CH) { const j1 = Math.min(EJ1, cj + CH); TERRAIN_CHUNK(ci, cj, j1); }   // Edo   // Banana Island West and the sea off it
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
   const nE = HALF + (YB ? ND : 0);
@@ -1561,13 +1603,31 @@ DEPOTS.forEach(([x, z]) => {
       b.build(); continue;
     }
     if (ax === 'z') b.box(L, H, T, 0, H / 2, sgn * zw, M.stone, 3);
-    else if (gap) { const z0 = mid - len / 2, z1 = mid + len / 2; b.box(T, H, gap[0] - z0, sgn * W, H / 2, (z0 + gap[0]) / 2, M.stone, 3); b.box(T, H, z1 - gap[1], sgn * W, H / 2, (gap[1] + z1) / 2, M.stone, 3); b.box(T, 4, gap[1] - gap[0], sgn * W, 2, (gap[0] + gap[1]) / 2, M.stone, 3); b.box(T + .4, .5, gap[1] - gap[0], sgn * W, 4.25, (gap[0] + gap[1]) / 2, M.roof, 1, false); }
+    else if (gap || (ED && sgn > 0)) {   // the east side has openings: the runway's low section, and the open road through to Edo
+      const z0 = mid - len / 2, z1 = mid + len / 2, gs = [];
+      if (gap) gs.push([gap[0], gap[1], true]);
+      if (ED && sgn > 0) gs.push([EZ0 - 4, EZ1 + 4, false]);
+      gs.sort((a, c) => a[0] - c[0]); let at = z0;
+      for (const [g0, g1, low] of gs) {
+        if (g0 > at) b.box(T, H, g0 - at, sgn * W, H / 2, (at + g0) / 2, M.stone, 3);
+        if (low) { b.box(T, 4, g1 - g0, sgn * W, 2, (g0 + g1) / 2, M.stone, 3); b.box(T + .4, .5, g1 - g0, sgn * W, 4.25, (g0 + g1) / 2, M.roof, 1, false); }
+        at = g1;
+      }
+      if (z1 > at) b.box(T, H, z1 - at, sgn * W, H / 2, (at + z1) / 2, M.stone, 3);
+    }
     else b.box(T, H, len, sgn * W, H / 2, mid, M.stone, 3);
     // battlements along the top
     for (let k = ax === 'z' ? -W + 6 : -WN + 6; k < (ax === 'z' ? W - 4 : zEnd - 4); k += 8) {
       if (gap && k > gap[0] - 2 && k < gap[1] + 2) continue;
+      if (ED && ax === 'x' && sgn > 0 && k > EZ0 - 6 && k < EZ1 + 6) continue;
       if (ax === 'z') b.box(4, 3, T, k, H + 1.5, sgn * zw, M.stone, 3); else b.box(T, 3, 4, sgn * W, H + 1.5, k, M.stone, 3);
     }
+    b.build();
+  }
+  if (ED) {   // the walls round the Edo strip: along both sides of the long road, and across the far end past Benin
+    const b = new Builder(), XE = EBOUND + 5, lx = XE - W;
+    for (const zz of [EZ0 - 4, EZ1 + 4]) { b.box(lx, H, T, (W + XE) / 2, H / 2, zz, M.stone, 3); for (let k = W + 6; k < XE - 4; k += 8) b.box(4, 3, T, k, H + 1.5, zz, M.stone, 3); }
+    b.box(T, H, EZ1 - EZ0 + 8, XE, H / 2, (EZ0 + EZ1) / 2, M.stone, 3);
     b.build();
   }
 })();
@@ -4662,10 +4722,10 @@ function spawnTitan(x, z) {
 function spawnFar(minD = 55) {
   for (let k = 0; k < 60; k++) {
     const a = RM(0, TAU), d = RM(minD, minD + 80);
-    const z = clamp(P.pos.z + Math.cos(a) * d, ZLO, ZHI), x = clamp(P.pos.x + Math.sin(a) * d, xLo(z), BOUND);
+    const z = clamp(P.pos.z + Math.cos(a) * d, ZLO, ZHI), x = clamp(P.pos.x + Math.sin(a) * d, xLo(z), xHi(z));
     if (heightAt(x, z) >= 2 && Math.hypot(x - P.pos.x, z - P.pos.z) > minD && !nearVillage(x, z, VR + 25)) return spawnTitan(x, z);
   }
-  return spawnTitan(clamp(P.pos.x + 80, xLo(P.pos.z), BOUND), P.pos.z);
+  return spawnTitan(clamp(P.pos.x + 80, xLo(P.pos.z), xHi(P.pos.z)), P.pos.z);
 }
 function removeTitan(t) {
   for (const h of hooks) if (h.obj && h.obj.userData.titan === t) { h.state = 'idle'; h.obj = null; }
@@ -4782,7 +4842,7 @@ function updateTitans(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, d = Math.hypot(ex, ez);
       if (d < r && d > 1e-4) { g.position.x += ex / d * (r - d); g.position.z += ez / d * (r - d); }
     }
-    g.position.z = clamp(g.position.z, ZLO, ZHI); g.position.x = clamp(g.position.x, xLo(g.position.z), BOUND);
+    g.position.z = edoKeep(g.position.x, clamp(g.position.z, ZLO, ZHI)); g.position.x = clamp(g.position.x, xLo(g.position.z), xHi(g.position.z));
     const gy = Math.max(heightAt(g.position.x, g.position.z), WATER_Y - 1) - .3;
     g.position.y += (gy - g.position.y) * Math.min(1, dt * 6);
     // limbs
@@ -5294,7 +5354,7 @@ function updateCivilians(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, dd = Math.hypot(ex, ez), r = .35;
       if (dd < r) { if (dd > 1e-4) { g.position.x += ex / dd * (r - dd); g.position.z += ez / dd * (r - dd); } else g.position.x += r; if (c.state === 'walk') c.path.length = 0; }
     }
-    g.position.z = clamp(g.position.z, ZLO, ZHI); g.position.x = clamp(g.position.x, xLo(g.position.z), BOUND);
+    g.position.z = edoKeep(g.position.x, clamp(g.position.z, ZLO, ZHI)); g.position.x = clamp(g.position.x, xLo(g.position.z), xHi(g.position.z));
     const inH = houseAt(c.v, g.position.x, g.position.z);
     g.position.y = c.fixedY ?? (inH ? inH.floorY : groundAt(g.position.x, g.position.z));
     g.rotation.x = 0;
@@ -8274,11 +8334,153 @@ if (YB) withSeed(9494, () => {
     sign('WELCOME TO OYO', 'ANCIENT TOWN OF THE ALAAFIN', '#5a1a0a', 9, 1.8, -13, Y + 4.4, OYO.z1 - 6, 0, '#f2c230'); for (const o of [-3.8, 3.8]) b.box(.25, 4.4, .25, -13 + o, Y + 2.2, OYO.z1 - 6.1, darkM, 1, true, 'house');
   }
 
+  /* ---- Edo: the long road east from Ibadan (Iwo Road on), Ile-Ife and the Ooni's palace, the Ore junction stop, the rubber
+     plantations, the moat, then Benin City: King's Square and the museum, the Oba's palace, Igun Street, Oba Market ---- */
+  if (ED) {
+    const [bx0, bx1, bz0, bz1] = EDO.benin, [kx, kz] = EDO.kc, laterite = LM(0x8a3a20), lat2 = LM(0x9a4a2a), dark = LM(0x3a2416), bronze = LM(0x8a5a2a), coral = LM(0xb8342a);
+    const offRoad = (x, z, m) => !edoRoad(x, z) && !edoRoad(x + m, z) && !edoRoad(x - m, z) && !edoRoad(x, z + m) && !edoRoad(x, z - m) && !edoRoad(x + m, z + m) && !edoRoad(x - m, z - m) && !edoRoad(x + m, z - m) && !edoRoad(x - m, z + m);
+    // the road's markings: a broken centre line, solid edges
+    for (let x = 366; x < bx1 - 4; x += 9) if (!(x > bx0 && Math.abs(x - kx) < EDO.kr + 6)) b.box(4, .02, .16, x + 2, Y + .04, ERD, yel, 1, false);
+    for (const o of [-3.9, 3.9]) { b.box(kx - EDO.kr - 6 - 362, .02, .14, (362 + kx - EDO.kr - 6) / 2, Y + .04, ERD + o, white, 1, false); b.box(bx1 - (kx + EDO.kr + 6), .02, .14, (bx1 + kx + EDO.kr + 6) / 2, Y + .04, ERD + o, white, 1, false); }
+    const eSign = (x, dir, text, sub, bg = '#1f6f3a') => { const z = ERD - dir * 8; sign(text, sub, bg, 7, 2.2, x, Y + 5, z, dir > 0 ? -Math.PI / 2 : Math.PI / 2); for (const o of [-2.6, 2.6]) b.box(.25, 6, .25, x, Y + 3, z + o, darkM, 1, true, 'house'); };
+    eSign(420, 1, 'IBADAN–BENIN ROAD', 'ILE-IFE 50 KM · ORE 95 KM · BENIN 185 KM'); eSign(760, 1, 'WELCOME TO OSUN STATE', 'STATE OF THE LIVING SPRING', '#2a5a2a'); eSign(810, 1, 'ILE-IFE', 'CRADLE OF THE YORUBA', '#7a1a2a');
+    eSign(1240, 1, 'WELCOME TO ONDO STATE', 'SUNSHINE STATE', '#8a5a0a'); eSign(1280, 1, 'ORE JUNCTION', 'FUEL · FOOD · REST', '#8a3a1a'); eSign(1420, 1, 'WELCOME TO EDO STATE', 'HEARTBEAT OF THE NATION', '#7a1a1a');
+    eSign(1720, 1, 'BENIN CITY', 'KING’S SQUARE · OBA’S PALACE · MUSEUM', '#7a1a1a'); eSign(1700, -1, 'IBADAN 185 KM', 'IBADAN–BENIN ROAD'); eSign(400, -1, 'IBADAN', 'IWO ROAD · CITY CENTRE', '#7a1a2a');
+    const townHouses = (x0, x1, z0, z1, n, keep) => { for (let k = 0; k < n; k++) { const x = R2(x0, x1), z = R2(z0, z1), w = R2(8, 13), d = R2(7, 11);
+      if (Math.abs(z - ERD) < 14 || keep(x, z) || !offRoad(x, z, Math.max(w, d) / 2 + 3) || !free(x, z, w, d, 3)) continue;
+      cottage(x, z, w, d, rng() < .25 ? 2 : 1, Math.abs(z - ERD) < 60 ? (z < ERD ? 'pz' : 'nz') : ri2(['pz', 'nz', 'px', 'nx']), rng() < .2 ? zinc : ri2(rusts), ri2(walls)); } };
+    /* Ile-Ife: a town either side of the road, the Ooni's palace gate */
+    { const [a, c] = EDO.ife, O = EDO.ooni, gx = (O.x0 + O.x1) / 2;
+      const wall = (x0, z0, x1, z1) => { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; if (L < .5) return; b.box(along ? L : 1, 3.2, along ? 1 : L, (x0 + x1) / 2, Y + 1.6, (z0 + z1) / 2, lat2, 2, true, 'house'); b.box(along ? L : 1.4, .35, along ? 1.4 : L, (x0 + x1) / 2, Y + 3.37, (z0 + z1) / 2, ri2(rusts), 1, false); };
+      wall(O.x0, O.z0, O.x1, O.z0); wall(O.x0, O.z0, O.x0, O.z1); wall(O.x1, O.z0, O.x1, O.z1); wall(O.x0, O.z1, gx - 7, O.z1); wall(gx + 7, O.z1, O.x1, O.z1);
+      for (const s of [-1, 1]) b.box(2.6, 6.5, 2.6, gx + s * 8, Y + 3.25, O.z1, lat2, 2, true, 'house');
+      b.box(19, 2, 3, gx, Y + 7.5, O.z1, lat2, 1, true, 'roof'); sign('ILE OODUA', 'THE PALACE OF THE OONI OF IFE', '#3a1a5a', 12, 1.5, gx, Y + 7.5, O.z1 + 1.55, 0, '#f2c230');
+      const hz = O.z0 + 26; b.box(50, 6, 20, gx, Y + 3, hz, lat2, 2, true, 'house'); hipRoof(b, ri2(rusts), gx, hz, 50, 20, Y + 6, { pitch: .4, ov: 2.4, ground: Y });
+      for (let k = 0; k < 11; k++) b.box(.6, 5.2, .6, gx - 23 + k * 4.6, Y + 2.6, hz + 11.5, dark, 1, true, 'house');
+      YABA_MAP.push([gx, hz, 50, 20, '#9a4a2a']); TAKEN.push([(O.x0 + O.x1) / 2, (O.z0 + O.z1) / 2, O.x1 - O.x0, O.z1 - O.z0]);
+      people('security', 3, [gx - 6, gx + 6, O.z1 + 2, O.z1 + 5], { guard: true }); people('village', 8, [O.x0 + 6, O.x1 - 6, hz + 12, O.z1 - 6]);
+      OYO_PLACES.push(['Ile-Ife', (a + c) / 2, ERD + 8], ['The Ooni’s palace, Ile-Ife', gx, O.z1 + 10]);
+      townHouses(a, c, ERD - 105, ERD + 105, 120, (x, z) => inR(O, x, z, 8));
+      for (let x = a + 6; x < c; x += 26) for (const s of [-1, 1]) lamp(x, ERD + s * 6.2, 0, -s);
+      people('village', 16, [a + 10, c - 10, ERD - 12, ERD - 6]); people('village', 12, [a + 10, c - 10, ERD + 6, ERD + 12]);
+      sign('ILE-IFE', 'OSUN STATE · ÌLÉ-IFẸ̀', '#7a1a2a', 6, 1.4, a + 8, Y + 3.4, ERD + 9, 0); for (const o of [-2.4, 2.4]) b.box(.2, 3.4, .2, a + 8 + o, Y + 1.7, ERD + 8.9, darkM, 1, false);
+    }
+    /* Ore junction: a fuel station north of the road, bukas and parked trucks south */
+    { const [a, c] = EDO.ore, cx = (a + c) / 2, nz = ERD - 22, sz = ERD + 20;
+      for (const [ox, oz] of [[-12, -5], [12, -5], [-12, 5], [12, 5]]) b.box(.5, 5.5, .5, cx + ox, Y + 2.75, nz + oz, white, 1, true, 'house');
+      b.box(30, .8, 16, cx, Y + 5.9, nz, LM(0x1f6f3a), 1, true, 'roof'); b.box(30.4, .3, 16.4, cx, Y + 6.45, nz, white, 1, false);
+      for (const ox of [-6, 6]) for (const oz of [-2, 2]) { b.box(1, 1.6, .6, cx + ox, Y + .8, nz + oz, white, 1, true, 'house'); b.box(.9, .4, .65, cx + ox, Y + 1.4, nz + oz, LM(0x1f6f3a), 1, false); }
+      sign('ORE JUNCTION FUEL', 'PMS ₦1,060 · AGO ₦1,420', '#1f6f3a', 9, 1.3, cx, Y + 5.9, nz + 8.15, 0);
+      cottage(cx, nz - 12, 18, 7, 1, 'pz', zinc, walls[2], '#e8e6df'); sign('SHOP · ATM · TOILETS', '', '#2a2c30', 8, .9, cx, Y + 2.6, nz - 8.45, 0);
+      for (const ox of [-18, -8, 2, 12]) { b.box(6, .2, 5, cx + ox, Y + 2.8, sz, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, -2.3], [-2.8, 2.3], [2.8, 2.3]]) b.box(.15, 2.8, .15, cx + ox + px, Y + 1.4, sz + pz, M.bark, 1, false); b.box(4, .9, 1.2, cx + ox, Y + .45, sz, M.oak, 1, true, 'house'); }
+      sign('ORE JUNCTION BUKA', 'POUNDED YAM · BANGA SOUP · BOLI', '#8a2a1a', 7, 1, cx - 3, Y + 3.4, sz - 2.6, 0);
+      VENUES.push({ name: 'Ore Junction Buka', x: cx - 3, z: sz, r: 6, food: 'buka' }, { name: 'the Ore junction stop', x: cx, z: nz - 7, r: 6, food: 'rest', toilet: 50, motel: 6000 });
+      for (const [ox, kind] of [[-16, 'tanker'], [-4, 'tipper'], [8, 'tanker'], [20, 'tipper']]) { const g = kind === 'tanker' ? makeTanker() : makeTipper(); g.position.set(cx + ox, Y + .02, sz + 13); g.rotation.y = Math.PI / 2; addStatic(g); colliders.push({ x0: cx + ox - 4, x1: cx + ox + 4, y0: Y, y1: Y + 3, z0: sz + 11.5, z1: sz + 14.5, tag: 'house' }); }
+      TAKEN.push([cx, nz, 34, 30], [cx, sz + 6, 50, 26]);
+      townHouses(a - 10, c + 10, ERD - 90, ERD + 90, 30, () => false);
+      people('village', 12, [a + 4, c - 4, ERD + 8, ERD + 16]); people('village', 6, [a + 4, c - 4, ERD - 16, ERD - 8]);
+      OYO_PLACES.push(['Ore junction', cx, ERD - 8]);
+    }
+    /* the moat: a low wall either side of the causeway, the name */
+    { const m = (EDO.moat[0] + EDO.moat[1]) / 2; for (const s of [-1, 1]) b.box(EDO.moat[1] - EDO.moat[0] + 4, 1.1, .5, m, Y + .55, ERD + s * 6.5, M.stone, 1, true, 'house');
+      sign('IYA · THE BENIN MOAT', 'DUG IN THE 13TH CENTURY', '#5a2a1a', 6, 1.2, EDO.moat[0] - 6, Y + 3, ERD - 8, -Math.PI / 2); for (const o of [-2, 2]) b.box(.2, 3, .2, EDO.moat[0] - 6, Y + 1.5, ERD - 8 + o, darkM, 1, false); }
+    /* Benin City */
+    // King's Square: the round National Museum in the middle, a bronze warrior on his plinth, palms round the lawn
+    { const Mu = EDO.museum, mx = (Mu.x0 + Mu.x1) / 2, mz = (Mu.z0 + Mu.z1) / 2, mw = Mu.x1 - Mu.x0;
+      b.box(mw, 9, mw, mx, Y + 4.5, mz, LM(0xf2e8d0), 2, true, 'house'); b.box(mw + 2, .8, mw + 2, mx, Y + 9.4, mz, laterite, 1, true, 'roof');
+      const dome = new THREE.Mesh(new THREE.CylinderGeometry(mw * .38, mw * .46, 4, 24), laterite); dome.position.set(mx, Y + 11.8, mz); dome.castShadow = true; scene.add(dome);
+      for (let k = 0; k < 6; k++) for (const s of [-1, 1]) b.box(.8, 7, .8, mx - 10 + k * 4, Y + 3.5, mz + s * (mw / 2 + .6), laterite, 1, false);
+      sign('NATIONAL MUSEUM', 'BENIN CITY · KING’S SQUARE', '#3a2416', 10, 1.3, mx, Y + 7.6, Mu.z1 + 1.4, 0, '#d6ae5f');
+      YABA_MAP.push([mx, mz, mw, mw, '#d8c0a0']); OYO_PLACES.push(['King’s Square & National Museum, Benin', kx, kz + EDO.kr + 8]);
+      const sz = kz + 24; b.box(3.2, 3, 3.2, kx, Y + 1.5, sz, M.stone, 1, true, 'house'); b.box(.9, 2.4, .7, kx, Y + 4.2, sz, bronze, 1, false); b.box(.7, .8, .7, kx, Y + 5.8, sz, bronze, 1, false); b.box(.8, .3, .8, kx, Y + 6.3, sz, coral, 1, false); b.box(.15, 3.2, .15, kx + .7, Y + 5, sz, bronze, 1, false); b.box(.9, 1.2, .1, kx - .7, Y + 4.6, sz - .3, bronze, 1, false);
+      for (let k = 0; k < 14; k++) { const a = k / 14 * TAU; palm(kx + Math.cos(a) * (EDO.kr - 9), kz + Math.sin(a) * (EDO.kr - 9)); }
+      people('city', 14, [kx - 24, kx + 24, kz + 14, kz + 28]);
+    }
+    // the Oba's palace: long red laterite walls, the gate on the south with its turrets, halls round the courtyards, chiefs
+    { const A = EDO.palace, gx = (A.x0 + A.x1) / 2;
+      const wall = (x0, z0, x1, z1) => { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; if (L < .5) return; b.box(along ? L : 1.2, 4, along ? 1.2 : L, (x0 + x1) / 2, Y + 2, (z0 + z1) / 2, laterite, 2, true, 'house'); b.box(along ? L : 1.6, .4, along ? 1.6 : L, (x0 + x1) / 2, Y + 4.2, (z0 + z1) / 2, ri2(rusts), 1, false);
+        for (let t = 2; t < L - 1; t += 6) b.box(along ? .3 : 1.24, 3.6, along ? 1.24 : .3, along ? x0 + t : (x0 + x1) / 2, Y + 1.8, along ? (z0 + z1) / 2 : z0 + t, lat2, 1, false); };   // the ribbed walls
+      wall(A.x0, A.z0, A.x1, A.z0); wall(A.x0, A.z0, A.x0, A.z1); wall(A.x1, A.z0, A.x1, A.z1); wall(A.x0, A.z1, gx - 9, A.z1); wall(gx + 9, A.z1, A.x1, A.z1);
+      for (const s of [-1, 1]) { b.box(3.6, 9, 3.6, gx + s * 10.5, Y + 4.5, A.z1, laterite, 2, true, 'house'); b.box(4.6, 2.4, 4.6, gx + s * 10.5, Y + 10, A.z1, dark, 1, false); b.box(1.2, 1.6, 1.2, gx + s * 10.5, Y + 12, A.z1, bronze, 1, false); }   // the turrets, bronze birds on top
+      b.box(25, 2.6, 3.6, gx, Y + 9.3, A.z1, laterite, 1, true, 'roof'); sign('OGBE · THE PALACE OF THE OBA OF BENIN', 'OBA GHA TO KPERE · LONG LIVE THE KING', '#5a1a0a', 16, 1.6, gx, Y + 9.3, A.z1 + 1.85, 0, '#f2c230');
+      const hz = A.z0 + 34; b.box(80, 8, 26, gx, Y + 4, hz, laterite, 2, true, 'house'); hipRoof(b, ri2(rusts), gx, hz, 80, 26, Y + 8, { pitch: .42, ov: 3, ground: Y });
+      for (let k = 0; k < 17; k++) { const x = gx - 38 + k * 4.75; b.box(.8, 7, .8, x, Y + 3.5, hz + 15, dark, 1, true, 'house'); for (let j = 0; j < 3; j++) b.box(1, .5, .2, x, Y + 1.5 + j * 2, hz + 15.45, bronze, 1, false); }   // carved posts hung with bronze plaques
+      b.box(82, .4, 6, gx, Y + .2, hz + 15.5, LM(0x6a3a22), 1, true, 'base');
+      for (const [ox, oz, w, d] of [[-50, -26, 22, 14], [50, -26, 22, 14], [-50, 14, 20, 12], [50, 14, 20, 12]]) { b.box(w, 5, d, gx + ox, Y + 2.5, hz + oz, laterite, 2, true, 'house'); hipRoof(b, ri2(rusts), gx + ox, hz + oz, w, d, Y + 5, { pitch: .4, ov: 1.5, ground: Y }); YABA_MAP.push([gx + ox, hz + oz, w, d, '#8a3a20']); }
+      sign('OBA OF BENIN', 'OMO N’OBA N’EDO', '#5a1a0a', 9, 1.2, gx, Y + 6.6, hz + 13.06, 0, '#f2c230');
+      for (let x = A.x0 + 6; x < A.x1 - 4; x += 12) for (const s of [-1, 1]) if (Math.abs(x - gx) > 14) palm(x, A.z1 + s * 0 - 6);
+      YABA_MAP.push([gx, hz, 80, 26, '#8a3a20']); TAKEN.push([gx, (A.z0 + A.z1) / 2, A.x1 - A.x0 + 6, A.z1 - A.z0 + 6]);
+      people('security', 4, [gx - 7, gx + 7, A.z1 + 2, A.z1 + 6], { guard: true }); people('village', 12, [A.x0 + 8, A.x1 - 8, hz + 18, A.z1 - 12]);
+      OYO_PLACES.push(['The Oba’s palace, Benin', gx, A.z1 + 12]);
+    }
+    // Igun Street: the bronze casters' workshops facing each other across the street
+    { const I = EDO.igun, sz = kz - 128;
+      for (let x = I.x0 + 6; x < I.x1 - 4; x += 15) for (const s of [-1, 1]) { const z = sz + s * 13; if (!offRoad(x, z, 8)) continue;
+        cottage(x, z, 11, 9, 1, s < 0 ? 'pz' : 'nz', ri2(rusts), lat2, '#8a3a20'); b.box(1.2, .6, .6, x + 3, Y + .3, z - s * 5.4, bronze, 1, false); b.box(.4, .6, .4, x + 3, Y + .9, z - s * 5.4, coral, 1, false); }
+      sign('IGUN STREET', 'BRONZE CASTERS’ GUILD · UNESCO HERITAGE', '#3a2416', 9, 1.4, I.x0 + 4, Y + 3.6, sz + 5.5, Math.PI / 2, '#d6ae5f'); for (const o of [-3.6, 3.6]) b.box(.25, 3.6, .25, I.x0 + 4, Y + 1.8, sz + 5.5 + o, darkM, 1, false);
+      people('village', 14, [I.x0 + 4, I.x1 - 4, sz - 3, sz + 3]);
+      OYO_PLACES.push(['Igun Street bronze casters', (I.x0 + I.x1) / 2, sz]);
+    }
+    // Oba Market: rows of stalls under rusted zinc and umbrellas between the streets
+    { const K = EDO.market, umb = [0xd8342c, 0x2f8fd0, 0x3fae5a, 0xf2c230, 0xe8742a].map(c => LM(c));
+      for (let x = K.x0 + 4; x < K.x1 - 3; x += 8) for (let z = K.z0 + 5; z < K.z1 - 3; z += 8) { if (!offRoad(x, z, 4)) continue;
+        if (rng() < .7) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3], [-2.8, 2.3], [2.8, -2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); }
+        else { b.box(.12, 2.4, .12, x, Y + 1.2, z, darkM, 1, false); b.box(4, .3, 4, x, Y + 2.5, z, ri2(umb), 1, false); }
+        b.box(3.4, .9, 1.4, x, Y + .45, z, M.oak, 1, true, 'house'); for (let t = 0; t < 4; t++) b.box(.4, .3, .4, x - 1.2 + t * .8, Y + 1.05, z, ri2(umb), 1, false); }
+      sign('OBA MARKET', 'BENIN CITY', '#8a2a1a', 9, 1.3, (K.x0 + K.x1) / 2, Y + 4, K.z0 - 1.5, Math.PI); for (const o of [-4, 4]) b.box(.25, 4, .25, (K.x0 + K.x1) / 2 + o, Y + 2, K.z0 - 1.4, darkM, 1, true, 'house');
+      YABA_MAP.push([(K.x0 + K.x1) / 2, (K.z0 + K.z1) / 2, K.x1 - K.x0, K.z1 - K.z0, '#d8a070']); TAKEN.push([(K.x0 + K.x1) / 2, (K.z0 + K.z1) / 2, K.x1 - K.x0, K.z1 - K.z0]);
+      people('market', 30, [K.x0 + 3, K.x1 - 3, K.z0 + 3, K.z1 - 3]);
+      VENUES.push({ name: 'the Oba Market food stalls', x: (K.x0 + K.x1) / 2, z: (K.z0 + K.z1) / 2, r: 14, food: 'buka' });
+      OYO_PLACES.push(['Oba Market, Benin', (K.x0 + K.x1) / 2, K.z0 - 6]);
+    }
+    // the police station, with officers about
+    { const S = EDO.station, sx = (S.x0 + S.x1) / 2, szz = (S.z0 + S.z1) / 2;
+      cottage(sx, szz, S.x1 - S.x0, S.z1 - S.z0, 2, 'nz', zinc, LM(0x2f4a7a), '#2f4a7a'); sign('NIGERIA POLICE · EDO STATE COMMAND', 'BENIN CITY DIVISION', '#1a2a5a', 10, 1.1, sx, Y + 6.6, S.z0 - .4, Math.PI);
+      people('security', 6, [S.x0 - 6, S.x1 + 6, S.z0 - 10, S.z0 - 3], { cop: true });
+      OYO_PLACES.push(['Benin police station', sx, S.z0 - 8]);
+    }
+    // the rest of the city: houses on every block, lamps along the main road, people in the streets
+    townHouses(bx0 + 70, bx1 - 4, bz0 + 4, bz1 - 4, 420, (x, z) => Math.hypot(x - kx, z - kz) < EDO.kr + 10 || [EDO.palace, EDO.igun, EDO.market, EDO.station].some(R => inR(R, x, z, 8)));
+    for (let x = bx0 + 70; x < bx1 - 6; x += 24) if (Math.abs(x - kx) > EDO.kr + 8) for (const s of [-1, 1]) lamp(x, ERD + s * 6.2, 0, -s);
+    for (const [x0, x1] of [[1800, 1940], [2030, 2250]]) { people('city', 14, [x0, x1, ERD - 12, ERD - 6]); people('city', 14, [x0, x1, ERD + 6, ERD + 12]); }
+    people('village', 18, [1800, 2250, -4940, -4880]); people('village', 14, [1800, 2000, -5150, -5070]);
+    sign('WELCOME TO BENIN CITY', 'ANCIENT CITY OF THE OBA', '#7a1a1a', 9, 1.8, bx0 + 72, Y + 4.4, ERD + 9, 0, '#f2c230'); for (const o of [-3.8, 3.8]) b.box(.25, 4.4, .25, bx0 + 72 + o, Y + 2.2, ERD + 8.9, darkM, 1, true, 'house');
+    // the forest and the rubber: instanced trees in 400 m bands along x, shown near you (updateForest)
+    { const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), m4 = new THREE.Matrix4(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), parts = { trunk: [], crown: [], top: [], rtrunk: [], rcrown: [] }, BAND = 400;
+      const keep = (x, z) => (x > EDO.ife[0] - 10 && x < EDO.ife[1] + 10 && Math.abs(z - ERD) < 115) || (x > EDO.ore[0] - 20 && x < EDO.ore[1] + 20 && Math.abs(z - ERD) < 95) || (x > bx0 - 8 && z > bz0 - 8 && z < bz1 + 8) || (x > EDO.moat[0] - 8 && x < EDO.moat[1] + 8);
+      const push = (k, band, px, py, pz, sx, sy, sz2, ry = 0) => { q.setFromAxisAngle(up, ry); m4.compose(pos.set(px, py, pz), q, sc.set(sx, sy, sz2)); (parts[k][band] ||= []).push(m4.clone()); };
+      for (let x = 372; x < bx0 - 4; x += 4) for (let z = EZ0 + 6; z < EZ1 - 6; z += 4) {
+        if (Math.abs(z - ERD) < 12 || keep(x, z)) continue;
+        const band = Math.floor((x - 360) / BAND);
+        if (x > EDO.rubber[0] && x < EDO.rubber[1]) {   // the rubber estate: straight rows, slim grey trunks, light crowns
+          if ((x - EDO.rubber[0]) % 8 || (z - EZ0) % 8 > 3) continue; const tx = x + .5, tz = z + .5, y = heightAt(tx, tz), h = 6 + rng() * 2;
+          push('rtrunk', band, tx, y, tz, 1, h, 1); push('rcrown', band, tx, y + h + 1.2, tz, 4, 3, 4, rng());
+          colliders.push({ x0: tx - .3, x1: tx + .3, y0: y, y1: y + h, z0: tz - .3, z1: tz + .3, tag: 'trunk' }); continue;
+        }
+        const r = rng(); if (r > .2 || (fbm(x / 60 + 7, z / 60) < .32 && r > .06)) continue;   // thick in places, glades between
+        const tx = x + R2(-1.5, 1.5), tz = z + R2(-1.5, 1.5), y = heightAt(tx, tz), r2 = rng(), r3 = rng(), h = 4 + r3 * 6, w = 3.5 + r2 * 4.5, ch = 2.4 + r2 * 2.2;
+        push('trunk', band, tx, y, tz, 1 + r2 * .6, h, 1 + r2 * .6); push('crown', band, tx, y + h + ch / 2 - .4, tz, w, ch, w, r3); push('top', band, tx, y + h + ch + .4, tz, w * .62, 1.4 + r3, w * .62, r2);
+        colliders.push({ x0: tx - .45, x1: tx + .45, y0: y, y1: y + h, z0: tz - .45, z1: tz + .45, tag: 'trunk' });
+      }
+      const GEO = { trunk: new THREE.BoxGeometry(.5, 1, .5).translate(0, .5, 0), crown: new THREE.BoxGeometry(1, 1, 1), top: new THREE.BoxGeometry(1, 1, 1), rtrunk: new THREE.BoxGeometry(.32, 1, .32).translate(0, .5, 0), rcrown: new THREE.BoxGeometry(1, 1, 1) };
+      const MAT = { trunk: M.bark, crown: new THREE.MeshLambertMaterial({ color: 0xffffff }), top: new THREE.MeshLambertMaterial({ color: 0xffffff }), rtrunk: LM(0x8a8478), rcrown: LM(0x5a9a3a) };
+      const greens = [0x2f6a26, 0x3a7a2c, 0x285a22, 0x467f2a, 0x356e30, 0x1f5a1f].map(c => new THREE.Color(c));
+      for (let band = 0; band * BAND < ED; band++) {
+        const meshes = [];
+        for (const k in parts) { const list = parts[k][band]; if (!list || !list.length) continue;
+          const im = new THREE.InstancedMesh(GEO[k], MAT[k], list.length); list.forEach((mm, n) => im.setMatrixAt(n, mm));
+          if (k === 'crown' || k === 'top') list.forEach((mm, n) => im.setColorAt(n, greens[(n * 7 + (k === 'top' ? 3 : 0) + band) % greens.length]));
+          im.castShadow = k !== 'rcrown'; im.receiveShadow = true; im.frustumCulled = false; im.visible = false; scene.add(im); meshes.push(im); }
+        FOREST.push({ x: 360 + (band + .5) * BAND, meshes });
+      }
+    }
+  }
+
   for (const [mat, geos] of ROT) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); }
   b.build();
   document.fonts?.ready.then(() => YSIGNS.forEach(f => f())).catch(() => {});
 });
-function updateForest() { for (const B of FOREST) { const on = Math.abs(B.z - P.pos.z) < 420; for (const m of B.meshes) m.visible = on; } }
+function updateForest() { for (const B of FOREST) { const on = B.x !== undefined ? P.pos.x > 300 && Math.abs(B.x - P.pos.x) < 460 : P.pos.x < 800 && Math.abs(B.z - P.pos.z) < 420; for (const m of B.meshes) m.visible = on; } }   // (Edo's bands run along x)
 
 /* ---------- traffic north of Ikeja: the expressway in both lanes each way (heavier: danfos, tippers, Siennas), lighter in
    Ibadan and Oyo town (old cars, kekes), a few on the campus and the airport road ---------- */
@@ -8286,6 +8488,7 @@ if (YB) {
   const EXP_MIX = { ...TRAFFIC_MIX, danfo: 5, tipper: 3, sienna10: 5, hilux19: 3, lc200: 1, keke: 0 }, y = TOWN.y;
   addRouteCars(EXPWY, 18, { mix: EXP_MIX, cruise: 22, lane: [2.8, 6.3], y });
   addRouteCars([[0, -4730], [0, -5695]], 7, { mix: BASIC_MIX, cruise: 10, lane: 2.4, y });
+  if (ED) addRouteCars([[364, ERD], [EDO.kc[0] - EDO.kr - 8, ERD]], 12, { mix: EXP_MIX, cruise: 18, lane: 2.2, y });   // the Ibadan–Benin road
   addRouteCars([[-326, -5000], [326, -5000]], 4, { mix: BASIC_MIX, cruise: 10, lane: 2.3, y });
   addRouteCars([[22, -4880], [326, -4880]], 2, { mix: TRAFFIC_MIX, cruise: 8, lane: 2.3, y });
   addRouteCars([[0, -5178], [326, -5178]], 2, { mix: TRAFFIC_MIX, cruise: 8, lane: 2.3, y });
@@ -8656,7 +8859,7 @@ function driveStep(dt) {
   c.yaw += (c.speed / V.wb) * Math.tan(c.steer) * dt;
   if (c.kind === 'bike') c.lean += (clamp(c.steer * Math.min(1, Math.abs(c.speed) / 12) * 1.1, -.55, .55) - c.lean) * Math.min(1, dt * 6);
   const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
-  const nz = clamp(c.z + fz * c.speed * dt, ZLO, ZHI), nx = clamp(c.x + fx * c.speed * dt, xLo(nz), BOUND);
+  const nz = edoKeep(c.x, clamp(c.z + fz * c.speed * dt, ZLO, ZHI)), nx = clamp(c.x + fx * c.speed * dt, xLo(nz), xHi(nz));
   // walls, trees, houses and water stop the car; kerbs and steps up to a block high do not
   let ok = carGround(nx, nz, c.yaw, V) <= c.y + 1.05 && heightAt(nx, nz) > 1;
   if (ok) for (const k of V.circles) {
@@ -9284,7 +9487,8 @@ function stepPlayer(dt) {
     else if (m === pz1) { p.z += pz1; if (P.vel.z < 0) P.vel.z = 0; }
     else { p.z -= pz0; if (P.vel.z > 0) P.vel.z = 0; }
   }
-  if (p.x > BOUND) { p.x = BOUND; P.vel.x = 0; }
+  if (ED && p.x > BOUND + 3) { const cz = edoKeep(p.x, p.z); if (cz !== p.z) { p.z = cz; P.vel.z = 0; } }   // out on the Edo road: keep between its walls
+  if (p.x > xHi(p.z)) { p.x = xHi(p.z); P.vel.x = 0; }
   if (p.x < -BOUND && WD && p.z < IKZ0 + 10) { p.z = IKZ0 + 10; P.vel.z = Math.max(0, P.vel.z); }   // Ikoyi's north edge
   if (p.x < xLo(p.z)) { p.x = xLo(p.z); P.vel.x = 0; }
   if (p.z > ZHI || p.z < ZLO) { p.z = clamp(p.z, ZLO, ZHI); P.vel.z = 0; }
@@ -9512,12 +9716,13 @@ function updateHUD(dt) {
 const mm = $('minimap'), mg = mm.getContext('2d');
 const MAP_OY = YB ? ND : 0, MAP_OX = WD;   // the map image carries the mainland strip above the old map and the west strip to its left
 const mapImg = (() => {
-  const c = document.createElement('canvas'); c.width = N + MAP_OX; c.height = N + MAP_OY + SD; const g = c.getContext('2d'); const img = g.createImageData(N + MAP_OX, N + MAP_OY + SD);
-  for (let i = -MAP_OX; i < N; i++) for (let j = -MAP_OY; j < N + SD; j++) {
+  const MW = N + MAP_OX + ED, c = document.createElement('canvas'); c.width = MW; c.height = N + MAP_OY + SD; const g = c.getContext('2d'); const img = g.createImageData(MW, N + MAP_OY + SD);   // (+ED: the Edo strip out to the right)
+  for (let i = -MAP_OX; i < N + ED; i++) for (let j = -MAP_OY; j < N + SD; j++) {
     if (i < 0 && j < -NWD) continue;
-    const h = i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], o = ((j + MAP_OY) * (N + MAP_OX) + i + MAP_OX) * 4;
+    if (i >= N && (j < EJ0 || j >= EJ1)) continue;
+    const h = i < 0 || i >= N ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], o = ((j + MAP_OY) * MW + i + MAP_OX) * 4;
     let r, gg, b;
-    const kd = i < 0 ? (j < 0 ? NWKIND[(i + WD) * NWD + j + NWD] : j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
+    const kd = i >= N ? EKIND[(i - N) * (EJ1 - EJ0) + j - EJ0] : i < 0 ? (j < 0 ? NWKIND[(i + WD) * NWD + j + NWD] : j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
     if (h <= 1) { r = 58; gg = 120; b = 190; }
     else if (kd === 2) { r = 236; gg = 240; b = 242; }
     else if (kd === 3) { r = 120 + k * 40; gg = 122 + k * 40; b = 124 + k * 40; }
@@ -9583,7 +9788,7 @@ const MAPCUR = { x: 0, y: 0, dirty: false };   // a crosshair on the big map, mo
 const BMV = { cx: 0, cz: 0, span: 1100, down: null, dragged: false }, BM_MIN = 240, BM_MAX = N + MAP_OY + SD + 40;
 const bmToB = (x, z) => { const sc = bmC.width / BMV.span; return [bmC.width / 2 + (x - BMV.cx) * sc, bmC.height / 2 + (z - BMV.cz) * sc]; };
 const bmFromB = (px, py) => { const sc = bmC.width / BMV.span; return [BMV.cx + (px - bmC.width / 2) / sc, BMV.cz + (py - bmC.height / 2) / sc]; };
-function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(-WD / 2, -HALF - WD + h), Math.max(-WD / 2, HALF - h)); const mid = (SD - MAP_OY) / 2; BMV.cz = clamp(BMV.cz, Math.min(mid, -HALF - MAP_OY + h), Math.max(mid, HALF + SD - h)); }
+function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(-WD / 2, -HALF - WD + h), Math.max(-WD / 2, HALF + ED - h)); const mid = (SD - MAP_OY) / 2; BMV.cz = clamp(BMV.cz, Math.min(mid, -HALF - MAP_OY + h), Math.max(mid, HALF + SD - h)); }
 function bmZoom(f, px = bmC.width / 2, py = bmC.height / 2) {   // keep the spot under (px, py) where it is
   const [x, z] = bmFromB(px, py); BMV.span *= f; bmClamp(); const [x2, z2] = bmFromB(px, py); BMV.cx += x - x2; BMV.cz += z - z2; bmClamp(); MAPCUR.dirty = true;
 }
@@ -13587,10 +13792,41 @@ function buildInteriors() {
     staff(R, R.ox, Z0 + 1.8, 'city', Math.PI); intPeople(R, 1, [X0 + 2, X1 - 2, Z0 + 4, Z1 - 2], 'city');
     VENUES.push({ name: 'the kiosk', x: R.ox, z: Z0 + 4, r: 3, food: 'kiosk' });
   }
+  // Benin: a museum gallery of bronzes on plinths under glass, and a bronze-caster's workshop on Igun Street
+  { const bronze = LM(0x8a5a2a), coral = LM(0xb8342a), ivory = LM(0xeee2c4);
+    const head = (b, x, z, y, s = 1) => { b.box(.34 * s, .1 * s, .34 * s, x, y + .05 * s, z, bronze, 1, false); for (let k = 0; k < 4; k++) b.box((.26 - k * .015) * s, .08 * s, (.26 - k * .015) * s, x, y + (.14 + k * .08) * s, z, k % 2 ? coral : bronze, 1, false);
+      b.box(.24 * s, .3 * s, .26 * s, x, y + .62 * s, z, bronze, 1, false); b.box(.2 * s, .16 * s, .22 * s, x, y + .84 * s, z, coral, 1, false); };
+    const plinth = (b, x, z, glass = true) => { b.box(.8, 1, .8, x, INT_FY + .5, z, IM.wallW, 1, true, 'house'); head(b, x, z, INT_FY + 1, .9); if (glass) b.box(.7, .9, .7, x, INT_FY + 1.45, z, MM.glass, 1, false); };
+    { const R = intRoom('museum', 'the museum', 34, 26, 7, 'marble', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+      textSign('THE BENIN BRONZES', '#3a2416', '#d6ae5f', 8, .9, R.ox, INT_FY + 4.6, Z0 + .22, 0, '#d6ae5f');
+      textSign('Cast in Benin City by the guild of Igun Street since the 13th century', '#f2e8d0', '#3a2416', 9, .5, R.ox, INT_FY + 3.8, Z0 + .22, 0);
+      for (let k = 0; k < 5; k++) for (const s of [-1, 1]) plinth(b, R.ox + s * (4 + k * 2.8), Z0 + 7);
+      for (let k = 0; k < 4; k++) plinth(b, R.ox - 6 + k * 4, R.oz + 2);
+      for (const s of [-1, 1]) for (let k = 0; k < 5; k++) { const z = Z0 + 4 + k * 4; b.box(.1, 1.4, 1.1, s > 0 ? X1 - .15 : X0 + .15, INT_FY + 2.4, z, bronze, 1, false); b.box(.12, .1, 1.3, s > 0 ? X1 - .16 : X0 + .16, INT_FY + 3.2, z, lampMat, 1, false); }   // plaques along the walls, lit
+      b.box(2.4, 3.2, 1.2, R.ox, INT_FY + 1.6, Z0 + 1.2, IM.wallW, 1, true, 'house'); b.box(1.2, 1.6, .9, R.ox, INT_FY + 4, Z0 + 1.2, ivory, 1, false);   // the ivory mask of Queen Idia, in its own case
+      textSign('QUEEN IDIA · IVORY', '#3a2416', '#d6ae5f', 2.4, .3, R.ox, INT_FY + 2.6, Z0 + 1.82, 0, '#d6ae5f');
+      F_.stanchions(b, X0 + 3, X1 - 3, Z0 + 10.5); F_.desk(b, X1 - 4, Z1 - 3, 3, .8, M.oak, 1.05);
+      intDone(R);
+      staff(R, X1 - 4, Z1 - 2.2, 'campus', Math.PI); staff(R, X0 + 2, Z1 - 3, 'security', Math.PI / 2);
+      intPeople(R, 10, [X0 + 3, X1 - 3, Z0 + 11, Z1 - 4], 'campus'); intPeople(R, 4, [X0 + 3, X1 - 3, Z0 + 11, Z1 - 4], 'campus', { kids: true });
+    }
+    { const R = intRoom('bronze', 'the bronze casters', 18, 14, 5, 'wood', LM(0x6a3a22), LM(0x3a2416)), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+      textSign('IGUN STREET BRONZE CASTERS’ GUILD', '#3a2416', '#d6ae5f', 7, .7, R.ox, INT_FY + 3.6, Z0 + .22, 0, '#d6ae5f');
+      b.box(2.2, 1, 2.2, X0 + 3, INT_FY + .5, Z0 + 3, M.stone, 1, true, 'house'); b.box(1.6, .1, 1.6, X0 + 3, INT_FY + 1.02, Z0 + 3, new THREE.MeshBasicMaterial({ color: 0xff7a1a }), 1, false);   // the furnace, glowing
+      b.box(.5, .5, .5, X0 + 3, INT_FY + 1.3, Z0 + 3, M.stone, 1, false);
+      F_.desk(b, R.ox, Z0 + 3, 6, 1.2, M.oak, .95); for (let k = 0; k < 5; k++) head(b, R.ox - 2.4 + k * 1.2, Z0 + 3, INT_FY + .95, .8 + (k % 2) * .3);   // the workbench, heads in wax and bronze
+      for (let k = 0; k < 3; k++) b.box(.6, .7, .6, X1 - 2 - k * 1.2, INT_FY + .35, Z0 + 2, LM(0xa8784a), 1, true, 'house');   // clay moulds
+      for (let k = 0; k < 6; k++) { b.box(.9, .06, .5, X1 - .5, INT_FY + 1.2 + (k % 3) * .7, Z0 + 5 + Math.floor(k / 3) * 3, M.oak, 1, false); head(b, X1 - .6, Z0 + 5 + Math.floor(k / 3) * 3, INT_FY + 1.23 + (k % 3) * .7, .6); }   // finished pieces for sale
+      F_.desk(b, X0 + 3, Z1 - 3, 3, .8, M.oak, 1.05); textSign('BRONZES FOR SALE · ₦25,000 UP', '#d6ae5f', '#3a2416', 3.6, .4, X0 + 3, INT_FY + 2.2, Z1 - 3.42, Math.PI);
+      intDone(R);
+      staff(R, R.ox, Z0 + 4.4, 'village', Math.PI); staff(R, X0 + 4.6, Z0 + 3, 'village', -Math.PI / 2); staff(R, X0 + 3, Z1 - 2.2, 'village', Math.PI);
+      intPeople(R, 3, [X0 + 6, X1 - 3, Z0 + 7, Z1 - 3], 'village');
+    }
+  }
 }
 
 /* ---- doors: every building without rooms gets one, on the side nearest a street ---- */
-const INT_LABEL = { supermarket: 'Supermarket', mall: 'Shopping mall', bank: 'Bank', office: 'Office block', apartment: 'Apartments', workfloor: 'Offices', boutique: 'Boutique', electronics: 'Electronics store', pharmacy: 'Pharmacy', bakery: 'Bakery', restaurant: 'Restaurant', showroom: 'Car showroom', warehouse: 'Warehouse', home: 'House', classroom: 'Lecture rooms', palace: 'Palace', kiosk: 'Kiosk' };
+const INT_LABEL = { supermarket: 'Supermarket', mall: 'Shopping mall', bank: 'Bank', office: 'Office block', apartment: 'Apartments', workfloor: 'Offices', boutique: 'Boutique', electronics: 'Electronics store', pharmacy: 'Pharmacy', bakery: 'Bakery', restaurant: 'Restaurant', showroom: 'Car showroom', warehouse: 'Warehouse', home: 'House', classroom: 'Lecture rooms', palace: 'Palace', kiosk: 'Kiosk', museum: 'Museum', bronze: 'Bronze casters' };
 function intClassify(B, cx, cz) {
   const w = B.x1 - B.x0, d = B.z1 - B.z0, A = w * d, H = B.y1 - B.y0, h = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453) % 1, h2 = Math.abs(Math.sin(cx * 39.3468 + cz * 11.135) * 24634.6345) % 1;
   if (Math.min(w, d) < 4 || A < 40) return null;
@@ -13600,6 +13836,9 @@ function intClassify(B, cx, cz) {
   if (H >= 24) return h < .45 ? 'office' : h < .8 ? 'apartment' : 'workfloor';
   if (YB && (inR(YTECH, cx, cz) || inR(UNILAG, cx, cz))) return h < .7 ? 'classroom' : 'workfloor';
   if (cz < -5680 && Math.abs(cx) < 140) return A > 300 ? 'palace' : 'home';   // the Alaafin's palace at Oyo
+  if (EDO && (inR(EDO.palace, cx, cz) || inR(EDO.ooni, cx, cz))) return A > 300 ? 'palace' : 'home';   // the Oba's palace in Benin, the Ooni's at Ife
+  if (EDO && inR(EDO.museum, cx, cz)) return 'museum';
+  if (EDO && inR(EDO.igun, cx, cz)) return 'bronze';
   if (A >= 1400) return H <= 12 ? (h < .5 ? 'warehouse' : 'supermarket') : 'mall';
   if (A >= 600) return ['supermarket', 'restaurant', 'workfloor', 'showroom', 'bank'][Math.floor(h * 5)];
   if (A >= 250) return ['restaurant', 'office', 'bank', 'supermarket', 'pharmacy', 'electronics', 'boutique', 'bakery'][Math.floor(h * 8)];
@@ -13637,7 +13876,7 @@ function intFindBuildings() {
     const gy = Math.max(heightAt(wx + best.ox, wz + best.oz), b.y0);
     let name = '', bd = 140; for (const [nm, px, pz] of fareSpots()) { const dd = Math.hypot(px - cx, pz - cz); if (dd < bd) { bd = dd; name = nm; } }
     const pn = name.replace(/^the /i, ''), lbl = INT_LABEL[type], own = pn && new RegExp('\\b' + lbl.split(' ')[0], 'i').test(pn);   // a place already named for what it is (the Alaafin's palace) keeps its own name
-    out.push({ x: wx + best.ox * 1.3, z: wz + best.oz * 1.3, wx, wz, gy, ox: best.ox, oz: best.oz, type, name: own ? 'the ' + pn : lbl + (pn ? ', ' + pn : ''), bx: cx, bz: cz, br: Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2 + 2, top: b.y1 });
+    out.push({ x: wx + best.ox * 1.3, z: wz + best.oz * 1.3, wx, wz, gy, ox: best.ox, oz: best.oz, type, name: type === 'palace' && EDO && inR(EDO.palace, cx, cz) ? 'the Oba’s palace, Benin' : own ? 'the ' + pn : lbl + (pn ? ', ' + pn : ''), bx: cx, bz: cz, br: Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2 + 2, top: b.y1 });
   }
   return out;
 }

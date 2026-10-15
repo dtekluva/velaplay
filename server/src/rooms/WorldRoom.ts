@@ -54,7 +54,7 @@ export class WorldState extends Schema {
 }
 
 interface Auth { id: string; name: string; guest: boolean; look: string }
-const BOUND = 346, WEST = 730, ZLO = -5866,   // WEST: the west edge since Banana Island West (out to x = -744)
+const BOUND = 2280, WEST = 730, ZLO = -5866,   // WEST: the west edge since Banana Island West (out to x = -744); BOUND: out east to Benin City along the Edo road
   ZHI = 1066, MAX_STEP = 40;   // ZHI: the south edge, out past the Lekki Deep Sea Port at sea;   // the map edge (ZLO: the north edge, out past Yaba, Ikeja, Ibadan and Oyo on the mainland); the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
 const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 
