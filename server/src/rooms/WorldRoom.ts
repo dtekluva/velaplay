@@ -6,6 +6,7 @@ import { Character } from "../schemas";
 import { onPlotNews, onTell } from "../land";
 import { TRACKS, LISTS, XF, trackMs } from "../music";
 import { startVisit, sampleVisit, saveVisit, live, type Visit } from "../visits";
+import { onTitle, progressOf, titleOf, GUEST_REP_MAX } from "../progress";
 
 // what everyone sees of a player: position, facing, animation, vehicle, and their look
 export class Player extends Schema {
@@ -21,6 +22,7 @@ export class Player extends Schema {
   @type("boolean") talk = false;    // holding push-to-talk
   @type("string") ride = "";        // riding in another player's vehicle: the driver's session id
   @type("uint8") seat = 0;          // which seat (1 = front passenger, 2-3 behind; a motorbike's pillion is 1)
+  @type("string") title = "";       // the reputation title (JJC, Hustler, Chief...)
 }
 // how many passengers a vehicle takes (besides the driver)
 const seatsIn = (veh: string) => !veh || veh === "dozer" ? 0 : veh === "bike" ? 1 : veh === "truck" ? 2 : 3;
@@ -65,6 +67,8 @@ export class WorldRoom extends Room<WorldState> {
   private lastLook = new Map<string, number>();
   private stopNews?: () => void;
   private stopTell?: () => void;
+  private stopTitle?: () => void;
+  private lastRep = new Map<string, number>();
   private lastDJ = new Map<string, number>();
   private lastRing = new Map<string, number>();
   private lastRideReq = new Map<string, number>();
@@ -78,6 +82,7 @@ export class WorldRoom extends Room<WorldState> {
     // land news (someone bought, built, furnished, fenced, levelled or sold) goes to everyone here
     this.stopNews = onPlotNews((news) => this.broadcast("plot", news));
     // offers, payments and sales for one player go only to them
+    this.stopTitle = onTitle((userId, title) => { for (const c of this.clients) if ((c as any).userData?.id === userId) { const p = this.state.players.get(c.sessionId); if (p) p.title = title; } });
     this.stopTell = onTell((userId, type, data) => { for (const c of this.clients) if ((c as any).userData?.id === userId) c.send(type, data); });
 
     // club music: every club starts at a different place in its playlist, and the server moves each one along
@@ -219,6 +224,11 @@ export class WorldRoom extends Room<WorldState> {
       to.send("rtc", { from: client.sessionId, data: m.data });
     });
 
+    this.onMessage("rep", (client, m: any) => {   // a guest's reputation went up (it's kept on their device; shown up to GUEST_REP_MAX)
+      if ((client as any).userData?.id) return; const p = this.state.players.get(client.sessionId); if (!p) return;
+      const now = Date.now(); if (now - (this.lastRep.get(client.sessionId) || 0) < 3000) return; this.lastRep.set(client.sessionId, now);
+      p.title = titleOf(Math.min(GUEST_REP_MAX, Math.max(0, Math.round(+m?.rep || 0))));
+    });
     this.onMessage("chat", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p) return;
       const text = typeof m?.text === "string" ? m.text.replace(/\s+/g, " ").trim().slice(0, 160) : "";
@@ -256,13 +266,15 @@ export class WorldRoom extends Room<WorldState> {
     p.x = ox ?? (Math.random() - .5) * 6; p.z = oz ?? (Math.random() - .5) * 6; p.y = oy ?? 10;
     if (auth.guest && options?.look) { const r = Character.safeParse(options.look); if (r.success) p.look = JSON.stringify(r.data); }
     this.state.players.set(client.sessionId, p);
+    if (auth.guest) p.title = titleOf(Math.min(GUEST_REP_MAX, Math.max(0, Math.round(+options?.rep || 0))));   // (a guest's reputation is kept on their device)
+    else progressOf(auth.id).then((g) => { p.title = g.title; }).catch(() => {});
     const device = options?.device === "phone" ? "phone" : "desktop";
     this.visits.set(client.sessionId, startVisit(client.sessionId, auth.guest ? null : auth.id, auth.name, device, p.x, p.z));
     setTimeout(() => { if (p.anim === "spawn") p.anim = "idle"; }, 3000);
     console.log(`${auth.name} joined (${this.clients.length} in the world)`);
   }
 
-  onDispose() { this.stopNews?.(); this.stopTell?.(); for (const [id, v] of this.visits) { saveVisit(v, true); live.delete(id); } }
+  onDispose() { this.stopNews?.(); this.stopTell?.(); this.stopTitle?.(); for (const [id, v] of this.visits) { saveVisit(v, true); live.delete(id); } }
 
   onLeave(client: Client) {
     const v = this.visits.get(client.sessionId); if (v) { saveVisit(v, true); this.visits.delete(client.sessionId); } live.delete(client.sessionId);
@@ -271,6 +283,6 @@ export class WorldRoom extends Room<WorldState> {
     const uid = (client as any).userData?.id;   // the host leaving ends their party
     if (uid) this.state.parties.forEach((pa, key) => { if (pa.owner === uid) { this.state.parties.delete(key); this.broadcast("partyend", { key, name: pa.name }); } });
     this.state.players.delete(client.sessionId);
-    this.lastChat.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
+    this.lastChat.delete(client.sessionId); this.lastRep.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
   }
 }

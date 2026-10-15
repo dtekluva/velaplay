@@ -8,6 +8,7 @@ import { api } from "./api";
 import { land } from "./land";
 import { trade } from "./trade";
 import { visits } from "./visits";
+import { progress } from "./progress";
 import { WorldRoom } from "./rooms/WorldRoom";
 
 async function main() {
@@ -26,6 +27,7 @@ async function main() {
   app.use("/api", land);
   app.use("/api", trade);
   app.use("/api", visits);
+  app.use("/api", progress);
   app.get("/stats", (_req, res) => res.sendFile(path.join(__dirname, "..", "public", "stats.html")));   // the admin stats page
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

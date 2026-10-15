@@ -125,6 +125,31 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #bigmap .key i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(0,0,0,.5)}
 #talk,#lmenu{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100vw - 600px));padding:12px 16px 10px;background:rgba(18,25,16,.9);border:1px solid var(--edge);border-top:3px solid var(--brass);display:flex;flex-direction:column;gap:6px;pointer-events:auto}
 #talk .who,#lmenu .who{display:flex;align-items:baseline;gap:10px}
+.score .rep{font-size:12px;letter-spacing:.06em;color:var(--brass);margin-top:2px}
+#phone{position:absolute;right:20px;bottom:calc(84px + env(safe-area-inset-bottom,0px));width:300px;height:min(560px,calc(100% - 270px));min-height:380px;padding:10px;border-radius:36px;background:#0b0d0c;box-shadow:0 18px 50px rgba(0,0,0,.55),inset 0 0 0 2px #2a2d2b;pointer-events:auto;z-index:30}
+#phone .phScreen{height:100%;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(170deg,#183126,#0f1a24 60%,#1a1424);color:#f1ebda;font-size:13px}
+#phone .phBar{display:flex;justify-content:space-between;padding:8px 18px 4px;font-size:11px;letter-spacing:.06em;opacity:.85}
+#phBody{flex:1;overflow:auto;padding:6px 14px 10px;display:flex;flex-direction:column;gap:10px}
+#phone .phNav{display:flex;justify-content:center;gap:40px;padding:6px 0 10px}
+#phone .phNav button{width:44px;height:30px;border-radius:15px;border:0;background:rgba(255,255,255,.12);color:#f1ebda;font-size:16px;cursor:pointer}
+#phone .phWho{display:flex;flex-direction:column;gap:2px;padding:10px 4px 4px}#phone .phWho b{font-family:var(--display);font-size:20px;letter-spacing:.04em}#phone .phWho span{color:var(--brass);font-size:12px}
+#phone .phGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 8px;padding:6px 0}
+#phone .phApp{display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;color:#f1ebda;cursor:pointer;font:inherit}
+#phone .phIcon{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+#phone .phApp:hover .phIcon{background:rgba(255,255,255,.18)}#phone .phName{font-size:11px;letter-spacing:.04em}
+#phone .phHint,#phone .phFoot{font-size:11px;opacity:.6;text-align:center}
+#phone .phHead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding-top:4px}#phone .phHead b{font-family:var(--display);font-size:18px;letter-spacing:.04em}#phone .phHead .phDim{flex-basis:100%}
+#phone .phBack{border:0;background:rgba(255,255,255,.1);color:#f1ebda;width:26px;height:26px;border-radius:13px;font-size:18px;line-height:1;cursor:pointer}
+#phone .phDim{color:rgba(241,235,218,.65);font-size:11.5px}
+#phone .phCard,#phone .phGoal{background:rgba(255,255,255,.07);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+#phone .phBig{font-family:var(--display);font-size:22px;color:var(--brass);letter-spacing:.04em}
+#phone .phBar2,#phone .phBar{}#phone .phCard .phBar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden;padding:0}#phone .phCard .phBar i{display:block;height:100%;background:var(--brass)}
+#phone .phGoal b{font-size:13.5px;font-weight:600}#phone .phGoal.done{opacity:.6}#phone .phGoal.done b{text-decoration:line-through}
+#phone .phTier{align-self:flex-start;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:1px 7px;border-radius:8px;background:#2f6a3a}#phone .phTier.medium{background:#8a6a1a}#phone .phTier.hard{background:#8a2a2a}
+#phone .phBtn{align-self:flex-start;border:0;border-radius:10px;padding:5px 10px;background:var(--brass);color:#14100a;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+#phone .phLadder{display:flex;flex-wrap:wrap;gap:4px}#phone .phLadder span{font-size:10.5px;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.06);opacity:.55}#phone .phLadder span.got{opacity:1;background:rgba(214,174,95,.25)}
+#phone input,#phone textarea,#phone select{font:inherit;font-size:13px;color:#f1ebda;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:7px 9px;width:100%;box-sizing:border-box}
+@media (max-width:760px){#phone{right:8px;left:8px;width:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));height:min(520px,calc(100% - 200px))}}
 #exhibit{position:absolute;right:16px;top:190px;width:min(400px,40vw);max-height:calc(100% - 270px);overflow:auto;padding:14px 18px 12px;background:rgba(18,25,16,.93);border:1px solid var(--edge);border-top:3px solid var(--brass);display:flex;flex-direction:column;gap:8px;pointer-events:auto;color:var(--ink)}
 #exhibit .exNo{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 #exhibit b{font-family:var(--display);font-size:22px;letter-spacing:.04em;color:var(--brass);line-height:1.15;text-wrap:balance}
@@ -461,7 +486,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
   <div id="fade"></div>
   <div id="hud" hidden>
     <div id="tc"><div class="stick"><div class="knob"></div></div><div class="pad"></div><div class="sys"></div></div>
-    <div class="score"><span class="lbl">Score</span><b id="score" class="num">0</b><div class="money"><b id="money" class="num">₦0</b></div><div class="slain"><i></i><b id="slain" class="num">0</b>titans slain</div></div>
+    <div class="score"><span class="lbl">Score</span><b id="score" class="num">0</b><div class="money"><b id="money" class="num">₦0</b></div><div class="rep" id="repChip"></div><div class="slain"><i></i><b id="slain" class="num">0</b>titans slain</div></div>
     <div class="banner"><div class="mode" id="modeName">Free Roam</div><div class="sub" id="modeSub">The forest keeps sending titans</div><div class="pill num" id="nearby">Titans nearby 0 · Slain 0</div></div>
     <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span><span id="mNeeds" class="mneeds"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
     <div id="drawer" hidden><div class="scrim"></div><aside id="dAside"></aside></div>
@@ -484,6 +509,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     <div id="wanted" hidden></div>
     <div id="wayCue" hidden><svg viewBox="-13 -13 26 26" aria-hidden="true"><circle r="12" fill="rgba(10,14,9,.55)"/><g id="wayArrow"><path d="M0 -10 L7 7 L0 3 L-7 7Z" fill="#f2c230" stroke="#1b1608" stroke-width="1.4" stroke-linejoin="round"/></g></svg><span id="wayTxt"></span><button id="wayX" type="button" aria-label="Clear the destination">✕</button></div>
     <div id="prompt" hidden></div>
+    <div id="phone" hidden><div class="phScreen"><div class="phBar"><span id="phClock">12:00</span><span>NaijaTel 4G</span><span>▮▮▮ 🔋</span></div><div id="phBody"></div><div class="phNav"><button id="phHome" type="button" aria-label="Home">⌂</button><button id="phClose" type="button" aria-label="Put the phone away">✕</button></div></div></div>
     <aside id="exhibit" hidden><div class="exNo" id="exNo"></div><b id="exTitle"></b><i id="exSub"></i><img id="exImg" alt="" hidden referrerpolicy="no-referrer"><div class="exCredit" id="exCredit" hidden></div><div id="exText"></div><ul id="exFacts"></ul><div class="exNav"><button id="exPrev" type="button">◀ A</button><button id="exClose" type="button">E · Step back</button><button id="exNext" type="button">D ▶</button></div></aside>
     <div id="hurt"></div>
     <div class="vitals">
@@ -503,7 +529,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
       <dt>LMB / RMB</dt><dd>left / right anchor (hold)</dd>
       <dt>SPACE</dt><dd>jump · gas boost in the air</dd>
       <dt>SHIFT</dt><dd>reel in fast</dd>
-      <dt>G</dt><dd>landing thrusters (brake)</dd>
+      <dt>G</dt><dd>phone (goals, messages, taxi, bank, camera) · in the air: landing thrusters</dd>
       <dt>WASD / ↑↓</dt><dd>run · steer and pump swings</dd>
       <dt>← →</dt><dd>turn the camera</dd>
       <dt>X / MMB</dt><dd>fire pistol (hold)</dd>
@@ -5302,7 +5328,7 @@ function knockDown(c) { c.state = 'down'; c.marker.visible = true; c.timer = 0; 
 function nearDowned() { for (const c of civilians) if (c.state === 'down' && Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z) < 3.5 && Math.abs(P.pos.y - c.g.position.y) < 3) return c; return null; }
 function rescue(c) {
   c.state = 'idle'; c.timer = 2; c.marker.visible = false; c.g.rotation.x = 0;
-  S.rescued++; const pts = 150; S.score += pts; earn(500, null);
+  S.rescued++; const pts = 150; S.score += pts; earn(500, null); goalEv('rescue');
   toast(`+${pts}`, 'Civilian rescued'); sfx('swap');
 }
 /* realistic passers-by: the nearest people (up to NPC_HUM.max, fewer on phones) are the rigged humans, dressed from
@@ -5744,7 +5770,7 @@ function talkTarget() {
 }
 function talkStart(c) {
   const p = personaOf(c), pl = placeOf(c);
-  TC.conv = { c, turn: 0, limit: 3 + Math.floor(Math.random() * 3), asked: new Set(), ending: 0 };
+  TC.conv = { c, turn: 0, limit: 3 + Math.floor(Math.random() * 3), asked: new Set(), ending: 0 }; goalEv('talk');
   c.state = 'talk'; c.path.length = 0;
   const first = p.met ? lineFor(TALK.again, c, 0) : lineFor(TALK.greet, c);
   p.met++;
@@ -7366,7 +7392,7 @@ function onDanceFloor(C) {   // the floor itself: dancing beats chatting to whoe
 const DANCE_MOVES = ['hands in the air', 'the shoki', 'point and wind', 'zanku (legwork)', 'shaku shaku', 'azonto', 'gwara gwara', 'amapiano shuffle', 'shoulder bounce'];
 function danceToggle() {
   const C = danceClub(); if (!C) return;
-  if (!P.dance) { P.dance = { style: 0, C }; toast('💃 Dancing', `${DANCE_MOVES[0]} · E for another move · move to stop`); }
+  if (!P.dance) { P.dance = { style: 0, C }; goalEv('dance'); toast('💃 Dancing', `${DANCE_MOVES[0]} · E for another move · move to stop`); }
   else { P.dance.style = (P.dance.style + 1) % DANCE_MOVES.length; toast('', `💃 ${DANCE_MOVES[P.dance.style]}`); }
   P.vel.x = P.vel.z = 0;
 }
@@ -8788,7 +8814,7 @@ function trainAlight() {
   const T = R.T; R.on = false; T.cars.forEach(g => { g.visible = false; });
   const x = st.x, z = st.z;
   P.pos.set(x, st.y + .1, z); P.vel.set(0, 0, 0); yaw = st.ns ? 0 : -Math.PI / 2;
-  toast(`Welcome to ${st.name}`, 'Naija Rail · trains both ways from this platform (E to board)');
+  toast(`Welcome to ${st.name}`, 'Naija Rail · trains both ways from this platform (E to board)'); goalEv('train', st.name);
 }
 function trainCamera(dt) {
   const T = TRAIN.ride.T, g = T.cars[1], fx = Math.sin(g.userData.yaw), fz = Math.cos(g.userData.yaw), sd = 1;   // (from the west, away from the east wall)
@@ -8882,7 +8908,7 @@ function flightArrive() {
   const F = FLY, fade = $('fade'), city = CITY_NAMES[F.to], to = FLIGHT_DESKS.find(q => q.city === F.to && q.to === F.from) || FLIGHT_DESKS.find(q => q.city === F.to);
   F.on = false; fade.style.opacity = '1';
   setTimeout(() => {
-    F.g.visible = false; const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0); yaw = F.to === 'ibadan' ? Math.PI / 2 : F.to === 'benin' ? 0 : -Math.PI / 2;
+    F.g.visible = false; goalEv('flight'); const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0); yaw = F.to === 'ibadan' ? Math.PI / 2 : F.to === 'benin' ? 0 : -Math.PI / 2;
     fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90);
     toast(`Welcome to ${city}`, F.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : F.to === 'benin' ? 'Benin Airport · flights back to Lagos: the red Oyo Skylink booth right beside you (E) · King’s Square is straight up the road' : 'Murtala Muhammed International · flights to Ibadan and Benin: the red Oyo Skylink booths beside you (E)');
   }, 650);
@@ -9564,6 +9590,7 @@ addEventListener('keydown', e => {
   if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing in a box (chat, sign-in) never drives the game
   if (ARR.on && mode === 'play') { arrKey(e); return; }   // arranging your home: its own keys
   if (FLY.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); flightSkip(); } return; }   // aboard a flight: Space skips to the landing
+  if (e.code === 'KeyG' && mode === 'play' && !(P.driving && isAir(P.driving))) { e.preventDefault(); phoneToggle(); return; }   // the phone
   if (INSPECT.on && mode === 'play') {   // looking closer at a museum piece
     const c = e.code; if (c === 'KeyE' || c === 'KeyQ' || c === 'Backspace') inspectClose(); else if (c === 'KeyD' || c === 'ArrowRight') inspectGo(1); else if (c === 'KeyA' || c === 'ArrowLeft') inspectGo(-1);
     else if (c === 'KeyW' || c === 'ArrowUp') { INSPECT.dist = Math.max(INSPECT.min, INSPECT.dist * .88); INSPECT.moved = performance.now() / 1000; } else if (c === 'KeyS' || c === 'ArrowDown') { INSPECT.dist = Math.min(INSPECT.max, INSPECT.dist * 1.12); INSPECT.moved = performance.now() / 1000; }
@@ -9636,7 +9663,7 @@ addEventListener('mousemove', e => {
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement) hadLock = true;
-  else if (mode === 'play' && hadLock && !ARR.on) setMode('pause');
+  else if (mode === 'play' && hadLock && !ARR.on && !PHONE.open) setMode('pause');   // (the phone frees the mouse without pausing)
 });
 
 /* ---------- player actions ---------- */
@@ -10341,6 +10368,7 @@ function touchOn() {
   }
   // the system row: the ☰ menu and pause. Everything else lives in the drawer
   const sysB = (label, fn, aria) => { const el = document.createElement('div'); el.className = 'b'; el.textContent = label; el.setAttribute('aria-label', aria); el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { navigator.vibrate?.(8); } catch (err) {} fn(); }); sys.append(el); return el; };
+  sysB('📱', () => phoneToggle(), 'Phone');
   sysB('☰', () => drawerOpen(), 'Menu');
   sysB('❚❚', () => setMode('pause'), 'Pause');
   // the pad shrinks on small screens and grows on tablets, so it never reaches the minimap or the joystick
@@ -10482,7 +10510,7 @@ const fillNeed = (k, v) => { NEEDS[k] = clamp(NEEDS[k] + v, 0, 100); };
 function eat(name, price, gain, where) {
   if (LAND.money < price) { toast('', `${name} is ${NAIRA(price)}; you have ${NAIRA(LAND.money)}`); return; }
   if (NEEDS.h > 92) { toast('', 'You’re full. Maybe later'); return; }
-  LAND.money -= price; LAND.changed = true; saveLand();
+  LAND.money -= price; LAND.changed = true; saveLand(); goalEv('eat');
   needDo('🍲', name, `${NAIRA(price)} · ${where}`, 1.6, () => { fillNeed('h', gain); fillNeed('b', -Math.round(gain / 8)); });
 }
 function useToilet(price, where) {
@@ -12112,7 +12140,7 @@ function updateTaxi(dt) {
       const tip = left > 0 ? Math.round(job.fare * .3 / 100) * 100 : 0, c = job.c;
       c.riding = false; c.g.visible = true; c.g.position.set(car.x - Math.cos(car.yaw) * 2.2, groundAt(car.x, car.z), car.z + Math.sin(car.yaw) * 2.2); c.state = 'idle'; c.timer = 3; c.guard = false; c.homeAt = S.time + 25;
       TAXI.job = null; beam.visible = false;
-      earn(job.fare + tip, tip ? `Fare to ${name} · includes a ${NAIRA(tip)} tip for being quick` : `Fare to ${name}`);
+      goalEv('fare'); earn(job.fare + tip, tip ? `Fare to ${name} · includes a ${NAIRA(tip)} tip for being quick` : `Fare to ${name}`);
       showBubble(c, tip ? rp(['Wow, that was fast! Keep the change.', 'Perfect timing, thank you!', 'You drive like a scout flies!']) : rp(['Thanks for the ride.', 'Finally! Thanks.', 'Here you go.']), 3.5);
     } else if (!car && Math.hypot(job.car.x - P.pos.x, job.car.z - P.pos.z) > 40) {   // abandoned
       const c = job.c; c.riding = false; c.g.visible = true; c.g.position.set(job.car.x + 2, groundAt(job.car.x, job.car.z), job.car.z); c.state = 'idle'; c.homeAt = S.time + 25;
@@ -12182,7 +12210,7 @@ function updateDelivery() {
   if (d < (P.driving ? 8 : 4) && slow && (P.driving || Math.abs(P.pos.y - groundAt(j.x, j.z)) < 3)) {
     const tip = S.time - j.t0 < j.limit ? Math.round(j.pay * .3 / 100) * 100 : 0;
     JOBS.del = null; parcelBox.visible = false; delBeam.visible = false;
-    earn(j.pay + tip, tip ? `Parcel delivered to ${j.who} · includes a ${NAIRA(tip)} tip for being quick` : `Parcel delivered to ${j.who}`);
+    goalEv('parcel'); earn(j.pay + tip, tip ? `Parcel delivered to ${j.who} · includes a ${NAIRA(tip)} tip for being quick` : `Parcel delivered to ${j.who}`);
   }
 }
 const delPrompt = () => { const j = JOBS.del, d = Math.hypot(j.x - P.pos.x, j.z - P.pos.z), left = Math.ceil(j.limit - (S.time - j.t0)), b = Math.round(((Math.atan2(j.x - P.pos.x, -(j.z - P.pos.z)) / TAU) * 8 + 8)) % 8; return `📦 PARCEL · ${j.who}, ${j.place} · ${Math.round(d)} m ${COMPASS[b]} · ${NAIRA(j.pay)}${left > 0 ? ` · tip if there in ${left} s` : ''}`; };
@@ -12212,7 +12240,7 @@ function endBoatRide(paid) {
   for (const { c, fig } of j.riders) { j.boat.g.remove(fig.root); c.riding = false; c.g.visible = true; c.g.position.set(JETTY.x + RM(-1, 1), JETTY.top, JETTY.z1 - 10 - RM(0, 8)); c.state = 'idle'; c.timer = 4; c.homeAt = S.time + 20; }
   for (const b of BUOYS) b.g.visible = false;
   JOBS.boat = null;
-  if (paid) { const tip = S.time - j.t0 < j.limit ? Math.round(j.pay * .3 / 100) * 100 : 0; earn(j.pay + tip, tip ? `Boat tour for ${j.n} · includes a ${NAIRA(tip)} tip` : `Boat tour for ${j.n}`); showBubble(j.riders[0].c, rp(['That was amazing!', 'Again, again!', 'Best part of my trip!', 'My hair! Worth it.']), 3.5); }
+  if (paid) { goalEv('boat'); const tip = S.time - j.t0 < j.limit ? Math.round(j.pay * .3 / 100) * 100 : 0; earn(j.pay + tip, tip ? `Boat tour for ${j.n} · includes a ${NAIRA(tip)} tip` : `Boat tour for ${j.n}`); showBubble(j.riders[0].c, rp(['That was amazing!', 'Again, again!', 'Best part of my trip!', 'My hair! Worth it.']), 3.5); }
   else toast('', 'The tourists got off at the jetty');
 }
 function updateBoatRide(dt) {
@@ -12946,7 +12974,7 @@ function updateRemotes(dt) {
     if (id === room.sessionId) return; seen.add(id);
     const r = remoteFor(id, p);
     if (r.lookStr !== p.look) remoteLook(r, p.look);
-    const label = p.veh ? '🚗 ' + [p.name, ...(occ.get(id) || [])].join(' · ') : p.name;   // in a vehicle: everyone in it
+    const label = p.veh ? '🚗 ' + [p.name, ...(occ.get(id) || [])].join(' · ') : p.title ? `${p.name} · ${p.title}` : p.name;   // in a vehicle: everyone in it; on foot, their title too
     if (r.tagStr !== label) { r.name = p.name; r.tagStr = label; dropSprite(r.tag); r.tag = textSprite(label, { size: 26, bg: p.veh ? 'rgba(20,40,70,.7)' : 'rgba(16,20,15,.55)' }); r.tag.position.y = 2.25; r.g.add(r.tag); }
     // glide toward where they are now; snap if they jumped far (a respawn or a lift)
     const dx = p.x - r.x, dz = p.z - r.z, far = Math.hypot(dx, dz) > 25, k = far ? 1 : Math.min(1, dt * 10);
@@ -13012,9 +13040,9 @@ async function netJoin() {
   NET.joining = true; renderOnline();
   try {
     const Colyseus = await loadColyseus();
-    const opts = { x: P.pos.x, y: P.pos.y, z: P.pos.z, look: lookOut(), device: TOUCH.on ? 'phone' : 'desktop', ...(NET.token ? { token: NET.token } : { name: NET.guest }) };   // device: for the visit log
+    const opts = { x: P.pos.x, y: P.pos.y, z: P.pos.z, look: lookOut(), device: TOUCH.on ? 'phone' : 'desktop', ...(NET.token ? { token: NET.token } : { name: NET.guest, rep: GOALS.rep }) };   // device: for the visit log
     const room = await new Colyseus.Client(NET.base.replace(/^http/, 'ws')).joinOrCreate('world', opts);
-    NET.room = room; NET.retry = 0; NET.sent = null;
+    NET.room = room; NET.retry = 0; NET.sent = null; goalsLoad();
     room.onMessage('chat', m => chatIn(m));
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
     room.onMessage('trade', tradeNews);
@@ -14801,7 +14829,7 @@ function updateMuseums() {
 // ---- looking closer ----
 function exhibitNear() { if (!INSIDE.at || INSPECT.on || !MUS.rooms[INSIDE.at.R.type]) return null; let best = null, bd = 2.9; for (const e of MUS.ex) if (e.type === INSIDE.at.R.type) { const d = Math.hypot(e.x - P.pos.x, e.z - P.pos.z); if (d < bd) { bd = d; best = e; } } return best; }
 function inspectShow(ex) {
-  INSPECT.ex = ex; INSPECT.dist = ex.dist; INSPECT.min = ex.min; INSPECT.max = ex.max; INSPECT.t = 0;
+  INSPECT.ex = ex; goalEv('museum', ex.id); INSPECT.dist = ex.dist; INSPECT.min = ex.min; INSPECT.max = ex.max; INSPECT.t = 0;
   const list = MUS.ex.filter(q => q.type === ex.type);
   $('exNo').textContent = `${MUS.rooms[ex.type].info.name} · ${ex.gallery} · ${ex.idx + 1} of ${list.length}`; $('exTitle').textContent = ex.title; $('exSub').textContent = ex.subtitle || '';
   const img = $('exImg'), cr = $('exCredit'); if (ex.image?.thumburl) { img.hidden = false; img.src = ex.image.thumburl; img.alt = ex.title; cr.textContent = `Photo: ${ex.image.artist || 'Wikimedia Commons'} · ${ex.image.license || ''} · Wikimedia Commons`; cr.hidden = false; } else { img.hidden = true; cr.hidden = true; }
@@ -14974,6 +15002,7 @@ function callPolice(c) {
 }
 function arrestCrook(t, by) {
   const K = t.crook; if (!K || K.mode !== 'flee') return;
+  if (!by) goalEv('thief');   // (you caught one: a daily goal)
   showBubble(by || t, by ? rp(['You’re under arrest!', 'Hands where I can see them!', 'Game over, my friend.']) : 'Okay, okay!', 3);
   if (K.fromPlayer) { LAND.money += K.loot; LAND.changed = true; toast('👮 Thief caught!', `${by ? 'The police got' : 'You got'} your ${NAIRA(K.loot)} back${by ? '' : ' · +₦5,000 reward'}`); if (!by) earn(5000, null); }
   else if (!by) { earn(10000, null); toast('🦸 Thief caught!', `You stopped a pickpocket and returned ${NAIRA(K.loot)} · +₦10,000 reward`); }
@@ -14994,6 +15023,144 @@ function crimeTidy(dt) {
   for (const c of civilians) if (c.robbedT > 0) c.robbedT -= dt;
 }
 crimeSetup();
+/* ---------- daily goals and reputation. Every day (Lagos time) three goals, one easy, one medium, one hard, the same for
+   everyone. Each pays money and reputation; all three in a day pays a bonus that grows with your streak of days. Your
+   reputation gives you a title (JJC up to Living Legend) that everyone online sees over your head, and pays a little more
+   on every goal as it rises. Accounts' reputation is kept on the server (it takes three claims a day); a guest's on this
+   device. The goals live on the phone (G). ---------- */
+const GOAL_DEFS = [   // [id, tier, what to do, how many, the event that counts, counts distinct things]
+  ['help1', 'easy', 'Help someone back up after a fall', 1, 'rescue'], ['talk3', 'easy', 'Have a chat with 3 people', 3, 'talk'],
+  ['museum3', 'easy', 'Look closer at 3 pieces in a museum', 3, 'museum', true], ['eat1', 'easy', 'Eat at a buka, restaurant or stall', 1, 'eat'],
+  ['dance1', 'easy', 'Dance at a club', 1, 'dance'], ['drive2k', 'easy', 'Drive 2 km', 2000, 'drive'], ['walk1k', 'easy', 'Walk or run 1 km on foot', 1000, 'walk'],
+  ['parcel2', 'medium', 'Deliver 2 parcels', 2, 'parcel'], ['fare2', 'medium', 'Drive 2 taxi fares', 2, 'fare'], ['train1', 'medium', 'Ride Naija Rail to another station', 1, 'train'],
+  ['museum8', 'medium', 'Look closer at 8 museum pieces', 8, 'museum', true], ['drive10k', 'medium', 'Drive 10 km', 10000, 'drive'], ['help3', 'medium', 'Help 3 people back up', 3, 'rescue'],
+  ['thief1', 'hard', 'Catch a pickpocket yourself', 1, 'thief'], ['fly1', 'hard', 'Take an Oyo Skylink flight', 1, 'flight'], ['parcel5', 'hard', 'Deliver 5 parcels', 5, 'parcel'],
+  ['fare5', 'hard', 'Drive 5 taxi fares', 5, 'fare'], ['train3', 'hard', 'Get off the train at 3 different stations', 3, 'train', true], ['boat1', 'hard', 'Take tourists on a boat tour', 1, 'boat'],
+  ['museums4', 'hard', 'Visit all four state museums', 4, 'museumVisit', true],
+];
+// places a "visit" goal can send you to (found by name on the map)
+const GOAL_PLACES = ['Ile-Ife', 'Ore junction', 'The Oba’s palace, Benin', 'King’s Square & National Museum, Benin', 'Benin Airport', 'Samuel Ogbemudia Stadium', 'University of Benin (UNIBEN)', 'Igun Street bronze casters',
+  'Lekki Deep Sea Port', 'Redemption City', 'University of Ibadan', 'Mapo Hall', 'Cocoa House', 'The Alaafin’s palace, Oyo', 'Magboro Shopping Plaza', 'Ibadan Airport', 'Lagos History Museum', 'Museum of Yoruba History', 'Egba & Abeokuta Heritage Museum'];
+const GOAL_PAY = { easy: 5000, medium: 15000, hard: 40000 }, GOAL_REP = { easy: 10, medium: 20, hard: 35 }, GOAL_ALL = { rep: 25, pay: 20000 };
+const REP_TITLES = [[0, 'JJC'], [60, 'Street Smart'], [180, 'Hustler'], [400, 'Big Boss'], [800, 'Odogwu'], [1500, 'Chief'], [3000, 'Oga at the Top'], [6000, 'Living Legend']];
+const repTier = rep => { let t = 0; REP_TITLES.forEach(([n], i) => { if (rep >= n) t = i; }); return t; };
+const repTitle = rep => REP_TITLES[repTier(rep)][1];
+const lagosDay = (ms = Date.now()) => new Date(ms + 3600e3).toISOString().slice(0, 10);
+const GOALS_STORE = 'giantwood-goals';
+const GOALS = { day: '', set: [], prog: {}, claimed: [], rep: 0, streak: 0, fullDay: '', t: 0, last: null };
+try { Object.assign(GOALS, JSON.parse(localStorage.getItem(GOALS_STORE) || '{}')); } catch (e) {}
+const goalsSave = () => { try { localStorage.setItem(GOALS_STORE, JSON.stringify({ day: GOALS.day, prog: GOALS.prog, claimed: GOALS.claimed, rep: GOALS.rep, streak: GOALS.streak, fullDay: GOALS.fullDay })); } catch (e) {} };
+const slugOf = n => n.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+// today's three: picked from the day itself, so everyone has the same
+function goalsFor(day) {
+  let h = 2166136261; for (const ch of day) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); const r = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+  const places = fareSpots(), visits = GOAL_PLACES.map(n => places.find(p => p[0] === n)).filter(Boolean).map(p => ['visit:' + slugOf(p[0]), 'medium', `Visit ${p[0].replace(/^the /i, '')}`, 1, 'visit', false, p[1], p[2]]);
+  const pick = t => { const pool = [...GOAL_DEFS.filter(g => g[1] === t), ...(t === 'medium' ? visits : [])]; return pool[Math.floor(r() * pool.length)]; };
+  return ['easy', 'medium', 'hard'].map(pick).map(([id, tier, text, need, ev, distinct, x, z]) => ({ id, tier, text, need, ev, distinct: !!distinct, x, z }));
+}
+function goalsDay() {   // a new day: new goals (and the streak goes if yesterday wasn't finished)
+  const today = lagosDay(); if (GOALS.day === today && GOALS.set.length) return;
+  if (GOALS.day !== today) { GOALS.prog = {}; GOALS.claimed = []; }
+  GOALS.day = today; GOALS.set = goalsFor(today);
+  if (GOALS.fullDay !== today && GOALS.fullDay !== lagosDay(Date.now() - 86400e3)) GOALS.streak = 0;
+  goalsSave(); phoneRefresh();
+}
+// something happened that a goal might count: goalEv('train', 'Ore'), goalEv('drive', metres)
+function goalEv(ev, key, n = 1) {
+  if (!GOALS.set.length) return;
+  for (const g of GOALS.set) {
+    if (g.ev !== ev || GOALS.claimed.includes(g.id)) continue;
+    const pr = GOALS.prog[g.id] ||= { n: 0, seen: [] };
+    if (g.distinct) { if (key == null || pr.seen.includes(key)) continue; pr.seen.push(key); pr.n = pr.seen.length; } else pr.n += n;
+    if (pr.n >= g.need) goalDone(g); else if (ev !== 'drive' && ev !== 'walk') { goalsSave(); phoneRefresh(); }
+  }
+}
+function goalDone(g) {
+  if (GOALS.claimed.includes(g.id)) return;
+  GOALS.claimed.push(g.id); const tier0 = repTier(GOALS.rep);
+  const mult = 1 + repTier(GOALS.rep) * .05, pay = Math.round(GOAL_PAY[g.tier] * mult / 100) * 100;
+  earn(pay, null); GOALS.rep += GOAL_REP[g.tier];
+  let extra = '';
+  if (GOALS.claimed.length >= 3 && GOALS.set.every(q => GOALS.claimed.includes(q.id))) {   // all three: the streak and the bonus
+    GOALS.streak = GOALS.fullDay === lagosDay(Date.now() - 86400e3) ? GOALS.streak + 1 : 1; GOALS.fullDay = GOALS.day;
+    const bonus = Math.round(GOAL_ALL.pay * Math.min(2, 1 + (GOALS.streak - 1) * .25) / 100) * 100; earn(bonus, null); GOALS.rep += GOAL_ALL.rep;
+    extra = ` · all three done: +${NAIRA(bonus)} · ${GOALS.streak}-day streak 🔥`;
+  }
+  toast(`🏅 Goal done: ${g.text}`, `+${NAIRA(pay)} · +${GOAL_REP[g.tier]} reputation${extra}`); sfx('refill');
+  if (repTier(GOALS.rep) > tier0) setTimeout(() => toast(`👑 You're now ${aOrAn(repTitle(GOALS.rep))}`, `${GOALS.rep} reputation · everyone online sees your new title`), 2600);
+  goalsSave(); phoneRefresh(); repHud();
+  if (NET.token) api('/progress/claim', 'POST', { goal: g.id, day: GOALS.day }).then(goalsFromServer).catch(e => { if (e.body?.rep != null) goalsFromServer(e.body); });
+  else NET.room?.send('rep', { rep: GOALS.rep });
+}
+const aOrAn = t => (/^[AEIOU]/.test(t) ? 'an ' : 'a ') + t;
+function goalsFromServer(s) {   // an account's reputation is the server's
+  if (!s || s.rep == null) return;
+  GOALS.rep = s.rep; GOALS.streak = s.streak ?? GOALS.streak;
+  if (s.day === GOALS.day && Array.isArray(s.claimed)) GOALS.claimed = [...new Set([...s.claimed, ...GOALS.claimed.filter(id => s.claimed.includes(id))])];
+  goalsSave(); phoneRefresh(); repHud();
+}
+function goalsLoad() { if (NET.token) api('/progress').then(goalsFromServer).catch(() => {}); }
+// how far you've driven or walked, where you are (for visit goals): checked a few times a second
+const GOAL_MOVE = { x: null, z: null };
+function updateGoals(dt) {
+  if (mode !== 'play') return;
+  if ((GOALS.t -= dt) <= 0) { GOALS.t = .5; goalsDay();
+    for (const g of GOALS.set) if (g.ev === 'visit' && !GOALS.claimed.includes(g.id)) { const M = mapPos(); if (Math.hypot(M.x - g.x, M.z - g.z) < 45) goalEv('visit', g.id); }
+    const at = INSIDE.at && MUS.rooms[INSIDE.at.R.type]; if (at) goalEv('museumVisit', INSIDE.at.R.type);
+  }
+  if (GOAL_MOVE.x !== null && !FLY.on && !TRAIN.ride.on) { const d = Math.hypot(P.pos.x - GOAL_MOVE.x, P.pos.z - GOAL_MOVE.z); if (d > 0 && d < 60) goalEv(P.driving ? 'drive' : 'walk', null, d); }
+  GOAL_MOVE.x = P.pos.x; GOAL_MOVE.z = P.pos.z;
+  GOALS.saveT = (GOALS.saveT || 0) + dt; if (GOALS.saveT > 5) { GOALS.saveT = 0; goalsSave(); if (PHONE.open && PHONE.app === 'goals') phoneRefresh(); }
+}
+function repHud() { const el = $('repChip'); if (el) el.textContent = `🏅 ${repTitle(GOALS.rep)} · ${GOALS.rep}`; }
+
+/* ---------- the phone (G): your goals, messages, a taxi, the bank, the camera, your cars and the market. While it's
+   open the mouse is free to tap it; the world carries on. ---------- */
+const PHONE = { open: false, app: 'home', apps: {} };
+function phoneToggle(on = !PHONE.open) {
+  PHONE.open = on; $('phone').hidden = !on;
+  if (on) { PHONE.app = 'home'; phoneRefresh(); if (document.pointerLockElement) document.exitPointerLock(); }
+  else { const a = document.activeElement; if (a && a.blur) a.blur(); }
+}
+function phoneApp(app) { PHONE.app = app; phoneRefresh(); }
+function phoneRefresh() {
+  if (!PHONE.open) return;
+  const body = $('phBody'); $('phClock').textContent = clockText();
+  const A = PHONE.apps[PHONE.app]; if (!A) return;
+  body.replaceChildren(...[].concat(A.render()));
+}
+const clockText = () => { const d = new Date(Date.now() + 3600e3); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+const ph = (tag, cls, text, attrs = {}) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; for (const k in attrs) { if (k === 'on') for (const ev in attrs.on) e.addEventListener(ev, attrs.on[ev]); else e.setAttribute(k, attrs[k]); } return e; };
+PHONE.apps.home = { render: () => {
+  const grid = ph('div', 'phGrid');
+  for (const [id, icon, name] of PHONE_APPS) grid.append(ph('button', 'phApp', null, { type: 'button', on: { click: () => phoneApp(id) } }));
+  [...grid.children].forEach((b, i) => { b.append(ph('span', 'phIcon', PHONE_APPS[i][1]), ph('span', 'phName', PHONE_APPS[i][2])); });
+  const who = ph('div', 'phWho'); who.append(ph('b', null, (NET.user?.name || NET.guest || 'You')), ph('span', null, `🏅 ${repTitle(GOALS.rep)} · ${GOALS.rep} rep`));
+  return [who, grid, ph('div', 'phHint', 'G to put the phone away')];
+} };
+PHONE.apps.goals = { render: () => {
+  const out = [phHead('🏅 Daily goals', 'Resets at midnight, Lagos time')];
+  const t = repTier(GOALS.rep), next = REP_TITLES[t + 1], card = ph('div', 'phCard');
+  card.append(ph('b', 'phBig', repTitle(GOALS.rep)), ph('span', 'phDim', `${GOALS.rep} reputation${next ? ` · ${next[0] - GOALS.rep} to ${next[1]}` : ' · the top'}`));
+  if (next) { const bar = ph('div', 'phBar'), f = ph('i'); f.style.width = `${Math.round((GOALS.rep - REP_TITLES[t][0]) / (next[0] - REP_TITLES[t][0]) * 100)}%`; bar.append(f); card.append(bar); }
+  card.append(ph('span', 'phDim', `🔥 ${GOALS.streak}-day streak · goals pay +${t * 5}% at your title`)); out.push(card);
+  for (const g of GOALS.set) {
+    const done = GOALS.claimed.includes(g.id), pr = GOALS.prog[g.id]?.n || 0, row = ph('div', 'phGoal' + (done ? ' done' : ''));
+    const shown = g.ev === 'drive' || g.ev === 'walk' ? `${(Math.min(pr, g.need) / 1000).toFixed(1)} / ${g.need / 1000} km` : `${Math.min(pr, g.need)} / ${g.need}`;
+    row.append(ph('span', 'phTier ' + g.tier, g.tier), ph('b', null, g.text), ph('span', 'phDim', done ? '✓ Done' : `${shown} · ${NAIRA(GOAL_PAY[g.tier])} · +${GOAL_REP[g.tier]} rep`));
+    if (g.ev === 'visit' && !done) row.append(ph('button', 'phBtn', '📍 Set it on the map', { type: 'button', on: { click: () => { setWaypoint(g.x, g.z, g.text.replace(/^Visit /, '')); toast('📍 Pinned', g.text); } } }));
+    out.push(row);
+  }
+  out.push(ph('div', 'phDim phFoot', `All three in a day: +${NAIRA(GOAL_ALL.pay)} (more each day of your streak) and +${GOAL_ALL.rep} rep`));
+  const ladder = ph('div', 'phLadder'); for (const [n, name] of REP_TITLES) ladder.append(ph('span', GOALS.rep >= n ? 'got' : '', `${name} · ${n}`)); out.push(ladder);
+  return out;
+} };
+const phHead = (title, sub) => { const h = ph('div', 'phHead'); h.append(ph('button', 'phBack', '‹', { type: 'button', 'aria-label': 'Back', on: { click: () => phoneApp('home') } }), ph('b', null, title)); if (sub) h.append(ph('span', 'phDim', sub)); return h; };
+const PHONE_APPS = [['goals', '🏅', 'Goals']];
+$('phHome').addEventListener('click', () => phoneApp('home'));
+$('phClose').addEventListener('click', () => { phoneToggle(false); lockPointer(); });
+goalsDay(); repHud();
+
 /* ---------- main loop ---------- */
 if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(30);
 /* Peaceful mode: no titans at all. Toggle with T in game or the button on the start screen. */
@@ -15019,7 +15186,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
-  updateInside(); crimeTidy(dt); updateMuseums(); if (INSPECT.on && !INSIDE.at) inspectClose();
+  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
   if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
