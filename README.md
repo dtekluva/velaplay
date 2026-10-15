@@ -2,6 +2,8 @@
 
 The online backend for **NaijLife** (formerly Giantwood), the game in `../giantwood-scouts`. It has player accounts, saved characters and cloud saves, plus a shared real-time world where everyone sees each other move and chat.
 
+**Link previews:** `ops/build-client.sh` writes the Open Graph and Twitter card tags into the page head and copies `og-ikoyi.jpg` (1200 × 630, the Ikoyi skyline across the lagoon, rendered from the game) to `server/public`, so famtime.space shows a large image card on X/Twitter, WhatsApp, Facebook, iMessage and Slack. To change the image, replace `giantwood-scouts/og-ikoyi.jpg` and deploy.
+
 **Names:** guests must give a name (2+ letters or numbers); `onAuth` rejects a guest without one, and the game asks for it before the first Deploy.
 
 **Play online:** <https://famtime.space> (or www.famtime.space; the old <https://46-101-63-217.sslip.io> still works). That's the full game: sign in or play as a guest, make your scout, and press Deploy to join the shared world. A bare-bones test page lives at `/test.html`.
