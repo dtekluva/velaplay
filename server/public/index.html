@@ -289,6 +289,10 @@ body:not(.touch) #odock{display:none}
 .best{font-size:15px;color:var(--muted)}
 
 /* the law: wanted stars, flashing red and blue while a pursuit car is on you */
+#wayCue{position:absolute;left:50%;top:calc(134px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:3px 6px 3px 4px;background:var(--panel);border:1px solid var(--edge);font:600 14px var(--ui);letter-spacing:.05em;color:var(--ink,#f1ebda);white-space:nowrap;z-index:5}
+#wayCue svg{width:30px;height:30px;flex:none}
+#wayCue #wayX{background:none;border:0;color:inherit;font:600 13px var(--ui);opacity:.7;cursor:pointer;padding:2px 4px}
+body.touch #wayCue{top:calc(96px + env(safe-area-inset-top,0px));font-size:12px}
 #wanted{position:absolute;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translateX(-50%);padding:4px 14px;font:800 20px var(--ui);letter-spacing:.12em;color:#ffd34a;background:rgba(14,10,10,.75);border:1px solid rgba(255,211,74,.6);border-radius:4px;text-shadow:0 1px 3px #000}
 #wanted.flash{animation:wantedFlash .5s steps(2) infinite}
 @keyframes wantedFlash{0%{box-shadow:0 0 0 2px #ff2a2a,0 0 18px #ff2a2a}100%{box-shadow:0 0 0 2px #2a5aff,0 0 18px #2a5aff}}
@@ -449,6 +453,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     <div id="chatBar" hidden><input id="chatIn" type="text" maxlength="160" placeholder="Say something" enterkeyhint="send" autocomplete="off"><button id="chatSend" type="button">Send</button><button id="chatX" type="button" aria-label="Close chat">✕</button></div>
     <div id="odock" hidden><div class="dk" id="dkChat" aria-label="Chat">💬<small>Chat</small></div><div class="dk" id="dkVoice" aria-label="Voice chat">🎧<small>Voice</small></div><div class="dk talk" id="dkTalk" aria-label="Hold to talk" hidden>🎙<small>Hold</small></div></div>
     <div id="wanted" hidden></div>
+    <div id="wayCue" hidden><svg viewBox="-13 -13 26 26" aria-hidden="true"><circle r="12" fill="rgba(10,14,9,.55)"/><g id="wayArrow"><path d="M0 -10 L7 7 L0 3 L-7 7Z" fill="#f2c230" stroke="#1b1608" stroke-width="1.4" stroke-linejoin="round"/></g></svg><span id="wayTxt"></span><button id="wayX" type="button" aria-label="Clear the destination">✕</button></div>
     <div id="prompt" hidden></div>
     <div id="hurt"></div>
     <div class="vitals">
@@ -497,7 +502,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     </dl>
     <button id="helpTab" type="button" title="Show the controls (H)">H · controls</button>
     <div id="bigmap" hidden><div class="frame">
-      <div class="head"><h3>Map of NaijLife</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">P to close · wheel zooms · drag to move</span></div>
+      <div class="head"><h3>Map of NaijLife</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">Click to set a destination · P to close · wheel zooms · drag to move</span></div>
       <canvas id="bigmapC" width="960" height="960"></canvas>
       <div class="side"><div class="key"><span><i style="background:#fff"></i>You</span><span><i style="background:#2f7fd0"></i>Supply depot</span><span><i style="background:#e0392b;border-radius:50%"></i>Titan</span><span><i style="background:#3a6fd0"></i>Police</span><span><i style="background:#d64a3c"></i>Hospital</span><span><i style="background:#e8742a"></i>Fire station</span><span><i style="background:#e8c84a"></i>School</span><span><i style="background:#9a5ad0"></i>Mall</span><span><i style="background:#7fd3e8"></i>Airport terminal</span><span><i style="background:rgba(242,194,48,.5);border-color:#f2c230"></i>Land for sale</span><span><i style="background:#e8742a"></i>Your land</span><span><i style="background:#b98a52"></i>Deliveries</span></div></div>
     </div></div>
@@ -9516,6 +9521,7 @@ function drawMinimap() {
   { const jt = jobTarget(); if (jt) { let [x, y] = toM(jt[0], jt[1]); const cx = W / 2, cy = W / 2, dd = Math.hypot(x - cx, y - cy), R = W / 2 - 12; if (dd > R) { x = cx + (x - cx) * R / dd; y = cy + (y - cy) * R / dd; } mg.fillStyle = jt[2]; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2; mg.beginPath(); mg.arc(x, y, 9, 0, TAU); mg.fill(); mg.stroke(); } }
   if (TAXI.job) { let [x, y] = toM(TAXI.job.dest[1], TAXI.job.dest[2]); const cx = W / 2, cy = W / 2, dd = Math.hypot(x - cx, y - cy), R = W / 2 - 12; if (dd > R) { x = cx + (x - cx) * R / dd; y = cy + (y - cy) * R / dd; } mg.fillStyle = '#f2c230'; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2; mg.beginPath(); mg.arc(x, y, 9, 0, TAU); mg.fill(); mg.stroke(); }
   drawDriverRoute(mg, toM, 2.5);
+  drawWayPin(mg, toM, W, true);
   for (const t of titans) { if (t.dead) continue; const [x, y] = toM(t.g.position.x, t.g.position.z); mg.fillStyle = '#e0392b'; mg.beginPath(); mg.arc(x, y, 6, 0, TAU); mg.fill(); mg.strokeStyle = '#3a0c08'; mg.lineWidth = 1.5; mg.stroke(); }
   mg.translate(W / 2, W / 2); mg.rotate(-yaw);
   mg.fillStyle = '#fff'; mg.strokeStyle = '#1b1608'; mg.lineWidth = 2;
@@ -9590,6 +9596,7 @@ function drawBigMap() {
   if (AP && AP.showSlots && AP.showSlots.length) { const q = AP.showSlots[Math.floor(AP.showSlots.length / 4)]; label('🚗 32 cars to drive', q[0], q[1], 12, '#f2c230', -10); }
   if (RR.car && P.driving !== RR.car) { const [bx, by] = toB(RR.car.x, RR.car.z); bg2.fillStyle = '#9fe0ff'; bg2.beginPath(); bg2.arc(bx, by, 4, 0, TAU); bg2.fill(); label('✦ Range Rover', RR.car.x, RR.car.z, 12, '#9fe0ff', 12); }   // the rare car, wherever it was left
   drawDriverRoute(bg2, toB, 2.5);
+  drawWayPin(bg2, toB, bmC.width, false);
   if (P.driving && !DRIVER.on && !isAir(P.driving)) { const [hx, hz] = bmFromB(W / 2, 18); label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', hx, hz, 13, '#f2c230'); }
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (BIW) label('BANANA ISLAND WEST · LAND FOR SALE', (BIW.x0 + BIW.x1) / 2, (BIW.z0 + BIW.z1) / 2, 15, '#ffe08a', 0);
@@ -9700,7 +9707,7 @@ function tTap(code) { tKey(code, true); tKey(code, false); }
 function touchOn() {
   if (TOUCH.on) return; TOUCH.on = true; document.body.classList.add('touch');
   helpOn = false; $('help').hidden = true;
-  $('bmHint').textContent = 'Pinch to zoom · drag to move';
+  $('bmHint').textContent = 'Tap to set a destination · pinch to zoom · drag to move';
   try { document.body.classList.toggle('fullhud', localStorage.getItem('giantwood-fullhud') === '1'); } catch (e) {}
 }
 (function buildTouchUI() {
@@ -13101,10 +13108,58 @@ function driverInputs(c, V, dt) {
   return { thr, st, brake };
 }
 // the big map: pick a spot while in a car; the route and the destination are drawn on both maps
+/* ---------- a destination you pick on the map: a yellow pin on both maps (a dotted line to it on the minimap), a tall
+   beam where it is, and an arrow at the top of the screen that keeps pointing there with the distance. It clears when
+   you arrive, when you tap it on the map again, or with the ✕. Remembered in this browser. In a car, picking a spot
+   also offers the driver, as before. ---------- */
+const WAY = { on: false, x: 0, z: 0, name: '' };
+try { const w = JSON.parse(localStorage.getItem('giantwood-waypoint') || 'null'); if (w && Number.isFinite(w.x)) Object.assign(WAY, w, { on: true }); } catch (e) {}
+const wayBeam = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 140, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: .3, depthWrite: false, side: THREE.DoubleSide }));
+wayBeam.visible = false; wayBeam.frustumCulled = false; scene.add(wayBeam);
+const fmtDist = d => d >= 1000 ? `${(d / 1000).toFixed(d >= 10000 ? 0 : 1)} km` : `${Math.round(d / 5) * 5} m`;
+function setWaypoint(x, z) {
+  let name = '', bd = 70; for (const [n, px, pz] of fareSpots()) { const d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; name = n; } }
+  Object.assign(WAY, { on: true, x, z, name });
+  try { localStorage.setItem('giantwood-waypoint', JSON.stringify({ x, z, name })); } catch (e) {}
+  toast('📍 Destination set', `${name ? name[0].toUpperCase() + name.slice(1) : 'The marked spot'} · ${fmtDist(Math.hypot(x - P.pos.x, z - P.pos.z))} away · follow the arrow`);
+}
+function clearWaypoint(arrived) {
+  WAY.on = false; wayBeam.visible = false; $('wayCue').hidden = true;
+  try { localStorage.removeItem('giantwood-waypoint'); } catch (e) {}
+  if (arrived) { toast('📍 You’ve arrived', WAY.name ? WAY.name[0].toUpperCase() + WAY.name.slice(1) : 'At the marked spot'); sfx('swap'); }
+}
+const wayDir = new THREE.Vector3();
+function updateWaypoint() {
+  const el = $('wayCue');
+  if (!WAY.on || mode === 'title') { el.hidden = true; wayBeam.visible = false; return; }
+  const dx = WAY.x - P.pos.x, dz = WAY.z - P.pos.z, d = Math.hypot(dx, dz);
+  if (d < (P.driving ? 14 : 8)) { clearWaypoint(true); return; }
+  camera.getWorldDirection(wayDir);
+  const rel = Math.atan2(wayDir.x, wayDir.z) - Math.atan2(dx, dz);   // screen-up is where the camera looks; turn the arrow clockwise toward the target
+  $('wayArrow').setAttribute('transform', `rotate(${(rel * 180 / Math.PI).toFixed(1)})`);
+  $('wayTxt').textContent = `${fmtDist(d)}${WAY.name ? ' · ' + WAY.name : ''}`;
+  el.hidden = false;
+  wayBeam.visible = d > 18; wayBeam.position.set(WAY.x, groundAt(WAY.x, WAY.z) + 70, WAY.z);
+}
+$('wayX').addEventListener('click', e => { e.stopPropagation(); clearWaypoint(false); });
+// the pin on a map: toP turns world x, z into map pixels; edge keeps it on the minimap's rim with a line to it
+function drawWayPin(ctx, toP, W, rim) {
+  if (!WAY.on) return;
+  let [x, y] = toP(WAY.x, WAY.z);
+  if (rim) {
+    const cx = W / 2, cy = W / 2, dd = Math.hypot(x - cx, y - cy), R = W / 2 - 12;
+    ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(242,194,48,.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, cy);
+    if (dd > R) { x = cx + (x - cx) * R / dd; y = cy + (y - cy) * R / dd; } ctx.lineTo(x, y); ctx.stroke(); ctx.restore();
+  }
+  ctx.fillStyle = '#f2c230'; ctx.strokeStyle = '#1b1608'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y - 13, 7, Math.PI * .8, Math.PI * .2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1b1608'; ctx.beginPath(); ctx.arc(x, y - 13, 2.6, 0, TAU); ctx.fill();
+}
 function mapPick(px, py) {   // px, py: pixels on the big map's canvas
-  if (!P.driving) { toast('🚕 Hire a driver', 'Get in a car first, then open the map (P) and pick where to go'); return; }
   const [x, z] = bmFromB(px, py);
-  if (driverHire(x, z)) toggleBigMap(false);
+  if (WAY.on) { const [wx, wy] = bmToB(WAY.x, WAY.z); if (Math.hypot(wx - px, wy - 13 - py) < 18) { clearWaypoint(false); toast('📍 Destination cleared', 'Tap the map anywhere to set a new one'); drawBigMap(); return; } }
+  setWaypoint(x, z); drawBigMap();
+  if (P.driving && driverHire(x, z)) toggleBigMap(false);   // in a car, the driver can take you there too
 }
 bmC.addEventListener('click', e => { if (document.pointerLockElement || BMV.dragged) return; const r = bmC.getBoundingClientRect(); mapPick((e.clientX - r.left) * bmC.width / r.width, (e.clientY - r.top) * bmC.height / r.height); });
 // drag to move the map, the wheel (or the buttons) to zoom
@@ -13175,6 +13230,7 @@ function frame(now) {
   updateGrass(); updateForest();
   updateHUD(dt);
   updateLand(dt);
+  updateWaypoint();
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
   updateTouch(); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
   drawMinimap();
