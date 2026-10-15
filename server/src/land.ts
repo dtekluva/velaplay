@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { requireUser, type TokenUser } from "./auth";
-import { PLOTS, BIG_KEYS, START_MONEY, DOZER_PRICE, HOUSES, FURN, BATH_ITEMS, fenceCost, plotOfCell } from "./catalog";
+import { PLOTS, BIG_KEYS, START_MONEY, DOZER_PRICE, HOUSES, FURN, BATH_ITEMS, fenceCost, plotOfCell, isUnit, unitsOf } from "./catalog";
 
 /* Shared ownership. The game keeps playing as before and, after each change, sends its land record (money, plots with
    their houses, furniture and fences, the bulldozer, terrain edits) along with the version it last saw. The server
@@ -82,7 +82,7 @@ land.post("/land/sync", requireUser, async (req, res) => {
       if (old.plots[key]) continue;
       const row = PLOTS[key], p = wantPlots[key];
       // anything the game already paid for on a plot it couldn't have: the plot, and any house, furnishing and fence on it
-      const houseSpend = () => { const t = p?.house && HOUSES[p.house.type]; return t ? t.cost + (p.house.bare === false ? t.furnish : 0) + fenceCost(t, p.house.fence) : 0; };
+      const houseSpend = () => { const t = p?.house && HOUSES[p.house.type]; return t ? t.cost + (p.house.bare === false ? t.furnish : 0) + fenceCost(t, p.house.fence, p.house) : 0; };
       if (!row) { conflicts.push({ key, owner: null }); if (!importing) refund += Math.max(0, +p?.paid || 0) + houseSpend(); continue; }
       const price = row[0];
       if (await claim(key, { paid: price, big: row[1] === "b", house: null })) { keep[key] = { paid: price, big: row[1] === "b" || undefined, house: null }; if (!importing) cost += price; }
@@ -109,16 +109,17 @@ land.post("/land/sync", requireUser, async (req, res) => {
       const nh = now.house && typeof now.house === "object" ? now.house : null;
       if (!had.house && nh) {   // a new house
         const t = HOUSES[nh.type];
-        if (!t || !!t.big !== (PLOTS[key]?.[1] === "b")) { notes.push(`That house can't go on plot ${key}`); if (t && !importing) refund += t.cost + (nh.bare === false ? t.furnish : 0) + fenceCost(t, nh.fence); }
+        const onUnits = isUnit(key), units = onUnits ? unitsOf(key, nh) : null;
+        if (!t || !!t.big !== (PLOTS[key]?.[1] === "b") || (onUnits && (!units || !units.every((u) => wantPlots[u])))) { notes.push(`That house can't go on plot ${key}`); if (t && !importing) refund += t.cost + (nh.bare === false ? t.furnish : 0) + fenceCost(t, nh.fence, nh); }
         else {
-          if (!importing) cost += t.cost + (nh.bare === false && t.furnish ? t.furnish : 0) + fenceCost(t, nh.fence);
+          if (!importing) cost += t.cost + (nh.bare === false && t.furnish ? t.furnish : 0) + fenceCost(t, nh.fence, nh);
           house = nh;
         }
       } else if (had.house && nh) {   // changes to a house you have
         const t = HOUSES[had.house.type];
         if (nh.type !== had.house.type) notes.push("A house can't change type");
         else if (t) {
-          if (!importing && !sameJSON(nh.fence, had.house.fence)) cost += fenceCost(t, nh.fence);
+          if (!importing && !sameJSON(nh.fence, had.house.fence)) cost += fenceCost(t, nh.fence, nh);
           if (!importing) {
             const a = tally(had.house.furn), b = tally(nh.furn), newBath = !had.house.bath && nh.bath;
             for (const [id, n] of b) { const extra = n - (a.get(id) || 0); if (extra > 0 && FURN[id] && !(newBath && BATH_ITEMS.has(id))) cost += extra * FURN[id]; }

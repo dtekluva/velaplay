@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { requireUser, type TokenUser } from "./auth";
-import { PLOTS, BIG_KEYS, HOUSES, FURN, BATH_ITEMS, fenceCost } from "./catalog";
+import { PLOTS, BIG_KEYS, HOUSES, FURN, BATH_ITEMS, fenceCost, unitsOf } from "./catalog";
 import { wallet, stateOf, announce, tell, type PlotNews } from "./land";
 
 /* Players dealing with each other: offer your land (with its house) to another player for a price, or as a gift,
@@ -16,16 +16,22 @@ const DAY = "now() - interval '24 hours'";
 
 // what a plot is worth: the land, the house, its furnishing, fence and furniture bought (the Banana Island lot counts whole)
 export function valueOf(key: string, house: any): number {
-  const keys = PLOTS[key]?.[1] === "b" ? BIG_KEYS : [key];
+  const keys = PLOTS[key]?.[1] === "b" ? BIG_KEYS : unitsOf(key, house) ?? [key];
   let v = keys.reduce((a, k) => a + (PLOTS[k]?.[0] || 0), 0);
   const t = house && HOUSES[house.type];
   if (t) {
-    v += t.cost + (house.bare === false ? t.furnish : 0) + fenceCost(t, house.fence);
+    v += t.cost + (house.bare === false ? t.furnish : 0) + fenceCost(t, house.fence, house);
     for (const f of house.furn || []) if (f && FURN[f.id] && !BATH_ITEMS.has(f.id)) v += FURN[f.id];   // bathroom fittings come free with the bathroom
   }
   return v;
 }
 const keysOf = (key: string) => (PLOTS[key]?.[1] === "b" ? BIG_KEYS : [key]);
+// the same, reading a unit's house for the units under it (they're sold together)
+async function keysFor(c: PoolClient | typeof pool, key: string) {
+  if (PLOTS[key]?.[1] !== "u") return keysOf(key);
+  const h = (await c.query("SELECT house FROM plots WHERE key = $1", [key])).rows[0]?.house;
+  return unitsOf(key, h) ?? [key];
+}
 const naira = (n: number) => "₦" + Math.round(n).toLocaleString("en-NG");
 
 async function outToday(c: PoolClient | typeof pool, id: string) {
@@ -63,9 +69,9 @@ trade.post("/trade/offers", requireUser, async (req, res) => {
   const buyer = await userNamed(pool, to);
   if (!buyer) return fail(res, 404, `There's no player called ${String(to || "").slice(0, 24)}`);
   if (buyer.id === me.id) return fail(res, 400, "That's you");
-  const keys = keysOf(key);
+  const keys = await keysFor(pool, key);
   const own = await pool.query("SELECT key, house FROM plots WHERE key = ANY($1) AND owner = $2", [keys, me.id]);
-  if (own.rowCount !== keys.length) return fail(res, 409, keys.length > 1 ? "You don't own the whole Banana Island lot" : "You don't own that plot (if you just bought it, wait a moment for it to save)");
+  if (own.rowCount !== keys.length) return fail(res, 409, keys.length > 1 ? "You don't own all of that land" : "You don't own that plot (if you just bought it, wait a moment for it to save)");
   const house = own.rows.find((r) => r.house)?.house ?? null, value = valueOf(key, house);
   if (price > value * 2 + 50_000) return fail(res, 400, `That's more than twice what it's worth (${naira(value)}). Ask at most ${naira(value * 2 + 50_000)}`);
   const open = await pool.query("SELECT count(*)::int AS n FROM offers WHERE seller = $1 AND status = 'open'", [me.id]);
@@ -91,7 +97,7 @@ trade.post("/trade/offers/:id/accept", requireUser, async (req, res) => {
     const [a, b] = [me.id, sellerId].sort();
     const wa = await wallet(c, a, true), wb = await wallet(c, b, true), wMe = a === me.id ? wa : wb;
     if (wMe.synced_at && base !== wMe.version) { await c.query("ROLLBACK"); return fail(res, 409, "Your land changed: syncing first", { stale: true, state: await stateOf(pool, me.id) }); }
-    const keys = keysOf(key);
+    const keys = await keysFor(c, key);
     const own = await c.query("SELECT key, house, edits FROM plots WHERE key = ANY($1) AND owner = $2 FOR UPDATE", [keys, sellerId]);
     if (own.rowCount !== keys.length) {
       await c.query("UPDATE offers SET status = 'void', decided_at = now() WHERE id = $1", [o.id]); await c.query("COMMIT");

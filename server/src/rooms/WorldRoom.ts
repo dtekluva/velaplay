@@ -54,7 +54,8 @@ export class WorldState extends Schema {
 }
 
 interface Auth { id: string; name: string; guest: boolean; look: string }
-const BOUND = 346, ZLO = -5866, ZHI = 1066, MAX_STEP = 40;   // ZHI: the south edge, out past the Lekki Deep Sea Port at sea;   // the map edge (ZLO: the north edge, out past Yaba, Ikeja, Ibadan and Oyo on the mainland); the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
+const BOUND = 346, WEST = 730, ZLO = -5866,   // WEST: the west edge since Banana Island West (out to x = -744)
+  ZHI = 1066, MAX_STEP = 40;   // ZHI: the south edge, out past the Lekki Deep Sea Port at sea;   // the map edge (ZLO: the north edge, out past Yaba, Ikeja, Ibadan and Oyo on the mainland); the most anyone can move between two updates (a fast car or a plane at 20 Hz is far below this)
 const num = (v: unknown, lo: number, hi: number) => typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 
 export class WorldRoom extends Room<WorldState> {
@@ -110,7 +111,7 @@ export class WorldRoom extends Room<WorldState> {
         for (const other of this.state.parties.values()) if (other.owner === uid) return;   // one party at a time
         const q = await pool.query("SELECT 1 FROM plots WHERE key = $1 AND owner = $2 AND house IS NOT NULL", [m.key, uid]);
         if (!q.rowCount) return client.send("partyres", { ok: false, why: "That isn't your home" });
-        const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, ZHI); if (x === null || y === null || z === null) return;
+        const x = num(m.x, -WEST, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, ZHI); if (x === null || y === null || z === null) return;
         const p = new Party(), list = LISTS[m.vibe];
         Object.assign(p, { owner: uid, name: me.name, key: m.key, x, y, z, vibe: m.vibe, i: 0, track: list[0], start: t, end: t + trackMs(list[0]), until: t + 30 * 60 * 1000 });
         this.state.parties.set(m.key, p);
@@ -184,7 +185,7 @@ export class WorldRoom extends Room<WorldState> {
 
     this.onMessage("move", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p || !m) return;
-      const x = num(m.x, -BOUND, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, ZHI), ry = num(m.ry, -10, 10);
+      const x = num(m.x, -WEST, BOUND), y = num(m.y, -50, 400), z = num(m.z, ZLO, ZHI), ry = num(m.ry, -10, 10);
       if (x === null || y === null || z === null || ry === null) return;
       // ignore impossible jumps, except the game's own teleports (respawn, lifts, taxis), at most one every 3 s
       if (Math.hypot(x - p.x, z - p.z) > MAX_STEP && p.anim !== "spawn") {
@@ -250,7 +251,7 @@ export class WorldRoom extends Room<WorldState> {
     const p = new Player();
     p.name = auth.name; p.look = auth.look; p.anim = "spawn";
     // start where the player already is in their game (clamped to the map), else by the pyramid
-    const ox = num(options?.x, -BOUND, BOUND), oy = num(options?.y, -50, 400), oz = num(options?.z, ZLO, ZHI);
+    const ox = num(options?.x, -WEST, BOUND), oy = num(options?.y, -50, 400), oz = num(options?.z, ZLO, ZHI);
     p.x = ox ?? (Math.random() - .5) * 6; p.z = oz ?? (Math.random() - .5) * 6; p.y = oy ?? 10;
     if (auth.guest && options?.look) { const r = Character.safeParse(options.look); if (r.success) p.look = JSON.stringify(r.data); }
     this.state.players.set(client.sessionId, p);

@@ -1,8 +1,15 @@
 // what things cost, copied from the game so the server can check every purchase
 import plotsJson from "./data/plots.json";
 
-// every plot that can be bought: price and kind (o open land, e estate lot, b part of the Banana Island lot)
-export const PLOTS: Record<string, [number, "o" | "e" | "b"]> = plotsJson as any;
+// every plot that can be bought: price and kind (o open land, e estate lot, b part of the Banana Island lot, u a 300 m² unit in Banana Island West)
+export const PLOTS: Record<string, [number, "o" | "e" | "b" | "u"]> = plotsJson as any;
+export const isUnit = (k: string) => PLOTS[k]?.[1] === "u";
+// a house on Banana Island West units: its site (x0, z0, x1, z1) and the units under it, as the game sends them
+export function unitsOf(key: string, house: any): string[] | null {
+  if (!isUnit(key) || !house || !Array.isArray(house.units)) return null;
+  const u = house.units.filter((k: unknown) => typeof k === "string" && isUnit(k));
+  return u.length === house.units.length && u.includes(key) && u.length <= 48 ? [...new Set<string>(u)] : null;
+}
 export const BIG_KEYS = Object.keys(PLOTS).filter((k) => PLOTS[k][1] === "b");
 export const START_MONEY = 10_000_000;
 export const DOZER_PRICE = 35_000;
@@ -29,9 +36,11 @@ export const FURN: Record<string, number> = {
 export const BATH_ITEMS = new Set(["shower", "toilet", "vanity", "bathtub"]);
 const FENCE_RATE: Record<string, number> = { rail: 80, wall: 120, high: 180 };
 // the same sums as the game's fenceQuote()
-export function fenceCost(type: HouseType, fence: any): number {
+export function fenceCost(type: HouseType, fence: any, house?: any): number {
   const rate = fence && FENCE_RATE[fence.kind]; if (!rate) return 0;
-  const per = type.big ? 2 * (96 + 72) : fence.area === "compound" ? 2 * ((type.site ? type.site[0] : type.w) + 5 + (type.site ? type.site[1] : type.d) + 7) : 4 * PLOT;
+  const s = house?.site, n = Array.isArray(house?.units) ? house.units.length : 0;
+  const plotPer = Array.isArray(s) && s.length === 4 && n ? Math.min(2 * (Math.abs(s[2] - s[0]) + Math.abs(s[3] - s[1])), 2 * (15 * n + 40)) : 4 * PLOT;   // round a parcel of units: its own perimeter
+  const per = type.big ? 2 * (96 + 72) : fence.area === "compound" ? 2 * ((type.site ? type.site[0] : type.w) + 5 + (type.site ? type.site[1] : type.d) + 7) : plotPer;
   return Math.round(per * rate / 100) * 100;
 }
 // which plot a bulldozer cell belongs to (cell index = i * 720 + j, i and j in metres from the map corner)

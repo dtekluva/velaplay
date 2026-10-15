@@ -1007,6 +1007,7 @@ for (const E of ESTATES) {
 const BI = TOWN && COAST ? { name: 'Banana Island', short: 'Banana Island', x0: -288, x1: -192, z0: 48, z1: 120, az0: 24, gateX: -240, price: 20000 } : null;
 const inBI = (x, z, m = 0) => !!BI && x > BI.x0 - m && x < BI.x1 + m && z > BI.az0 - m && z < BI.z1 + m;
 if (BI) { const rx = TOWN.x + GRID[0], rz = TOWN.z + GRID[4]; BI.roadX = rx; ESTATE_ROADS.push([rx, rz, rx, 36, 4.5], [rx, 36, BI.gateX, 36, 4.5], [BI.gateX, 36, BI.gateX, BI.z0 + 2, 4.5]); }
+if (COAST) ESTATE_ROADS.push([-362, -44, -293, -44, 4.5]);   // the road into Banana Island West, off the coast road
 const estateRoadDist = (x, z) => { let best = 99; for (const [ax, az, bx, bz] of ESTATE_ROADS) { const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz, t = clamp(((x - ax) * dx + (z - az) * dz) / L, 0, 1); best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return best; };
 const inEstate = (x, z, m = 0) => ESTATES.find(E => x > E.x0 - m && x < E.x1 + m && z > E.z0 - m && z < E.z1 + m) || null;
 const LEVEL_AREAS = [...ESTATES, ...(BI ? [{ x0: BI.x0, x1: BI.x1, z0: BI.az0, z1: BI.z1 }] : [])];
@@ -1281,13 +1282,47 @@ if (PORT) {
     SHm[k] = h; SKIND[k] = kd;
   }
 }
-const kindAt = (x, z) => z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
+/* ---------- Banana Island West: new land past the old west edge (x -744 to -360), level with the city, sold in units of
+   300 m² (15 m of frontage, 20 m deep) along streets, so people can buy as much as they like and merge what touches.
+   Three blocks of six units and one of three per row, back to back between east-west streets every 48 m, a cross
+   street between the blocks, an avenue down the east side and a road from it to the coast road. ---------- */
+const WD = COAST ? 384 : 0, XW = -HALF - WD, WBOUND = HALF + WD - 14;
+const WHm = new Int16Array(Math.max(1, WD) * N), WKIND = new Uint8Array(Math.max(1, WD) * N);
+const wIdx = (x, z) => clamp(Math.floor(x + HALF) + WD, 0, WD - 1) * N + clamp(Math.floor(z + HALF), 0, N - 1);
+const BIW = WD ? (() => {
+  const B = { name: 'Banana Island West', short: 'BI West', y: TOWN.y, unitW: 15, unitD: 20, price: 15000, cols: [], rows: [], cross: [], streets: [], avenue: [-397, -389], accessZ: -44, z0: -336, z1: 248, x0: -736, beach: 276 };
+  let x = -736;
+  [6, 6, 6, 3].forEach((n, seg) => { for (let c = 0; c < n; c++) { B.cols.push({ x0: x, seg }); x += 15; } if (seg < 3) { B.cross.push([x, x + 8]); x += 8; } });
+  for (let b = 0; b < 12; b++) { const z = -336 + 48 * b; B.streets.push([z, z + 8]); B.rows.push({ z0: z + 8, side: 'nz', b }, { z0: z + 28, side: 'pz', b }); }
+  B.streets.push([240, 248]);
+  B.x1 = B.avenue[1];
+  return B;
+})() : null;
+const xLo = z => WD && z > -HALF + 10 ? -WBOUND : -BOUND;   // how far west you can go: out to the new edge, except up on the mainland
+const inBIW = (x, z, m = 0) => !!BIW && x > BIW.x0 - m && x < BIW.x1 + m && z > BIW.z0 - m && z < BIW.z1 + m;
+if (BIW) {
+  const Y = BIW.y, road = (x, z) => BIW.streets.some(([a, b]) => z >= a && z < b) && x >= XW && x < BIW.x1 || BIW.cross.some(([a, b]) => x >= a && x < b) && z >= BIW.z0 && z < BIW.z1
+    || x >= BIW.avenue[0] && x < BIW.avenue[1] && z >= BIW.z0 && z < BIW.z1 || x >= BIW.avenue[0] && Math.abs(z - BIW.accessZ) < 4;
+  const kerb = (x, z) => !road(x, z) && (road(x + 1, z) || road(x - 1, z) || road(x, z + 1) || road(x, z - 1));
+  for (let i = -WD; i < 0; i++) for (let j = 0; j < N; j++) {
+    const x = i - HALF + .5, z = j - HALF + .5, k = (i + WD) * N + j;
+    let h = Y, kd = 0;
+    if (z >= COAST.shore) { h = 0; kd = 1; }                       // the sea
+    else if (z >= BIW.beach) { h = 2; kd = 1; }                      // the beach
+    else if (road(x, z)) kd = 6;
+    else if (kerb(x, z)) kd = 7;
+    // the last 28 m before the old edge eases to the old ground (except the road in)
+    if (x > -388 && z < BIW.beach && !(Math.abs(z - BIW.accessZ) < 6)) { const t = smooth(-388, -360, x); h = Math.round(Y + (Hm[0 * N + j] - Y) * t); if (kd === 6 || kd === 7) kd = 0; }
+    WHm[k] = h; WKIND[k] = kd;
+  }
+}
+const kindAt = (x, z) => x < -HALF && WD ? (z < -HALF ? 0 : z >= HALF ? 1 : WKIND[wIdx(x, z)]) : z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
 // the coastal road's smooth surface where you're on it (else -Infinity); groundAt is the terrain or the road, whichever is higher
 function roadSurf(x, z) {
   if (!COAST || !(x < COAST.xw + 24 || z > COAST.rz - 24 || Math.abs(z - TOWN.z) < 24 || x > COAST.xe - 24)) return -Infinity;
   const p = crProject(x, z); return p.dist > crHW(p.s) + 1.55 ? -Infinity : COAST.surf(p.s) + .03;
 }
-const colH = (i, j) => (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
+const colH = (i, j) => i < 0 && i >= -WD ? (j < 0 ? EDGE_H : j < N ? WHm[(i + WD) * N + j] : 0) : (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
 const heightAt = (x, z) => colH(Math.floor(x + HALF), Math.floor(z + HALF));
 const groundAt = (x, z) => Math.max(heightAt(x, z), roadSurf(x, z));
 const WATER_Y = 1.5;
@@ -1299,7 +1334,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   const KMATS = [[M.grassTop, M.grassSide, M.dirt], [M.sand, M.sand, M.dirt], [M.snowTop, M.snowSide, M.rock], [M.rock, M.rock, M.rock], [M.wheat, M.grassSide, M.dirt], [M.path, M.path, M.dirt],
     [M.asphalt, M.concrete, M.dirt], [M.concrete, M.concrete, M.dirt], [M.lineX, M.concrete, M.dirt], [M.lineZ, M.concrete, M.dirt]];
   const CHUNKS = new Map();
-  const HH = (i, j) => j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid or the mainland strip
+  const HH = (i, j) => i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => i < 0 ? (j >= 0 && j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid, the mainland strip, the sea and port, or the west strip   // the old grid or the mainland strip
   TERRAIN_CHUNK = (ci, cj) => {
     const ckey = ci + ',' + cj, made = [];
     for (const m of CHUNKS.get(ckey) || []) { scene.remove(m); m.geometry.dispose(); }
@@ -1353,10 +1388,11 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     CHUNKS.set(ckey, made);
   };
   for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N + SD; cj += CH) TERRAIN_CHUNK(ci, cj);
+  for (let ci = -WD; ci < 0; ci += CH) for (let cj = 0; cj < N + 96 * 2; cj += CH) TERRAIN_CHUNK(ci, cj);   // Banana Island West and the sea off it
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
   const nE = HALF + (YB ? ND : 0);
-  for (const [w, d, x, z] of [[4000, 2000, 0, -nE - 1000], [2000, south + nE, -HALF - 1000, (south - nE) / 2], [2000, south + nE, HALF + 1000, (south - nE) / 2]]) {
+  for (const [w, d, x, z] of [[4000, 2000, 0, -nE - 1000], [2000, south + nE, XW - 1000, (south - nE) / 2], [2000, south + nE, HALF + 1000, (south - nE) / 2]]) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), meadowMat); m.rotation.x = -Math.PI / 2; m.position.set(x, EDGE_H - .02, z); scene.add(m);
   }
 
@@ -1444,6 +1480,16 @@ DEPOTS.forEach(([x, z]) => {
     const b = new Builder(), len = ax === 'z' ? L : zEnd + WN + 4, mid = ax === 'z' ? 0 : (zEnd - WN - 4) / 2;
     // on the east side, where the final approach to the airport's long runway crosses, the wall drops to a low section with approach lights
     const gap = AP && ax === 'x' && sgn === AP.sx ? (() => { const rz = Wp(212, 0)[1]; return [rz - 26, rz + 26]; })() : null;
+    if (ax === 'x' && sgn < 0 && WD) {   // the west side: the old wall along the mainland, a jog out at the old corner, then the new edge down to the sea
+      const WW = WBOUND + 5, zc = -HALF - 4;
+      b.box(T, H, zc + WN + 4, -W, H / 2, (zc - WN - 4) / 2, M.stone, 3);
+      b.box(WW - W + T, H, T, -(W + WW) / 2, H / 2, zc, M.stone, 3);
+      b.box(T, H, zEnd - zc, -WW, H / 2, (zc + zEnd) / 2, M.stone, 3);
+      for (let k = -WN + 6; k < zc - 4; k += 8) b.box(T, 3, 4, -W, H + 1.5, k, M.stone, 3);
+      for (let k = -WW + 6; k < -W - 4; k += 8) b.box(4, 3, T, k, H + 1.5, zc, M.stone, 3);
+      for (let k = zc + 6; k < zEnd - 4; k += 8) b.box(T, 3, 4, -WW, H + 1.5, k, M.stone, 3);
+      b.build(); continue;
+    }
     if (ax === 'z') b.box(L, H, T, 0, H / 2, sgn * zw, M.stone, 3);
     else if (gap) { const z0 = mid - len / 2, z1 = mid + len / 2; b.box(T, H, gap[0] - z0, sgn * W, H / 2, (z0 + gap[0]) / 2, M.stone, 3); b.box(T, H, z1 - gap[1], sgn * W, H / 2, (gap[1] + z1) / 2, M.stone, 3); b.box(T, 4, gap[1] - gap[0], sgn * W, 2, (gap[0] + gap[1]) / 2, M.stone, 3); b.box(T + .4, .5, gap[1] - gap[0], sgn * W, 4.25, (gap[0] + gap[1]) / 2, M.roof, 1, false); }
     else b.box(T, H, len, sgn * W, H / 2, mid, M.stone, 3);
@@ -3388,6 +3434,33 @@ if (BI) {
   b.build();
 }
 
+/* Banana Island West: an arch over the road in, a guard post, palms and lamps along the streets, and a board on every
+   block saying what the land costs */
+if (BIW) {
+  const b = new Builder(), Y = BIW.y, az = BIW.accessZ, ax = -376;
+  for (const s2 of [-1, 1]) { b.box(1, 6.5, 1, ax, Y + 3.25, az + s2 * 6.4, M.renderGrey, 2, true, 'house'); b.box(1.4, .4, 1.4, ax, Y + 6.7, az + s2 * 6.4, MM.white, 1, false); }
+  b.box(.8, 1.1, 13.8, ax, Y + 6.3, az, MM.white, 1, true, 'roof');
+  textSign('BANANA ISLAND WEST', '#0d4a8a', '#f2c230', 12, .95, ax + .45, Y + 6.3, az, Math.PI / 2, '#f2c230');
+  textSign('BANANA ISLAND WEST · WELCOME', '#0d4a8a', '#f2c230', 12, .95, ax - .45, Y + 6.3, az, -Math.PI / 2, '#f2c230');
+  b.box(3, 2.8, 3, ax - 4, Y + 1.4, az + 9.5, M.render, 2, true, 'house'); b.box(3.6, .25, 3.6, ax - 4, Y + 2.9, az + 9.5, MM.white, 1, false);   // the guard post
+  const palm = (x, z) => { b.box(.45, 7.5, .45, x, Y + 3.75, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7], [.7, -.7], [-.7, .7]]) b.box(dx ? 3 : .6, .22, dz ? 3 : .6, x + dx * 1.4, Y + 7.5 - (dx && dz ? .3 : 0), z + dz * 1.4, M.leaves, 1, false); };
+  const lamp = (x, z, dz) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, MM.dark, 1, true, 'house'); b.box(.12, .1, 1.4, x, Y + 6.45, z + dz * .7, MM.dark, 1, false); b.box(.45, .14, .45, x, Y + 6.35, z + dz * 1.3, lampMat, 1, false); LAMPS.push([x, z + dz * 1.3, Y]); };
+  // along the avenue: palms on the west verge, lamps on the east
+  for (let z = BIW.z0 + 6; z < BIW.z1; z += 24) { if (Math.abs(z - az) > 8) palm(BIW.avenue[1] + 3, z); }
+  // each street: lamps every other unit on the south kerb, a palm at each block corner
+  BIW.streets.forEach(([z0, z1], i) => {
+    for (let c = 1; c < BIW.cols.length; c += 3) lamp(BIW.cols[c].x0 + 7.5, z1 - .4, -1);
+    if (i < BIW.streets.length - 1) for (const cr of BIW.cross) { palm(cr[0] - 1.2, z1 + 1.5); palm(cr[1] + 1.2, z1 + 1.5); }
+  });
+  // a board on each block (by its first unit on the north street)
+  for (let bl = 0; bl < 12; bl++) for (let seg = 0; seg < 4; seg++) {
+    const c = BIW.cols.findIndex(o => o.seg === seg), x = BIW.cols[c].x0 + 2, z = BIW.rows[bl * 2].z0 + .8;
+    for (const s2 of [-.8, .8]) b.box(.12, 1.7, .12, x + s2, Y + .85, z, MM.wood, 1, false);
+    textSign(`FOR SALE · ₦${BIW.price.toLocaleString()} PER 300 m²`, '#f2f0ea', '#0d4a8a', 2.8, .7, x, Y + 1.9, z - .07, Math.PI, '#d8342c');
+  }
+  b.build();
+}
+
 /* no grass growing through floors: hide tufts that ended up inside a house */
 (function clearIndoorGrass() {
   const all = [...HOUSES, ...(TOWN ? TOWN.houses : []), ...(BEACH ? BEACH.houses : []), ...(COUNTRY ? COUNTRY.houses : []), ...ESTATES.flatMap(E => E.houses)], m = new THREE.Matrix4(), p = new V3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -4307,10 +4380,10 @@ function spawnTitan(x, z) {
 function spawnFar(minD = 55) {
   for (let k = 0; k < 60; k++) {
     const a = RM(0, TAU), d = RM(minD, minD + 80);
-    const x = clamp(P.pos.x + Math.sin(a) * d, -BOUND, BOUND), z = clamp(P.pos.z + Math.cos(a) * d, ZLO, ZHI);
+    const z = clamp(P.pos.z + Math.cos(a) * d, ZLO, ZHI), x = clamp(P.pos.x + Math.sin(a) * d, xLo(z), BOUND);
     if (heightAt(x, z) >= 2 && Math.hypot(x - P.pos.x, z - P.pos.z) > minD && !nearVillage(x, z, VR + 25)) return spawnTitan(x, z);
   }
-  return spawnTitan(clamp(P.pos.x + 80, -BOUND, BOUND), P.pos.z);
+  return spawnTitan(clamp(P.pos.x + 80, xLo(P.pos.z), BOUND), P.pos.z);
 }
 function removeTitan(t) {
   for (const h of hooks) if (h.obj && h.obj.userData.titan === t) { h.state = 'idle'; h.obj = null; }
@@ -4427,7 +4500,7 @@ function updateTitans(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, d = Math.hypot(ex, ez);
       if (d < r && d > 1e-4) { g.position.x += ex / d * (r - d); g.position.z += ez / d * (r - d); }
     }
-    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, ZHI);
+    g.position.z = clamp(g.position.z, ZLO, ZHI); g.position.x = clamp(g.position.x, xLo(g.position.z), BOUND);
     const gy = Math.max(heightAt(g.position.x, g.position.z), WATER_Y - 1) - .3;
     g.position.y += (gy - g.position.y) * Math.min(1, dt * 6);
     // limbs
@@ -4921,7 +4994,7 @@ function updateCivilians(dt) {
       const ex = g.position.x - cx, ez = g.position.z - cz, dd = Math.hypot(ex, ez), r = .35;
       if (dd < r) { if (dd > 1e-4) { g.position.x += ex / dd * (r - dd); g.position.z += ez / dd * (r - dd); } else g.position.x += r; if (c.state === 'walk') c.path.length = 0; }
     }
-    g.position.x = clamp(g.position.x, -BOUND, BOUND); g.position.z = clamp(g.position.z, ZLO, ZHI);
+    g.position.z = clamp(g.position.z, ZLO, ZHI); g.position.x = clamp(g.position.x, xLo(g.position.z), BOUND);
     const inH = houseAt(c.v, g.position.x, g.position.z);
     g.position.y = c.fixedY ?? (inH ? inH.floorY : groundAt(g.position.x, g.position.z));
     g.rotation.x = 0;
@@ -8282,7 +8355,7 @@ function driveStep(dt) {
   c.yaw += (c.speed / V.wb) * Math.tan(c.steer) * dt;
   if (c.kind === 'bike') c.lean += (clamp(c.steer * Math.min(1, Math.abs(c.speed) / 12) * 1.1, -.55, .55) - c.lean) * Math.min(1, dt * 6);
   const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw);
-  const nx = clamp(c.x + fx * c.speed * dt, -BOUND, BOUND), nz = clamp(c.z + fz * c.speed * dt, ZLO, ZHI);
+  const nz = clamp(c.z + fz * c.speed * dt, ZLO, ZHI), nx = clamp(c.x + fx * c.speed * dt, xLo(nz), BOUND);
   // walls, trees, houses and water stop the car; kerbs and steps up to a block high do not
   let ok = carGround(nx, nz, c.yaw, V) <= c.y + 1.05 && heightAt(nx, nz) > 1;
   if (ok) for (const k of V.circles) {
@@ -8909,7 +8982,9 @@ function stepPlayer(dt) {
     else if (m === pz1) { p.z += pz1; if (P.vel.z < 0) P.vel.z = 0; }
     else { p.z -= pz0; if (P.vel.z > 0) P.vel.z = 0; }
   }
-  if (Math.abs(p.x) > BOUND) { p.x = Math.sign(p.x) * BOUND; P.vel.x = 0; }
+  if (p.x > BOUND) { p.x = BOUND; P.vel.x = 0; }
+  if (p.x < -BOUND && WD && p.z < -HALF + 10) { if (p.x < -BOUND - 2) { p.z = -HALF + 10; P.vel.z = Math.max(0, P.vel.z); } else { p.x = -BOUND; P.vel.x = 0; } }   // the old corner, where the wall steps out
+  if (p.x < xLo(p.z)) { p.x = xLo(p.z); P.vel.x = 0; }
   if (p.z > ZHI || p.z < ZLO) { p.z = clamp(p.z, ZLO, ZHI); P.vel.z = 0; }
   if (p.y < WATER_Y - .6) { P.vel.multiplyScalar(Math.exp(-4 * dt)); P.vel.y += 30 * dt; }
 }
@@ -9130,13 +9205,14 @@ function updateHUD(dt) {
 
 /* ---------- minimap ---------- */
 const mm = $('minimap'), mg = mm.getContext('2d');
-const MAP_OY = YB ? ND : 0;   // the map image carries the mainland strip above the old map
+const MAP_OY = YB ? ND : 0, MAP_OX = WD;   // the map image carries the mainland strip above the old map and the west strip to its left
 const mapImg = (() => {
-  const c = document.createElement('canvas'); c.width = N; c.height = N + MAP_OY + SD; const g = c.getContext('2d'); const img = g.createImageData(N, N + MAP_OY + SD);
-  for (let i = 0; i < N; i++) for (let j = -MAP_OY; j < N + SD; j++) {
-    const h = j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], o = ((j + MAP_OY) * N + i) * 4;
+  const c = document.createElement('canvas'); c.width = N + MAP_OX; c.height = N + MAP_OY + SD; const g = c.getContext('2d'); const img = g.createImageData(N + MAP_OX, N + MAP_OY + SD);
+  for (let i = -MAP_OX; i < N; i++) for (let j = -MAP_OY; j < N + SD; j++) {
+    if (i < 0 && j < 0) continue;
+    const h = i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], o = ((j + MAP_OY) * (N + MAP_OX) + i + MAP_OX) * 4;
     let r, gg, b;
-    const kd = j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
+    const kd = i < 0 ? (j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
     if (h <= 1) { r = 58; gg = 120; b = 190; }
     else if (kd === 2) { r = 236; gg = 240; b = 242; }
     else if (kd === 3) { r = 120 + k * 40; gg = 122 + k * 40; b = 124 + k * 40; }
@@ -9148,7 +9224,7 @@ const mapImg = (() => {
     img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = 255;
   }
   g.putImageData(img, 0, 0);
-  g.translate(0, MAP_OY);   // everything below is drawn in old-map coordinates
+  g.translate(MAP_OX, MAP_OY);   // everything below is drawn in old-map coordinates
   for (const [x, z, w, d, col] of YABA_MAP) { g.fillStyle = col; g.fillRect(x + HALF - w / 2, z + HALF - d / 2, w, d); }
   g.fillStyle = '#2f5d22';
   for (const t of TREES) { g.beginPath(); g.arc(t.x + HALF, t.z + HALF, 6, 0, TAU); g.fill(); }
@@ -9167,12 +9243,12 @@ function drawMinimap() {
   mg.beginPath(); mg.arc(W / 2, W / 2, W / 2, 0, TAU); mg.clip();
   mg.fillStyle = '#5f9a3c'; mg.fillRect(0, 0, W, W);
   mg.imageSmoothingEnabled = false;
-  mg.drawImage(mapImg, P.pos.x + HALF - h, P.pos.z + HALF + MAP_OY - h, MAP_SPAN, MAP_SPAN, 0, 0, W, W);
+  mg.drawImage(mapImg, P.pos.x + HALF + MAP_OX - h, P.pos.z + HALF + MAP_OY - h, MAP_SPAN, MAP_SPAN, 0, 0, W, W);
   const toM = (x, z) => [(x - P.pos.x + h) * sc, (z - P.pos.z + h) * sc];
   mg.strokeStyle = 'rgba(242,194,48,.9)'; mg.lineWidth = 1.5; mg.fillStyle = 'rgba(242,194,48,.16)';
   for (const i of forSale()) if (i.ok && !LAND.plots.has(i.key) && Math.abs(i.r.cx - P.pos.x) < h + PLOT && Math.abs(i.r.cz - P.pos.z) < h + PLOT) { const [a, b] = toM(i.r.x0, i.r.z0); mg.fillRect(a, b, PLOT * sc, PLOT * sc); mg.strokeRect(a, b, PLOT * sc, PLOT * sc); }
   mg.fillStyle = 'rgba(232,116,42,.45)'; mg.strokeStyle = '#e8742a'; mg.lineWidth = 2;
-  for (const k of LAND.plots.keys()) { const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz), [a, b] = toM(r.x0, r.z0); mg.fillRect(a, b, PLOT * sc, PLOT * sc); mg.strokeRect(a, b, PLOT * sc, PLOT * sc); }
+  for (const k of LAND.plots.keys()) { if (isUnit(k) && !unitOk(k)) continue; const r = keyRect(k), [a, b] = toM(r.x0, r.z0), w = (r.x1 - r.x0) * sc, d = (r.z1 - r.z0) * sc; mg.fillRect(a, b, w, d); mg.strokeRect(a, b, w, d); }
   for (const s of SUPPLIES) { const [x, y] = toM(s.x, s.z); mg.fillStyle = '#2f7fd0'; mg.fillRect(x - 6, y - 6, 12, 12); mg.strokeStyle = '#fff'; mg.lineWidth = 2; mg.strokeRect(x - 6, y - 6, 12, 12); }
   for (const c of civilians) {
     if (!c.active) continue; const [x, y] = toM(c.g.position.x, c.g.position.z);
@@ -9199,7 +9275,7 @@ const MAPCUR = { x: 0, y: 0, dirty: false };   // a crosshair on the big map, mo
 const BMV = { cx: 0, cz: 0, span: 1100, down: null, dragged: false }, BM_MIN = 240, BM_MAX = N + MAP_OY + SD + 40;
 const bmToB = (x, z) => { const sc = bmC.width / BMV.span; return [bmC.width / 2 + (x - BMV.cx) * sc, bmC.height / 2 + (z - BMV.cz) * sc]; };
 const bmFromB = (px, py) => { const sc = bmC.width / BMV.span; return [BMV.cx + (px - bmC.width / 2) / sc, BMV.cz + (py - bmC.height / 2) / sc]; };
-function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(0, -HALF + h), Math.max(0, HALF - h)); const mid = (SD - MAP_OY) / 2; BMV.cz = clamp(BMV.cz, Math.min(mid, -HALF - MAP_OY + h), Math.max(mid, HALF + SD - h)); }
+function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.span / 2; BMV.cx = clamp(BMV.cx, Math.min(-WD / 2, -HALF - WD + h), Math.max(-WD / 2, HALF - h)); const mid = (SD - MAP_OY) / 2; BMV.cz = clamp(BMV.cz, Math.min(mid, -HALF - MAP_OY + h), Math.max(mid, HALF + SD - h)); }
 function bmZoom(f, px = bmC.width / 2, py = bmC.height / 2) {   // keep the spot under (px, py) where it is
   const [x, z] = bmFromB(px, py); BMV.span *= f; bmClamp(); const [x2, z2] = bmFromB(px, py); BMV.cx += x - x2; BMV.cz += z - z2; bmClamp(); MAPCUR.dirty = true;
 }
@@ -9211,7 +9287,7 @@ function toggleBigMap(force) {
 function drawBigMap() {
   const W = bmC.width, sc = W / BMV.span, toB = bmToB;   // the part of the world in view (BMV)
   bg2.fillStyle = '#3a6a2a'; bg2.fillRect(0, 0, W, W);
-  { const sx = BMV.cx - BMV.span / 2 + HALF, sy = BMV.cz - BMV.span / 2 + HALF + MAP_OY, ix0 = Math.max(0, sx), iy0 = Math.max(0, sy), ix1 = Math.min(mapImg.width, sx + BMV.span), iy1 = Math.min(mapImg.height, sy + BMV.span);
+  { const sx = BMV.cx - BMV.span / 2 + HALF + MAP_OX, sy = BMV.cz - BMV.span / 2 + HALF + MAP_OY, ix0 = Math.max(0, sx), iy0 = Math.max(0, sy), ix1 = Math.min(mapImg.width, sx + BMV.span), iy1 = Math.min(mapImg.height, sy + BMV.span);
     bg2.imageSmoothingEnabled = BMV.span > 1600; if (ix1 > ix0 && iy1 > iy0) bg2.drawImage(mapImg, ix0, iy0, ix1 - ix0, iy1 - iy0, (ix0 - sx) * sc, (iy0 - sy) * sc, (ix1 - ix0) * sc, (iy1 - iy0) * sc); }
   bg2.fillStyle = 'rgba(10,14,9,.18)'; bg2.fillRect(0, 0, W, W);
   const label = (text, x, z, size = 15, color = '#f1ebda', dy = 0) => {
@@ -9247,11 +9323,11 @@ function drawBigMap() {
   bg2.strokeStyle = 'rgba(242,194,48,.85)'; bg2.lineWidth = 1; bg2.fillStyle = 'rgba(242,194,48,.18)';
   for (const i of forSale()) if (i.ok && !LAND.plots.has(i.key)) { const [a, b] = toB(i.r.x0, i.r.z0); bg2.fillRect(a, b, PLOT * sc, PLOT * sc); bg2.strokeRect(a + .5, b + .5, PLOT * sc - 1, PLOT * sc - 1); }
   bg2.fillStyle = 'rgba(232,116,42,.55)'; bg2.strokeStyle = '#e8742a'; bg2.lineWidth = 1.5;
-  for (const k of LAND.plots.keys()) { const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz), [a, b] = toB(r.x0, r.z0); bg2.fillRect(a, b, PLOT * sc, PLOT * sc); bg2.strokeRect(a, b, PLOT * sc, PLOT * sc); }
+  for (const k of LAND.plots.keys()) { if (isUnit(k) && !unitOk(k)) continue; const r = keyRect(k), [a, b] = toB(r.x0, r.z0), w = (r.x1 - r.x0) * sc, d = (r.z1 - r.z0) * sc; bg2.fillRect(a, b, w, d); bg2.strokeRect(a, b, w, d); }
   bg2.fillStyle = 'rgba(80,150,230,.45)'; bg2.strokeStyle = '#5aa0ee';
-  for (const [k, o] of OTHERS) { if (LAND.plots.has(k)) continue; const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz), [a, b] = toB(r.x0, r.z0); bg2.fillRect(a, b, PLOT * sc, PLOT * sc); bg2.strokeRect(a, b, PLOT * sc, PLOT * sc); }
-  for (const [k, o] of OTHERS) if (o.house && o.ownerName && !LAND.plots.has(k)) { const [qx, qz] = k.split(',').map(Number), r = plotRect(qx, qz); label(o.ownerName, r.cx, r.cz, 11, '#bfe0ff', -PLOT * sc / 2 - 6); }
-  if (LAND.plots.size) { const [k0] = LAND.plots.keys(), [qx, qz] = k0.split(',').map(Number), r = plotRect(qx, qz); label('Your land', r.cx, r.cz, 13, '#ffd3a8', -PLOT * sc / 2 - 8); }
+  for (const [k, o] of OTHERS) { if (LAND.plots.has(k) || (isUnit(k) && !unitOk(k))) continue; const r = keyRect(k), [a, b] = toB(r.x0, r.z0), PW = (r.x1 - r.x0) * sc, PD = (r.z1 - r.z0) * sc; bg2.fillRect(a, b, PW, PD); bg2.strokeRect(a, b, PW, PD); }
+  for (const [k, o] of OTHERS) if (o.house && o.ownerName && !LAND.plots.has(k) && (!isUnit(k) || unitOk(k))) { const r = homeRect(k, o.house); label(o.ownerName, r.cx, r.cz, 11, '#bfe0ff', -PLOT * sc / 2 - 6); }
+  if (LAND.plots.size) { const [k0] = LAND.plots.keys(), r = keyRect(k0); label('Your land', r.cx, r.cz, 13, '#ffd3a8', -PLOT * sc / 2 - 8); }
   if (DOZER_YARD) label('Machinery', DOZER_YARD.x, DOZER_YARD.z, 12, '#f2c230', -12);
   NET.room?.state?.parties?.forEach?.(pa => label(`🎉 ${pa.name}’s party`, pa.x, pa.z, 14, '#ff9ae0', -14));
   for (const C of CLUBS) label('♪ ' + C.name, C.at[0], C.at[1], 11, '#ff9ae0', -8);
@@ -9260,6 +9336,7 @@ function drawBigMap() {
   drawDriverRoute(bg2, toB, 2.5);
   if (P.driving && !DRIVER.on && !isAir(P.driving)) { const [hx, hz] = bmFromB(W / 2, 18); label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', hx, hz, 13, '#f2c230'); }
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
+  if (BIW) label('BANANA ISLAND WEST · LAND FOR SALE', (BIW.x0 + BIW.x1) / 2, (BIW.z0 + BIW.z1) / 2, 15, '#ffe08a', 0);
   if (YB) {   // the mainland
     label('LAGOS–IBADAN EXPRESSWAY', expX(-2800) + 80, -2800, 14, '#f2c230'); label('IBADAN', 0, -4930, 24, '#f2c230'); label('OYO', 0, OYO.z1 + 14, 22, '#f2c230');
     for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
@@ -9837,6 +9914,7 @@ function fenceOptions(t) {
 const fenceLabel = (kind, area, t) => !kind ? 'No fence' : `${FENCE_KINDS[kind].name} ${t.big ? 'round all 1.7 acres' : area === 'compound' ? 'snug round the house' + (t.id === 'mansionette' ? ' and BQ' : '') : 'round the whole plot'} · ${FENCE_KINDS[kind].h} m`;
 function openFenceMenu(key, t, side, furnished, change = false) {
   LM_.key = key;
+  if (change) { const h = LAND.plots.get(key)?.house; LM_.site = h?.site ? { site: h.site, units: h.units } : null; }
   const items = fenceOptions(t).map(([kind, area]) => {
     const price = fenceQuote(t, area, kind);
     return { label: `${fenceLabel(kind, area, t)}${price ? ' · ' + NAIRA(price) : ''}`, run: () => change ? changeFence(key, kind, area, price) : finishBuild(key, t, side, furnished, kind ? { kind, area } : null, price) };
@@ -9856,6 +9934,7 @@ function finishBuild(key, t, side, furnished, fence, fencePrice) {
   if (LAND.money < total) { toast('', `All in, that's ${NAIRA(total)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= total;
   const house = { type: t.id, side, bare: !furnished && t.id !== 'cabin', furn: [], fence: fence || { kind: 'none', area: null } };
+  if (isUnit(key) && LM_.site) { house.site = LM_.site.site; house.units = LM_.site.units; for (const u of house.units) { if (u !== key && LAND.plots.has(u)) LAND.plots.get(u).of = key; const f = LAND.flags.get(u); if (f) { scene.remove(f); LAND.flags.delete(u); } } }
   LAND.plots.get(key).house = house; raiseHouse(key, house);
   const hs = HOME_HS.get(key);
   if (furnished && PRESETS[t.id] && hs) { house.furn = presetFurn(t.id, hs); for (const rec of house.furn) furnPlace(key, hs, rec); }
@@ -9881,11 +9960,126 @@ function plotInfo(px, pz) {
   const price = Math.round((7000 + 7000 * clamp(1 - (hi - lo) / 9, 0, 1)) / 100) * 100;   // the steeper the plot, the cheaper it is
   const info = { ok, price, lo, hi, r, key }; LAND.info.set(key, info); return info;
 }
+/* ---------- Banana Island West land: 300 m² units (keys u<col>,<row>). Buy one at a time or a block at once; units of
+   yours that touch (side by side along a street, or back to back across the block) make one parcel, and a house goes on
+   the biggest rectangle of it around where you stand, so a parcel can carry more than one home. A built house keeps its
+   site and the units under it (house.site, house.units); those units point at it (of). ---------- */
+const unitKey = (c, r) => `u${c},${r}`, isUnit = k => typeof k === 'string' && k[0] === 'u', unitCR = k => k.slice(1).split(',').map(Number);
+function unitAt(x, z) {
+  if (!BIW || !inBIW(x, z)) return null;
+  const c = BIW.cols.findIndex(o => x >= o.x0 && x < o.x0 + BIW.unitW), r = BIW.rows.findIndex(o => z >= o.z0 && z < o.z0 + BIW.unitD);
+  return c < 0 || r < 0 ? null : unitKey(c, r);
+}
+const unitOk = k => { const [c, r] = unitCR(k); return !!(BIW && BIW.cols[c] && BIW.rows[r]); };
+function unitRect(k) { const [c, r] = unitCR(k), x0 = BIW.cols[c].x0, z0 = BIW.rows[r].z0; return { x0, z0, x1: x0 + BIW.unitW, z1: z0 + BIW.unitD, cx: x0 + BIW.unitW / 2, cz: z0 + BIW.unitD / 2 }; }
+function unitNbrs(k) {   // along the street (same block of columns), and the unit back to back with it
+  const [c, r] = unitCR(k), out = [];
+  for (const d of [-1, 1]) if (BIW.cols[c + d] && BIW.cols[c + d].seg === BIW.cols[c].seg) out.push(unitKey(c + d, r));
+  out.push(unitKey(c, r ^ 1)); return out;
+}
+const keyRect = k => isUnit(k) ? unitRect(k) : plotRect(...k.split(',').map(Number));
+const rectOf = s => ({ x0: s[0], z0: s[1], x1: s[2], z1: s[3], cx: (s[0] + s[2]) / 2, cz: (s[1] + s[3]) / 2 });
+const homeRect = (k, house) => house?.site ? rectOf(house.site) : keyRect(k);
+const homeOf = k => isUnit(k) ? (LAND.plots.get(k)?.of || k) : bigK(k);   // the key a home is kept under
+const keySeed = k => { let h = 17; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+function unitInfo(k) {
+  if (LAND.info.has(k)) return LAND.info.get(k);
+  const r = unitRect(k), o = OTHERS.get(k);
+  const info = o && !LAND.plots.has(k) ? { ok: false, price: 0, lo: BIW.y, hi: BIW.y, r, key: k, other: o, unit: true }
+    : { ok: !LAND.sold.has(k), price: BIW.price, lo: BIW.y, hi: BIW.y, r, key: k, unit: true };
+  LAND.info.set(k, info); return info;
+}
+const landInfoAt = (x, z) => { const u = unitAt(x, z); return u ? unitInfo(u) : plotInfo(...plotAt(x, z)); };
+const unitFree = k => unitOk(k) && unitInfo(k).ok && !LAND.plots.has(k);
+// your units joined to this one (unbuilt ones only, unless asked)
+function parcelOf(k, built = false) {
+  const seen = new Set([k]), q = [k];
+  while (q.length) { const a = q.pop(); for (const b of unitNbrs(a)) { const p = LAND.plots.get(b); if (!p || seen.has(b) || (!built && (p.house || p.of))) continue; seen.add(b); q.push(b); } }
+  return [...seen];
+}
+// the biggest rectangle of whole units in a set that includes unit k: one row along the street, or both back to back
+function unitsRect(set, k) {
+  const S = set instanceof Set ? set : new Set(set), [c0, r0] = unitCR(k), seg = BIW.cols[c0].seg; let best = null;
+  for (const rr of [[r0], [r0 & ~1, r0 | 1]]) {
+    const has = c => BIW.cols[c] && BIW.cols[c].seg === seg && rr.every(r => S.has(unitKey(c, r)));
+    if (!has(c0)) continue;
+    let a = c0, b = c0; while (has(a - 1)) a--; while (has(b + 1)) b++;
+    const n = (b - a + 1) * rr.length;
+    if (!best || n > best.n) {
+      const keys = []; for (let c = a; c <= b; c++) for (const r of rr) keys.push(unitKey(c, r));
+      const R0 = unitRect(unitKey(a, rr[0])), R1 = unitRect(unitKey(b, rr[rr.length - 1]));
+      best = { n, keys, site: [R0.x0, R0.z0, R1.x1, R1.z1], side: rr.length > 1 ? 'nz' : BIW.rows[r0].side, w: (b - a + 1) * BIW.unitW, d: rr.length * BIW.unitD };
+    }
+  }
+  return best;
+}
+const m2 = n => `${(n * 300).toLocaleString()} m²`;
+// what's for sale around a free unit: blocks of 1–6 units along the street, one row or both
+function unitOffers(k) {
+  const [c0, r0] = unitCR(k), seg = BIW.cols[c0].seg, out = [], seen = new Set();
+  for (const [w, h] of [[1, 1], [2, 1], [2, 2], [3, 2], [4, 2], [6, 2]]) {
+    const rr = h === 1 ? [r0] : [r0 & ~1, r0 | 1];
+    for (let a = c0 - w + 1; a <= c0; a++) {   // the first block of that size, starting as close to this unit as it can
+      const cs = Array.from({ length: w }, (_, i) => a + i);
+      if (!cs.every(c => BIW.cols[c] && BIW.cols[c].seg === seg)) continue;
+      const keys = cs.flatMap(c => rr.map(r => unitKey(c, r)));
+      if (!keys.every(unitFree)) continue;
+      if (!seen.has(w * h)) { seen.add(w * h); out.push({ keys, w, h }); }
+      break;
+    }
+  }
+  return out;
+}
+function buyUnits(keys) {
+  if (sharedBlocked()) return;
+  const price = keys.length * BIW.price;
+  if (!keys.every(unitFree)) { toast('', 'Some of that land has just gone'); return; }
+  if (LAND.money < price) { toast('', `${m2(keys.length)} costs ${NAIRA(price)}; you have ${NAIRA(LAND.money)}`); return; }
+  LAND.money -= price;
+  for (const k of keys) { LAND.plots.set(k, { paid: BIW.price, house: null }); flagPlot(k); }
+  const info = unitInfo(keys[0]); drawOutline(info); saveLand(); sfx('refill'); menuClose();
+  const total = parcelOf(keys[0]).length;
+  toast('Land bought!', `${m2(keys.length)} in Banana Island West for ${NAIRA(price)}${total > keys.length ? ` · joined to your land: ${m2(total)} together` : ''} · ${NAIRA(LAND.money)} left`);
+}
+function openUnitBuyMenu(k) {
+  const offers = unitOffers(k);
+  const items = offers.map(o => ({ label: `${m2(o.keys.length)} · ${o.w * BIW.unitW} × ${o.h * BIW.unitD} m · ${NAIRA(o.keys.length * BIW.price)}`,
+    note: o.keys.length === 1 ? 'this unit; buy the ones next to it any time and they join up' : o.h === 2 ? `${o.w} units along the street, both rows back to back` : `${o.w} units side by side along the street`,
+    off: LAND.money < o.keys.length * BIW.price, run: () => buyUnits(o.keys) }));
+  items.push({ label: 'Close', run: menuClose });
+  menuShow('Buy land in Banana Island West', `${NAIRA(BIW.price)} per 300 m² unit · level, on a street · ${NAIRA(LAND.money)} in the bank`, items);
+}
+// building on your units: the biggest rectangle of your unbuilt land around you
+function houseNeeds(t) { return [t.site ? t.site[0] : t.w + (t.wall ? 6 : 3), t.site ? t.site[1] : t.d + (t.wall ? 7 : 3)]; }
+function openUnitBuildMenu(k) {
+  const R = unitsRect(parcelOf(k), k), rr = rectOf(R.site);
+  LM_.site = { site: R.site, units: R.keys };
+  const items = HOUSE_TYPES.filter(t => !t.big).map(t => {
+    const [nw, nd] = houseNeeds(t), fits = nw <= R.w && nd <= R.d, afford = LAND.money >= t.cost;
+    return { label: `${t.name} · ${NAIRA(t.cost)}`, note: `${t.blurb}${fits ? '' : ` · needs ${Math.ceil(nw / BIW.unitW) * BIW.unitW} × ${Math.ceil(nd / BIW.unitD) * BIW.unitD} m of your land here`}${afford ? '' : ' · not enough money'}`, off: !fits || !afford,
+      run: () => { if (!fits) { toast('', `A ${t.name.toLowerCase()} needs more land here: buy the units next to this one and they join up`); return; } if (!afford) { toast('', `A ${t.name.toLowerCase()} costs ${NAIRA(t.cost)}; you have ${NAIRA(LAND.money)}`); return; } openFurnishMenu(k, t, R.side); } };
+  });
+  items.push({ label: 'Back', run: () => openLandMenu(k) });
+  menuShow('Build a house', `on ${m2(R.n)} of your land here (${R.w} × ${R.d} m) · the front door faces the street`, items);
+}
+function sellUnit(k, price) {
+  const p = LAND.plots.get(k); if (!p) return;
+  LAND.plots.delete(k); LAND.sold.set(k, { house: null });
+  const f = LAND.flags.get(k); if (f) { scene.remove(f); LAND.flags.delete(k); }
+  const info = LAND.info.get(k); if (info) info.ok = false;
+  LAND.money += price; LAND.cur = null; saveLand(); menuClose(); sfx('swap');
+  toast(`+${NAIRA(price)}`, '300 m² sold');
+}
+// units under a house point at it (rebuilt after loading, since the server keeps only the house's own list)
+function relinkUnits() {
+  for (const [k, p] of LAND.plots) if (isUnit(k)) delete p.of;
+  for (const [k, p] of LAND.plots) if (isUnit(k) && p.house?.units) for (const u of p.house.units) if (u !== k && LAND.plots.has(u)) LAND.plots.get(u).of = k;
+}
 // corner flags on land you own
 const flagMat = LM(0xe8742a), flagPost = new THREE.BoxGeometry(.12, 2.2, .12), flagCloth = new THREE.BoxGeometry(.7, .42, .03);
 function flagPlot(key) {
-  if (LAND.flags.has(key) || LAND.plots.get(key)?.big) return;
-  const [px, pz] = key.split(',').map(Number), r = plotRect(px, pz), g = new THREE.Group();
+  if (LAND.flags.has(key) || LAND.plots.get(key)?.big || (isUnit(key) && !unitOk(key))) return;
+  const r = keyRect(key), g = new THREE.Group();
   for (const [x, z] of [[r.x0 + .3, r.z0 + .3], [r.x1 - .3, r.z0 + .3], [r.x0 + .3, r.z1 - .3], [r.x1 - .3, r.z1 - .3]]) {
     const p = new THREE.Mesh(flagPost, MM.white); p.position.set(x, 0, z); p.userData.base = 1.1; g.add(p);
     const f = new THREE.Mesh(flagCloth, flagMat); f.position.set(x + .35, 0, z); f.userData.base = 1.95; g.add(f);
@@ -9893,6 +10087,7 @@ function flagPlot(key) {
   scene.add(g); LAND.flags.set(key, g); placeFlags(key);
 }
 function placeFlags(key) { const g = LAND.flags.get(key); if (g) for (const m of g.children) m.position.y = heightAt(m.position.x, m.position.z) + m.userData.base; }
+relinkUnits();
 for (const k of LAND.plots.keys()) flagPlot(k);
 // the outline of the plot you're standing on: yellow if it's for sale, green if it's yours
 const plotLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf2c230 })); plotLine.visible = false; plotLine.frustumCulled = false; scene.add(plotLine);
@@ -9981,10 +10176,10 @@ function updateLand(dt) {
   if (mode !== 'play') return;
   if (P.driving && P.driving.kind === 'dozer') dozerWork(dt);
   const onFoot = !P.driving || P.driving.kind === 'dozer';
-  const [px, pz] = plotAt(P.pos.x, P.pos.z), info = onFoot ? plotInfo(px, pz) : null;
+  const info = onFoot ? landInfoAt(P.pos.x, P.pos.z) : null;
   const show = !!info && (info.ok || LAND.plots.has(info.key));
   if (show && LAND.cur !== info.key) { drawOutline(info); LAND.cur = info.key; }
-  if (LM_.open && !LM_.venue && (!info || bigK(LAND.cur) !== LM_.key)) menuClose();   // walking off the plot closes its menu
+  if (LM_.open && !LM_.venue && (!info || (homeOf(LAND.cur) !== LM_.key && LAND.cur !== LM_.key))) menuClose();   // walking off the plot closes its menu
   if (LM_.open && LM_.venue && Math.hypot(LM_.venue.x - P.pos.x, LM_.venue.z - P.pos.z) > LM_.venue.r + 3) menuClose();   // and walking away from a buka closes its menu
   plotLine.visible = show; if (!show) LAND.cur = null;
   if ((LAND.rebuildT -= dt) <= 0 && LAND.dirty.size) {
@@ -10192,7 +10387,7 @@ const FENCE_KINDS = { rail: { name: 'Railings on a low wall', h: 1.6, rate: 80 }
 const FENCES = new Map();   // plot key -> { g, cols }
 function fenceRect(key, house, hs) {
   if (houseType(house.type).big) return { x0: BI.x0 + .4, x1: BI.x1 - .4, z0: BI.z0 + .4, z1: BI.z1 - .4 };
-  const [px, pz] = key.split(',').map(Number), r = plotRect(px, pz);
+  const r = homeRect(key, house);
   if (house.fence.area !== 'compound') return { x0: r.x0 + .4, x1: r.x1 - .4, z0: r.z0 + .4, z1: r.z1 - .4 };
   let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
   for (const h of hs.v.houses) { x0 = Math.min(x0, h.x - h.w / 2); x1 = Math.max(x1, h.x + h.w / 2); z0 = Math.min(z0, h.z - h.d / 2); z1 = Math.max(z1, h.z + h.d / 2); }
@@ -10204,7 +10399,7 @@ const fencePerim = R => 2 * (R.x1 - R.x0 + R.z1 - R.z0);
 // a fence's price before the house exists: the plot, or a guess at the compound from the house type
 function fenceQuote(t, area, kind) {
   const K = FENCE_KINDS[kind]; if (!K) return 0;
-  const per = t.big ? 2 * (BI.x1 - BI.x0 + BI.z1 - BI.z0) : area === 'compound' ? 2 * ((t.site ? t.site[0] : t.w) + 5 + (t.site ? t.site[1] : t.d) + 7) : 4 * PLOT;
+  const per = t.big ? 2 * (BI.x1 - BI.x0 + BI.z1 - BI.z0) : area === 'compound' ? 2 * ((t.site ? t.site[0] : t.w) + 5 + (t.site ? t.site[1] : t.d) + 7) : LM_.site ? fencePerim(rectOf(LM_.site.site)) : 4 * PLOT;
   return Math.round(per * K.rate / 100) * 100;
 }
 function removeFence(key) {
@@ -10385,12 +10580,12 @@ function siteCheck(info, type, side) {
 // raise a house on a plot: a real, enterable building, shelter from titans (new ones come empty, for you to furnish)
 const HOME_HS = new Map();   // plot key -> the house standing on it
 function raiseHouse(key, house) {
-  const [px, pz] = key.split(',').map(Number), r = plotRect(px, pz), type = houseType(house.type), side = house.side, ax = side === 'px' || side === 'nx';
+  const r = homeRect(key, house), type = houseType(house.type), side = house.side, ax = side === 'px' || side === 'nx';
   if (type.big) return raiseMansion(key, house);
   const y = heightAt(r.cx, r.cz), v = { x: r.cx, z: r.cz, y, houses: [], civs: [], modern: true, mine: true };
   MY_HOMES.push(v);
   const nCol = colliders.length, w = ax ? type.d : type.w, d = ax ? type.w : type.d;
-  withSeed(px * 7919 + pz * 104729 + 17, () => {   // the same house every time the game loads
+  withSeed(isUnit(key) ? keySeed(key) : (([px, pz]) => px * 7919 + pz * 104729 + 17)(key.split(',').map(Number)), () => {   // the same house every time the game loads
     const b = new Builder();
     if (type.id === 'cabin') { const hs = { v, x: r.cx, z: r.cz, w, d, face: [r.cx + (side === 'px' ? 10 : side === 'nx' ? -10 : 0), r.cz + (side === 'pz' ? 10 : side === 'nz' ? -10 : 0)] }; buildVillageHouse(hs); }
     else if (type.id === 'bungalow') buildBungalow({ v, x: r.cx, z: r.cz, w, d, side, bare: !!house.bare }, b);
@@ -10419,9 +10614,10 @@ for (const [k, p] of LAND.sold) if (p.house) raiseHouse(k, p.house);
 
 // what a plot would sell for: what you paid, more for level ground, and most of what any house cost
 function plotValue(key) {
-  const p = LAND.plots.get(key), [px, pz] = key.split(',').map(Number), r = plotRect(px, pz), count = new Map();
+  const p = LAND.plots.get(key), r = homeRect(key, p.house), count = new Map();
   for (let x = r.x0 + .5; x < r.x1; x++) for (let z = r.z0 + .5; z < r.z1; z++) { const h = heightAt(x, z); count.set(h, (count.get(h) || 0) + 1); }
-  const flat = Math.max(...count.values()) / (PLOT * PLOT), land = p.paid * (1 + .5 * flat), house = p.house ? houseType(p.house.type).cost * .9 : 0;
+  const paid = p.house?.units ? p.house.units.reduce((a, u) => a + (LAND.plots.get(u)?.paid || 0), 0) : p.paid;
+  const flat = Math.max(...count.values()) / ((r.x1 - r.x0) * (r.z1 - r.z0)), land = paid * (1 + .5 * flat), house = p.house ? houseType(p.house.type).cost * .9 : 0;
   return { total: Math.round((land + house) / 100) * 100, land: Math.round(land / 100) * 100, house: Math.round(house / 100) * 100, flat };
 }
 
@@ -10440,12 +10636,14 @@ function openLandMenu(key) {
   const val = p.big ? { total: Math.round((BIG.price * 1.4 + (p.house ? houseType(p.house.type).cost * .9 : 0)) / 100) * 100, flat: 1, house: p.house ? Math.round(houseType(p.house.type).cost * .9 / 100) * 100 : 0 } : plotValue(key), items = [];
   if (!p.house) items.push({ label: 'Build a house…', note: p.big ? 'the 11-bedroom mansion, with its grounds and staff' : 'a cabin, bungalow, family house, duplex or 5-bed mansionette', run: () => openBuildMenu(key) });
   if (p.house) items.push({ label: 'Change the fence…', note: p.house.fence && FENCE_KINDS[p.house.fence.kind] ? fenceLabel(p.house.fence.kind, p.house.fence.area, houseType(p.house.type)) : p.house.fence ? 'no fence at the moment' : 'the one it came with', run: () => openFenceMenu(key, houseType(p.house.type), p.house.side, false, true) });
-  items.push({ label: `${p.big ? 'Sell Banana Island' : 'Sell this plot'} · ${NAIRA(val.total)}`, note: `you paid ${NAIRA(p.big ? BIG.price : p.paid)} · ${Math.round(val.flat * 100)}% level${val.house ? ` · house ${NAIRA(val.house)}` : ''}`, run: () => menuShow('Sell this plot?', `${NAIRA(val.total)} · the buyer keeps anything built on it`, [{ label: `Yes, sell for ${NAIRA(val.total)}`, run: () => p.big ? sellBig(val.total) : sellPlot(key, val.total) }, { label: 'No, keep it', run: () => openLandMenu(key) }]) });
+  items.push({ label: `${p.big ? 'Sell Banana Island' : isUnit(key) ? (p.house ? `Sell your home and its ${m2(p.house.units?.length || 1)}` : 'Sell this 300 m² unit') : 'Sell this plot'} · ${NAIRA(val.total)}`, note: `you paid ${NAIRA(p.big ? BIG.price : p.paid)} · ${Math.round(val.flat * 100)}% level${val.house ? ` · house ${NAIRA(val.house)}` : ''}`, run: () => menuShow('Sell this plot?', `${NAIRA(val.total)} · the buyer keeps anything built on it`, [{ label: `Yes, sell for ${NAIRA(val.total)}`, run: () => p.big ? sellBig(val.total) : sellPlot(key, val.total) }, { label: 'No, keep it', run: () => openLandMenu(key) }]) });
   if (sharedOn()) items.push({ label: 'Sell or give to a player…', note: 'they get it when they accept: for the price you set, or free', run: () => openSellTo(key) });
   items.push({ label: 'Close', run: menuClose });
-  menuShow(p.house ? `Your ${houseType(p.house.type).name.toLowerCase()}` : p.big ? 'Banana Island' : 'Your land', `${p.big ? '1.7 acres' : 'Plot ' + key} · ${NAIRA(LAND.money)} in the bank`, items);
+  menuShow(p.house ? `Your ${houseType(p.house.type).name.toLowerCase()}` : p.big ? 'Banana Island' : 'Your land', `${p.big ? '1.7 acres' : isUnit(key) ? `${m2(p.house?.units?.length || parcelOf(key).length)}${p.house ? '' : ' of your land here'}, Banana Island West` : 'Plot ' + key} · ${NAIRA(LAND.money)} in the bank`, items);
 }
 function openBuildMenu(key) {
+  if (isUnit(key)) return openUnitBuildMenu(key);
+  LM_.site = null;
   const [px, pz] = key.split(',').map(Number), info = plotInfo(px, pz), r = info.r;
   const dx = P.pos.x - r.cx, dz = P.pos.z - r.cz, lot = ESTATE_LOTS.get(key), side = lot ? lot.L.side : Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'px' : 'nx') : (dz > 0 ? 'pz' : 'nz');   // the door faces you (on an estate, the avenue)
   const big = !!(lot && lot.L.big), items = HOUSE_TYPES.filter(t => !!t.big === big).map(t => {
@@ -10464,6 +10662,7 @@ function openBuildMenu(key) {
 function sellPlot(key, price) {
   removeHomeCars(key);
   const p = LAND.plots.get(key); LAND.plots.delete(key); LAND.sold.set(key, { house: p.house || null });
+  for (const u of p.house?.units || []) if (u !== key && LAND.plots.has(u)) { LAND.plots.delete(u); LAND.sold.set(u, { house: null }); const i = LAND.info.get(u); if (i) i.ok = false; }   // a house on units goes with all of them
   const f = LAND.flags.get(key); if (f) { scene.remove(f); LAND.flags.delete(key); }
   const info = LAND.info.get(key); if (info) info.ok = false;
   LAND.money += price; LAND.cur = null; saveLand(); menuClose(); sfx('swap');
@@ -11180,8 +11379,9 @@ function landAction() {
   { const fd = typeof flightDeskNear === 'function' && flightDeskNear(); if (fd) return { label: `E · Oyo Skylink: fly to ${fd.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`, run: () => flyFrom(fd) }; }
   if (nearDealer()) return { label: `E · Buy a bulldozer · ${NAIRA(DOZER_YARD.price)}`, run: buyDozer };
   if (P.driving) return null;
-  const [px, pz] = plotAt(P.pos.x, P.pos.z), info = plotInfo(px, pz);
-  if (LAND.plots.has(info.key)) { const hk = bigK(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Your home: switch things on · B · arrange and shop', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
+  const info = landInfoAt(P.pos.x, P.pos.z);
+  if (info.unit && info.ok && !LAND.plots.has(info.key) && !info.other) return { label: `E · Buy land in Banana Island West · from ${m2(1)} · ${NAIRA(BIW.price)} per unit`, run: () => openUnitBuyMenu(info.key) };
+  if (LAND.plots.has(info.key)) { const hk = homeOf(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Your home: switch things on · B · arrange and shop', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
   if (info.other) { const o = info.other, who = o.npc ? 'Sold' : (o.ownerName || 'Someone') + '’s land'; return { label: `E · ${who}`, run: () => toast(who, o.npc ? 'Bought by a resident. Not for sale' : `This plot belongs to ${o.ownerName || 'another player'}. To buy it, ask them to offer it to you (their land menu → Sell or give to a player)`) }; }
   if (info.lot?.big) return info.ok ? { label: `E · Buy Banana Island · 1.7 acres (12 plots), level and cleared · ${NAIRA(BIG.price)}`, run: buyBig } : null;
   if (info.ok) return { label: info.estate ? `E · Buy plot ${info.lot.n}, ${info.estate.short} · level, on the avenue · ${NAIRA(info.price)}` : `E · Buy this ${PLOT} × ${PLOT} m plot · ${NAIRA(info.price)}`, run: () => buyPlot(info) };
