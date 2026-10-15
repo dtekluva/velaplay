@@ -8647,6 +8647,14 @@ const RAILW = YB ? (() => {
     for (let k = 0; k < N2; k++) for (const t of [-1, 1]) { const p = at(k * .9 + .45, t); q.setFromAxisAngle(up, Math.atan2(p.tx, p.tz)); m4.compose(new V3(p.x, p.y - .22, p.z), q, one); im.setMatrixAt(k * 2 + (t > 0), m4); }
     im.receiveShadow = true; scene.add(im); }
   for (const s of [2, L - 2]) for (const k of [-1, 1]) { const p = at(s, k); rb(3, 1.2, .8, p.x, p.y + .6, p.z, Math.atan2(p.tx, p.tz), LM(0xd8342c)); }   // buffer stops at both ends
+  // crossovers just outside the two termini: a diagonal of track from one line to the other, so a train turning back changes lines on the points
+  const XOV = []; if (ST.length > 1) { const f = ST[0], l = ST[ST.length - 1]; XOV.push({ a: f.s + f.PL / 2 + 52, b: f.s + f.PL / 2 + 96 }, { a: l.s - l.PL / 2 - 96, b: l.s - l.PL / 2 - 52 }); }
+  for (const X of XOV) { let prev = null; for (let i = 0; i <= 24; i++) { const t = i / 24, e = t * t * (3 - 2 * t), p = at(X.a + (X.b - X.a) * t, -1 + 2 * e);
+    if (prev) { const dx = p.x - prev.x, dz = p.z - prev.z, len = Math.hypot(dx, dz), ang = Math.atan2(dx, dz), mx = (p.x + prev.x) / 2, mz = (p.z + prev.z) / 2, my = (p.y + prev.y) / 2, qx = -dz / len, qz = dx / len;
+      for (const r of [-.75, .75]) rb(.12, .16, len + .05, mx + qx * r, my + .08, mz + qz * r, ang, steel); rb(2.6, .14, .26, mx, my - .22, mz, ang, sleeperM); }
+    prev = p; }
+    for (const [t, k] of [[0, -1], [1, 1]]) { const p = at(X.a + (X.b - X.a) * t, k), q = at(X.a + (X.b - X.a) * t, k), sx = q.x - q.tz * 2.2 * k, sz = q.z + q.tx * 2.2 * k; rb(.5, .7, .5, sx, p.y + .1, sz, 0, LM(0x3a3c40)); rb(.12, .9, .12, sx, p.y + .8, sz, 0, LM(0xf2f0ea)); }   // the point levers
+  }
   // ---- the stations: an island platform between the tracks, steps down at both ends to a crossing over the line ----
   const b = new Builder(), green = LM(0x1f6f3a), white = MM.white, yel = LM(0xf2c230);
   for (const st of ST) {
@@ -8687,7 +8695,7 @@ const RAILW = YB ? (() => {
     ySign(ySignMat('BENIN CENTRAL', '#1f6f3a', '#ffffff', 'NAIJA RAIL · TRAINS TO IBADAN, MAGBORO, LAGOS & MEADOWBROOK'), 20, 2, hx, Y + 7, hz + 3.06, 0); }
   b.build();
   for (const [mat, geos] of ROT) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); }
-  return { PTS, L, at, sOf };
+  return { PTS, L, at, sOf, XOV };
 })() : null;
 // a train: a locomotive and three coaches, white with the green band; local +z is forward
 function makeTrain() {
@@ -8698,6 +8706,7 @@ function makeTrain() {
     add(3, 3.1, 19.4, 0, 2.25, 0, white); add(3.04, .5, 19.44, 0, 1.25, 0, green); add(3.06, .9, 17, 0, 2.6, 0, glass); add(2.6, .3, 19, 0, 3.95, 0, LM(0xd8dde2));
     for (const z of [-6.5, 6.5]) add(2.4, .7, 2.6, 0, .55, z, dark);
     for (const s of [-1, 1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(4, .5), tex); m.position.set(s * 1.53, 1.25, 0); m.rotation.y = s * Math.PI / 2; g.add(m); for (const z of [-4, 4]) add(.06, 2.2, 1.3, s * 1.52, 1.9, z, dark); }
+    if (k === 3) { add(3, 1.6, 2.4, 0, 1.5, -10.6, white); add(2.9, 1.2, .2, 0, 2.9, -9.75, glass); add(3.02, .5, 2.44, 0, 1.25, -10.6, green); add(.5, .3, .1, -.9, 1.6, -11.82, lampMat); add(.5, .3, .1, .9, 1.6, -11.82, lampMat); }   // the driving trailer's cab at the other end
     if (k === 0) { add(3, 1.6, 2.4, 0, 1.5, 10.6, white); add(2.9, 1.2, .2, 0, 2.9, 9.75, glass); add(3.02, .5, 2.44, 0, 1.25, 10.6, green); add(.5, .3, .1, -.9, 1.6, 11.82, lampMat); add(.5, .3, .1, .9, 1.6, 11.82, lampMat); }
     g.visible = false; scene.add(g); T.cars.push(g);
   }
@@ -8708,17 +8717,24 @@ function trainNextStop(T) { const st = TRAIN.stations.filter(q => T.dir > 0 ? q.
 function trainMove(T, dt) {
   if (T.dwell > 0) { T.dwell -= dt; T.v = 0; return null; }
   let st = T.next; if (!st || T.dir * (st.s - T.s) < -.5) st = T.next = trainNextStop(T);   // the stop it's heading for, kept until it gets there
-  if (!st) { T.dir = -T.dir; T.dwell = 20; return null; }
+  if (!st) {   // the end of the line: the cab at the back takes over, and the train will cross back to the other line on the points outside
+    const from = T.dir; T.dir = -T.dir; T.dwell = 20; T.s = clamp(T.s - from * (3 * 20.2 + 1.4), 0, RAILW.L); T.cars.reverse(); for (const g of T.cars) g.userData.flip = !g.userData.flip;
+    const X = RAILW.XOV[T.dir > 0 ? 0 : 1]; if (X) T.cross = { a: X.a, b: X.b, inc: T.dir > 0, from, to: T.dir }; T.next = null; return null; }
   const left = Math.abs(st.s - T.s), want = Math.min(T.cruise, Math.sqrt(2 * 1.1 * Math.max(0, left - .5)) + .6);
   T.v += clamp(want - T.v, -2.4 * dt, 1.1 * dt); T.s += T.dir * T.v * dt;
   if (Math.abs(st.s - T.s) < .6 || (T.dir > 0 ? T.s > st.s : T.s < st.s)) { T.s = st.s; T.v = 0; T.dwell = T.stopFor ?? 16; T.next = null; return st; }
   return null;
 }
+function laneAt(T, s) {   // which line (-1 / +1, in between on the points) the part of the train at s is on
+  const X = T.cross; if (!X) return T.dir; const u = clamp(X.inc ? (s - X.a) / (X.b - X.a) : (X.b - s) / (X.b - X.a), 0, 1), e = u * u * (3 - 2 * u); return X.from + (X.to - X.from) * e;
+}
 function trainPlace(T) {
+  if (T.cross && (T.cross.inc ? T.s - 70 > T.cross.b : T.s + 70 < T.cross.a)) T.cross = null;   // all of it is over the points
   const R = RAILW, near = T.rider || Math.hypot(R.at(T.s).x - P.pos.x, R.at(T.s).z - P.pos.z) < 900;
   T.cars.forEach((g, k) => { g.visible = near; if (!near) return;
-    const sk = T.s - T.dir * (k * 20.2 + (k ? 1.4 : 0)), a = R.at(sk + T.dir * 7, T.dir), b = R.at(sk - T.dir * 7, T.dir);   // each way keeps to its own (right-hand) track
-    g.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); g.userData.yaw = Math.atan2(a.x - b.x, a.z - b.z); g.rotation.set(-Math.atan2(a.y - b.y, 14), g.userData.yaw, 0, 'YXZ'); });
+    const sk = T.s - T.dir * (k * 20.2 + (k ? 1.4 : 0)), sa = sk + T.dir * 7, sb = sk - T.dir * 7, a = R.at(sa, laneAt(T, sa)), b = R.at(sb, laneAt(T, sb));   // each way keeps to its own (right-hand) track, crossing on the points
+    g.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); g.userData.yaw = Math.atan2(a.x - b.x, a.z - b.z);
+    const f = g.userData.flip ? Math.PI : 0; g.rotation.set((f ? 1 : -1) * Math.atan2(a.y - b.y, 14), g.userData.yaw + f, 0, 'YXZ'); });   // (a coach turned round when the far cab took over)
 }
 if (RAILW && TRAIN.stations.length > 1) {
   for (const [s, dir] of [[TRAIN.stations[0].s, 1], [TRAIN.stations[TRAIN.stations.length - 1].s, -1]]) { const T = makeTrain(); Object.assign(T, { s, dir, v: 0, dwell: 8, cruise: 28 }); TRAIN.list.push(T); }
@@ -8742,7 +8758,8 @@ function boardTrain(st) {
   if (LAND.money < TRAIN.fare) { toast('', `A ticket is ${NAIRA(TRAIN.fare)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= TRAIN.fare; saveLand(); sfx('refill');
   const to = trainDest(st), R = TRAIN.ride; if (!R.T) { R.T = makeTrain(); R.T.rider = true; }
-  Object.assign(R.T, { s: st.s, dir: to.s > st.s ? 1 : -1, v: 0, dwell: 3, cruise: 34, stopFor: 6, next: null });
+  const dir = to.s > st.s ? 1 : -1, end = st === TRAIN.stations[0] || st === TRAIN.stations[TRAIN.stations.length - 1], X = end && RAILW.XOV[dir > 0 ? 0 : 1];
+  Object.assign(R.T, { s: end ? st.s + dir * 30 : st.s, dir, v: 0, dwell: 3, cruise: 34, stopFor: 6, next: null, cross: X ? { a: X.a, b: X.b, inc: dir > 0, from: -dir, to: dir } : null });   // (from a terminus it leaves on the line trains come in on and crosses over)
   Object.assign(R, { on: true, to, at: st, snap: true }); trainPlace(R.T);
   toast(`🚆 Naija Rail · ${st.name} → ${to.name}`, `${NAIRA(TRAIN.fare)} · all stations · E at a stop to get off · Space skips to the next stop`);
 }
