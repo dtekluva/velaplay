@@ -237,8 +237,9 @@ export class WorldRoom extends Room<WorldState> {
       return { id: u.id, name: u.name, guest: false, look: JSON.stringify(c.rows[0]?.spec ?? {}) };
     }
     if (process.env.ALLOW_GUESTS !== "false") {
-      const name = typeof options?.name === "string" ? options.name.replace(/[^\p{L}\p{N} _.'-]/gu, "").trim().slice(0, 24) : "";
-      return { id: "", name: (name || "Guest") + " (guest)", guest: true, look: "{}" };
+      const name = typeof options?.name === "string" ? options.name.replace(/[^\p{L}\p{N} _.'-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 24) : "";
+      if (name.replace(/[^\p{L}\p{N}]/gu, "").length < 2) throw new Error("Pick a name to join the world");   // nobody plays nameless
+      return { id: "", name: name + " (guest)", guest: true, look: "{}" };
     }
     throw new Error("Sign in to join the world");
   }

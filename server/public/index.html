@@ -9696,6 +9696,7 @@ function setMode(m) {
   $('photoBtn').hidden = m !== 'pause';
 }
 $('goBtn').addEventListener('click', () => {
+  if (mode === 'title' && !NET.user && !nameOk(NET.guest)) { openNameGate(); return; }   // nobody enters without a name
   initAudio();
   if (mode === 'title' || mode === 'dead') resetRun();
   setMode('play');
@@ -12904,6 +12905,23 @@ function renderOnline() {
   else if (NET.guest) { st.textContent = NET.room ? `playing as ${NET.guest} (guest) · in the world` : `playing as ${NET.guest} (guest). Deploy to join`; btn('Edit your scout', openCreator); btn('Create an account', () => openAccount('register')); btn('Stop', () => { netLeave(); NET.guest = null; netSave(); renderOnline(); }); }
   else { st.textContent = 'share the world with other players.'; btn('Sign in', () => openAccount('login'), 'go'); btn('Create account', () => openAccount('register')); btn('Play as a guest', () => openAccount('guest')); btn('Make your scout', openCreator); }
 }
+// a name before you play: what other players (and the visit log) call you, kept in this browser
+const cleanName = n => String(n || '').replace(/[^\p{L}\p{N} _.'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+const nameOk = n => cleanName(n).replace(/[^\p{L}\p{N}]/gu, '').length >= 2;
+function openNameGate() {
+  const d = dialog(`<h2>What's your name?</h2>
+    <form id="vpForm"><label>Name others will see<input name="name" maxlength="24" minlength="2" required autocomplete="nickname" placeholder="e.g. Tunde, Ada, Big Chi"></label>
+    <p class="vperr" id="vpErr"></p><div class="btnrow"><button class="go" type="submit">Play</button><button class="alt" type="button" id="vpIn">Sign in</button><button class="alt" type="button" id="vpReg">Create account</button></div></form>
+    <p class="vpnote">You need a name to enter. Sign in (or create an account) to keep your land and homes in the cloud; with just a name you play as a guest.</p>`);
+  d.querySelector('#vpIn').onclick = () => openAccount('login');
+  d.querySelector('#vpReg').onclick = () => openAccount('register');
+  d.querySelector('#vpForm').onsubmit = e => {
+    e.preventDefault(); const n = cleanName(new FormData(e.target).get('name'));
+    if (!nameOk(n)) { d.querySelector('#vpErr').textContent = 'Please enter a name: at least 2 letters or numbers'; return; }
+    NET.guest = n; netSave(); closeDialog(); renderOnline(); $('goBtn').click();
+  };
+  d.querySelector('input')?.focus();
+}
 function dialog(html) { const d = $('vp'); d.innerHTML = html; d.hidden = false; return d; }
 const closeDialog = () => { $('vp').hidden = true; stopPreview(); };
 function openAccount(kind) {
@@ -12918,7 +12936,7 @@ function openAccount(kind) {
   if (guest && NET.guest) d.querySelector('[name=name]').value = NET.guest;
   d.querySelector('#vpForm').onsubmit = async e => {
     e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), err = d.querySelector('#vpErr'); err.textContent = '';
-    if (guest) { NET.guest = String(f.name).trim().slice(0, 24) || 'Scout'; netSave(); closeDialog(); renderOnline(); return; }
+    if (guest) { const n = cleanName(f.name); if (!nameOk(n)) { err.textContent = 'Please enter a name: at least 2 letters or numbers'; return; } NET.guest = n; netSave(); closeDialog(); renderOnline(); return; }
     try {
       const r = await api(reg ? '/auth/register' : '/auth/login', 'POST', f);
       NET.token = r.token; NET.user = r.user; NET.guest = null; netSave(); closeDialog(); renderOnline();

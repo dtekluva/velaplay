@@ -2,6 +2,8 @@
 
 The online backend for **NaijLife** (formerly Giantwood), the game in `../giantwood-scouts`. It has player accounts, saved characters and cloud saves, plus a shared real-time world where everyone sees each other move and chat.
 
+**Names:** guests must give a name (2+ letters or numbers); `onAuth` rejects a guest without one, and the game asks for it before the first Deploy.
+
 **Play online:** <https://famtime.space> (or www.famtime.space; the old <https://46-101-63-217.sslip.io> still works). That's the full game: sign in or play as a guest, make your scout, and press Deploy to join the shared world. A bare-bones test page lives at `/test.html`.
 
 HTTPS: the domain famtime.space is on DigitalOcean DNS, with A records for `@` and `www` pointing at the Droplet (46.101.63.217). The server's `.env` has `SITE_ADDRESS="famtime.space, www.famtime.space, 46-101-63-217.sslip.io"`, and Caddy fetches and renews the Let's Encrypt certificates itself. To add another name, add it to that list and run `docker compose up -d caddy`.
