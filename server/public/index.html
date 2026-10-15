@@ -5097,6 +5097,21 @@ if (TOWN) { for (let k = 0; k < 55; k++) makeCivilian(TOWN); for (let k = 0; k <
 if (BEACH) for (let k = 0; k < 46; k++) { const c = makeCivilian(BEACH); if (k < 18) { c.guard = true; c.g.rotation.y = Math.PI + RM(-.6, .6); } }   // sunbathers face the sea
 if (COUNTRY) for (let k = 0; k < 24; k++) makeCivilian(COUNTRY);
 for (const E of ESTATES) for (let k = 0; k < 10; k++) makeCivilian(E);
+/* people out walking in Banana Island West and Ikoyi: each area is a main street with side streets (the 'lanes' kind of
+   place: they walk a side street to the main one, along it, and down another). Ikoyi's residents keep to the home streets
+   off its cross street; shoppers and office workers walk the boulevard, the through streets, the shop parade and the
+   mall's forecourt, so nobody cuts through the towers. */
+const NEW_PLACES = [];
+if (BIW) NEW_PLACES.push([{ name: 'Banana Island West', x: -560, z: -40, y: BIW.y, houses: [], civs: [], modern: true, place: 'seafront',
+  lanes: [[-393, BIW.z0, -393, BIW.z1], ...BIW.streets.map(([a, b]) => [BIW.x0, (a + b) / 2, -393, (a + b) / 2])] }, 40]);
+if (IKOYI) {
+  const K = IKOYI, mid = ([a, b]) => (a + b) / 2;
+  NEW_PLACES.push([{ name: 'Ikoyi', x: -590, z: -640, y: K.y, houses: [], civs: [], modern: true, place: 'seafront',
+    lanes: [[-490, K.z0, -490, K.z1], ...K.streets.map(st => [-688, mid(st), -490, mid(st)])] }, 36]);
+  NEW_PLACES.push([{ name: 'Ikoyi', x: -440, z: -620, y: K.y, houses: [], civs: [], modern: true, place: 'city',
+    lanes: [[-393, K.z0, -393, K.z1], ...K.through.map(b => [-486, mid(K.streets[b]), -393, mid(K.streets[b])]), [-476, K.zones[1][1] - 34, -397, K.zones[1][1] - 34], [-476, K.zones[1][0] + 56, -397, K.zones[1][0] + 56]] }, 32]);
+}
+for (const [v, n] of NEW_PLACES) for (let k = 0; k < n; k++) makeCivilian(v, { adult: Math.random() < .85 });
 if (TOWN && TOWN.station) for (const s2 of [-1.8, 1.8]) {   // two officers on guard at the station door
   const c = makeCivilian(TOWN, { cop: true }), d = TOWN.station.doorOut;
   c.guard = true; c.g.position.set(d.x + s2, TOWN.y, d.z); c.g.rotation.y = 0;
@@ -9045,18 +9060,19 @@ addEventListener('keyup', e => {
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; $('board').hidden = true; });
 renderer.domElement.addEventListener('mousedown', e => {
   if (mode !== 'play' || ARR.on) return;
-  if (!$('bigmap').hidden && document.pointerLockElement) { if (e.button === 0) mapPick(MAPCUR.x, MAPCUR.y); return; }   // the map is open: a click picks the spot under the crosshair
+  if (!$('bigmap').hidden && document.pointerLockElement) { if (e.button === 0) BMV.lockDrag = { moved: 0 }; return; }   // the map is open: hold and drag pans it, a click (on release) picks the spot under the crosshair
   if (hadLock && !document.pointerLockElement) { lockPointer(); return; }
   if (e.button === 0) fireHook(0); else if (e.button === 2) fireHook(1);
   else if (e.button === 1) { e.preventDefault(); midHeld = true; }
 });
 let midHeld = false;
-addEventListener('mouseup', e => { if (e.button === 0) releaseHook(0); else if (e.button === 2) releaseHook(1); else if (e.button === 1) midHeld = false; });
+addEventListener('mouseup', e => { if (e.button === 0 && BMV.lockDrag) { const d = BMV.lockDrag; BMV.lockDrag = null; if (d.moved < 6 && !$('bigmap').hidden) mapPick(MAPCUR.x, MAPCUR.y); return; } if (e.button === 0) releaseHook(0); else if (e.button === 2) releaseHook(1); else if (e.button === 1) midHeld = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 let lastMouse = -9;
 addEventListener('mousemove', e => {
   if (mode !== 'play' || ARR.on) return;
   if (e.movementX || e.movementY) lastMouse = performance.now() / 1000;
+  if (!$('bigmap').hidden && document.pointerLockElement && BMV.lockDrag) { const k = bmC.width / (bmC.clientWidth || bmC.width), sc = bmC.width / BMV.span; BMV.cx -= e.movementX * k / sc; BMV.cz -= e.movementY * k / sc; bmClamp(); BMV.lockDrag.moved += Math.abs(e.movementX) + Math.abs(e.movementY); MAPCUR.dirty = true; return; }   // dragging the map
   if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); const nx = MAPCUR.x + e.movementX * k, ny = MAPCUR.y + e.movementY * k, sc = bmC.width / BMV.span; MAPCUR.x = clamp(nx, 0, bmC.width); MAPCUR.y = clamp(ny, 0, bmC.height); if (nx !== MAPCUR.x || ny !== MAPCUR.y) { BMV.cx += (nx - MAPCUR.x) / sc; BMV.cz += (ny - MAPCUR.y) / sc; bmClamp(); } MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
   yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.35, 1.35);
 });
