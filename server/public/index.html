@@ -3566,6 +3566,7 @@ if (IKOYI) withSeed(5151, () => {
   const lamp = (x, z, dz) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, MM.dark, 1, true, 'house'); b.box(.12, .1, 1.4, x, Y + 6.45, z + dz * .7, MM.dark, 1, false); b.box(.45, .14, .45, x, Y + 6.35, z + dz * 1.3, lampMat, 1, false); LAMPS.push([x, z + dz * 1.3, Y]); };
   const sign = (t, bg, fg, w, h, x, y, z, ry, acc) => textSign(t, bg, fg, w, h, x, y, z, ry, acc);
   const E = Math.PI / 2;   // signs facing the boulevard (east)
+  K.ents = [];   // named doors into Ikoyi's buildings (see the interiors): where you stand outside, which way is out, what's inside
 
   // the lagoon, its beach, loungers and a jetty
   const [lx0, lx1, lz0, lz1] = K.lake;
@@ -3596,7 +3597,7 @@ if (IKOYI) withSeed(5151, () => {
 
   // ---- six residential towers, each its own shape ----
   const [zA0, zA1] = K.zones[0], TX = [-462, -421], TZ = [zA0 + 30, (zA0 + zA1) / 2, zA1 - 30];
-  const podium = (x, z, w, d, name) => { b.box(w, 5, d, x, Y + 2.5, z, G.dark, 2, true, 'tower'); b.box(w + .6, .5, d + .6, x, Y + 5.2, z, W, 1, false); sign(name, '#14243d', '#ffffff', Math.min(w - 2, 14), 1.1, x + d / 2 + .05 + (w - d) / 2, Y + 3.2, z, E, '#d6ae5f'); };
+  const podium = (x, z, w, d, name) => { K.ents.push({ x: x + w / 2 + 1.4, z, ox: 1, oz: 0, name: name.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()), type: 'apartment', bx: x, bz: z, br: Math.max(w, d) / 2 + 2 }); b.box(w, 5, d, x, Y + 2.5, z, G.dark, 2, true, 'tower'); b.box(w + .6, .5, d + .6, x, Y + 5.2, z, W, 1, false); sign(name, '#14243d', '#ffffff', Math.min(w - 2, 14), 1.1, x + d / 2 + .05 + (w - d) / 2, Y + 3.2, z, E, '#d6ae5f'); };
   const towers = [
     // the Pearl: a round glass tower ringed with white bands, a crown and a spire
     (x, z) => { podium(x, z, 28, 28, 'EKO PEARL RESIDENCES'); const H = 96, y0 = Y + 5;
@@ -3646,16 +3647,18 @@ if (IKOYI) withSeed(5151, () => {
     for (let k = -12; k <= 12; k++) b.box(.12, .03, 5, x + k * 2.6, Y + .02, z1 + 28, W, 1, false);
     for (let k = -12; k < 12; k++) for (const zz of [16, 28]) if (Math.random() < .55) addCar(b, x + k * 2.6 + 1.3, z1 + zz, Y, false);
     VENUES.push({ name: 'the Ikoyi Grand Mall food court', x, z: z1 + 4, r: 9, food: 'mall', toilet: 0 });
-    K.mall = { x, z: zc };
+    K.mall = { x, z: zc }; K.ents.push({ x, z: z1 + 7.5, ox: 0, oz: 1, name: 'the Ikoyi Grand Mall', type: 'mall', bx: x, bz: zc, br: 34 });
   }
   // ---- a parade of shops either side of a paved walk ----
   { const [, zB1] = K.zones[1], zw = zB1 - 34, names = [['ADIRE HOUSE', '#2f4a8a'], ['SUYA SPOT', '#b83a2e'], ['GADGET HUB', '#2a2c30'], ['BOUTIQUE EKO', '#8a2a6a'], ['BREAD & CO', '#c9893a'], ['MAMA PUT IKOYI', '#3e7a3e'],
-      ['SNEAKER ROOM', '#141014'], ['BEAUTY BAR', '#e85a9a'], ['BOOK NOOK', '#6a4a2a'], ['PHARMACY+', '#1f8a5a'], ['LAGOS LUX', '#d6ae5f'], ['ICE & CREAM', '#2f8fd0']];
+      ['SNEAKER ROOM', '#141014'], ['BEAUTY BAR', '#e85a9a'], ['FRESHMART', '#1f7a3a'], ['PHARMACY+', '#1f8a5a'], ['LAGOS LUX', '#d6ae5f'], ['ICE & CREAM', '#2f8fd0']];
     names.forEach(([n, col], k) => {
       const row = k < 6 ? -1 : 1, x = -473 + (k % 6) * 12 + 6, zc = zw + row * 14, front = zc - row * 6;
       b.box(11.6, 6, 12, x, Y + 3, zc, M.render, 2, true, 'house'); b.box(10.4, 3.4, .2, x, Y + 2.1, front - row * .05, MM.glass, 1, false);
       b.box(11.8, .3, 2.2, x, Y + 4.4, front - row * 1.1, LM(parseInt(col.slice(1), 16)), 1, false);
       sign(n, col, '#ffffff', 9, .8, x, Y + 5, front - row * .12, row < 0 ? 0 : Math.PI);
+      const shopType = { 'ADIRE HOUSE': 'boutique', 'SUYA SPOT': 'restaurant', 'GADGET HUB': 'electronics', 'BOUTIQUE EKO': 'boutique', 'BREAD & CO': 'bakery', 'MAMA PUT IKOYI': 'restaurant', 'SNEAKER ROOM': 'boutique', 'BEAUTY BAR': 'boutique', FRESHMART: 'supermarket', 'PHARMACY+': 'pharmacy', 'LAGOS LUX': 'boutique', 'ICE & CREAM': 'bakery' }[n];
+      K.ents.push({ x, z: front - row * 1.6, ox: 0, oz: -row, name: n.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()).replace('Freshmart', 'FreshMart'), type: shopType, bx: x, bz: zc, br: 7 });
       if (n === 'SUYA SPOT') VENUES.push({ name: 'Suya Spot, Ikoyi', x, z: front - row * 3, r: 4, food: 'suya' });
       if (n === 'MAMA PUT IKOYI') VENUES.push({ name: 'Mama Put Ikoyi', x, z: front - row * 3, r: 4, food: 'mamat' });
       if (n === 'BREAD & CO') VENUES.push({ name: 'Bread & Co', x, z: front - row * 3, r: 4, food: 'kiosk' });
@@ -3672,6 +3675,7 @@ if (IKOYI) withSeed(5151, () => {
       for (let c = 0; c < 9; c++) mesh(new THREE.CylinderGeometry(.9, 1, 14, 16), W, front + 4.5, Y + 7.6, zc - 18 + c * 4.5);
       b.box(6, .6, hd - 2, front + 4.5, Y + .3, zc, M.stone, 1, true, 'base'); b.box(4, .6, hd - 6, front + 5.5, Y + .9, zc, M.stone, 1, true, 'base');
       sign(name, col, '#d6ae5f', 30, 2, front + 6.2, Y + 16.6, zc, E, '#d6ae5f');
+      K.ents.push({ x: front + 8, z: zc, ox: 1, oz: 0, name: name.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()), type: 'bank', bx: -452, bz: zc, br: 16 });
       b.box(5, 6, 3, front + 1, Y + 3, zc, G.dark, 1, false);                                          // the great doors
       const tx = -452, tw = 26, ty = Y + 15;
       b.box(tw, H, tw, tx, ty + H / 2, zc, F['bank' + k], FS, true, 'tower');
@@ -3715,6 +3719,7 @@ if (IKOYI) withSeed(5151, () => {
     b.box(10, 7, 26, -367, Y + 3.5, zc, G.silver, 2, true, 'house'); b.box(10.6, .6, 26.6, -367, Y + 7.3, zc, W, 1, true, 'roof');
     b.box(.2, 5, 24, -372.1, Y + 3, zc, MM.glass, 1, false);
     sign(name, '#141014', '#ffffff', 14, 1.4, -372.25, Y + 8.4, zc, -E, '#d8342c');
+    K.ents.push({ x: -373.6, z: zc, ox: -1, oz: 0, name: name.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()), type: 'showroom', bx: -367, bz: zc, br: 13 });
     for (let k = -2; k <= 2; k++) { b.box(.15, 6, .15, -385, Y + 3, zc + k * 7, MM.steel, 1, false); b.box(.1, .9, .6, -385, Y + 6, zc + k * 7, LM(0xd8342c), 1, false); }   // bunting poles
     for (let k = 0; k < 4; k++) for (const lx of [-381, -376.5]) K.carSlots.push([lx, zc - 10.5 + k * 7, -E]);
   }
@@ -9025,7 +9030,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const ds = doorSpot(); if (ds) { ds.run(); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -9444,8 +9449,9 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
+  const doorS = !P.driving && doorSpot();
   const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
+  $('prompt').hidden = !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
@@ -9457,6 +9463,7 @@ function updateHUD(dt) {
   else if (P.driving && P.driving.kind === 'dozer') $('prompt').textContent = (P.driving.bladeDown ? `BLADE DOWN · levelling to ${P.driving.levelY} m${ownedAt(P.driving.x, P.driving.z) ? '' : ' · not your land'} · L · Raise` : 'L · Lower the blade') + ' · E · Get out';
   else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
   else if (RIDE.on) $('prompt').textContent = `🚗 Riding with ${NET.room?.state.players.get(RIDE.driver)?.name || 'a friend'} · E · Get out`;
+  else if (doorS) $('prompt').textContent = doorS.label;
   else if (rideSpot()) $('prompt').textContent = `E · Ask ${rideSpot().name} for a ride`;
   else if (!P.driving && surrenderNear()) $('prompt').textContent = 'E · Give yourself up · a quarter off the fine';
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
@@ -9520,8 +9527,9 @@ function drawMinimap() {
   mg.beginPath(); mg.arc(W / 2, W / 2, W / 2, 0, TAU); mg.clip();
   mg.fillStyle = '#5f9a3c'; mg.fillRect(0, 0, W, W);
   mg.imageSmoothingEnabled = false;
-  mg.drawImage(mapImg, P.pos.x + HALF + MAP_OX - h, P.pos.z + HALF + MAP_OY - h, MAP_SPAN, MAP_SPAN, 0, 0, W, W);
-  const toM = (x, z) => [(x - P.pos.x + h) * sc, (z - P.pos.z + h) * sc];
+  const MP = mapPos();   // inside a building: the building's spot
+  mg.drawImage(mapImg, MP.x + HALF + MAP_OX - h, MP.z + HALF + MAP_OY - h, MAP_SPAN, MAP_SPAN, 0, 0, W, W);
+  const toM = (x, z) => [(x - MP.x + h) * sc, (z - MP.z + h) * sc];
   mg.strokeStyle = 'rgba(242,194,48,.9)'; mg.lineWidth = 1.5; mg.fillStyle = 'rgba(242,194,48,.16)';
   for (const i of forSale()) if (i.ok && !LAND.plots.has(i.key) && Math.abs(i.r.cx - P.pos.x) < h + PLOT && Math.abs(i.r.cz - P.pos.z) < h + PLOT) { const [a, b] = toM(i.r.x0, i.r.z0); mg.fillRect(a, b, PLOT * sc, PLOT * sc); mg.strokeRect(a, b, PLOT * sc, PLOT * sc); }
   mg.fillStyle = 'rgba(232,116,42,.45)'; mg.strokeStyle = '#e8742a'; mg.lineWidth = 2;
@@ -9557,7 +9565,7 @@ function bmClamp() { BMV.span = clamp(BMV.span, BM_MIN, BM_MAX); const h = BMV.s
 function bmZoom(f, px = bmC.width / 2, py = bmC.height / 2) {   // keep the spot under (px, py) where it is
   const [x, z] = bmFromB(px, py); BMV.span *= f; bmClamp(); const [x2, z2] = bmFromB(px, py); BMV.cx += x - x2; BMV.cz += z - z2; bmClamp(); MAPCUR.dirty = true;
 }
-function bmCentreOnMe() { BMV.cx = P.pos.x; BMV.cz = P.pos.z; bmClamp(); [MAPCUR.x, MAPCUR.y] = bmToB(P.pos.x, P.pos.z); MAPCUR.dirty = true; }
+function bmCentreOnMe() { const MP = typeof mapPos === 'function' ? mapPos() : P.pos; BMV.cx = MP.x; BMV.cz = MP.z; bmClamp(); [MAPCUR.x, MAPCUR.y] = bmToB(MP.x, MP.z); MAPCUR.dirty = true; }
 function toggleBigMap(force) {
   const el = $('bigmap'); el.hidden = force === undefined ? !el.hidden : !force;
   if (!el.hidden) { bmCentreOnMe(); bigMapT = 0; drawBigMap(); }
@@ -13166,8 +13174,8 @@ const wayDir = new THREE.Vector3();
 function updateWaypoint() {
   const el = $('wayCue');
   if (!WAY.on || mode === 'title') { el.hidden = true; wayBeam.visible = false; return; }
-  const dx = WAY.x - P.pos.x, dz = WAY.z - P.pos.z, d = Math.hypot(dx, dz);
-  if (d < (P.driving ? 14 : 8)) { clearWaypoint(true); return; }
+  const MP = mapPos(), dx = WAY.x - MP.x, dz = WAY.z - MP.z, d = Math.hypot(dx, dz);
+  if (!INSIDE.at && d < (P.driving ? 14 : 8)) { clearWaypoint(true); return; }
   camera.getWorldDirection(wayDir);
   const rel = Math.atan2(wayDir.x, wayDir.z) - Math.atan2(dx, dz);   // screen-up is where the camera looks; turn the arrow clockwise toward the target
   $('wayArrow').setAttribute('transform', `rotate(${(rel * 180 / Math.PI).toFixed(1)})`);
@@ -13216,6 +13224,458 @@ function drawDriverRoute(ctx, toP, lw) {
   const [dx, dy] = toP(DRIVER.dest.x, DRIVER.dest.z); ctx.fillStyle = '#f2c230'; ctx.strokeStyle = '#1b1608'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(dx, dy, lw * 2.2, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
 }
 gridCatchUp();   // the world is built: make everything since the grids were made solid
+/* ---------- inside every building: from Ikoyi to Ibadan, every building without rooms of its own has a door (on the side
+   facing the street) that leads inside. The insides are furnished rooms, one of each kind, built out at sea far beyond
+   sight: a supermarket with aisles of display racks, fridges, fresh produce and checkouts; a mall gallery; a banking
+   hall; an office reception; an apartment lobby with a concierge; an open-plan office; a boutique, an electronics shop,
+   a pharmacy, a bakery and a restaurant; a car showroom; a warehouse; a family home; a classroom; a palace hall; a
+   kiosk. Each has its own floor, its staff and its visitors. E at a door takes you in, E at the exit takes you back out
+   where you came in, and a tower's lift takes you up to its real roof. ---------- */
+const INT = { rooms: {}, ents: [], grid: new Map(), slots: [], used: 0 };
+const INT_FY = 30;   // every room's floor height (on its own slab out at sea)
+for (const z of [620, 740, 860, 980]) for (const x of [-700, -580, -460, -340, -220]) INT.slots.push([x, z]);
+// floor and wall finishes, painted once: 2 m tiles, so boxes built with S = 2 line up
+function intTex(kind) {
+  const c = document.createElement('canvas'), n = 128; c.width = c.height = n; const g = c.getContext('2d');
+  let sd = kind.length * 7919 + 13; const r = () => (sd = (sd * 9301 + 49297) % 233280) / 233280;
+  const fill = (col) => { g.fillStyle = col; g.fillRect(0, 0, n, n); };
+  if (kind === 'marble') { fill('#ece8e0'); for (let k = 0; k < 14; k++) { g.strokeStyle = `rgba(150,140,130,${.15 + r() * .25})`; g.lineWidth = .6 + r() * 1.4; g.beginPath(); g.moveTo(r() * n, 0); g.bezierCurveTo(r() * n, n * .3, r() * n, n * .6, r() * n, n); g.stroke(); } g.strokeStyle = 'rgba(120,110,100,.35)'; g.lineWidth = 1; g.strokeRect(0, 0, n, n); g.beginPath(); g.moveTo(n / 2, 0); g.lineTo(n / 2, n); g.moveTo(0, n / 2); g.lineTo(n, n / 2); g.stroke(); }
+  else if (kind === 'vinyl') { fill('#dcdad2'); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#cfccc2' : '#e6e3db'; g.fillRect(i * 32, j * 32, 32, 32); } }
+  else if (kind === 'tile') { fill('#f2f0ea'); g.strokeStyle = '#b9b4a8'; g.lineWidth = 2; for (let k = 0; k <= 4; k++) { g.beginPath(); g.moveTo(k * 32, 0); g.lineTo(k * 32, n); g.moveTo(0, k * 32); g.lineTo(n, k * 32); g.stroke(); } }
+  else if (kind === 'dark') { fill('#2a2c30'); for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#24262a' : '#33363b'; g.fillRect(i * 64, j * 64, 64, 64); } g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(0, 0, n, 6); }
+  else if (kind === 'wood') { fill('#8a5f3a'); for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#7d5433' : '#94683f'; g.fillRect(0, k * 16, n, 16); g.fillStyle = 'rgba(40,20,10,.35)'; g.fillRect(0, k * 16 + 15, n, 1); g.fillRect(((k * 37) % 4) * 32, k * 16, 1, 16); } }
+  else if (kind === 'carpet') { fill('#3e4a5c'); for (let k = 0; k < 400; k++) { g.fillStyle = `rgba(${r() < .5 ? '255,255,255' : '0,0,0'},.06)`; g.fillRect(r() * n, r() * n, 2, 2); } }
+  else if (kind === 'red') { fill('#8a1f24'); g.strokeStyle = '#d6ae5f'; g.lineWidth = 3; g.strokeRect(10, 10, n - 20, n - 20); g.beginPath(); g.arc(n / 2, n / 2, 26, 0, TAU); g.stroke(); }
+  else if (kind === 'concrete') { fill('#9c9a94'); for (let k = 0; k < 600; k++) { g.fillStyle = `rgba(${r() < .5 ? '255,255,255' : '0,0,0'},.07)`; g.fillRect(r() * n, r() * n, 2, 2); } g.fillStyle = '#e8c23a'; g.fillRect(0, 60, n, 6); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return new THREE.MeshLambertMaterial({ map: t });
+}
+const IF = {}; const ifloor = k => IF[k] ||= intTex(k);
+const IM = { wallW: LM(0xf2efe8), wallC: LM(0xe8e0cf), wallB: LM(0x2f4a6a), wallG: LM(0xdfe8e2), wallR: LM(0x8a2a2a), wallD: LM(0x3a3d42), gold: LM(0xd6ae5f), chrome: LM(0xd8dde2), black: LM(0x161616), green: LM(0x2f7a4a), red: LM(0xb83a2e), cream: LM(0xf2e8d0),
+  prods: [0xd8342c, 0xf2c230, 0x2f8fd0, 0x3fae5a, 0xe8742a, 0x8a5ad0, 0xe85a9a, 0xf2f0ea, 0x1fb5a8, 0x6b4a30, 0x2a2c30, 0xc9893a].map(LM),
+  fruit: [0x3fae3a, 0xf2c230, 0xd8342c, 0xe8742a, 0x8a5a2a].map(LM), bread: [0xc9893a, 0xa8682a, 0xe0b070].map(LM), screenL: new THREE.MeshBasicMaterial({ color: 0x9fd0f0 }), green2: new THREE.MeshBasicMaterial({ color: 0x3fd07a }) };
+let isd = 1; const ir = () => (isd = (isd * 9301 + 49297) % 233280) / 233280, ipick = a => a[Math.floor(ir() * a.length)];
+// a room: slab, floor, four walls with the door in the front (+z) wall, a ceiling of light panels; registered as a 'house'
+// so the camera stays inside and you're sheltered
+function intRoom(type, name, W, D, H, floor, wall, ceil = IM.wallW) {
+  const [ox, oz] = INT.slots[INT.used++], FY = INT_FY, b = new Builder(), cb = new Builder();
+  const x0 = ox - W / 2, x1 = ox + W / 2, z0 = oz - D / 2, z1 = oz + D / 2, T = .4, dw = 3.2;
+  b.box(W + 2 * T, 4, D + 2 * T, ox, FY - 2, oz, M.concrete, 4, true, 'base');
+  b.box(W, .04, D, ox, FY + .02, oz, ifloor(floor), 2, false);
+  b.box(W + 2 * T, H, T, ox, FY + H / 2, z0 - T / 2, wall, 3, true, 'house');
+  for (const s of [-1, 1]) b.box(T, H, D, ox + s * (W / 2 + T / 2), FY + H / 2, oz, wall, 3, true, 'house');
+  const seg = (W - dw) / 2; for (const s of [-1, 1]) b.box(seg + T, H, T, ox + s * (dw / 2 + seg / 2 + T / 2), FY + H / 2, z1 + T / 2, wall, 3, true, 'house');
+  b.box(dw, H - 3, T, ox, FY + 3 + (H - 3) / 2, z1 + T / 2, wall, 3, true, 'house');
+  b.box(W, .14, .06, ox, FY + .07, z0 + .03, IM.black, 1, false); for (const s of [-1, 1]) b.box(.06, .14, D, ox + s * (W / 2 - .03), FY + .07, oz, IM.black, 1, false);   // skirting
+  for (const s of [-1, 1]) b.box(.16, 3, .5, ox + s * (dw / 2 + .08), FY + 1.5, z1, IM.chrome, 1, false); b.box(dw + .3, .16, .5, ox, FY + 3.05, z1, IM.chrome, 1, false);   // the door frame
+  for (const s of [-1, 1]) b.box(dw / 2 - .1, 2.8, .06, ox + s * (dw / 4 + .02), FY + 1.42, z1 + .32, MM.glass, 1, false);   // glass doors, propped open
+  b.box(3, .02, 1.6, ox, FY + .05, z1 - 1, IM.black, 1, false);   // doormat
+  cb.box(W + 2 * T, .3, D + 2 * T, ox, FY + H + .15, oz, ceil, 3, false);
+  for (let x = x0 + 3; x < x1 - 1; x += 6) for (let z = z0 + 3; z < z1 - 1; z += 6) cb.box(1.2, .06, 1.2, x, FY + H - .03, z, lampMat, 1, false);
+  textSign('EXIT', '#1f8a4a', '#ffffff', 1.4, .45, ox, FY + 3.5, z1 - .22, Math.PI, '#ffffff');
+  const R = { type, name, W, D, H, FY, ox, oz, x0, x1, z0, z1, b, cb, exit: { x: ox, z: z1 - .9 }, spawn: { x: ox, z: z1 - 2.6 }, lift: null };
+  const v = { x: ox, z: oz, hw: W / 2 + 3, hd: D / 2 + 3, y: FY, houses: [], civs: [], modern: true, interior: R };
+  v.houses.push({ v, x: ox, z: oz, w: W, d: D, floorY: FY, top: FY + H, two: false, doorOut: new V3(ox, 0, z1 + 1.5), doorIn: new V3(ox, 0, z1 - 1.5), inside: new V3(ox, 0, oz) });
+  MY_HOMES.push(v); R.v = v; INT.rooms[type] = R;
+  return R;
+}
+function intDone(R) { R.b.build(); const g = new THREE.Group(); scene.add(g); R.cb.build(g); g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } }); }
+// people inside: staff standing at their posts, visitors wandering a rectangle; their floor is the room's
+function intPeople(R, n, rect, place, opts = {}) {
+  for (let k = 0; k < n; k++) {
+    const v = { x: R.ox, z: R.oz, y: R.FY, houses: [], civs: [], sand: rect, place };
+    const c = makeCivilian(v, { adult: !opts.kids, child: !!opts.kids, ...(opts.female !== undefined ? { female: opts.female } : {}) });
+    c.fixedY = R.FY; c.g.position.set(rect[0] + (rect[1] - rect[0]) * ir(), R.FY, rect[2] + (rect[3] - rect[2]) * ir());
+    if (opts.staff) { c.guard = true; c.g.rotation.y = opts.ry ?? 0; c.g.position.set((rect[0] + rect[1]) / 2, R.FY, (rect[2] + rect[3]) / 2); }
+    if (opts.chatty) c.chatty = true;
+  }
+}
+const staff = (R, x, z, place, ry = 0, female) => intPeople(R, 1, [x - .1, x + .1, z - .1, z + .1], place, { staff: true, ry, female });
+
+// ---- furniture and fittings (in a room's Builder; everything axis-aligned) ----
+const F_ = {
+  // a gondola of shelves along x or z, stocked both sides with packets, tins and bottles
+  rack(b, x, z, len, alongX, h = 2.1, levels = 4, sides = 2) {
+    const w = .9, L = len; b.box(alongX ? L : w, .12, alongX ? w : L, x, INT_FY + .06, z, IM.chrome, 1, true, 'house');
+    b.box(alongX ? L : .06, h, alongX ? .06 : L, x, INT_FY + h / 2, z, IM.chrome, 1, true, 'house');
+    for (let k = 0; k <= levels; k++) b.box(alongX ? L : w, .04, alongX ? w : L, x, INT_FY + .25 + k * (h - .3) / levels, z, MM.white, 1, false);
+    for (let k = 0; k < levels; k++) for (let sd = 0; sd < sides; sd++) {
+      const off = (sd ? 1 : -1) * w / 4, y = INT_FY + .27 + k * (h - .3) / levels;
+      for (let t = -L / 2 + .2; t < L / 2 - .15; t += .28 + ir() * .12) {
+        const hh = .16 + ir() * ((h - .3) / levels - .22), ww = .16 + ir() * .1;
+        b.box(alongX ? ww : .3, hh, alongX ? .3 : ww, alongX ? x + t : x + off, y + hh / 2, alongX ? z + off : z + t, ipick(IM.prods), 1, false);
+      }
+    }
+  },
+  fridge(b, x, z, len, faceZ) {   // a run of glass-door fridges against a wall, lit, full of drinks
+    b.box(len, 2.3, .9, x, INT_FY + 1.15, z, MM.white, 1, true, 'house');
+    b.box(len - .2, 1.9, .05, x, INT_FY + 1.15, z + faceZ * .47, MM.glass, 1, false);
+    for (let k = 0; k < 4; k++) { b.box(len - .4, .04, .6, x, INT_FY + .4 + k * .5, z, lampMat, 1, false); for (let t = -len / 2 + .3; t < len / 2 - .2; t += .18) b.box(.1, .28, .1, x + t, INT_FY + .56 + k * .5, z + faceZ * .2, ipick(IM.prods), 1, false); }
+    for (let t = -len / 2; t <= len / 2; t += 1.2) b.box(.05, 1.95, .07, x + t, INT_FY + 1.15, z + faceZ * .48, IM.chrome, 1, false);
+  },
+  produce(b, x, z) {   // a stand of tilted crates of fruit and veg
+    b.box(3, .8, 1.6, x, INT_FY + .4, z, MM.wood, 1, true, 'house');
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { b.box(.68, .12, .7, x - 1.1 + i * .73, INT_FY + .86, z - .38 + j * .76, M.crate, 1, false); const m = ipick(IM.fruit); for (let f = 0; f < 6; f++) b.box(.16, .16, .16, x - 1.3 + i * .73 + (f % 3) * .2, INT_FY + 1, z - .5 + j * .76 + Math.floor(f / 3) * .22, m, 1, false); }
+  },
+  checkout(b, x, z, n) {   // a till: belt, scanner, screen, the number on a pole
+    b.box(.8, .9, 2.6, x, INT_FY + .45, z, MM.counter, 1, true, 'house'); b.box(.6, .04, 1.8, x, INT_FY + .92, z - .3, IM.black, 1, false);
+    b.box(.4, .3, .35, x, INT_FY + 1.05, z + .9, IM.black, 1, false); b.box(.05, .25, .35, x - .2, INT_FY + 1.3, z + .9, MM.screen, 1, false);
+    b.box(.06, 2.2, .06, x + .35, INT_FY + 1.1, z + 1.2, IM.chrome, 1, false); b.box(.4, .4, .06, x + .35, INT_FY + 2.3, z + 1.2, lampMat, 1, false);
+    textSign(String(n), '#1f7a3a', '#ffffff', .38, .32, x + .35, INT_FY + 2.3, z + 1.25, 0, '#ffffff');
+  },
+  trolley(b, x, z) { b.box(.55, .55, .9, x, INT_FY + .65, z, IM.chrome, 1, false); b.box(.5, .04, .85, x, INT_FY + .2, z, IM.chrome, 1, false); b.box(.55, .04, .04, x, INT_FY + 1.0, z + .47, IM.red, 1, false); },
+  desk(b, x, z, w, d, mat = M.oak, h = 1.05) { b.box(w, h, d, x, INT_FY + h / 2, z, mat, 1, true, 'house'); b.box(w + .1, .05, d + .1, x, INT_FY + h + .02, z, MM.counter, 1, false); },
+  monitor(b, x, z, faceZ = 1) { b.box(.55, .35, .04, x, INT_FY + 1.0, z, IM.black, 1, false); b.box(.5, .3, .02, x, INT_FY + 1.0, z + faceZ * .025, MM.screen, 1, false); b.box(.06, .2, .06, x, INT_FY + .78, z - faceZ * .02, IM.black, 1, false); },
+  chair(b, x, z, mat = IM.black) { b.box(.5, .08, .5, x, INT_FY + .46, z, mat, 1, false); b.box(.5, .5, .08, x, INT_FY + .75, z + .22, mat, 1, false); b.box(.06, .42, .06, x, INT_FY + .21, z, IM.chrome, 1, false); },
+  table(b, x, z, w = 1.2, d = .8, mat = M.oak, seats = 4) {
+    b.box(w, .06, d, x, INT_FY + .76, z, mat, 1, true, 'house'); b.box(.1, .73, .1, x, INT_FY + .37, z, IM.chrome, 1, false);
+    const S = [[0, -d / 2 - .35], [0, d / 2 + .35], [-w / 2 - .35, 0], [w / 2 + .35, 0]].slice(0, seats); for (const [dx, dz] of S) { b.box(.42, .45, .42, x + dx, INT_FY + .22, z + dz, mat, 1, false); b.box(dx ? .06 : .42, .45, dx ? .42 : .06, x + dx + (dx > 0 ? .2 : dx < 0 ? -.2 : 0), INT_FY + .67, z + dz + (dz > 0 ? .2 : dz < 0 ? -.2 : 0), mat, 1, false); }
+  },
+  sofa(b, x, z, alongX, mat = ipick(MM.sofa)) { const L = 2.2; b.box(alongX ? L : .9, .45, alongX ? .9 : L, x, INT_FY + .22, z, mat, 1, true, 'house'); b.box(alongX ? L : .2, .45, alongX ? .2 : L, x + (alongX ? 0 : .35), INT_FY + .65, z + (alongX ? .35 : 0), mat, 1, false); },
+  plant(b, x, z, s = 1) { b.box(.5 * s, .55 * s, .5 * s, x, INT_FY + .27 * s, z, ipick(potMats), 1, true, 'house'); b.box(.9 * s, 1.1 * s, .9 * s, x, INT_FY + 1.1 * s, z, M.leaves, 1, false); },
+  pillar(b, x, z, h, mat = IM.wallW) { b.box(.9, h, .9, x, INT_FY + h / 2, z, mat, 2, true, 'house'); b.box(1.2, .3, 1.2, x, INT_FY + .15, z, IM.gold, 1, false); b.box(1.2, .3, 1.2, x, INT_FY + h - .15, z, IM.gold, 1, false); },
+  rail(b, x, z, len, alongX) {   // a clothes rail of shirts and dresses
+    for (const t of [-len / 2, len / 2]) b.box(.05, 1.5, .05, alongX ? x + t : x, INT_FY + .75, alongX ? z : z + t, IM.chrome, 1, false);
+    b.box(alongX ? len : .04, .04, alongX ? .04 : len, x, INT_FY + 1.5, z, IM.chrome, 1, false);
+    for (let t = -len / 2 + .15; t < len / 2 - .1; t += .14) { const hh = .6 + ir() * .4; b.box(alongX ? .08 : .5, hh, alongX ? .5 : .08, alongX ? x + t : x, INT_FY + 1.45 - hh / 2, alongX ? z : z + t, ipick(IM.prods), 1, false); }
+  },
+  mannequin(b, x, z, mat = ipick(IM.prods)) { b.box(.5, .08, .5, x, INT_FY + .04, z, IM.black, 1, false); b.box(.05, .9, .05, x, INT_FY + .5, z, IM.chrome, 1, false); b.box(.42, .7, .26, x, INT_FY + 1.3, z, mat, 1, false); b.box(.2, .22, .2, x, INT_FY + 1.8, z, MM.white, 1, false); b.box(.36, .55, .24, x, INT_FY + .78, z, IM.black, 1, false); },
+  tvWall(b, x, z, n, faceZ) { for (let k = 0; k < n; k++) { const cx = x - (n - 1) * .8 + k * 1.6; b.box(1.45, .85, .08, cx, INT_FY + 1.9, z, IM.black, 1, false); b.box(1.35, .76, .02, cx, INT_FY + 1.9, z + faceZ * .05, k % 2 ? MM.screen : IM.screenL, 1, false); } },
+  gadgets(b, x, z, w, d) {   // a display table of phones, tablets and laptops
+    b.box(w, .9, d, x, INT_FY + .45, z, MM.white, 1, true, 'house');
+    for (let i = 0; i < Math.floor(w / .5); i++) for (let j = 0; j < 2; j++) { const lap = (i + j) % 3 === 0; b.box(lap ? .34 : .1, .02, lap ? .24 : .18, x - w / 2 + .3 + i * .5, INT_FY + .91, z - d / 4 + j * d / 2, IM.black, 1, false); b.box(lap ? .32 : .08, lap ? .2 : .015, lap ? .015 : .16, x - w / 2 + .3 + i * .5, INT_FY + (lap ? 1.02 : .925), z - d / 4 + j * d / 2 - (lap ? .11 : 0), IM.screenL, 1, false); }
+  },
+  showcase(b, x, z, len, faceZ, mats = IM.bread) {   // a glass display counter of bread, cakes or pastries
+    b.box(len, .9, .8, x, INT_FY + .45, z, MM.white, 1, true, 'house'); b.box(len, .5, .7, x, INT_FY + 1.15, z, MM.glass, 1, false);
+    for (let t = -len / 2 + .2; t < len / 2 - .1; t += .25) b.box(.18, .1 + ir() * .12, .18, x + t, INT_FY + .97, z + (ir() - .5) * .3, ipick(mats), 1, false);
+  },
+  palletRack(b, x, z, len, alongX, h = 6) {
+    for (let t = -len / 2; t <= len / 2 + .01; t += len / Math.max(1, Math.round(len / 2.7))) for (const s of [-.55, .55]) b.box(.12, h, .12, alongX ? x + t : x + s, INT_FY + h / 2, alongX ? z + s : z + t, LM(0x2f5f9a), 1, true, 'house');
+    for (let lv = 1; lv < 4; lv++) { const y = INT_FY + lv * h / 4 - .5; b.box(alongX ? len : .12, .14, alongX ? .12 : len, x, y, z - (alongX ? .55 : 0), IM.red, 1, false); b.box(alongX ? len : .12, .14, alongX ? .12 : len, x, y, z + (alongX ? .55 : 0), IM.red, 1, false);
+      for (let t = -len / 2 + .7; t < len / 2 - .5; t += 1.4) if (ir() < .8) { b.box(1.1, .14, 1.0, alongX ? x + t : x, y + .14, alongX ? z : z + t, M.plank, 1, false); b.box(1.0, .8 + ir() * .4, .9, alongX ? x + t : x, y + .62, alongX ? z : z + t, M.crate, 1, false); } }
+  },
+  forklift(b, x, z) { b.box(1.2, 1.1, 2, x, INT_FY + .75, z, LM(0xe8c23a), 1, true, 'house'); b.box(.06, 2.2, .06, x - .5, INT_FY + 1.3, z - 1.1, IM.black, 1, false); b.box(.06, 2.2, .06, x + .5, INT_FY + 1.3, z - 1.1, IM.black, 1, false); b.box(1, .05, 1, x, INT_FY + .2, z - 1.6, IM.black, 1, false); b.box(1.1, .08, 1.1, x, INT_FY + 2.3, z + .1, IM.black, 1, false); },
+  stanchions(b, x0, x1, z) { for (let x = x0; x <= x1 + .01; x += 1.6) { b.box(.08, .95, .08, x, INT_FY + .48, z, IM.chrome, 1, false); b.box(.3, .04, .3, x, INT_FY + .02, z, IM.chrome, 1, false); } b.box(x1 - x0, .06, .03, (x0 + x1) / 2, INT_FY + .88, z, IM.red, 1, false); },
+  atm(b, x, z, faceZ) { b.box(.8, 1.7, .5, x, INT_FY + .85, z, MM.counter, 1, true, 'house'); b.box(.5, .35, .03, x, INT_FY + 1.35, z + faceZ * .26, MM.screen, 1, false); b.box(.5, .1, .1, x, INT_FY + 1.0, z + faceZ * .25, IM.black, 1, false); },
+  liftDoors(b, x, z, faceZ, n = 2) { for (let k = 0; k < n; k++) { const cx = x - (n - 1) * 1.4 + k * 2.8; b.box(1.8, 2.6, .1, cx, INT_FY + 1.3, z, IM.chrome, 1, false); b.box(.03, 2.6, .12, cx, INT_FY + 1.3, z, IM.black, 1, false); b.box(.3, .12, .05, cx, INT_FY + 2.8, z + faceZ * .05, lampMat, 1, false); } },
+  rug(b, x, z, w, d, mat) { b.box(w, .02, d, x, INT_FY + .045, z, mat, 1, false); },
+};
+
+/* ---- the rooms ---- */
+function buildInteriors() {
+  isd = 7; const b0 = () => null;
+  // the supermarket: aisles of racks, fridges along the back, fruit and veg by the door, checkouts, trolleys
+  { const R = intRoom('supermarket', 'the supermarket', 44, 32, 6, 'vinyl', IM.wallW), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let k = 0; k < 6; k++) F_.rack(b, X0 + 23, Z0 + 5 + k * 3.4, 26, true);
+    F_.fridge(b, R.ox + 2, Z0 + .6, 34, 1); F_.fridge(b, X0 + .6 + 0, R.oz - 3, 1, 1);
+    for (let k = 0; k < 3; k++) F_.fridge(b, X1 - .6, Z0 + 6 + k * 4, 3.6, 1);
+    for (let k = 0; k < 3; k++) F_.produce(b, X0 + 4, Z0 + 6 + k * 3.4);
+    for (let k = 0; k < 5; k++) F_.checkout(b, X0 + 12 + k * 4, Z1 - 7, k + 1);
+    for (let k = 0; k < 6; k++) F_.trolley(b, X1 - 3, Z1 - 3 - k * 1);
+    for (const [t, x, z] of [['FRESH PRODUCE', X0 + 4, Z0 + 3.5], ['DRINKS & DAIRY', R.ox, Z0 + 2.8], ['FROZEN', X1 - 2, Z0 + 3.5], ['TILLS', X0 + 20, Z1 - 9.6]]) textSign(t, '#1f7a3a', '#ffffff', 3.4, .6, x, INT_FY + 4.2, z, 0, '#f2c230');
+    for (let k = 0; k < 6; k++) textSign(`AISLE ${k + 1}`, '#f2c230', '#1b1608', 1.6, .5, X0 + 10, INT_FY + 3.4, Z0 + 6.7 + k * 3.4, 0);
+    intDone(R);
+    for (let k = 0; k < 5; k++) staff(R, X0 + 11.3 + k * 4, Z1 - 7, 'city', -Math.PI / 2);
+    staff(R, R.ox + 4, Z1 - 2, 'security', Math.PI);
+    for (let k = 0; k < 6; k++) intPeople(R, 2, [X0 + 11, X0 + 35, Z0 + 6.7 + k * 3.4 - .2, Z0 + 6.7 + k * 3.4 + .2], 'city');
+    intPeople(R, 4, [X0 + 8, X1 - 6, Z1 - 4.5, Z1 - 3.5], 'city');
+    VENUES.push({ name: 'the supermarket', x: R.ox, z: Z1 - 4, r: 8, food: 'kiosk', toilet: 0 });
+  }
+  // the mall: a marble gallery, shopfronts all round, a fountain under a skylight, benches, a kiosk
+  { const R = intRoom('mall', 'the mall', 48, 36, 9, 'marble', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    const names = [['THREADS', '#8a5a9a'], ['SOLE MATES', '#b83a2e'], ['PIXEL & CO', '#2a2c30'], ['GOLDEN SPOON', '#c9893a'], ['ADIRE', '#2f4a8a'], ['GLAM', '#e85a9a'], ['TOY TREE', '#3e8a4a'], ['FRESHMART', '#1f7a3a']];
+    names.forEach(([n, col], k) => { const back = k < 4, x = back ? X0 + 6 + k * 12 : (k < 6 ? X0 + .35 : X1 - .35), z = back ? Z0 + .35 : Z0 + 9 + (k % 2) * 11;
+      if (back) { b.box(10, 4, .1, x, INT_FY + 2.4, z + .05, MM.glass, 1, false); b.box(10.4, .8, .2, x, INT_FY + 4.8, z + .1, LM(parseInt(col.slice(1), 16)), 1, false); textSign(n, col, '#ffffff', 8, .7, x, INT_FY + 4.8, z + .22, 0); for (let i = 0; i < 6; i++) F_.mannequin(b, x - 4 + i * 1.6, z + 1.2); }
+      else { const s = k < 6 ? 1 : -1; b.box(.1, 4, 9, x, INT_FY + 2.4, z, MM.glass, 1, false); b.box(.2, .8, 9.4, x, INT_FY + 4.8, z, LM(parseInt(col.slice(1), 16)), 1, false); textSign(n, col, '#ffffff', 7, .7, x + s * .12, INT_FY + 4.8, z, s * Math.PI / 2); } });
+    b.box(46, .3, 3, R.ox, INT_FY + 5.6, Z0 + 1.5, IM.wallW, 1, false); b.box(46, .9, .08, R.ox, INT_FY + 6.2, Z0 + 3, MM.glass, 1, false);   // the upper gallery's edge
+    const fc = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.2, .7, 32), LM(0xb9b6ae)); fc.position.set(R.ox, INT_FY + .35, R.oz + 2); scene.add(fc);
+    const fw = new THREE.Mesh(new THREE.CircleGeometry(2.8, 32), new THREE.MeshLambertMaterial({ color: 0x4f9fd0, emissive: 0x0a2a3a })); fw.rotation.x = -Math.PI / 2; fw.position.set(R.ox, INT_FY + .66, R.oz + 2); scene.add(fw);
+    colliders.push({ x0: R.ox - 3, x1: R.ox + 3, y0: INT_FY, y1: INT_FY + .7, z0: R.oz - 1, z1: R.oz + 5, tag: 'house' });
+    for (const [dx, dz] of [[-7, 2], [7, 2], [0, -4], [0, 8]]) { b.box(dx ? .6 : 2, .45, dx ? 2 : .6, R.ox + dx, INT_FY + .22, R.oz + dz, M.oak, 1, true, 'house'); }
+    for (const [dx, dz] of [[-12, -4], [12, -4], [-12, 9], [12, 9]]) F_.plant(b, R.ox + dx, R.oz + dz, 1.6);
+    F_.desk(b, R.ox - 12, R.oz + 3, 2.4, 1.6, IM.gold); textSign('INFO', '#14243d', '#ffffff', 1.4, .5, R.ox - 12, INT_FY + 1.6, R.oz + 3.85, 0);
+    textSign('WELCOME TO THE MALL', '#14243d', '#d6ae5f', 10, 1, R.ox, INT_FY + 7.4, Z1 - .25, Math.PI, '#d6ae5f');
+    intDone(R);
+    staff(R, R.ox - 12, R.oz + 2, 'city', 0); staff(R, R.ox + 4, Z1 - 2, 'security', Math.PI);
+    intPeople(R, 18, [X0 + 4, X1 - 4, Z0 + 5, Z1 - 4], 'city', { chatty: false });
+    VENUES.push({ name: 'the mall food court', x: R.ox - 16, z: R.oz + 10, r: 6, food: 'mall', toilet: 0 });
+  }
+  // the banking hall: marble and columns, tellers behind glass, a queue, ATMs, waiting chairs, a guard
+  { const R = intRoom('bank', 'the bank', 40, 28, 8, 'marble', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    b.box(30, 1.15, 1.2, R.ox, INT_FY + .58, Z0 + 5, M.oak, 1, true, 'house'); b.box(30.2, .06, 1.3, R.ox, INT_FY + 1.18, Z0 + 5, IM.gold, 1, false);
+    for (let k = 0; k <= 6; k++) b.box(.08, 1.4, .08, R.ox - 15 + k * 5, INT_FY + 1.9, Z0 + 4.5, IM.gold, 1, false);
+    b.box(30, 1.3, .04, R.ox, INT_FY + 1.85, Z0 + 4.5, MM.glass, 1, false);
+    for (let k = 0; k < 6; k++) { F_.monitor(b, R.ox - 12.5 + k * 5, Z0 + 5.3, 1); textSign(String(k + 1), '#14243d', '#d6ae5f', .5, .4, R.ox - 12.5 + k * 5, INT_FY + 2.8, Z0 + 4.45, 0); }
+    textSign('WELCOME', '#14243d', '#d6ae5f', 12, 1.4, R.ox, INT_FY + 5.6, Z0 + .25, 0, '#d6ae5f');
+    for (let k = 0; k < 4; k++) for (const s of [-1, 1]) F_.pillar(b, R.ox + s * 9, Z0 + 9 + k * 4.5, 8);
+    for (let r2 = 0; r2 < 3; r2++) F_.stanchions(b, R.ox - 6, R.ox + 6, Z0 + 8 + r2 * 1.6);
+    for (let k = 0; k < 4; k++) F_.atm(b, X1 - .4, Z0 + 10 + k * 1.6, -1);
+    for (let r2 = 0; r2 < 2; r2++) for (let k = 0; k < 6; k++) F_.chair(b, X0 + 4 + k * .7, Z1 - 7 + r2 * 2, IM.wallB);
+    F_.desk(b, X0 + 4, Z0 + 10, 2.4, 1.2, M.oak); F_.monitor(b, X0 + 4, Z0 + 10, 1); F_.desk(b, X0 + 4, Z0 + 15, 2.4, 1.2, M.oak); F_.monitor(b, X0 + 4, Z0 + 15, 1);
+    F_.rug(b, R.ox, R.oz + 4, 8, 12, ifloor('red'));
+    intDone(R);
+    for (let k = 0; k < 6; k++) staff(R, R.ox - 12.5 + k * 5, Z0 + 3.6, 'seafront', Math.PI);
+    staff(R, X0 + 4, Z0 + 9, 'seafront', Math.PI); staff(R, X0 + 4, Z0 + 14, 'seafront', Math.PI); staff(R, R.ox - 3, Z1 - 2.5, 'security', Math.PI); staff(R, X1 - 3, Z0 + 4, 'security', -Math.PI / 2);
+    intPeople(R, 6, [R.ox - 6, R.ox + 6, Z0 + 8.2, Z0 + 11], 'seafront'); intPeople(R, 4, [X0 + 3, X1 - 6, Z1 - 9, Z1 - 4], 'city');
+    VENUES.push({ name: 'the banking hall', x: R.ox, z: Z1 - 4, r: 6, toilet: 0 });
+  }
+  // the office reception: a long desk under the company's name, turnstiles, the lifts, sofas and plants
+  { const R = intRoom('office', 'the office block', 32, 22, 7, 'marble', IM.wallW), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    F_.desk(b, R.ox, Z0 + 7, 8, 1.2, IM.wallD, 1.1); b.box(8.2, .5, .1, R.ox, INT_FY + 1.35, Z0 + 7.6, IM.gold, 1, false);
+    F_.monitor(b, R.ox - 2, Z0 + 6.9, -1); F_.monitor(b, R.ox + 2, Z0 + 6.9, -1);
+    b.box(14, 3.6, .2, R.ox, INT_FY + 3.2, Z0 + .3, IM.wallD, 1, false); textSign('RECEPTION', '#2a2c30', '#d6ae5f', 9, 1.1, R.ox, INT_FY + 3.4, Z0 + .45, 0, '#d6ae5f');
+    for (let k = 0; k < 5; k++) { b.box(.25, 1, 1.2, X0 + 6 + k * 1.2, INT_FY + .5, Z0 + 11, IM.chrome, 1, true, 'house'); b.box(.04, .5, .9, X0 + 6.6 + k * 1.2, INT_FY + .85, Z0 + 11, MM.glass, 1, false); }
+    F_.liftDoors(b, X0 + 9, Z0 + .1, 1, 3); textSign('LIFTS · TO THE ROOF', '#2a2c30', '#ffffff', 4, .45, X0 + 9, INT_FY + 3.3, Z0 + .3, 0);
+    R.lift = { x: X0 + 9, z: Z0 + 2 };
+    F_.sofa(b, X1 - 5, Z1 - 6, true); F_.sofa(b, X1 - 5, Z1 - 9.5, true); F_.rug(b, X1 - 5, Z1 - 7.7, 4, 5, ifloor('carpet'));
+    for (const [x, z] of [[X0 + 1.5, Z1 - 2], [X1 - 1.5, Z0 + 1.5], [X1 - 1.5, Z1 - 2], [X0 + 15, Z0 + 1.5]]) F_.plant(b, x, z, 1.4);
+    intDone(R);
+    staff(R, R.ox - 2, Z0 + 6.2, 'seafront', Math.PI); staff(R, R.ox + 2, Z0 + 6.2, 'seafront', Math.PI); staff(R, X0 + 4, Z0 + 12, 'security', -Math.PI / 2);
+    intPeople(R, 6, [X0 + 3, X1 - 3, Z0 + 12, Z1 - 3], 'seafront');
+    VENUES.push({ name: 'the office block', x: R.ox, z: Z1 - 4, r: 5, toilet: 0 });
+  }
+  // an apartment tower's lobby: a concierge, the post boxes, the lifts, a lounge
+  { const R = intRoom('apartment', 'the apartments', 26, 18, 6, 'wood', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    F_.desk(b, X0 + 5, Z0 + 6, 3.6, 1, M.oak, 1.1); F_.monitor(b, X0 + 5, Z0 + 6.1, 1);
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 4; j++) { b.box(.5, .38, .1, X1 - 7 + i * .55, INT_FY + 1 + j * .42, Z0 + .1, IM.chrome, 1, false); b.box(.1, .04, .02, X1 - 7 + i * .55, INT_FY + 1.1 + j * .42, Z0 + .16, IM.black, 1, false); }
+    textSign('POST', '#2a2c30', '#ffffff', 1.2, .4, X1 - 5, INT_FY + 2.9, Z0 + .2, 0);
+    F_.liftDoors(b, R.ox, Z0 + .1, 1, 2); R.lift = { x: R.ox, z: Z0 + 2 }; textSign('LIFTS · TO THE ROOF', '#2a2c30', '#ffffff', 3.6, .4, R.ox, INT_FY + 3.2, Z0 + .3, 0);
+    F_.sofa(b, X0 + 5, Z1 - 4, true); F_.sofa(b, X0 + 9, Z1 - 6, false); F_.rug(b, X0 + 6, Z1 - 5, 5, 4, ifloor('carpet')); F_.table(b, X0 + 6, Z1 - 5.5, .9, .9, IM.gold, 0);
+    for (const [x, z] of [[X0 + 1.4, Z0 + 1.4], [X1 - 1.4, Z1 - 1.6], [X1 - 1.4, Z0 + 4]]) F_.plant(b, x, z, 1.3);
+    b.box(4, 2.4, .08, X1 - 4, INT_FY + 2.2, Z1 - .1, IM.gold, 1, false); b.box(3.6, 2, .1, X1 - 4, INT_FY + 2.2, Z1 - .12, LM(0x3a6a8a), 1, false);   // a painting
+    intDone(R);
+    staff(R, X0 + 5, Z0 + 5.2, 'security', Math.PI); intPeople(R, 3, [X0 + 3, X1 - 3, Z0 + 4, Z1 - 3], 'seafront');
+  }
+  // an open-plan office floor: rows of desks with screens, a glass meeting room, a water cooler
+  { const R = intRoom('workfloor', 'the offices', 36, 24, 4.5, 'carpet', IM.wallW), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let r2 = 0; r2 < 4; r2++) for (let k = 0; k < 5; k++) { const x = X0 + 5 + k * 4.2, z = Z0 + 4 + r2 * 4; F_.desk(b, x, z, 1.6, .8, MM.white, .75); F_.monitor(b, x, z - .1, 1); F_.chair(b, x, z + .9); }
+    b.box(.06, 3, 8, X1 - 10, INT_FY + 1.5, Z0 + 5, MM.glass, 1, true, 'house'); b.box(9, 3, .06, X1 - 5.5, INT_FY + 1.5, Z0 + 9, MM.glass, 1, true, 'house');
+    F_.table(b, X1 - 5.5, Z0 + 4.5, 4, 1.4, M.oak, 0); for (let k = 0; k < 4; k++) { F_.chair(b, X1 - 7 + k, Z0 + 3.3); F_.chair(b, X1 - 7 + k, Z0 + 5.7); }
+    b.box(3, 1.8, .05, X1 - 5.5, INT_FY + 1.7, Z0 + .1, MM.white, 1, false);
+    b.box(.4, 1.3, .4, X0 + 1, INT_FY + .65, Z1 - 3, LM(0x9fd0f0), 1, true, 'house'); b.box(1, 1, .7, X0 + 1, INT_FY + .5, Z1 - 6, IM.wallD, 1, true, 'house');
+    for (const [x, z] of [[X1 - 1.5, Z1 - 1.6], [X0 + 1.5, Z0 + 1.5]]) F_.plant(b, x, z, 1.2);
+    intDone(R);
+    for (let k = 0; k < 6; k++) staff(R, X0 + 5 + (k % 5) * 4.2, Z0 + 5.3 + Math.floor(k / 5) * 8, 'seafront', 0);
+    intPeople(R, 5, [X0 + 3, X1 - 12, Z1 - 7, Z1 - 3], 'seafront'); intPeople(R, 3, [X1 - 9, X1 - 2, Z0 + 2, Z0 + 8], 'seafront');
+  }
+  // a boutique: clothes rails, mannequins, fitting rooms, mirrors, the till
+  { const R = intRoom('boutique', 'the boutique', 20, 16, 5, 'wood', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let k = 0; k < 3; k++) { F_.rail(b, X0 + 5 + k * 5, R.oz - 1, 3.4, true); F_.rail(b, X0 + 5 + k * 5, R.oz + 2.5, 3.4, true); }
+    for (let k = 0; k < 4; k++) F_.rail(b, X0 + .7, Z0 + 3 + k * 2.6, 2.2, false);
+    for (let k = 0; k < 3; k++) F_.mannequin(b, R.ox - 3 + k * 3, Z1 - 3);
+    for (let k = 0; k < 2; k++) { b.box(1.6, 2.4, .1, X1 - 2.5 - k * 1.8, INT_FY + 1.2, Z0 + 2, IM.wallB, 1, true, 'house'); b.box(.1, 2.4, 2, X1 - 1.7 - k * 1.8, INT_FY + 1.2, Z0 + 1, IM.wallB, 1, true, 'house'); }
+    b.box(2.4, 1.9, .05, X1 - .1, INT_FY + 1.6, R.oz, IM.chrome, 1, false);
+    F_.desk(b, X1 - 3, Z1 - 4, 2.6, .9, IM.wallD, 1.0); textSign('BOUTIQUE', '#2a2c30', '#d6ae5f', 4, .6, R.ox, INT_FY + 3.8, Z0 + .25, 0, '#d6ae5f');
+    intDone(R);
+    staff(R, X1 - 3, Z1 - 4.8, 'seafront', 0, true); intPeople(R, 4, [X0 + 3, X1 - 4, Z0 + 4, Z1 - 5], 'seafront', { female: true }); intPeople(R, 1, [X0 + 3, X1 - 4, Z0 + 4, Z1 - 5], 'city');
+  }
+  // an electronics store: tables of phones and laptops, a wall of TVs, the counter
+  { const R = intRoom('electronics', 'the electronics store', 22, 16, 5, 'tile', IM.wallW), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let k = 0; k < 3; k++) F_.gadgets(b, X0 + 5 + k * 6, R.oz, 3.4, 1.4);
+    F_.tvWall(b, R.ox, Z0 + .3, 7, 1); F_.tvWall(b, R.ox, Z0 + .3, 0, 1);
+    for (let k = 0; k < 3; k++) F_.rack(b, X1 - 1, Z0 + 4 + k * 3, 2.6, false, 1.8, 3, 1);
+    F_.desk(b, X0 + 4, Z1 - 4, 3, .9, MM.white, 1); textSign('PHONES · LAPTOPS · TVs', '#2a2c30', '#7fd3e8', 6, .6, R.ox, INT_FY + 3.9, Z0 + .3, 0);
+    intDone(R);
+    staff(R, X0 + 4, Z1 - 4.8, 'city', 0); staff(R, R.ox + 3, R.oz - 2, 'city', Math.PI); intPeople(R, 4, [X0 + 3, X1 - 3, Z0 + 3, Z1 - 3], 'city');
+  }
+  // a pharmacy: white shelves of medicines, the dispensing counter under a green cross
+  { const R = intRoom('pharmacy', 'the pharmacy', 18, 14, 4.5, 'tile', IM.wallG), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let k = 0; k < 2; k++) F_.rack(b, R.ox - 3 + k * 6, R.oz + 1, 5, false, 1.8, 4);
+    F_.rack(b, R.ox, Z0 + .7, 14, true, 2.2, 5, 1);
+    F_.desk(b, R.ox, Z0 + 3.5, 6, .9, MM.white, 1.05); b.box(1.2, .3, 1.2, R.ox, INT_FY + 3.4, Z0 + .2, IM.green2, 1, false); b.box(.4, 1.2, 1.2, R.ox, INT_FY + 3.4, Z0 + .2, IM.green2, 1, false);
+    textSign('PHARMACY', '#1f8a5a', '#ffffff', 4, .6, R.ox + 4, INT_FY + 3.4, Z0 + .3, 0); for (let k = 0; k < 4; k++) F_.chair(b, X0 + 2 + k * .7, Z1 - 2.5, IM.green);
+    intDone(R);
+    staff(R, R.ox - 1, Z0 + 2.7, 'chef', Math.PI); staff(R, R.ox + 1.5, Z0 + 2.7, 'chef', Math.PI, true); intPeople(R, 3, [X0 + 3, X1 - 3, R.oz + 3, Z1 - 3], 'city');
+    VENUES.push({ name: 'the pharmacy', x: R.ox, z: Z1 - 3, r: 4, toilet: 0 });
+  }
+  // a bakery and coffee shop: cases of bread and cakes, the coffee machine, tables
+  { const R = intRoom('bakery', 'the bakery', 20, 14, 5, 'wood', IM.cream), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    F_.showcase(b, R.ox - 2, Z0 + 3.6, 8, 1); F_.desk(b, R.ox + 5, Z0 + 3.6, 3, .9, MM.counter, 1);
+    b.box(.9, .6, .5, R.ox + 5, INT_FY + 1.35, Z0 + 3.4, IM.chrome, 1, false);
+    for (let k = 0; k < 3; k++) F_.rack(b, R.ox - 4 + k * 4, Z0 + .6, 3.6, true, 2.2, 4, 1);
+    b.box(6, 1.4, .05, R.ox, INT_FY + 3.2, Z0 + .1, IM.black, 1, false); textSign('BREAD · CAKES · COFFEE', '#2a1a10', '#f2c230', 5.6, .6, R.ox, INT_FY + 3.2, Z0 + .15, 0);
+    for (let k = 0; k < 4; k++) F_.table(b, X0 + 3 + (k % 2) * 5, Z1 - 6 + Math.floor(k / 2) * 3, .9, .9, M.oak, 2);
+    intDone(R);
+    staff(R, R.ox - 2, Z0 + 2.8, 'chef', Math.PI); staff(R, R.ox + 5, Z0 + 2.8, 'city', Math.PI, true); intPeople(R, 5, [X0 + 2, X1 - 3, R.oz, Z1 - 2], 'city');
+    VENUES.push({ name: 'the bakery', x: R.ox, z: R.oz + 1, r: 6, food: 'kiosk', toilet: 0 });
+  }
+  // a restaurant: the counter and its menu boards, the kitchen through the pass, tables
+  { const R = intRoom('restaurant', 'the restaurant', 28, 20, 5, 'tile', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    F_.desk(b, R.ox, Z0 + 5, 12, 1, IM.red, 1.05);
+    b.box(12, 2.6, .1, R.ox, INT_FY + 1.3, Z0 + 3.2, IM.chrome, 1, true, 'house'); for (let k = 0; k < 3; k++) { b.box(2, .9, 1, R.ox - 4 + k * 4, INT_FY + .45, Z0 + 1.2, IM.chrome, 1, true, 'house'); b.box(1.8, .05, .8, R.ox - 4 + k * 4, INT_FY + .92, Z0 + 1.2, IM.black, 1, false); }
+    for (let k = 0; k < 3; k++) { b.box(3.4, 1.4, .06, R.ox - 4.5 + k * 4.5, INT_FY + 3.6, Z0 + 3.1, IM.black, 1, false); textSign(['RICE & CHICKEN', 'SHAWARMA · BURGERS', 'DRINKS · DESSERTS'][k], '#1b1608', '#f2c230', 3.2, .5, R.ox - 4.5 + k * 4.5, INT_FY + 3.9, Z0 + 3.16, 0); }
+    for (let r2 = 0; r2 < 2; r2++) for (let k = 0; k < 4; k++) F_.table(b, X0 + 4 + k * 6.5, Z1 - 8 + r2 * 4, 1.2, .8, M.oak, 4);
+    intDone(R);
+    for (let k = 0; k < 3; k++) staff(R, R.ox - 4 + k * 4, Z0 + 4.2, 'chef', Math.PI); staff(R, R.ox, Z0 + 2.2, 'chef', 0);
+    intPeople(R, 8, [X0 + 3, X1 - 3, Z0 + 7, Z1 - 3], 'city', { chatty: true });
+    VENUES.push({ name: 'the restaurant', x: R.ox, z: Z0 + 6.5, r: 6, food: 'rest', toilet: 0 });
+  }
+  // a car showroom: a polished floor, four cars on show, the sales desks
+  { const R = intRoom('showroom', 'the car showroom', 36, 24, 7, 'dark', IM.wallW), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let k = 0; k < 4; k++) { const x = X0 + 6 + k * 8, z = R.oz - 1; b.box(6, .12, 4, x, INT_FY + .06, z, IM.chrome, 1, false); addCar(b, x, z, INT_FY + .12, true); }
+    for (let k = 0; k < 2; k++) { F_.desk(b, X1 - 5, Z1 - 5 - k * 4, 2.4, 1, MM.white, .76); F_.monitor(b, X1 - 5, Z1 - 5.1 - k * 4, -1); F_.chair(b, X1 - 5, Z1 - 4 - k * 4); }
+    b.box(20, 3, .2, R.ox, INT_FY + 4, Z0 + .3, IM.black, 1, false); textSign('NEW & PRE-OWNED · FINANCE AVAILABLE', '#141014', '#ffffff', 16, .9, R.ox, INT_FY + 4, Z0 + .45, 0, '#d8342c');
+    for (const [x, z] of [[X0 + 1.4, Z1 - 1.6], [X1 - 1.4, Z0 + 1.4]]) F_.plant(b, x, z, 1.4);
+    intDone(R);
+    staff(R, X1 - 5, Z1 - 5.9, 'seafront', 0); staff(R, X0 + 10, R.oz + 3, 'seafront', Math.PI); intPeople(R, 5, [X0 + 3, X1 - 8, R.oz + 2, Z1 - 3], 'seafront');
+  }
+  // a warehouse: tall racks of pallets, a forklift, the loading door
+  { const R = intRoom('warehouse', 'the warehouse', 40, 30, 10, 'concrete', IM.wallD, IM.wallD), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let k = 0; k < 4; k++) F_.palletRack(b, R.ox - 3, Z0 + 4 + k * 5, 28, true, 6.5);
+    F_.forklift(b, X1 - 4, R.oz + 4); F_.forklift(b, X0 + 4, Z1 - 6);
+    for (let k = 0; k < 6; k++) { b.box(1.1, .14, 1, X0 + 3 + k * 1.4, INT_FY + .07, Z1 - 3, M.plank, 1, false); b.box(1, .9, .9, X0 + 3 + k * 1.4, INT_FY + .6, Z1 - 3, M.crate, 1, true, 'house'); }
+    b.box(6, 5, .2, X1 - 6, INT_FY + 2.5, Z1 - .1, LM(0x8a8f94), 1, false); for (let k = 0; k < 10; k++) b.box(6, .06, .25, X1 - 6, INT_FY + .3 + k * .5, Z1 - .2, IM.wallD, 1, false);   // the roller door
+    textSign('LOADING BAY', '#e8c23a', '#1b1608', 3, .6, X1 - 6, INT_FY + 5.6, Z1 - .3, Math.PI);
+    intDone(R);
+    for (let k = 0; k < 6; k++) intPeople(R, 1, [X0 + 4, X1 - 4, Z0 + 6.5 + (k % 4) * 5 - .3, Z0 + 6.5 + (k % 4) * 5 + .3], 'gardener');
+  }
+  // a family home: the parlour (sofas, TV, rug), the dining table, the kitchen
+  { const R = intRoom('home', 'the house', 16, 12, 3.5, 'wood', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    F_.sofa(b, X0 + 3, R.oz, false); F_.sofa(b, X0 + 6, Z0 + 1.2, true); F_.rug(b, X0 + 5.5, R.oz - 1, 4, 4, ifloor('red')); F_.table(b, X0 + 5.5, R.oz - 1, 1.1, .7, M.oak, 0);
+    F_.tvWall(b, X0 + 5.5, Z1 - 4, 1, -1); b.box(2, .6, .5, X0 + 5.5, INT_FY + .3, Z1 - 4.2, M.oak, 1, true, 'house');
+    F_.table(b, X1 - 5, R.oz - 2, 1.6, .9, M.oak, 4);
+    b.box(5, .95, .7, X1 - 3, INT_FY + .48, Z0 + .4, MM.white, 1, true, 'house'); b.box(.8, 1.9, .7, X1 - .5, INT_FY + .95, Z0 + .4, IM.chrome, 1, true, 'house'); b.box(.6, .05, .5, X1 - 3, INT_FY + .97, Z0 + .4, IM.black, 1, false);
+    F_.plant(b, X0 + 1, Z0 + 1, 1);
+    intDone(R);
+    intPeople(R, 3, [X0 + 2, X1 - 2, Z0 + 2, Z1 - 2], 'village'); intPeople(R, 1, [X0 + 2, X1 - 2, Z0 + 2, Z1 - 2], 'village', { kids: true });
+  }
+  // a classroom or lecture room: rows of desks, the whiteboard, the lecturer's table
+  { const R = intRoom('classroom', 'the lecture room', 24, 18, 4.5, 'tile', IM.wallG), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    for (let r2 = 0; r2 < 4; r2++) for (let k = 0; k < 5; k++) { const x = X0 + 4 + k * 4, z = Z0 + 6 + r2 * 2.6; F_.desk(b, x, z, 1.4, .6, M.oak, .75); F_.chair(b, x, z + .7, MM.wood); }
+    b.box(8, 2, .06, R.ox, INT_FY + 1.9, Z0 + .1, MM.white, 1, false); textSign('Welcome · Today: Lagos, a history', '#f2f0ea', '#2f4a6a', 6, .5, R.ox, INT_FY + 2.4, Z0 + .16, 0);
+    F_.desk(b, R.ox - 6, Z0 + 2.5, 2, .8, M.oak, .78);
+    intDone(R);
+    staff(R, R.ox, Z0 + 2.2, 'seafront', Math.PI); intPeople(R, 10, [X0 + 3, X1 - 3, Z0 + 5.4, Z1 - 3], 'campus');
+  }
+  // a palace hall: a red runner between pillars to the throne on its dais, drummers, guards
+  { const R = intRoom('palace', 'the palace', 36, 24, 10, 'red', IM.wallR, IM.cream), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    b.box(10, .5, 5, R.ox, INT_FY + .25, Z0 + 3, M.stone, 1, true, 'base'); b.box(2, 1.4, 1.2, R.ox, INT_FY + 1.2, Z0 + 2.6, IM.gold, 1, true, 'house'); b.box(2, 2.4, .3, R.ox, INT_FY + 2, Z0 + 2, IM.gold, 1, false);
+    for (let k = 0; k < 4; k++) for (const s of [-1, 1]) F_.pillar(b, R.ox + s * 6, Z0 + 8 + k * 4, 10, IM.cream);
+    for (let k = 0; k < 6; k++) b.box(.1, 6, 2.4, k < 3 ? X0 + .15 : X1 - .15, INT_FY + 5, Z0 + 5 + (k % 3) * 6, ipick([IM.gold, IM.green, IM.red]), 1, false);   // hangings
+    textSign('KABIYESI', '#5a1a1a', '#d6ae5f', 6, 1, R.ox, INT_FY + 6, Z0 + .3, 0, '#d6ae5f');
+    for (let k = 0; k < 2; k++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, 1, 16), M.oak); m.position.set(R.ox - 8 + k * 16, INT_FY + .5, Z0 + 6); scene.add(m); }
+    intDone(R);
+    staff(R, R.ox, Z0 + 2.6, 'village', 0, false); for (const s of [-1, 1]) staff(R, R.ox + s * 4, Z0 + 4, 'security', 0); for (const s of [-1, 1]) staff(R, R.ox + s * 8, Z0 + 7, 'village', 0);
+    intPeople(R, 6, [X0 + 3, X1 - 3, Z0 + 10, Z1 - 3], 'village');
+  }
+  // a kiosk or booth: a counter, shelves of snacks and airtime
+  { const R = intRoom('kiosk', 'the kiosk', 10, 8, 3.5, 'tile', IM.wallW), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1;
+    F_.desk(b, R.ox, Z0 + 2.6, 6, .8, IM.red, 1.05); F_.rack(b, R.ox, Z0 + .6, 8, true, 2, 4, 1); textSign('AIRTIME · DRINKS · SNACKS', '#b83a2e', '#ffffff', 5, .5, R.ox, INT_FY + 2.8, Z0 + .2, 0);
+    intDone(R);
+    staff(R, R.ox, Z0 + 1.8, 'city', Math.PI); intPeople(R, 1, [X0 + 2, X1 - 2, Z0 + 4, Z1 - 2], 'city');
+    VENUES.push({ name: 'the kiosk', x: R.ox, z: Z0 + 4, r: 3, food: 'kiosk' });
+  }
+}
+
+/* ---- doors: every building without rooms gets one, on the side nearest a street ---- */
+const INT_LABEL = { supermarket: 'Supermarket', mall: 'Shopping mall', bank: 'Bank', office: 'Office block', apartment: 'Apartments', workfloor: 'Offices', boutique: 'Boutique', electronics: 'Electronics store', pharmacy: 'Pharmacy', bakery: 'Bakery', restaurant: 'Restaurant', showroom: 'Car showroom', warehouse: 'Warehouse', home: 'House', classroom: 'Lecture rooms', palace: 'Palace', kiosk: 'Kiosk' };
+function intClassify(B, cx, cz) {
+  const w = B.x1 - B.x0, d = B.z1 - B.z0, A = w * d, H = B.y1 - B.y0, h = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453) % 1, h2 = Math.abs(Math.sin(cx * 39.3468 + cz * 11.135) * 24634.6345) % 1;
+  if (Math.min(w, d) < 4 || A < 40) return null;
+  if (A < 100 && H > 14) return null;   // silos, chimneys, masts
+  if (PORT && PORT.yard.some(([a, b, c, e]) => cx > a && cx < b && cz > c && cz < e)) return null;   // shipping containers
+  if (cz > 300) return 'warehouse';
+  if (H >= 24) return h < .45 ? 'office' : h < .8 ? 'apartment' : 'workfloor';
+  if (YB && (inR(YTECH, cx, cz) || inR(UNILAG, cx, cz))) return h < .7 ? 'classroom' : 'workfloor';
+  if (cz < -5680 && Math.abs(cx) < 140) return A > 300 ? 'palace' : 'home';   // the Alaafin's palace at Oyo
+  if (A >= 1400) return H <= 12 ? (h < .5 ? 'warehouse' : 'supermarket') : 'mall';
+  if (A >= 600) return ['supermarket', 'restaurant', 'workfloor', 'showroom', 'bank'][Math.floor(h * 5)];
+  if (A >= 250) return ['restaurant', 'office', 'bank', 'supermarket', 'pharmacy', 'electronics', 'boutique', 'bakery'][Math.floor(h * 8)];
+  if (cz < -4400 || (YB && cz < -360 && cz > -760 && A < 200)) return h < .7 ? 'home' : ['boutique', 'pharmacy', 'kiosk', 'bakery', 'electronics', 'restaurant'][Math.floor(h2 * 6)];
+  if (A >= 90) return ['boutique', 'pharmacy', 'electronics', 'bakery', 'home', 'kiosk'][Math.floor(h * 6)];
+  return 'kiosk';
+}
+function intGridAdd(e) { const k = Math.floor(e.x / 32) + ',' + Math.floor(e.z / 32); if (!INT.grid.has(k)) INT.grid.set(k, []); INT.grid.get(k).push(e); }
+function intFindBuildings() {
+  // every house that already has rooms, so we don't put a second door on it
+  const vs = new Set([TOWN, BEACH, COUNTRY, ...ESTATES, YABA, YABA?.UNILAG, YABA?.YTECH, IKEJA, ...MY_HOMES, ...VILLAGES, ...civilians.map(c => c.v)].filter(Boolean));
+  const ent = []; for (const v of vs) if (!v.interior) for (const h of v.houses || []) ent.push(h); for (const h of HOUSES) ent.push(h);
+  const inEnt = c => ent.some(h => c.x1 > h.x - h.w / 2 - 1.5 && c.x0 < h.x + h.w / 2 + 1.5 && c.z1 > h.z - h.d / 2 - 1.5 && c.z0 < h.z + h.d / 2 + 1.5);
+  const C = colliders.filter(c => (c.tag === 'house' || c.tag === 'tower' || c.tag === 'roof' || c.tag === 'base') && (c.y1 - c.y0) > 2.4 && Math.min(c.x1 - c.x0, c.z1 - c.z0) > 1.4 && (c.x1 - c.x0) * (c.z1 - c.z0) > 10 && Math.max(c.x1 - c.x0, c.z1 - c.z0) < 180
+    && c.y0 < 200 && !(c.x0 < -360 && c.z0 > -940 && c.z1 < 300) && !(c.z0 > 560 && c.x1 < -100) && !inEnt(c));   // (Ikoyi has its own named doors; the rooms themselves are out at sea)
+  const n = C.length, par = Array.from({ length: n }, (_, i) => i), f = i => par[i] === i ? i : (par[i] = f(par[i])), G = new Map();
+  C.forEach((c, i) => { for (let gx = Math.floor(c.x0 / 16); gx <= Math.floor(c.x1 / 16); gx++) for (let gz = Math.floor(c.z0 / 16); gz <= Math.floor(c.z1 / 16); gz++) { const k = gx + ',' + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(i); } });
+  for (const arr of G.values()) for (let a = 0; a < arr.length; a++) for (let q = a + 1; q < arr.length; q++) { const p = C[arr[a]], o = C[arr[q]]; if (p.x1 >= o.x0 - .6 && o.x1 >= p.x0 - .6 && p.z1 >= o.z0 - .6 && o.z1 >= p.z0 - .6) par[f(arr[a])] = f(arr[q]); }
+  const B = new Map(); C.forEach((c, i) => { const r = f(i); const b = B.get(r) || { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y0: 1e9, y1: -1e9, parts: [] }; b.x0 = Math.min(b.x0, c.x0); b.x1 = Math.max(b.x1, c.x1); b.z0 = Math.min(b.z0, c.z0); b.z1 = Math.max(b.z1, c.z1); b.y0 = Math.min(b.y0, c.y0); b.y1 = Math.max(b.y1, c.y1); b.parts.push(c); B.set(r, b); });
+  const out = [];
+  for (const b of B.values()) {
+    if ((b.x1 - b.x0) * (b.z1 - b.z0) <= 24 || b.y1 - b.y0 <= 3) continue;
+    const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, type = intClassify(b, cx, cz); if (!type) continue;
+    // the door: the side whose ground outside is nearest a road or paving (and not blocked), at the wall
+    let best = null;
+    for (const [ox, oz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      const fx = ox ? (ox > 0 ? b.x1 : b.x0) : cx, fz = oz ? (oz > 0 ? b.z1 : b.z0) : cz, px = fx + ox * 2, pz = fz + oz * 2;
+      if (queryGrid(solidGrid, px, pz, 2).some(c => px > c.x0 - .3 && px < c.x1 + .3 && pz > c.z0 - .3 && pz < c.z1 + .3 && c.y1 > heightAt(px, pz) + .5 && c.y0 < heightAt(px, pz) + 2.5)) continue;
+      let dist = 40; for (let t = 0; t < 40; t += 2) { const k = kindAt(px + ox * t, pz + oz * t); if (k === 6 || k === 7 || k === 8 || k === 9 || k === 5) { dist = t; break; } }
+      if (!best || dist < best.dist) best = { dist, ox, oz, px, pz };
+    }
+    if (!best) continue;
+    // walk in from the outside spot to the wall itself
+    let wx = best.px, wz = best.pz; for (let t = 0; t < 30; t += .25) { const x = best.px - best.ox * t, z = best.pz - best.oz * t; if (b.parts.some(c => x > c.x0 && x < c.x1 && z > c.z0 && z < c.z1)) { wx = x + best.ox * .05; wz = z + best.oz * .05; break; } }
+    const gy = Math.max(heightAt(wx + best.ox, wz + best.oz), b.y0);
+    let name = '', bd = 140; for (const [nm, px, pz] of fareSpots()) { const dd = Math.hypot(px - cx, pz - cz); if (dd < bd) { bd = dd; name = nm; } }
+    const pn = name.replace(/^the /i, ''), lbl = INT_LABEL[type], own = pn && new RegExp('\\b' + lbl.split(' ')[0], 'i').test(pn);   // a place already named for what it is (the Alaafin's palace) keeps its own name
+    out.push({ x: wx + best.ox * 1.3, z: wz + best.oz * 1.3, wx, wz, gy, ox: best.ox, oz: best.oz, type, name: own ? 'the ' + pn : lbl + (pn ? ', ' + pn : ''), bx: cx, bz: cz, br: Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2 + 2, top: b.y1 });
+  }
+  return out;
+}
+function intDoors(list) {   // a door in a white frame with a lamp over it, on each building's wall
+  const b = new Builder();
+  for (const e of list) {
+    const ax = e.oz !== 0, y = e.gy, x = e.wx ?? e.x - e.ox * 1.3, z = e.wz ?? e.z - e.oz * 1.3;
+    b.box(ax ? .18 : .5, 2.9, ax ? .5 : .18, ax ? x - 1.1 : x, y + 1.45, ax ? z : z - 1.1, MM.white, 1, false);
+    b.box(ax ? .18 : .5, 2.9, ax ? .5 : .18, ax ? x + 1.1 : x, y + 1.45, ax ? z : z + 1.1, MM.white, 1, false);
+    b.box(ax ? 2.4 : .5, .22, ax ? .5 : 2.4, x, y + 2.95, z, MM.white, 1, false);
+    b.box(ax ? 2 : .12, 2.8, ax ? .12 : 2, x + e.ox * .06, y + 1.4, z + e.oz * .06, e.type === 'home' || e.type === 'palace' ? M.door : MM.glass, 1, false);
+    b.box(ax ? .5 : .14, .14, ax ? .14 : .5, x + e.ox * .3, y + 3.25, z + e.oz * .3, lampMat, 1, false);
+  }
+  b.build();
+}
+
+/* ---- going in and out ---- */
+const INSIDE = { at: null };   // { R, e, back } while you're inside
+function nearEntrance() {
+  if (INSIDE.at || P.driving) return null;
+  const k = Math.floor(P.pos.x / 32), j = Math.floor(P.pos.z / 32); let best = null, bd = 2.6;
+  for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (const e of INT.grid.get((k + a) + ',' + (j + c)) || []) { const d = Math.hypot(e.x - P.pos.x, e.z - P.pos.z); if (d < bd && Math.abs(P.pos.y - (e.gy ?? P.pos.y)) < 4) { bd = d; best = e; } }
+  return best;
+}
+function doorSpot() {
+  if (INSIDE.at) {
+    const R = INSIDE.at.R;
+    if (Math.hypot(P.pos.x - R.exit.x, P.pos.z - R.exit.z) < 2.4) return { label: `E · Leave ${INSIDE.at.e.name.split(',')[0]}`, run: leaveBuilding };
+    if (R.lift && INSIDE.at.e.top > 20 && Math.hypot(P.pos.x - R.lift.x, P.pos.z - R.lift.z) < 3) return { label: `E · Take the lift to the roof (${Math.round(INSIDE.at.e.top - INSIDE.at.e.gy)} m)`, run: liftToRoof };
+    return null;
+  }
+  const e = nearEntrance(); return e ? { label: `E · Go into ${e.name}`, run: () => enterBuilding(e) } : null;
+}
+function enterBuilding(e) {
+  const R = INT.rooms[e.type]; if (!R) return;
+  INSIDE.at = { R, e, back: { x: e.x + e.ox * .6, z: e.z + e.oz * .6, y: e.gy } };
+  P.pos.set(R.spawn.x, R.FY + .05, R.spawn.z); P.vel.set(0, 0, 0); P.facing = 0; yaw = 0; P.grounded = true;
+  sfx('swap'); toast(e.name.split(',')[0].replace(/^the /, '').replace(/^\w/, c => c.toUpperCase()), `${INT_LABEL[e.type]}${e.name.includes(',') ? ' · ' + e.name.split(', ').slice(1).join(', ') : ''} · E at the exit to leave`);
+}
+function leaveBuilding() {
+  const a = INSIDE.at; INSIDE.at = null; if (!a) return;
+  P.pos.set(a.back.x, a.back.y + .1, a.back.z); P.vel.set(0, 0, 0);
+  P.facing = Math.atan2(-a.e.ox, -a.e.oz); yaw = P.facing; sfx('swap');
+}
+function liftToRoof() {
+  const a = INSIDE.at; if (!a) return; INSIDE.at = null;
+  let top = -1e9, rx = a.e.bx, rz = a.e.bz;   // the highest flat part near the middle of the building
+  for (const c of queryGrid(solidGrid, a.e.bx, a.e.bz, a.e.br)) if (c.y1 > top && c.x1 - c.x0 > 3 && c.z1 - c.z0 > 3 && Math.abs((c.x0 + c.x1) / 2 - a.e.bx) < a.e.br && Math.abs((c.z0 + c.z1) / 2 - a.e.bz) < a.e.br) { top = c.y1; rx = (c.x0 + c.x1) / 2; rz = (c.z0 + c.z1) / 2; }
+  P.pos.set(rx, top + .2, rz); P.vel.set(0, 0, 0); sfx('swap'); toast('🏙 The roof', `${Math.round(top - a.e.gy)} m up · the lift is gone: jump, swing, or glide down`);
+}
+// still inside? (a teleport, a respawn or a fall takes you out)
+function updateInside() { const a = INSIDE.at; if (a && (Math.abs(P.pos.x - a.R.ox) > a.R.W / 2 + 6 || Math.abs(P.pos.z - a.R.oz) > a.R.D / 2 + 6)) INSIDE.at = null; }
+const mapPos = () => INSIDE.at ? INSIDE.at.back : P.pos;
+
+const dc0 = DRIVEWAY_CARS.length; buildInteriors();
+for (const [x, z, y, ax] of DRIVEWAY_CARS.slice(dc0)) { const car = makeMixed(LUX_MIX); car.position.set(x, y, z); car.rotation.y = ax ? Math.PI / 2 : 0; addStatic(car); }   // the showroom's cars
+INT.ents = [...(IKOYI?.ents || []).map(e => ({ ...e, gy: IKOYI.y, top: 0 })), ...intFindBuildings()];
+for (const e of INT.ents) if (!e.top) { let t = 0; for (const c of queryGrid(solidGrid, e.bx, e.bz, e.br || 10)) t = Math.max(t, c.y1); e.top = t; }
+intDoors(INT.ents); for (const e of INT.ents) intGridAdd(e);
+gridCatchUp();   // (and the rooms)
 /* ---------- main loop ---------- */
 if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(30);
 /* Peaceful mode: no titans at all. Toggle with T in game or the button on the start screen. */
@@ -13241,7 +13701,8 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
-  updateTitans(mode === 'pause' ? 0 : dt);
+  updateInside();
+  updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
   if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
   titanRoot.updateMatrixWorld(true);
