@@ -1296,33 +1296,78 @@ const BIW = WD ? (() => {
   for (let b = 0; b < 12; b++) { const z = -336 + 48 * b; B.streets.push([z, z + 8]); B.rows.push({ z0: z + 8, side: 'nz', b }, { z0: z + 28, side: 'pz', b }); }
   B.streets.push([240, 248]);
   B.x1 = B.avenue[1];
+  Object.assign(B, { prefix: 'u', ux0: B.cols[0].x0, ux1: B.cols[B.cols.length - 1].x0 + B.unitW, uz0: B.rows[0].z0, uz1: B.rows[B.rows.length - 1].z0 + B.unitD });
   return B;
 })() : null;
-const xLo = z => WD && z > -HALF + 10 ? -WBOUND : -BOUND;   // how far west you can go: out to the new edge, except up on the mainland
+/* ---------- Ikoyi: north of Banana Island West, on its own grid (x -744 to -360, z -936 to -360). A lagoon down the west
+   side with a beach (the first column of plots backs onto it), a grid of 300 m² units like Banana Island West, and a
+   commercial strip along a boulevard that carries the Banana Island West avenue north: unique residential towers,
+   the Ikoyi Grand Mall and a parade of shops, the bank headquarters, and car dealerships across the boulevard. ---------- */
+const NWD = WD ? 576 : 0, IKZ0 = -HALF - NWD;   // its north edge
+const NWHm = new Int16Array(Math.max(1, WD * NWD)), NWKIND = new Uint8Array(Math.max(1, WD * NWD));
+const nwIdx = (x, z) => clamp(Math.floor(x + HALF) + WD, 0, WD - 1) * NWD + clamp(Math.floor(z + HALF) + NWD, 0, NWD - 1);
+const IKOYI = WD ? (() => {
+  const K = { prefix: 'i', name: 'Ikoyi', short: 'Ikoyi', y: TOWN.y, unitW: 15, unitD: 20, price: 20000, cols: [], rows: [], streets: [],
+    lake: [-744, -690, -924, -372], beach: [-690, -682], cross: [[-592, -584], [-494, -486]], blvd: [-397, -389], z0: -912, z1: -336,
+    through: [0, 4, 8], com: [-486, -397], lots: [-386, -362] };
+  let x = -682; [6, 6].forEach((n, seg) => { for (let c = 0; c < n; c++) { K.cols.push({ x0: x, seg }); x += 15; } x += 8; });
+  for (let b = 0; b < 12; b++) { const z = -912 + 48 * b; K.streets.push([z, z + 8]); K.rows.push({ z0: z + 8, side: 'nz', b }, { z0: z + 28, side: 'pz', b }); }
+  K.priceOf = c => c === 0 ? 35000 : 20000;   // lagoon-front units cost more
+  K.frontOf = c => c === 0 ? 'lagoon-front: the beach is your back garden' : null;
+  Object.assign(K, { ux0: K.cols[0].x0, ux1: K.cols[K.cols.length - 1].x0 + K.unitW, uz0: K.rows[0].z0, uz1: K.rows[K.rows.length - 1].z0 + K.unitD });
+  // the commercial strip's three zones between the through streets
+  K.zones = [[-904, -720], [-712, -528], [-520, -344]];
+  return K;
+})() : null;
+function ikoyiRoad(x, z) {
+  const K = IKOYI; if (!K || z < K.z0 || z >= K.z1 + 8) return false;
+  const inSt = b => z >= K.streets[b][0] && z < K.streets[b][1];
+  if (x >= -690 && x < -486 && K.streets.some(([a, b2]) => z >= a && z < b2)) return true;
+  if (x >= -486 && x < K.blvd[1] && K.through.some(inSt)) return true;
+  if (z < K.z1 && (K.cross.some(([a, b2]) => x >= a && x < b2) || (x >= K.blvd[0] && x < K.blvd[1]))) return true;
+  return false;
+}
+const inLagoon = (x, z) => !!IKOYI && x < IKOYI.lake[1] && z >= IKOYI.lake[2] && z < IKOYI.lake[3];
+if (IKOYI) {
+  const K = IKOYI, Y = K.y;
+  const kerb = (x, z) => !ikoyiRoad(x, z) && (ikoyiRoad(x + 1, z) || ikoyiRoad(x - 1, z) || ikoyiRoad(x, z + 1) || ikoyiRoad(x, z - 1));
+  for (let i = -WD; i < 0; i++) for (let j = -NWD; j < 0; j++) {
+    const x = i - HALF + .5, z = j - HALF + .5, k = (i + WD) * NWD + j + NWD;
+    let h = Y, kd = 0;
+    if (inLagoon(x, z)) { h = 0; kd = 1; }
+    else if (x < K.beach[1] && z >= K.lake[2] - 8 && z < K.lake[3] + 8) { h = 2; kd = 1; }                  // the beach
+    else if (ikoyiRoad(x, z)) kd = 6;
+    else if (kerb(x, z)) kd = 7;
+    else if ((x >= K.com[0] && x < K.com[1] && z >= K.z0 && z < K.z1) || (x >= K.lots[0] && x < K.lots[1] && z >= K.z0 + 8 && z < K.z1 - 30)) kd = 7;   // the commercial strip and the car lots: paved
+    NWHm[k] = h; NWKIND[k] = kd;
+  }
+}
+const xLo = z => WD && z > IKZ0 + 10 ? -WBOUND : -BOUND;   // how far west you can go: out to the new edge, except up on the mainland
 const inBIW = (x, z, m = 0) => !!BIW && x > BIW.x0 - m && x < BIW.x1 + m && z > BIW.z0 - m && z < BIW.z1 + m;
 if (BIW) {
   const Y = BIW.y, road = (x, z) => BIW.streets.some(([a, b]) => z >= a && z < b) && x >= XW && x < BIW.x1 || BIW.cross.some(([a, b]) => x >= a && x < b) && z >= BIW.z0 && z < BIW.z1
     || x >= BIW.avenue[0] && x < BIW.avenue[1] && z >= BIW.z0 && z < BIW.z1 || x >= BIW.avenue[0] && Math.abs(z - BIW.accessZ) < 4;
-  const kerb = (x, z) => !road(x, z) && (road(x + 1, z) || road(x - 1, z) || road(x, z + 1) || road(x, z - 1));
+  const road0 = road, road2 = (x, z) => road0(x, z) || ikoyiRoad(x, z);
+  const kerb = (x, z) => !road2(x, z) && (road2(x + 1, z) || road2(x - 1, z) || road2(x, z + 1) || road2(x, z - 1));
   for (let i = -WD; i < 0; i++) for (let j = 0; j < N; j++) {
     const x = i - HALF + .5, z = j - HALF + .5, k = (i + WD) * N + j;
     let h = Y, kd = 0;
     if (z >= COAST.shore) { h = 0; kd = 1; }                       // the sea
     else if (z >= BIW.beach) { h = 2; kd = 1; }                      // the beach
-    else if (road(x, z)) kd = 6;
+    else if (road2(x, z)) kd = 6;
     else if (kerb(x, z)) kd = 7;
     // the last 28 m before the old edge eases to the old ground (except the road in)
     if (x > -388 && z < BIW.beach && !(Math.abs(z - BIW.accessZ) < 6)) { const t = smooth(-388, -360, x); h = Math.round(Y + (Hm[0 * N + j] - Y) * t); if (kd === 6 || kd === 7) kd = 0; }
     WHm[k] = h; WKIND[k] = kd;
   }
 }
-const kindAt = (x, z) => x < -HALF && WD ? (z < -HALF ? 0 : z >= HALF ? 1 : WKIND[wIdx(x, z)]) : z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
+const kindAt = (x, z) => x < -HALF && WD ? (z < -HALF ? (z >= IKZ0 ? NWKIND[nwIdx(x, z)] : 0) : z >= HALF ? 1 : WKIND[wIdx(x, z)]) : z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
 // the coastal road's smooth surface where you're on it (else -Infinity); groundAt is the terrain or the road, whichever is higher
 function roadSurf(x, z) {
   if (!COAST || !(x < COAST.xw + 24 || z > COAST.rz - 24 || Math.abs(z - TOWN.z) < 24 || x > COAST.xe - 24)) return -Infinity;
   const p = crProject(x, z); return p.dist > crHW(p.s) + 1.55 ? -Infinity : COAST.surf(p.s) + .03;
 }
-const colH = (i, j) => i < 0 && i >= -WD ? (j < 0 ? EDGE_H : j < N ? WHm[(i + WD) * N + j] : 0) : (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
+const colH = (i, j) => i < 0 && i >= -WD ? (j < -NWD ? EDGE_H : j < 0 ? NWHm[(i + WD) * NWD + j + NWD] : j < N ? WHm[(i + WD) * N + j] : 0) : (i < 0 || i >= N || j < -ND) ? EDGE_H : j >= N ? (j < N + SD ? SHm[i * SD + j - N] : 0) : j < 0 ? NHm[i * ND + j + ND] : Hm[i * N + j];   // j < 0: the mainland strip; j >= N: the sea and the port
 const heightAt = (x, z) => colH(Math.floor(x + HALF), Math.floor(z + HALF));
 const groundAt = (x, z) => Math.max(heightAt(x, z), roadSurf(x, z));
 const WATER_Y = 1.5;
@@ -1334,7 +1379,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   const KMATS = [[M.grassTop, M.grassSide, M.dirt], [M.sand, M.sand, M.dirt], [M.snowTop, M.snowSide, M.rock], [M.rock, M.rock, M.rock], [M.wheat, M.grassSide, M.dirt], [M.path, M.path, M.dirt],
     [M.asphalt, M.concrete, M.dirt], [M.concrete, M.concrete, M.dirt], [M.lineX, M.concrete, M.dirt], [M.lineZ, M.concrete, M.dirt]];
   const CHUNKS = new Map();
-  const HH = (i, j) => i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => i < 0 ? (j >= 0 && j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid, the mainland strip, the sea and port, or the west strip   // the old grid or the mainland strip
+  const HH = (i, j) => i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], KK = (i, j) => i < 0 ? (j < 0 ? (j >= -NWD ? NWKIND[(i + WD) * NWD + j + NWD] : 0) : j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j];   // the old grid, the mainland strip, the sea and port, or the west strip   // the old grid or the mainland strip
   TERRAIN_CHUNK = (ci, cj) => {
     const ckey = ci + ',' + cj, made = [];
     for (const m of CHUNKS.get(ckey) || []) { scene.remove(m); m.geometry.dispose(); }
@@ -1388,7 +1433,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     CHUNKS.set(ckey, made);
   };
   for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N + SD; cj += CH) TERRAIN_CHUNK(ci, cj);
-  for (let ci = -WD; ci < 0; ci += CH) for (let cj = 0; cj < N + 96 * 2; cj += CH) TERRAIN_CHUNK(ci, cj);   // Banana Island West and the sea off it
+  for (let ci = -WD; ci < 0; ci += CH) for (let cj = -NWD; cj < N + 96 * 2; cj += CH) TERRAIN_CHUNK(ci, cj);   // (and Ikoyi, north of it)   // Banana Island West and the sea off it
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
   const nE = HALF + (YB ? ND : 0);
@@ -1481,11 +1526,11 @@ DEPOTS.forEach(([x, z]) => {
     // on the east side, where the final approach to the airport's long runway crosses, the wall drops to a low section with approach lights
     const gap = AP && ax === 'x' && sgn === AP.sx ? (() => { const rz = Wp(212, 0)[1]; return [rz - 26, rz + 26]; })() : null;
     if (ax === 'x' && sgn < 0 && WD) {   // the west side: the old wall along the mainland, a jog out at the old corner, then the new edge down to the sea
-      const WW = WBOUND + 5, zc = -HALF - 4;
-      b.box(T, H, zc + WN + 4, -W, H / 2, (zc - WN - 4) / 2, M.stone, 3);
+      const WW = WBOUND + 5, zc = IKZ0 - 4;
+      b.box(T, H, WN - HALF, -W, H / 2, -(WN + HALF) / 2, M.stone, 3);   // between the mainland and Ikoyi, down to the old corner
       b.box(WW - W + T, H, T, -(W + WW) / 2, H / 2, zc, M.stone, 3);
       b.box(T, H, zEnd - zc, -WW, H / 2, (zc + zEnd) / 2, M.stone, 3);
-      for (let k = -WN + 6; k < zc - 4; k += 8) b.box(T, 3, 4, -W, H + 1.5, k, M.stone, 3);
+      for (let k = -WN + 6; k < -HALF - 4; k += 8) b.box(T, 3, 4, -W, H + 1.5, k, M.stone, 3);
       for (let k = -WW + 6; k < -W - 4; k += 8) b.box(4, 3, T, k, H + 1.5, zc, M.stone, 3);
       for (let k = zc + 6; k < zEnd - 4; k += 8) b.box(T, 3, 4, -WW, H + 1.5, k, M.stone, 3);
       b.build(); continue;
@@ -3460,6 +3505,149 @@ if (BIW) {
   }
   b.build();
 }
+
+/* Ikoyi: the lagoon and its beach, streets with lamps and palms, a board on every block, an arch where the boulevard
+   leaves Banana Island West, six one-of-a-kind residential towers, the Ikoyi Grand Mall and a parade of shops, three
+   bank headquarters, and car dealerships across the boulevard (their cars are parked once the car models exist) */
+if (IKOYI) withSeed(5151, () => {
+  const K = IKOYI, Y = K.y, b = new Builder(), fl = Y + .3;
+  const LMe = (c, e = 0x0a1420) => new THREE.MeshLambertMaterial({ color: c, emissive: e });
+  const G = { blue: LMe(0x4a7fae), teal: LMe(0x3f8a8a), bronze: LMe(0x8a6a4a, 0x1a1008), green: LMe(0x4f8f6a), dark: LMe(0x2f3e55), silver: LMe(0xb9c4cc, 0x10161a), gold: LMe(0xd6ae5f, 0x2a1a00) };
+  const W = MM.white, CON = M.concrete;
+  const mesh = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); return m; };
+  const solid = (x0, x1, y0, y1, z0, z1) => colliders.push({ x0, x1, y0, y1, z0, z1, tag: 'tower' });
+  const palm = (x, z) => { b.box(.45, 7.5, .45, x, Y + 3.75, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7], [.7, -.7], [-.7, .7]]) b.box(dx ? 3 : .6, .22, dz ? 3 : .6, x + dx * 1.4, Y + 7.5 - (dx && dz ? .3 : 0), z + dz * 1.4, M.leaves, 1, false); };
+  const lamp = (x, z, dz) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, MM.dark, 1, true, 'house'); b.box(.12, .1, 1.4, x, Y + 6.45, z + dz * .7, MM.dark, 1, false); b.box(.45, .14, .45, x, Y + 6.35, z + dz * 1.3, lampMat, 1, false); LAMPS.push([x, z + dz * 1.3, Y]); };
+  const sign = (t, bg, fg, w, h, x, y, z, ry, acc) => textSign(t, bg, fg, w, h, x, y, z, ry, acc);
+  const E = Math.PI / 2;   // signs facing the boulevard (east)
+
+  // the lagoon, its beach, loungers and a jetty
+  const [lx0, lx1, lz0, lz1] = K.lake;
+  mesh(new THREE.PlaneGeometry(lx1 - lx0 + 2, lz1 - lz0).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x3f8fb8, transparent: true, opacity: .8 }), (lx0 + lx1) / 2 - 1, WATER_Y, (lz0 + lz1) / 2).castShadow = false;
+  for (let z = lz0 + 10; z < lz1 - 6; z += 18) {
+    b.box(.8, .3, 2, -686.5, 2.2, z, W, 1, false); b.box(.8, .5, .3, -686.5, 2.5, z - .85, W, 1, false);
+    b.box(.1, 2.6, .1, -688.5, 3.3, z + 1.5, MM.dark, 1, false); b.box(2.6, .15, 2.6, -688.5, 4.55, z + 1.5, pick([LM(0xd8342c), LM(0xf2c230), LM(0x2f8fd0), LM(0xf2f0ea)]), 1, false);
+  }
+  { const jz = -640; for (let x = -690; x > -716; x -= 4) for (const s2 of [-1.3, 1.3]) b.box(.3, 2.6, .3, x, 1.1, jz + s2, M.bark, 1, false); b.box(28, .3, 3, -703, 2.35, jz, M.oak, 1, true, 'base'); }
+
+  // streets: lamps along the residential streets, palms on the boulevard and the cross streets
+  K.streets.forEach(([z0, z1], i) => {
+    for (let c = 1; c < K.cols.length; c += 3) lamp(K.cols[c].x0 + 7.5, z1 - .4, -1);
+    for (const cr of K.cross) palm(cr[0] - 1.2, z1 + 1.5);
+  });
+  for (let z = K.z0 + 14; z < K.z1 - 6; z += 22) { palm(K.blvd[0] - 2.5, z); palm(K.blvd[1] + 2.5, z); }
+  // a board on each block
+  for (let bl = 0; bl < 12; bl++) for (let seg = 0; seg < 2; seg++) {
+    const c = K.cols.findIndex(o => o.seg === seg), x = K.cols[c].x0 + 2, z = K.rows[bl * 2].z0 + .8;
+    for (const s2 of [-.8, .8]) b.box(.12, 1.7, .12, x + s2, Y + .85, z, MM.wood, 1, false);
+    sign(seg ? 'FOR SALE · ₦20,000 PER 300 m²' : 'LAGOON-FRONT · ₦35,000 PER 300 m²', '#f2f0ea', '#0d4a8a', 3, .7, x, Y + 1.9, z - .07, Math.PI, '#d8342c');
+  }
+  // the arch where the boulevard leaves Banana Island West
+  { const az = -349, xc = (K.blvd[0] + K.blvd[1]) / 2;
+    for (const s2 of [-1, 1]) { b.box(1.2, 7, 1.2, xc + s2 * 6.6, Y + 3.5, az, M.renderGrey, 2, true, 'house'); b.box(1.6, .4, 1.6, xc + s2 * 6.6, Y + 7.2, az, G.gold, 1, false); }
+    b.box(14.4, 1.2, .9, xc, Y + 6.6, az, W, 1, true, 'roof');
+    sign('IKOYI', '#14243d', '#d6ae5f', 8, 1, xc, Y + 6.6, az + .5, 0, '#d6ae5f'); sign('IKOYI · LAGOS', '#14243d', '#d6ae5f', 8, 1, xc, Y + 6.6, az - .5, Math.PI, '#d6ae5f'); }
+
+  // ---- six residential towers, each its own shape ----
+  const [zA0, zA1] = K.zones[0], TX = [-462, -421], TZ = [zA0 + 30, (zA0 + zA1) / 2, zA1 - 30];
+  const podium = (x, z, w, d, name) => { b.box(w, 5, d, x, Y + 2.5, z, G.dark, 2, true, 'tower'); b.box(w + .6, .5, d + .6, x, Y + 5.2, z, W, 1, false); sign(name, '#14243d', '#ffffff', Math.min(w - 2, 14), 1.1, x + d / 2 + .05 + (w - d) / 2, Y + 3.2, z, E, '#d6ae5f'); };
+  const towers = [
+    // the Pearl: a round glass tower ringed with white bands, a crown and a spire
+    (x, z) => { podium(x, z, 28, 28, 'EKO PEARL RESIDENCES'); const H = 96, y0 = Y + 5;
+      mesh(new THREE.CylinderGeometry(11, 11, H, 40), G.blue, x, y0 + H / 2, z);
+      for (let k = 1; k < 12; k++) mesh(new THREE.CylinderGeometry(11.35, 11.35, .5, 40), W, x, y0 + k * 8, z);
+      mesh(new THREE.CylinderGeometry(7, 11, 7, 40), W, x, y0 + H + 3.5, z); mesh(new THREE.CylinderGeometry(.3, .7, 18, 8), MM.steel, x, y0 + H + 16, z);
+      solid(x - 11, x + 11, Y, y0 + H + 7, z - 11, z + 11); },
+    // Lagoon Crest: a stepped ziggurat of teal glass, a white slab at each setback
+    (x, z) => { podium(x, z, 30, 30, 'LAGOON CREST'); let y = Y + 5;
+      for (const [w, h] of [[26, 30], [21, 26], [16, 22], [10, 14]]) { b.box(w, h, w, x, y + h / 2, z, G.teal, 3, true, 'tower'); b.box(w + .8, .6, w + .8, x, y + h, z, W, 1, true, 'roof'); y += h; }
+      b.box(.3, 12, .3, x, y + 6, z, MM.steel, 1, false); b.box(.5, .5, .5, x, y + 12, z, MM.tail, 1, false); },
+    // Twin Palms: two slabs of different heights joined by a sky bridge, gardens on the roofs
+    (x, z) => { podium(x, z, 34, 26, 'TWIN PALMS'); const y0 = Y + 5;
+      b.box(11, 84, 22, x - 9, y0 + 42, z, G.blue, 3, true, 'tower'); b.box(11, 70, 22, x + 9, y0 + 35, z, G.bronze, 3, true, 'tower');
+      for (const s2 of [-1, 1]) for (const zz of [-11.2, 11.2]) b.box(.6, s2 < 0 ? 84 : 70, .6, x + s2 * 9 + (s2 < 0 ? 5.6 : -5.6), y0 + (s2 < 0 ? 42 : 35), z + zz, W, 1, false);
+      b.box(8, 5, 8, x, y0 + 52, z, W, 1, true, 'roof'); b.box(7, 3.6, 8.2, x, y0 + 52, z, G.silver, 1, false);
+      for (const [dx, h] of [[-9, 84], [9, 70]]) { b.box(10, 1, 20, x + dx, y0 + h + .5, z, M.leaves, 1, true, 'roof'); smallTree(b, x + dx - 2, z - 5, y0 + h + 1); smallTree(b, x + dx + 2, z + 5, y0 + h + 1); } },
+    // The Sail: blocks that narrow as they climb, the straight edge on the east, a white fin up its spine
+    (x, z) => { podium(x, z, 30, 26, 'THE SAIL'); const y0 = Y + 5;
+      for (let k = 0; k < 13; k++) { const w = 26 - k * 1.6, cx = x + 13 - w / 2; b.box(w, 6, 20, cx, y0 + 3 + k * 6, z, k % 2 ? G.blue : G.silver, 3, true, 'tower'); b.box(w + .3, .35, 20.4, cx, y0 + k * 6 + 6, z, W, 1, false); }
+      b.box(.9, 84, 2.4, x + 13.4, y0 + 42, z, W, 1, false); },
+    // Hexa: a six-sided tower turning a little with every few floors, a hexagonal cone on top
+    (x, z) => { podium(x, z, 30, 30, 'HEXA TOWER'); const y0 = Y + 5;
+      for (let k = 0; k < 9; k++) { mesh(new THREE.CylinderGeometry(12, 12, 8.6, 6), k % 2 ? G.green : G.dark, x, y0 + 4.3 + k * 9, z, k * .2); mesh(new THREE.CylinderGeometry(12.5, 12.5, .4, 6), W, x, y0 + 8.8 + k * 9, z, k * .2 + .1); }
+      mesh(new THREE.ConeGeometry(9, 12, 6), G.gold, x, y0 + 81 + 6, z, 1.8); solid(x - 11, x + 11, Y, y0 + 93, z - 11, z + 11); },
+    // Cantilever: a stack of long blocks crossing each other, each pushed out over the one below
+    (x, z) => { podium(x, z, 30, 30, 'CANTILEVER'); const y0 = Y + 5;
+      for (let k = 0; k < 8; k++) { const ax = k % 2 === 0, o = (k % 4 < 2 ? 1 : -1) * 3.5;
+        b.box(ax ? 25 : 12, 8.4, ax ? 12 : 25, x + (ax ? o : 0), y0 + 4.2 + k * 9, z + (ax ? 0 : o), k % 3 === 0 ? G.bronze : G.silver, 3, true, 'tower');
+        b.box(ax ? 25.4 : 12.4, .6, ax ? 12.4 : 25.4, x + (ax ? o : 0), y0 + 8.7 + k * 9, z + (ax ? 0 : o), W, 1, false); } },
+  ];
+  towers.forEach((fn, k) => fn(TX[k % 2], TZ[Math.floor(k / 2)]));
+
+  // ---- the Ikoyi Grand Mall: a long glass-fronted block, an atrium dome, a canopy over the doors, its car park ----
+  { const [zB0] = K.zones[1], x = -443, z0 = zB0 + 8, z1 = z0 + 40, zc = (z0 + z1) / 2, w = 66, H = 16;
+    b.box(w, H, 40, x, Y + H / 2, zc, M.renderGrey, 3, true, 'tower');
+    b.box(w - 4, 9, .2, x, Y + 5.5, z1 + .1, G.blue, 1, false);
+    for (let k = -3; k <= 3; k++) b.box(.8, H, .8, x + k * 10, Y + H / 2, z1 + .3, W, 1, false);
+    b.box(18, .6, 7, x, Y + 6, z1 + 3.5, W, 1, true, 'roof'); for (const s2 of [-8, 8]) b.box(.5, 6, .5, x + s2, Y + 3, z1 + 6.5, MM.steel, 1, true, 'house');
+    mesh(new THREE.CylinderGeometry(10, 12, 5, 32), G.blue, x, Y + H + 2.5, zc); mesh(new THREE.SphereGeometry(10, 32, 12, 0, TAU, 0, Math.PI / 2), G.silver, x, Y + H + 5, zc);
+    sign('IKOYI GRAND MALL', '#14243d', '#ffffff', 22, 2.4, x, Y + 12.5, z1 + .15, 0, '#d6ae5f');
+    { const ab = new Builder(); for (const [sx, ad] of [[-25, 1], [25, 3]]) adPanel(ab, x + sx, Y + 10, z1 + .25, 0, 8, 4, ad); ab.build(); }
+    for (let k = -12; k <= 12; k++) b.box(.12, .03, 5, x + k * 2.6, Y + .02, z1 + 16, W, 1, false);
+    for (let k = -12; k <= 12; k++) b.box(.12, .03, 5, x + k * 2.6, Y + .02, z1 + 28, W, 1, false);
+    for (let k = -12; k < 12; k++) for (const zz of [16, 28]) if (Math.random() < .55) addCar(b, x + k * 2.6 + 1.3, z1 + zz, Y, false);
+    VENUES.push({ name: 'the Ikoyi Grand Mall food court', x, z: z1 + 4, r: 9, food: 'mall', toilet: 0 });
+    K.mall = { x, z: zc };
+  }
+  // ---- a parade of shops either side of a paved walk ----
+  { const [, zB1] = K.zones[1], zw = zB1 - 34, names = [['ADIRE HOUSE', '#2f4a8a'], ['SUYA SPOT', '#b83a2e'], ['GADGET HUB', '#2a2c30'], ['BOUTIQUE EKO', '#8a2a6a'], ['BREAD & CO', '#c9893a'], ['MAMA PUT IKOYI', '#3e7a3e'],
+      ['SNEAKER ROOM', '#141014'], ['BEAUTY BAR', '#e85a9a'], ['BOOK NOOK', '#6a4a2a'], ['PHARMACY+', '#1f8a5a'], ['LAGOS LUX', '#d6ae5f'], ['ICE & CREAM', '#2f8fd0']];
+    names.forEach(([n, col], k) => {
+      const row = k < 6 ? -1 : 1, x = -473 + (k % 6) * 12 + 6, zc = zw + row * 14, front = zc - row * 6;
+      b.box(11.6, 6, 12, x, Y + 3, zc, M.render, 2, true, 'house'); b.box(10.4, 3.4, .2, x, Y + 2.1, front - row * .05, MM.glass, 1, false);
+      b.box(11.8, .3, 2.2, x, Y + 4.4, front - row * 1.1, LM(parseInt(col.slice(1), 16)), 1, false);
+      sign(n, col, '#ffffff', 9, .8, x, Y + 5, front - row * .12, row < 0 ? 0 : Math.PI);
+      if (n === 'SUYA SPOT') VENUES.push({ name: 'Suya Spot, Ikoyi', x, z: front - row * 3, r: 4, food: 'suya' });
+      if (n === 'MAMA PUT IKOYI') VENUES.push({ name: 'Mama Put Ikoyi', x, z: front - row * 3, r: 4, food: 'mamat' });
+      if (n === 'BREAD & CO') VENUES.push({ name: 'Bread & Co', x, z: front - row * 3, r: 4, food: 'kiosk' });
+    });
+    for (let x = -472; x < -406; x += 10) { smallTree(b, x, zw, Y); bench(b, x + 5, zw, Y, true); }
+  }
+  // ---- three bank headquarters: a colonnaded hall on the boulevard, a tall tower behind it, a crown of its own ----
+  { const banks = [['EKO FEDERAL BANK', '#0d3a6a', 132, 'pyramid'], ['LAGOON TRUST BANK', '#1f5a3a', 116, 'ring'], ['ATLANTIC CAPITAL BANK', '#5a1a2a', 124, 'steps']], [zC0] = K.zones[2];
+    banks.forEach(([name, col, H, crown], k) => {
+      const zc = zC0 + 24 + k * 64, front = -410, hx = -440, hw = 60, hd = 44;
+      b.box(hw, 15, hd, hx, Y + 7.5, zc, M.stone, 3, true, 'tower');                                 // the banking hall
+      b.box(hw + 1, 1.2, hd + 1, hx, Y + 15.6, zc, W, 1, true, 'roof');
+      b.box(6, 2.2, hd - 6, front + 3, Y + 16.6, zc, W, 1, false);                                     // the pediment over the columns
+      for (let c = 0; c < 9; c++) mesh(new THREE.CylinderGeometry(.9, 1, 14, 16), W, front + 4.5, Y + 7.6, zc - 18 + c * 4.5);
+      b.box(6, .6, hd - 2, front + 4.5, Y + .3, zc, M.stone, 1, true, 'base'); b.box(4, .6, hd - 6, front + 5.5, Y + .9, zc, M.stone, 1, true, 'base');
+      sign(name, col, '#d6ae5f', 30, 2, front + 6.2, Y + 16.6, zc, E, '#d6ae5f');
+      b.box(5, 6, 3, front + 1, Y + 3, zc, G.dark, 1, false);                                          // the great doors
+      const tx = -452, tw = 26, ty = Y + 15;
+      b.box(tw, H, tw, tx, ty + H / 2, zc, k === 1 ? G.green : k === 2 ? G.bronze : G.blue, 3, true, 'tower');
+      for (let y = 12; y < H; y += 12) b.box(tw + .5, .6, tw + .5, tx, ty + y, zc, W, 1, false);
+      for (const s2 of [-1, 1]) b.box(1.2, H, 1.2, tx + 13, ty + H / 2, zc + s2 * 12.6, W, 1, false);
+      const top = ty + H;
+      if (crown === 'pyramid') { mesh(new THREE.ConeGeometry(18.4, 22, 4), G.gold, tx, top + 11, zc, Math.PI / 4); mesh(new THREE.CylinderGeometry(.3, .6, 14, 8), MM.steel, tx, top + 29, zc); }
+      else if (crown === 'ring') { for (let r2 = 0; r2 < 3; r2++) b.box(tw - r2 * 5, 3, tw - r2 * 5, tx, top + 1.5 + r2 * 3.4, zc, r2 === 1 ? lampMat : W, 1, true, 'roof'); mesh(new THREE.CylinderGeometry(6, 6, .6, 32).rotateZ(Math.PI / 2), G.gold, tx + 13.4, top - 8, zc); }
+      else { for (let r2 = 0; r2 < 5; r2++) b.box(tw, 3.5, tw - r2 * 5, tx, top + 1.75 + r2 * 3.5, zc - r2 * 2.5, r2 % 2 ? G.gold : W, 1, true, 'roof'); }
+      sign(name.split(' ')[0], col, '#d6ae5f', 16, 2.4, tx + 13.05, top - 4, zc, E, '#d6ae5f');
+    });
+    K.banks = banks.map((bk, k) => [bk[0], -440, zC0 + 24 + k * 64]);
+  }
+  // ---- car dealerships across the boulevard: a glass showroom at the back of a forecourt ----
+  K.dealers = [['IKOYI MOTORS', -850], ['EKO AUTO MALL', -700], ['PRESTIGE CARS LAGOS', -520]];
+  K.carSlots = [];
+  for (const [name, zc] of K.dealers) {
+    b.box(10, 7, 26, -367, Y + 3.5, zc, G.silver, 2, true, 'house'); b.box(10.6, .6, 26.6, -367, Y + 7.3, zc, W, 1, true, 'roof');
+    b.box(.2, 5, 24, -372.1, Y + 3, zc, MM.glass, 1, false);
+    sign(name, '#141014', '#ffffff', 14, 1.4, -372.25, Y + 8.4, zc, -E, '#d8342c');
+    for (let k = -2; k <= 2; k++) { b.box(.15, 6, .15, -385, Y + 3, zc + k * 7, MM.steel, 1, false); b.box(.1, .9, .6, -385, Y + 6, zc + k * 7, LM(0xd8342c), 1, false); }   // bunting poles
+    for (let k = 0; k < 4; k++) for (const lx of [-381, -376.5]) K.carSlots.push([lx, zc - 10.5 + k * 7, -E]);
+  }
+  b.build();
+});
 
 /* no grass growing through floors: hide tufts that ended up inside a house */
 (function clearIndoorGrass() {
@@ -6586,6 +6774,7 @@ makeLux('corolla21', 9.6, 0, 0);   // the car by the start
    The utility vehicles live where they work: a tractor and a tipper at the farm, a tanker at the filling station. */
 const SHOWROOM = [...MODEL_LIST, 'danfo', 'keke'];
 if (AP && AP.showSlots) SHOWROOM.forEach((id, i) => { const s = AP.showSlots[i]; if (s) makeLux(id, s[0], s[1], s[2]); });
+if (IKOYI && IKOYI.carSlots) IKOYI.carSlots.forEach(([x, z, yaw], i) => makeLux(MODEL_LIST[(i * 7 + 3) % MODEL_LIST.length], x, z, yaw));   // the Ikoyi dealerships' forecourts
 if (COUNTRY) { makeLux('tractor', 253, 201, Math.PI); makeLux('tipper', 236, 205, 0); }
 RR.car = makeLux('lux', -12.5, 0, Math.PI / 2);   // parked by the pyramid where you start, on the west side, nose out
 /* parked vehicles and planes never move: they are baked into a few static meshes once they are all placed (bakeProps) */
@@ -8983,7 +9172,12 @@ function stepPlayer(dt) {
     else { p.z -= pz0; if (P.vel.z > 0) P.vel.z = 0; }
   }
   if (p.x > BOUND) { p.x = BOUND; P.vel.x = 0; }
-  if (p.x < -BOUND && WD && p.z < -HALF + 10) { if (p.x < -BOUND - 2) { p.z = -HALF + 10; P.vel.z = Math.max(0, P.vel.z); } else { p.x = -BOUND; P.vel.x = 0; } }   // the old corner, where the wall steps out
+  if (WD && p.z < -HALF + 2 && p.z > IKZ0 && P.lastX !== undefined && Math.abs(p.x - P.lastX) < 6) {   // the wall between Ikoyi and the mainland: no walking or driving through it (arriving any other way is fine)
+    if (P.lastX <= -BOUND - 6 && p.x > -BOUND - 6) { p.x = -BOUND - 6; P.vel.x = Math.min(0, P.vel.x); }
+    else if (P.lastX >= -BOUND && p.x < -BOUND) { p.x = -BOUND; P.vel.x = Math.max(0, P.vel.x); }
+  }
+  if (p.x < -BOUND && WD && p.z < IKZ0 + 10) { p.z = IKZ0 + 10; P.vel.z = Math.max(0, P.vel.z); }   // Ikoyi's north edge
+  P.lastX = p.x;
   if (p.x < xLo(p.z)) { p.x = xLo(p.z); P.vel.x = 0; }
   if (p.z > ZHI || p.z < ZLO) { p.z = clamp(p.z, ZLO, ZHI); P.vel.z = 0; }
   if (p.y < WATER_Y - .6) { P.vel.multiplyScalar(Math.exp(-4 * dt)); P.vel.y += 30 * dt; }
@@ -9209,10 +9403,10 @@ const MAP_OY = YB ? ND : 0, MAP_OX = WD;   // the map image carries the mainland
 const mapImg = (() => {
   const c = document.createElement('canvas'); c.width = N + MAP_OX; c.height = N + MAP_OY + SD; const g = c.getContext('2d'); const img = g.createImageData(N + MAP_OX, N + MAP_OY + SD);
   for (let i = -MAP_OX; i < N; i++) for (let j = -MAP_OY; j < N + SD; j++) {
-    if (i < 0 && j < 0) continue;
+    if (i < 0 && j < -NWD) continue;
     const h = i < 0 ? colH(i, j) : j < 0 ? NHm[i * ND + j + ND] : j >= N ? SHm[i * SD + j - N] : Hm[i * N + j], o = ((j + MAP_OY) * (N + MAP_OX) + i + MAP_OX) * 4;
     let r, gg, b;
-    const kd = i < 0 ? (j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
+    const kd = i < 0 ? (j < 0 ? NWKIND[(i + WD) * NWD + j + NWD] : j < N ? WKIND[(i + WD) * N + j] : 1) : j < 0 ? NKIND[i * ND + j + ND] : j >= N ? SKIND[i * SD + j - N] : KIND[i * N + j], k = h / 36;
     if (h <= 1) { r = 58; gg = 120; b = 190; }
     else if (kd === 2) { r = 236; gg = 240; b = 242; }
     else if (kd === 3) { r = 120 + k * 40; gg = 122 + k * 40; b = 124 + k * 40; }
@@ -9337,6 +9531,7 @@ function drawBigMap() {
   if (P.driving && !DRIVER.on && !isAir(P.driving)) { const [hx, hz] = bmFromB(W / 2, 18); label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', hx, hz, 13, '#f2c230'); }
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (BIW) label('BANANA ISLAND WEST · LAND FOR SALE', (BIW.x0 + BIW.x1) / 2, (BIW.z0 + BIW.z1) / 2, 15, '#ffe08a', 0);
+  if (IKOYI) { label('IKOYI · LAND FOR SALE', -588, -640, 15, '#ffe08a', 0); label('Ikoyi Lagoon', -717, -560, 12, '#cfe8ff', 0); label('Ikoyi Grand Mall', IKOYI.mall.x, IKOYI.mall.z, 11, '#ffffff', 0); for (const [n, x, z] of IKOYI.banks) label(n, x, z, 10, '#ffd36a', 0); label('Ikoyi towers', -441, -812, 11, '#ffffff', 0); for (const [n, z] of IKOYI.dealers) label(n, -374, z, 9, '#ffffff', 0); }
   if (YB) {   // the mainland
     label('LAGOS–IBADAN EXPRESSWAY', expX(-2800) + 80, -2800, 14, '#f2c230'); label('IBADAN', 0, -4930, 24, '#f2c230'); label('OYO', 0, OYO.z1 + 14, 22, '#f2c230');
     for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
@@ -9964,18 +10159,27 @@ function plotInfo(px, pz) {
    yours that touch (side by side along a street, or back to back across the block) make one parcel, and a house goes on
    the biggest rectangle of it around where you stand, so a parcel can carry more than one home. A built house keeps its
    site and the units under it (house.site, house.units); those units point at it (of). ---------- */
-const unitKey = (c, r) => `u${c},${r}`, isUnit = k => typeof k === 'string' && k[0] === 'u', unitCR = k => k.slice(1).split(',').map(Number);
+// districts sold in units: Banana Island West (keys u<col>,<row>) and Ikoyi (i<col>,<row>); a unit's district is its key's first letter
+const UNIT_DISTRICTS = [], DISTRICT_OF = {};
+const unitDistrict = k => typeof k === 'string' ? DISTRICT_OF[k[0]] || null : null;
+for (const D of [BIW, IKOYI]) if (D) { UNIT_DISTRICTS.push(D); DISTRICT_OF[D.prefix] = D; }
+const isUnit = k => !!unitDistrict(k), unitCR = k => k.slice(1).split(',').map(Number);
+const unitKey = (D, c, r) => `${D.prefix}${c},${r}`;
 function unitAt(x, z) {
-  if (!BIW || !inBIW(x, z)) return null;
-  const c = BIW.cols.findIndex(o => x >= o.x0 && x < o.x0 + BIW.unitW), r = BIW.rows.findIndex(o => z >= o.z0 && z < o.z0 + BIW.unitD);
-  return c < 0 || r < 0 ? null : unitKey(c, r);
+  for (const D of UNIT_DISTRICTS) {
+    if (x < D.ux0 || x >= D.ux1 || z < D.uz0 || z >= D.uz1) continue;
+    const c = D.cols.findIndex(o => x >= o.x0 && x < o.x0 + D.unitW), r = D.rows.findIndex(o => z >= o.z0 && z < o.z0 + D.unitD);
+    if (c >= 0 && r >= 0) return unitKey(D, c, r);
+  }
+  return null;
 }
-const unitOk = k => { const [c, r] = unitCR(k); return !!(BIW && BIW.cols[c] && BIW.rows[r]); };
-function unitRect(k) { const [c, r] = unitCR(k), x0 = BIW.cols[c].x0, z0 = BIW.rows[r].z0; return { x0, z0, x1: x0 + BIW.unitW, z1: z0 + BIW.unitD, cx: x0 + BIW.unitW / 2, cz: z0 + BIW.unitD / 2 }; }
+const unitOk = k => { const D = unitDistrict(k); if (!D) return false; const [c, r] = unitCR(k); return !!(D.cols[c] && D.rows[r]); };
+function unitRect(k) { const D = unitDistrict(k), [c, r] = unitCR(k), x0 = D.cols[c].x0, z0 = D.rows[r].z0; return { x0, z0, x1: x0 + D.unitW, z1: z0 + D.unitD, cx: x0 + D.unitW / 2, cz: z0 + D.unitD / 2 }; }
+const unitPrice = k => { const D = unitDistrict(k), [c, r] = unitCR(k); return D.priceOf ? D.priceOf(c, r) : D.price; };
 function unitNbrs(k) {   // along the street (same block of columns), and the unit back to back with it
-  const [c, r] = unitCR(k), out = [];
-  for (const d of [-1, 1]) if (BIW.cols[c + d] && BIW.cols[c + d].seg === BIW.cols[c].seg) out.push(unitKey(c + d, r));
-  out.push(unitKey(c, r ^ 1)); return out;
+  const D = unitDistrict(k), [c, r] = unitCR(k), out = [];
+  for (const d of [-1, 1]) if (D.cols[c + d] && D.cols[c + d].seg === D.cols[c].seg) out.push(unitKey(D, c + d, r));
+  if (D.rows[r ^ 1]) out.push(unitKey(D, c, r ^ 1)); return out;
 }
 const keyRect = k => isUnit(k) ? unitRect(k) : plotRect(...k.split(',').map(Number));
 const rectOf = s => ({ x0: s[0], z0: s[1], x1: s[2], z1: s[3], cx: (s[0] + s[2]) / 2, cz: (s[1] + s[3]) / 2 });
@@ -9984,9 +10188,9 @@ const homeOf = k => isUnit(k) ? (LAND.plots.get(k)?.of || k) : bigK(k);   // the
 const keySeed = k => { let h = 17; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 function unitInfo(k) {
   if (LAND.info.has(k)) return LAND.info.get(k);
-  const r = unitRect(k), o = OTHERS.get(k);
-  const info = o && !LAND.plots.has(k) ? { ok: false, price: 0, lo: BIW.y, hi: BIW.y, r, key: k, other: o, unit: true }
-    : { ok: !LAND.sold.has(k), price: BIW.price, lo: BIW.y, hi: BIW.y, r, key: k, unit: true };
+  const D = unitDistrict(k), r = unitRect(k), o = OTHERS.get(k);
+  const info = o && !LAND.plots.has(k) ? { ok: false, price: 0, lo: D.y, hi: D.y, r, key: k, other: o, unit: true, D }
+    : { ok: !LAND.sold.has(k), price: unitPrice(k), lo: D.y, hi: D.y, r, key: k, unit: true, D };
   LAND.info.set(k, info); return info;
 }
 const landInfoAt = (x, z) => { const u = unitAt(x, z); return u ? unitInfo(u) : plotInfo(...plotAt(x, z)); };
@@ -9999,30 +10203,33 @@ function parcelOf(k, built = false) {
 }
 // the biggest rectangle of whole units in a set that includes unit k: one row along the street, or both back to back
 function unitsRect(set, k) {
-  const S = set instanceof Set ? set : new Set(set), [c0, r0] = unitCR(k), seg = BIW.cols[c0].seg; let best = null;
+  const D = unitDistrict(k), S = set instanceof Set ? set : new Set(set), [c0, r0] = unitCR(k), seg = D.cols[c0].seg; let best = null;
   for (const rr of [[r0], [r0 & ~1, r0 | 1]]) {
-    const has = c => BIW.cols[c] && BIW.cols[c].seg === seg && rr.every(r => S.has(unitKey(c, r)));
+    if (!rr.every(r => D.rows[r])) continue;
+    const has = c => D.cols[c] && D.cols[c].seg === seg && rr.every(r => S.has(unitKey(D, c, r)));
     if (!has(c0)) continue;
     let a = c0, b = c0; while (has(a - 1)) a--; while (has(b + 1)) b++;
     const n = (b - a + 1) * rr.length;
     if (!best || n > best.n) {
-      const keys = []; for (let c = a; c <= b; c++) for (const r of rr) keys.push(unitKey(c, r));
-      const R0 = unitRect(unitKey(a, rr[0])), R1 = unitRect(unitKey(b, rr[rr.length - 1]));
-      best = { n, keys, site: [R0.x0, R0.z0, R1.x1, R1.z1], side: rr.length > 1 ? 'nz' : BIW.rows[r0].side, w: (b - a + 1) * BIW.unitW, d: rr.length * BIW.unitD };
+      const keys = []; for (let c = a; c <= b; c++) for (const r of rr) keys.push(unitKey(D, c, r));
+      const R0 = unitRect(unitKey(D, a, rr[0])), R1 = unitRect(unitKey(D, b, rr[rr.length - 1]));
+      best = { n, keys, site: [R0.x0, R0.z0, R1.x1, R1.z1], side: rr.length > 1 ? 'nz' : D.rows[r0].side, w: (b - a + 1) * D.unitW, d: rr.length * D.unitD };
     }
   }
   return best;
 }
 const m2 = n => `${(n * 300).toLocaleString()} m²`;
+const sumPrice = keys => keys.reduce((a, k) => a + unitPrice(k), 0);
 // what's for sale around a free unit: blocks of 1–6 units along the street, one row or both
 function unitOffers(k) {
-  const [c0, r0] = unitCR(k), seg = BIW.cols[c0].seg, out = [], seen = new Set();
+  const D = unitDistrict(k), [c0, r0] = unitCR(k), seg = D.cols[c0].seg, out = [], seen = new Set();
   for (const [w, h] of [[1, 1], [2, 1], [2, 2], [3, 2], [4, 2], [6, 2]]) {
     const rr = h === 1 ? [r0] : [r0 & ~1, r0 | 1];
+    if (!rr.every(r => D.rows[r])) continue;
     for (let a = c0 - w + 1; a <= c0; a++) {   // the first block of that size, starting as close to this unit as it can
       const cs = Array.from({ length: w }, (_, i) => a + i);
-      if (!cs.every(c => BIW.cols[c] && BIW.cols[c].seg === seg)) continue;
-      const keys = cs.flatMap(c => rr.map(r => unitKey(c, r)));
+      if (!cs.every(c => D.cols[c] && D.cols[c].seg === seg)) continue;
+      const keys = cs.flatMap(c => rr.map(r => unitKey(D, c, r)));
       if (!keys.every(unitFree)) continue;
       if (!seen.has(w * h)) { seen.add(w * h); out.push({ keys, w, h }); }
       break;
@@ -10032,31 +10239,31 @@ function unitOffers(k) {
 }
 function buyUnits(keys) {
   if (sharedBlocked()) return;
-  const price = keys.length * BIW.price;
+  const D = unitDistrict(keys[0]), price = sumPrice(keys);
   if (!keys.every(unitFree)) { toast('', 'Some of that land has just gone'); return; }
   if (LAND.money < price) { toast('', `${m2(keys.length)} costs ${NAIRA(price)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= price;
-  for (const k of keys) { LAND.plots.set(k, { paid: BIW.price, house: null }); flagPlot(k); }
+  for (const k of keys) { LAND.plots.set(k, { paid: unitPrice(k), house: null }); flagPlot(k); }
   const info = unitInfo(keys[0]); drawOutline(info); saveLand(); sfx('refill'); menuClose();
   const total = parcelOf(keys[0]).length;
-  toast('Land bought!', `${m2(keys.length)} in Banana Island West for ${NAIRA(price)}${total > keys.length ? ` · joined to your land: ${m2(total)} together` : ''} · ${NAIRA(LAND.money)} left`);
+  toast('Land bought!', `${m2(keys.length)} in ${D.name} for ${NAIRA(price)}${total > keys.length ? ` · joined to your land: ${m2(total)} together` : ''} · ${NAIRA(LAND.money)} left`);
 }
 function openUnitBuyMenu(k) {
-  const offers = unitOffers(k);
-  const items = offers.map(o => ({ label: `${m2(o.keys.length)} · ${o.w * BIW.unitW} × ${o.h * BIW.unitD} m · ${NAIRA(o.keys.length * BIW.price)}`,
+  const D = unitDistrict(k), offers = unitOffers(k), front = D.frontOf && D.frontOf(...unitCR(k));
+  const items = offers.map(o => { const p = sumPrice(o.keys); return { label: `${m2(o.keys.length)} · ${o.w * D.unitW} × ${o.h * D.unitD} m · ${NAIRA(p)}`,
     note: o.keys.length === 1 ? 'this unit; buy the ones next to it any time and they join up' : o.h === 2 ? `${o.w} units along the street, both rows back to back` : `${o.w} units side by side along the street`,
-    off: LAND.money < o.keys.length * BIW.price, run: () => buyUnits(o.keys) }));
+    off: LAND.money < p, run: () => buyUnits(o.keys) }; });
   items.push({ label: 'Close', run: menuClose });
-  menuShow('Buy land in Banana Island West', `${NAIRA(BIW.price)} per 300 m² unit · level, on a street · ${NAIRA(LAND.money)} in the bank`, items);
+  menuShow(`Buy land in ${D.name}`, `${NAIRA(unitPrice(k))} per 300 m² unit here${front ? ` · ${front}` : ''} · level, on a street · ${NAIRA(LAND.money)} in the bank`, items);
 }
 // building on your units: the biggest rectangle of your unbuilt land around you
 function houseNeeds(t) { return [t.site ? t.site[0] : t.w + (t.wall ? 6 : 3), t.site ? t.site[1] : t.d + (t.wall ? 7 : 3)]; }
 function openUnitBuildMenu(k) {
-  const R = unitsRect(parcelOf(k), k), rr = rectOf(R.site);
+  const D = unitDistrict(k), R = unitsRect(parcelOf(k), k);
   LM_.site = { site: R.site, units: R.keys };
   const items = HOUSE_TYPES.filter(t => !t.big).map(t => {
     const [nw, nd] = houseNeeds(t), fits = nw <= R.w && nd <= R.d, afford = LAND.money >= t.cost;
-    return { label: `${t.name} · ${NAIRA(t.cost)}`, note: `${t.blurb}${fits ? '' : ` · needs ${Math.ceil(nw / BIW.unitW) * BIW.unitW} × ${Math.ceil(nd / BIW.unitD) * BIW.unitD} m of your land here`}${afford ? '' : ' · not enough money'}`, off: !fits || !afford,
+    return { label: `${t.name} · ${NAIRA(t.cost)}`, note: `${t.blurb}${fits ? '' : ` · needs ${Math.ceil(nw / D.unitW) * D.unitW} × ${Math.ceil(nd / D.unitD) * D.unitD} m of your land here`}${afford ? '' : ' · not enough money'}`, off: !fits || !afford,
       run: () => { if (!fits) { toast('', `A ${t.name.toLowerCase()} needs more land here: buy the units next to this one and they join up`); return; } if (!afford) { toast('', `A ${t.name.toLowerCase()} costs ${NAIRA(t.cost)}; you have ${NAIRA(LAND.money)}`); return; } openFurnishMenu(k, t, R.side); } };
   });
   items.push({ label: 'Back', run: () => openLandMenu(k) });
@@ -10639,7 +10846,7 @@ function openLandMenu(key) {
   items.push({ label: `${p.big ? 'Sell Banana Island' : isUnit(key) ? (p.house ? `Sell your home and its ${m2(p.house.units?.length || 1)}` : 'Sell this 300 m² unit') : 'Sell this plot'} · ${NAIRA(val.total)}`, note: `you paid ${NAIRA(p.big ? BIG.price : p.paid)} · ${Math.round(val.flat * 100)}% level${val.house ? ` · house ${NAIRA(val.house)}` : ''}`, run: () => menuShow('Sell this plot?', `${NAIRA(val.total)} · the buyer keeps anything built on it`, [{ label: `Yes, sell for ${NAIRA(val.total)}`, run: () => p.big ? sellBig(val.total) : sellPlot(key, val.total) }, { label: 'No, keep it', run: () => openLandMenu(key) }]) });
   if (sharedOn()) items.push({ label: 'Sell or give to a player…', note: 'they get it when they accept: for the price you set, or free', run: () => openSellTo(key) });
   items.push({ label: 'Close', run: menuClose });
-  menuShow(p.house ? `Your ${houseType(p.house.type).name.toLowerCase()}` : p.big ? 'Banana Island' : 'Your land', `${p.big ? '1.7 acres' : isUnit(key) ? `${m2(p.house?.units?.length || parcelOf(key).length)}${p.house ? '' : ' of your land here'}, Banana Island West` : 'Plot ' + key} · ${NAIRA(LAND.money)} in the bank`, items);
+  menuShow(p.house ? `Your ${houseType(p.house.type).name.toLowerCase()}` : p.big ? 'Banana Island' : 'Your land', `${p.big ? '1.7 acres' : isUnit(key) ? `${m2(p.house?.units?.length || parcelOf(key).length)}${p.house ? '' : ' of your land here'}, ${unitDistrict(key).name}` : 'Plot ' + key} · ${NAIRA(LAND.money)} in the bank`, items);
 }
 function openBuildMenu(key) {
   if (isUnit(key)) return openUnitBuildMenu(key);
@@ -11225,6 +11432,8 @@ function fareSpots() {
   if (AP) { const [ax, az] = Wp(104, 100); s.push(['the airport', ax, az]); }
   if (COAST) { s.push(['Elegushi Beach', 30, 263], ['the beach car park', 30, 250], ['Meadowbrook', COUNTRY.x, 200], ['Meadowbrook School', COUNTRY.x, 160], ['Meadowbrook Machinery', 193, 252]); }
   if (BI) s.push(['Banana Island', BI.gateX, BI.z0 - 6]);
+  if (BIW) s.push(['Banana Island West', -380, BIW.accessZ]);
+  if (IKOYI) s.push(['Ikoyi', -393, -352], ['the Ikoyi Grand Mall', IKOYI.mall.x, IKOYI.mall.z + 30]);
   for (const C of CLUBS) s.push([C.name, C.hs ? C.hs.doorOut.x : C.at[0], C.hs ? C.hs.doorOut.z + (C.hs.side === 'pz' ? 5 : 0) : 274]);
   VILLAGES.forEach((v, k) => s.push([k ? 'the forest village' : 'the home village', v.x, v.z]));
   for (const E of ESTATES) s.push([E.name, E.gate.side === 'z' ? E.gate.x : E.gate.x + 12, E.gate.side === 'z' ? E.gate.z - 12 : E.gate.z]);
@@ -11380,7 +11589,7 @@ function landAction() {
   if (nearDealer()) return { label: `E · Buy a bulldozer · ${NAIRA(DOZER_YARD.price)}`, run: buyDozer };
   if (P.driving) return null;
   const info = landInfoAt(P.pos.x, P.pos.z);
-  if (info.unit && info.ok && !LAND.plots.has(info.key) && !info.other) return { label: `E · Buy land in Banana Island West · from ${m2(1)} · ${NAIRA(BIW.price)} per unit`, run: () => openUnitBuyMenu(info.key) };
+  if (info.unit && info.ok && !LAND.plots.has(info.key) && !info.other) return { label: `E · Buy land in ${info.D.name} · from ${m2(1)} · ${NAIRA(info.price)} per unit${info.D.frontOf?.(...unitCR(info.key)) ? ' · ' + info.D.frontOf(...unitCR(info.key)) : ''}`, run: () => openUnitBuyMenu(info.key) };
   if (LAND.plots.has(info.key)) { const hk = homeOf(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Your home: switch things on · B · arrange and shop', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
   if (info.other) { const o = info.other, who = o.npc ? 'Sold' : (o.ownerName || 'Someone') + '’s land'; return { label: `E · ${who}`, run: () => toast(who, o.npc ? 'Bought by a resident. Not for sale' : `This plot belongs to ${o.ownerName || 'another player'}. To buy it, ask them to offer it to you (their land menu → Sell or give to a player)`) }; }
   if (info.lot?.big) return info.ok ? { label: `E · Buy Banana Island · 1.7 acres (12 plots), level and cleared · ${NAIRA(BIG.price)}`, run: buyBig } : null;

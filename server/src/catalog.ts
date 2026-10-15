@@ -1,7 +1,7 @@
 // what things cost, copied from the game so the server can check every purchase
 import plotsJson from "./data/plots.json";
 
-// every plot that can be bought: price and kind (o open land, e estate lot, b part of the Banana Island lot, u a 300 m² unit in Banana Island West)
+// every plot that can be bought: price and kind (o open land, e estate lot, b part of the Banana Island lot, u a 300 m² unit in Banana Island West or Ikoyi)
 export const PLOTS: Record<string, [number, "o" | "e" | "b" | "u"]> = plotsJson as any;
 export const isUnit = (k: string) => PLOTS[k]?.[1] === "u";
 // a house on Banana Island West units: its site (x0, z0, x1, z1) and the units under it, as the game sends them
