@@ -2,9 +2,9 @@
 
 The online backend for **NaijLife** (formerly Giantwood), the game in `../giantwood-scouts`. It has player accounts, saved characters and cloud saves, plus a shared real-time world where everyone sees each other move and chat.
 
-**Play online:** <https://46-101-63-217.sslip.io>. That's the full game: sign in or play as a guest, make your scout, and press Deploy to join the shared world. A bare-bones test page lives at `/test.html`.
+**Play online:** <https://famtime.space> (or www.famtime.space; the old <https://46-101-63-217.sslip.io> still works). That's the full game: sign in or play as a guest, make your scout, and press Deploy to join the shared world. A bare-bones test page lives at `/test.html`.
 
-HTTPS uses a free `sslip.io` name that points at the Droplet's IP, and Caddy fetches the certificate automatically. To switch to your own domain, point it at `46.101.63.217`, set `SITE_ADDRESS` in the server's `.env` and redeploy.
+HTTPS: the domain famtime.space is on DigitalOcean DNS, with A records for `@` and `www` pointing at the Droplet (46.101.63.217). The server's `.env` has `SITE_ADDRESS="famtime.space, www.famtime.space, 46-101-63-217.sslip.io"`, and Caddy fetches and renews the Let's Encrypt certificates itself. To add another name, add it to that list and run `docker compose up -d caddy`.
 
 ## What runs where
 
@@ -217,7 +217,7 @@ Other players' homes are locked in the game until the owner lets you in.
 Every time someone is in the world, guest or account, the server keeps a row in `sessions` (`visits.ts`): who, phone or desktop (sent by the game), when they started and were last seen, how far they travelled, and which parts of the map they visited (`areaOf`).
 
 - **Saving:** rows are refreshed every minute while people play, and marked ended when they leave, so a deploy loses at most a minute.
-- **The stats page:** **/stats**, at <https://46-101-63-217.sslip.io/stats>. It uses the game's sign-in in the same browser and shows only accounts listed in `ADMIN_IDS` in `.env` (comma-separated user ids).
+- **The stats page:** **/stats**, at <https://famtime.space/stats>. It uses the game's sign-in in the same browser and shows only accounts listed in `ADMIN_IDS` in `.env` (comma-separated user ids).
 - **What's on it:** who's playing right now, totals (players, visits, guest share, hours, phone share, accounts), players per day over the last 30 days, where people go, a player list and the last 60 visits.
 - **What it doesn't store:** no IP addresses or locations, only in-game areas.
 - **`/api/stats`:** the same data as JSON. It needs an admin's Bearer token, and errors are caught inside the route so they can't crash the server.

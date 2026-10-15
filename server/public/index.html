@@ -11394,8 +11394,8 @@ function landAction() {
 const NET = { base: '', reachable: null, token: null, user: null, guest: null, room: null, joining: false, others: new Map(), sendT: 0, sent: null, retry: 0, saveT: null, chatLog: [] };
 NET.base = (() => {
   try { const q = new URLSearchParams(location.search).get('server'); if (q) return q.replace(/\/$/, ''); } catch (e) {}
-  if (/(^|\.)46-101-63-217\.sslip\.io$/.test(location.hostname)) return location.origin;
-  return 'https://46-101-63-217.sslip.io';
+  if (/(^|\.)(famtime\.space|46-101-63-217\.sslip\.io)$/.test(location.hostname)) return location.origin;   // served by the game server itself
+  return 'https://famtime.space';
 })();
 const NET_STORE = 'velaplay';
 try { Object.assign(NET, JSON.parse(localStorage.getItem(NET_STORE) || '{}')); } catch (e) {}
