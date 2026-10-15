@@ -12768,14 +12768,14 @@ function skirtGeometry(body, scene, sexKey, len) {   // len: how far down the le
   for (let j = 1; j <= R; j++) { const a = rings[j - 1], r = rings[j]; r.sx = Math.max(r.sx, a.sx); r.zf = Math.max(r.zf, a.zf); r.zb = Math.max(r.zb, a.zb); }   // it falls, it doesn't cling
   const pos = [], nor = [], si = [], sw = [], idx = [], mh = [], ms = [], iP = bi('pelvis'), iL = bi('thigh_l'), iR = bi('thigh_r'), iCL = bi('calf_l'), iCR = bi('calf_r');
   for (let j = 0; j <= R; j++) {
-    const t = j / R, r = rings[j], flare = .025 + (long ? .08 : .06) * t ** 1.2;
+    const t = j / R, r = rings[j], flare = .04 + (long ? .1 : .07) * t ** 1.1 + .03 * Math.sin(Math.min(1, t * 2.2) * Math.PI);   // room for a striding thigh at mid-height, so legs never push through
     for (let k = 0; k <= S; k++) {
       const a = k / S * Math.PI * 2, cx = Math.sin(a), cz = Math.cos(a);
       v.set(pel.x + cx * (r.sx + flare), r.y, pel.z + cz * ((cz > 0 ? r.zf : r.zb) + flare));
       const n = new THREE.Vector3(cx / (r.sx + flare), 0, cz / ((cz > 0 ? r.zf : r.zb) + flare)).normalize();
       pos.push(...v.clone().applyMatrix4(toMesh).toArray()); const nm = n.clone().transformDirection(toMesh); nor.push(...nm.toArray());
       const rad = new THREE.Vector3(cx, 0, cz).transformDirection(toMesh);   // a heavier body fills it out at the hips; a slim one less so
-      mh.push(...rad.clone().multiplyScalar(.04 * (1 - t * .5)).toArray()); ms.push(...rad.multiplyScalar(-.012 * (1 - t * .5)).toArray());
+      mh.push(...rad.clone().multiplyScalar(.085 * (1 - t * .35)).toArray()); ms.push(...rad.multiplyScalar(-.012 * (1 - t * .5)).toArray());
       // the waistband rides the hips; lower down each side follows its own leg (the front and back half-way between)
       const side = (clamp(cx * lx * 1.6, -1, 1) + 1) / 2, leg = long ? clamp((t - .04) / .3, 0, 1) * .6 : clamp(t / .18, 0, 1) * .92, calf = long ? clamp((t - .55) / .45, 0, 1) * .2 : 0;
       const wl = (leg - calf) * side, wr = (leg - calf) * (1 - side);   // the front and back hang between the legs, the sides with their own
