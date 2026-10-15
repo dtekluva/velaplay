@@ -1369,45 +1369,64 @@ if (IKOYI) {
 }
 /* ---------- Edo: the Ibadan–Benin road. Iwo Road leaves Ibadan eastward (z -5000) onto new land past the old east edge,
    x 360 to 2280, a 400 m band (z -5200 to -4800) of rolling forest: Ile-Ife on the way, the Ore junction stop, rubber
-   plantations, the old moat, then Benin City round King's Square. Its own grid (EHm / EKIND, columns N..N+ED). ---------- */
-const ED = YB ? 1920 : 0, EZ0 = -5200, EZ1 = -4800, EJ0 = EZ0 + HALF, EJ1 = EZ1 + HALF, EBOUND = HALF + ED - 14, ERD = -5000;
+   plantations, the old moat, then Benin City round King's Square. Benin itself spreads wider than the road's band: a block
+   x 1640 to 2280, z -5600 to -4400, with the University and the stadium in the north and Benin Airport in the south.
+   Its own grid (EHm / EKIND, columns N..N+ED, rows over the whole of Benin's block; outside the shape it's never seen). ---------- */
+const ED = YB ? 1920 : 0, EZ0 = -5200, EZ1 = -4800, BX0 = 1640, BZ0 = -5600, BZ1 = -4400, EJ0 = BZ0 + HALF, EJ1 = BZ1 + HALF, EBOUND = HALF + ED - 14, ERD = -5000;
 const EHm = new Int16Array(Math.max(1, ED * (EJ1 - EJ0))), EKIND = new Uint8Array(Math.max(1, ED * (EJ1 - EJ0)));
 const eIdx = (x, z) => clamp(Math.floor(x + HALF) - N, 0, ED - 1) * (EJ1 - EJ0) + clamp(Math.floor(z + HALF) - EJ0, 0, EJ1 - EJ0 - 1);
-const inEdo = (x, z) => ED > 0 && x >= HALF && x < HALF + ED && z >= EZ0 && z < EZ1;
-const EDO = ED ? { ife: [820, 1010], ore: [1300, 1390], rubber: [1440, 1690], moat: [1745, 1759], benin: [1700, 2266, -5190, -4810], kc: [1985, -5000], kr: 38,
+const inEdo = (x, z) => ED > 0 && x >= HALF && x < HALF + ED && (z >= EZ0 && z < EZ1 || x >= BX0 && z >= BZ0 && z < BZ1);   // the road's band, and Benin's block
+const EDO = ED ? { ife: [820, 1010], ore: [1300, 1390], rubber: [1440, 1690], moat: [1745, 1759], benin: [1700, 2266, -5590, -4710], kc: [1985, -5000], kr: 38,
+  air: { x0: 1770, x1: 2266, z0: -4700, z1: -4405, rz: -4520, rx0: 1790, rx1: 2250, tz: -4579 }, uniben: { x0: 1800, x1: 1980, z0: -5580, z1: -5420 }, stadium: { x: 2140, z: -5470, rx: 70, rz: 48 },
+  rail: { x0: 1762, x1: 1886, z0: -5176, z1: -5134 },
   ooni: { x0: 870, x1: 960, z0: -5100, z1: -5030 }, palace: { x0: 2010, x1: 2140, z0: -5150, z1: -5052 }, igun: { x0: 2150, x1: 2260, z0: -5150, z1: -5104 },
   market: { x0: 2055, x1: 2180, z0: -4930, z1: -4878 }, museum: { x0: 1973, x1: 1997, z0: -5012, z1: -4988 }, station: { x0: 1815, x1: 1835, z0: -4913, z1: -4897 } } : null;
+// Naija Rail: one line from Meadowbrook on the coast, north along the inside of the east wall (past Lagos, Magboro, Mowe, the
+// forest and Ibadan), then east along the Edo road's band to Benin Central. Its course is fixed here so the forests, houses and
+// trees keep off the track (railDist); the line itself is built later (the Naija Rail block).
+const RAILX = 343.5, RAILZ = -5150;
+const RAIL_PTS = YB ? [[RAILX, 262], [RAILX, -5090], [344.4, -5112], [347.5, -5130], [354, -5144], [366, -5150], ...(ED ? [[1880, RAILZ]] : [])] : [];
+const RAIL_SEGS = RAIL_PTS.slice(1).map((q, k) => [RAIL_PTS[k][0], RAIL_PTS[k][1], q[0], q[1]]);
+const railDist = (x, z) => { let b = 1e9; if (!YB || (x < RAILX - 40 && z > -5000)) return b; for (const r of RAIL_SEGS) b = Math.min(b, segDist(x, z, r)); return b; };
 // Benin's streets: King's Square's ring, the four arms from it, a grid every 64 m
 function edoRoad(x, z) {
   if (!EDO) return false;
   if (Math.abs(z - ERD) < 4.5 && x < EDO.benin[1]) return true;   // the road from Ibadan, and on through the city
+  const A = EDO.air; if (x > A.x0 && x < A.x1 && z > A.z0 - 6 && z < A.z1) return Math.abs(z - (A.z0 - 2)) < 4.5 && x > 1900 && x < 2080;   // the airport's front road
   const [bx0, bx1, bz0, bz1] = EDO.benin; if (x < bx0 || x > bx1 || z < bz0 || z > bz1) return false;
+  if (inR(EDO.rail, x, z) || Math.hypot((x - EDO.stadium.x) / (EDO.stadium.rx + 10), (z - EDO.stadium.z) / (EDO.stadium.rz + 10)) < 1 || inR(EDO.uniben, x, z, -6)) return false;   // the station's yard, the stadium, the campus
   const [kx, kz] = EDO.kc, d = Math.hypot(x - kx, z - kz);
   if (Math.abs(d - EDO.kr) < 5) return true;   // the Ring Road round King's Square
   if (d > EDO.kr && Math.abs(x - kx) < 4.5) return true;   // the north and south arms
   for (let gx = kx - 192; gx <= bx1; gx += 64) if (Math.abs(x - gx) < 3.5 && gx !== kx && x > 1790) return true;
-  for (let gz = kz - 128; gz <= bz1; gz += 64) if (Math.abs(z - gz) < 3.5 && gz !== kz && x > 1790) return true;
+  for (let gz = kz - 576; gz <= bz1; gz += 64) if (Math.abs(z - gz) < 3.5 && gz !== kz && x > 1790) return true;
   return false;
 }
 if (ED) {
   const Y = TOWN.y, H = EJ1 - EJ0, [bx0, bx1, bz0, bz1] = EDO.benin;
   const flat = (x, z) => { let m = Math.abs(z - ERD) - 14;   // how far from anywhere that must be level (the road, the towns)
     for (const [a, c] of [EDO.ife, EDO.ore]) m = Math.min(m, Math.max(a - x, x - c, Math.abs(z - ERD) - 110));
-    m = Math.min(m, Math.max(bx0 - 10 - x, x - bx1, bz0 - z, z - bz1)); m = Math.min(m, x - 400); return m; };   // (and level beside Ibadan, where it joins)
+    m = Math.min(m, Math.max(bx0 - 10 - x, x - bx1, bz0 - z, z - EDO.air.z1)); m = Math.min(m, x - 400); m = Math.min(m, Math.abs(z - RAILZ) - 10); return m; };   // (and level along the railway)   // (and level beside Ibadan, where it joins)
   for (let i = 0; i < ED; i++) for (let j = 0; j < H; j++) {
     const x = N + i - HALF + .5, z = EJ0 + j - HALF + .5, k = i * H + j;
+    if (!inEdo(x, z)) { EHm[k] = EDGE_H; EKIND[k] = 0; continue; }   // outside the band and the block: never seen
     let h = Y + Math.max(0, fbm(x / 70 + 31, z / 70 - 12) - .38) * 26 + fbm(x / 18, z / 18) * 2.2, kd = 0;
     const m = flat(x, z); if (m <= 0) h = Y; else if (m < 22) { const t = 1 - m / 22, e = t * t * (3 - 2 * t); h += (Y - h) * e; }
-    if (x > EDO.moat[0] && x < EDO.moat[1] && Math.abs(z - ERD) > 9) { h = Y - 5; kd = 0; }   // the old moat, crossed by the road on its causeway
-    if (x > bx0 && x < bx1 && z > bz0 && z < bz1 && h === Y) kd = 5;   // Benin's red earth
+    if (x > EDO.moat[0] && x < EDO.moat[1] && Math.abs(z - ERD) > 9 && Math.abs(z - RAILZ) > 7) { h = Y - 5; kd = 0; }   // the old moat, crossed by the road and the railway on causeways
+    { const A = EDO.air; if (x > A.x0 && x < A.x1 && z > A.z0 && z < A.z1) {   // the airfield: the runway and its centreline, the taxiway and its links, the apron
+      const onRw = x > A.rx0 && x < A.rx1 && Math.abs(z - A.rz) < 15, onTw = x > A.rx0 + 10 && x < A.rx1 - 10 && Math.abs(z - A.tz) < 6, link = (Math.abs(x - (A.rx0 + 16)) < 6 || Math.abs(x - (A.rx1 - 16)) < 6 || Math.abs(x - 2000) < 6) && z < A.rz && z > A.tz - 60;
+      kd = onRw ? (Math.abs(z - A.rz) < .8 && Math.floor(x / 12) % 2 ? 8 : 6) : onTw || link ? 6 : x > 1900 && x < 2100 && z > A.z0 + 10 && z < A.tz - 6 ? 7 : 0; } }
+    if (inR(EDO.uniben, x, z) && kd !== 6 && kd !== 7) kd = 0;   // the campus lawns
+    if (x > bx0 && x < bx1 && z > bz0 && z < bz1 && h === Y && !inR(EDO.uniben, x, z)) kd = 5;   // Benin's red earth
+    { const S = EDO.stadium, e = Math.hypot((x - S.x) / S.rx, (z - S.z) / S.rz); if (e < 1.12) kd = e < .78 ? 0 : 5; }   // the stadium: the pitch, the running track round it
     if (edoRoad(x, z)) kd = 6; else if (edoRoad(x + 1.2, z) || edoRoad(x - 1.2, z) || edoRoad(x, z + 1.2) || edoRoad(x, z - 1.2)) kd = 7;
     if (Math.hypot(x - EDO.kc[0], z - EDO.kc[1]) < EDO.kr - 5) { kd = 0; h = Y; }   // the square's lawn
     if (inR(EDO.palace, x, z) || inR(EDO.ooni, x, z)) kd = 0;   // the palace grounds
     EHm[k] = Math.round(h); EKIND[k] = kd;
   }
 }
-const xHi = z => ED && z > EZ0 + 10 && z < EZ1 - 10 ? EBOUND : BOUND;   // how far east you can go: out along the Edo road in its band
-const edoKeep = (x, z) => ED && x > BOUND + 3 ? clamp(z, EZ0 + 12, EZ1 - 12) : z;   // out on the Edo strip, z stays between its walls
+const xHi = z => ED && z > BZ0 + 10 && z < BZ1 - 10 ? EBOUND : BOUND;   // how far east you can go: out along the Edo road (its walls keep you to the band until Benin)
+const edoKeep = (x, z) => ED && x > BOUND + 3 ? (x > BX0 + 2 ? clamp(z, BZ0 + 12, BZ1 - 12) : clamp(z, EZ0 + 12, EZ1 - 12)) : z;   // out on the Edo strip, z stays between its walls
 const xLo = z => WD && z > IKZ0 + 10 ? -WBOUND : -BOUND;   // how far west you can go: out to the new edge, except up on the mainland
 const inBIW = (x, z, m = 0) => !!BIW && x > BIW.x0 - m && x < BIW.x1 + m && z > BIW.z0 - m && z < BIW.z1 + m;
 if (BIW) {
@@ -1500,7 +1519,7 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   };
   for (let ci = 0; ci < N; ci += CH) for (let cj = YB ? -ND : 0; cj < N + SD; cj += CH) TERRAIN_CHUNK(ci, cj);
   for (let ci = -WD; ci < 0; ci += CH) for (let cj = -NWD; cj < N + 96 * 2; cj += CH) TERRAIN_CHUNK(ci, cj);   // (and Ikoyi, north of it)
-  for (let ci = N; ci < N + ED; ci += CH) for (let cj = EJ0; cj < EJ1; cj += CH) { const j1 = Math.min(EJ1, cj + CH); TERRAIN_CHUNK(ci, cj, j1); }   // Edo   // Banana Island West and the sea off it
+  for (let ci = N; ci < N + ED; ci += CH) for (let cj = EJ0; cj < EJ1; cj += CH) { const j1 = Math.min(EJ1, cj + CH); if (ci + CH - HALF <= BX0 && (j1 - HALF <= EZ0 || cj - HALF >= EZ1)) continue; TERRAIN_CHUNK(ci, cj, j1); }   // Edo (skipping chunks outside the band and Benin's block)   // Banana Island West and the sea off it
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
   const nE = HALF + (YB ? ND : 0);
@@ -1624,10 +1643,14 @@ DEPOTS.forEach(([x, z]) => {
     }
     b.build();
   }
-  if (ED) {   // the walls round the Edo strip: along both sides of the long road, and across the far end past Benin
-    const b = new Builder(), XE = EBOUND + 5, lx = XE - W;
-    for (const zz of [EZ0 - 4, EZ1 + 4]) { b.box(lx, H, T, (W + XE) / 2, H / 2, zz, M.stone, 3); for (let k = W + 6; k < XE - 4; k += 8) b.box(4, 3, T, k, H + 1.5, zz, M.stone, 3); }
-    b.box(T, H, EZ1 - EZ0 + 8, XE, H / 2, (EZ0 + EZ1) / 2, M.stone, 3);
+  if (ED) {   // the walls round the Edo strip: along both sides of the long road, then round Benin's wider block (low where the runway's approach comes in)
+    const b = new Builder(), XE = EBOUND + 5, XB = BX0 - 4, zA = EDO.air.rz;
+    const wx = (x0, x1, z) => { b.box(x1 - x0 + T, H, T, (x0 + x1) / 2, H / 2, z, M.stone, 3); for (let k = x0 + 6; k < x1 - 4; k += 8) b.box(4, 3, T, k, H + 1.5, z, M.stone, 3); };
+    const wz = (x, z0, z1) => { b.box(T, H, z1 - z0, x, H / 2, (z0 + z1) / 2, M.stone, 3); for (let k = z0 + 6; k < z1 - 4; k += 8) b.box(T, 3, 4, x, H + 1.5, k, M.stone, 3); };
+    wx(W, XB, EZ0 - 4); wx(W, XB, EZ1 + 4); wx(XB, XE, BZ0 - 4); wx(XB, XE, BZ1 + 4);
+    wz(XB, BZ0 - 4, EZ0 - 4); wz(XB, EZ1 + 4, zA - 32); wz(XB, zA + 32, BZ1 + 4); wz(XE, BZ0 - 4, BZ1 + 4);
+    b.box(T, 4, 64, XB, 2, zA, M.stone, 3); b.box(T + .4, .5, 64, XB, 4.25, zA, M.roof, 1, false);   // the low section under the approach
+    const apL = new THREE.MeshBasicMaterial({ color: 0xffe9a8 }); for (let z = zA - 28; z <= zA + 28; z += 8) b.box(.6, .6, .6, XB - 30, 1.6, z, apL, 1, false);
     b.build();
   }
 })();
@@ -3872,7 +3895,7 @@ withSeed(4242, () => { for (let tries = 0, added = 0; tries < 9000 && added < 19
 } });
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 for (const t of TREES) {
-  const { x, z } = t, b = new Builder(), cut = YB && linkDist(x, z) < 16, nc = colliders.length;   // cut: in the way of the road to Yaba (built, then dropped, so the forest keeps its layout)
+  const { x, z } = t, b = new Builder(), cut = YB && (linkDist(x, z) < 16 || railDist(x, z) < 9), nc = colliders.length;   // cut: in the way of the road to Yaba (built, then dropped, so the forest keeps its layout)
   const base = heightAt(x, z) - 1.5, w = Math.round(R(4, 6.5)), h = R(52, 84);
   t.w = w;
   b.box(w, h, w, x, base + h / 2, z, M.bark, 2, true, 'trunk');
@@ -8027,7 +8050,8 @@ if (IKEJA) withSeed(9393, () => {
    (the Alaafin's palace and Akesan market). ---------- */
 const FOREST = [];   // instanced trees in 400 m bands, shown near the scout (updateForest)
 const OYO_PLACES = [];   // [name, x, z] for the map and taxi fares
-const FLIGHT_DESKS = [];   // { x, z, y, to, name }: where to buy a seat on Oyo Skylink
+const FLIGHT_DESKS = [];   // { x, z, y, city, to, name, out }: where to buy a seat on Oyo Skylink (from city to to)
+const CITY_NAMES = { lagos: 'Lagos', ibadan: 'Ibadan', benin: 'Benin' };
 if (YB) withSeed(9494, () => {
   const Y = TOWN.y, b = new Builder(), ri2 = a => a[Math.floor(rng() * a.length)], R2 = (a, c) => a + rng() * (c - a);
   // pieces at an angle (the expressway runs on a slant), merged per material
@@ -8103,15 +8127,16 @@ if (YB) withSeed(9494, () => {
       if (kindAt(tx, tz) !== 0 || heightAt(tx, tz) < 3) continue;
       if (OYO_RECTS.some(R => tx > R.x0 - 12 && tx < R.x1 + 12 && tz > R.z0 - 12 && tz < R.z1 + 12) || expDist(tx, tz) < 17 || nearRoad(tx, tz)) continue;
       if (r < .18 && r2 < .5) continue;   // glades
-      const band = Math.floor((tz - ZN) / BAND), y = heightAt(tx, tz), push = (k, px, py, pz, sx, sy, sz, ry = 0) => { q.setFromAxisAngle(up, ry); m4.compose(pos.set(px, py, pz), q, sc.set(sx, sy, sz)); (parts[k][band] ||= []).push(m4.clone()); };
+      const onRail = railDist(tx, tz) < 7.5;   // on the railway's course: drawn as usual (so the random draws stay the same) but never placed
+      const band = Math.floor((tz - ZN) / BAND), y = heightAt(tx, tz), push = (k, px, py, pz, sx, sy, sz, ry = 0) => { if (onRail) return; q.setFromAxisAngle(up, ry); m4.compose(pos.set(px, py, pz), q, sc.set(sx, sy, sz)); (parts[k][band] ||= []).push(m4.clone()); };
       if (r2 < .2) {   // an oil palm
         const h = 6 + r3 * 4; push('ptrunk', tx, y, tz, 1, h, 1); for (let f = 0; f < 3; f++) push('frond', tx, y + h, tz, 1, 1, 1, f * Math.PI / 3 + r * 3);
-        colliders.push({ x0: tx - .3, x1: tx + .3, y0: y, y1: y + h, z0: tz - .3, z1: tz + .3, tag: 'trunk' });
+        if (!onRail) colliders.push({ x0: tx - .3, x1: tx + .3, y0: y, y1: y + h, z0: tz - .3, z1: tz + .3, tag: 'trunk' });
       } else {
         const h = 4 + r3 * 5, w = 3.5 + r * 4, ch = 2.4 + r2 * 2;
         push('trunk', tx, y, tz, 1 + r * .6, h, 1 + r * .6); push('crown', tx, y + h + ch / 2 - .4, tz, w, ch, w, r2); push('top', tx + R2(-.6, .6), y + h + ch + .4, tz + R2(-.6, .6), w * .62, 1.4 + r3, w * .62, r);
         (colors[band] ||= []).push(r3);
-        colliders.push({ x0: tx - .45, x1: tx + .45, y0: y, y1: y + h, z0: tz - .45, z1: tz + .45, tag: 'trunk' });
+        if (!onRail) colliders.push({ x0: tx - .45, x1: tx + .45, y0: y, y1: y + h, z0: tz - .45, z1: tz + .45, tag: 'trunk' });
       }
     }
     const GEO = { trunk: new THREE.BoxGeometry(.5, 1, .5).translate(0, .5, 0), crown: new THREE.BoxGeometry(1, 1, 1), top: new THREE.BoxGeometry(1, 1, 1), ptrunk: new THREE.BoxGeometry(.42, 1, .42).translate(0, .5, 0), frond: new THREE.BoxGeometry(6.2, .2, .7) };
@@ -8201,7 +8226,7 @@ if (YB) withSeed(9494, () => {
     colliders.push({ x0: A.tx1 + 14, x1: A.tx1 + 50, y0: Y, y1: Y + 6, z0: tcz - 26, z1: tcz - 14, tag: 'house' });
     sign('OYO SKYLINK', 'IBADAN ⇄ LAGOS', '#7a1a2a', 10, 1.6, A.tx1 + 8, Y + 3, tcz + 34, 0);
     makeDrivable(A.tx1 + 30, tcz + 24, -Math.PI / 2, 'plane');
-    FLIGHT_DESKS.push({ x: A.tx0 - 8, z: tcz + 3, y: Y, to: 'lagos', name: 'Ibadan Airport', out: [A.tx0 - 12, tcz - 1] });   // the airline's booth on the kerb, a few steps from where you arrive
+    FLIGHT_DESKS.push({ x: A.tx0 - 8, z: tcz + 3, y: Y, city: 'ibadan', to: 'lagos', name: 'Ibadan Airport', out: [A.tx0 - 12, tcz - 1] });   // the airline's booth on the kerb, a few steps from where you arrive
     people('airport', 10, [A.tx0 - 14, A.tx0 - 6, tcz - 30, tcz + 30]);
     OYO_PLACES.push(['Ibadan Airport', A.tx0 - 10, tcz]); YABA_MAP.push([tcx, tcz, A.tx1 - A.tx0, A.tz1 - A.tz0, '#7fd3e8']);
   }
@@ -8347,7 +8372,7 @@ if (YB) withSeed(9494, () => {
     eSign(1240, 1, 'WELCOME TO ONDO STATE', 'SUNSHINE STATE', '#8a5a0a'); eSign(1280, 1, 'ORE JUNCTION', 'FUEL · FOOD · REST', '#8a3a1a'); eSign(1420, 1, 'WELCOME TO EDO STATE', 'HEARTBEAT OF THE NATION', '#7a1a1a');
     eSign(1720, 1, 'BENIN CITY', 'KING’S SQUARE · OBA’S PALACE · MUSEUM', '#7a1a1a'); eSign(1700, -1, 'IBADAN 185 KM', 'IBADAN–BENIN ROAD'); eSign(400, -1, 'IBADAN', 'IWO ROAD · CITY CENTRE', '#7a1a2a');
     const townHouses = (x0, x1, z0, z1, n, keep) => { for (let k = 0; k < n; k++) { const x = R2(x0, x1), z = R2(z0, z1), w = R2(8, 13), d = R2(7, 11);
-      if (Math.abs(z - ERD) < 14 || keep(x, z) || !offRoad(x, z, Math.max(w, d) / 2 + 3) || !free(x, z, w, d, 3)) continue;
+      if (Math.abs(z - ERD) < 14 || railDist(x, z) < Math.max(w, d) / 2 + 9 || keep(x, z) || !offRoad(x, z, Math.max(w, d) / 2 + 3) || !free(x, z, w, d, 3)) continue;
       cottage(x, z, w, d, rng() < .25 ? 2 : 1, Math.abs(z - ERD) < 60 ? (z < ERD ? 'pz' : 'nz') : ri2(['pz', 'nz', 'px', 'nx']), rng() < .2 ? zinc : ri2(rusts), ri2(walls)); } };
     /* Ile-Ife: a town either side of the road, the Ooni's palace gate */
     { const [a, c] = EDO.ife, O = EDO.ooni, gx = (O.x0 + O.x1) / 2;
@@ -8439,8 +8464,52 @@ if (YB) withSeed(9494, () => {
       people('security', 6, [S.x0 - 6, S.x1 + 6, S.z0 - 10, S.z0 - 3], { cop: true });
       OYO_PLACES.push(['Benin police station', sx, S.z0 - 8]);
     }
+    // the University of Benin: a gate on the south, faculty blocks round a lawn, the library, the senate building, students
+    { const U = EDO.uniben, cx = (U.x0 + U.x1) / 2, cream = LM(0xf2e8d0), blue = LM(0x2f4a7a);
+      for (const s of [-1, 1]) { b.box(2.4, 6, 2.4, cx + s * 9, Y + 3, U.z1, cream, 2, true, 'house'); }
+      b.box(20.4, 1.6, 2.6, cx, Y + 6.8, U.z1, blue, 1, true, 'roof'); sign('UNIVERSITY OF BENIN', 'UNIBEN · KNOWLEDGE FOR SERVICE', '#2f4a7a', 13, 1.4, cx, Y + 6.8, U.z1 + 1.35, 0, '#f2c230');
+      for (const [x0, z0, x1, z1] of [[U.x0, U.z0, U.x1, U.z0], [U.x0, U.z0, U.x0, U.z1], [U.x1, U.z0, U.x1, U.z1], [U.x0, U.z1, cx - 10, U.z1], [cx + 10, U.z1, U.x1, U.z1]]) { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; b.box(along ? L : .5, 2, along ? .5 : L, (x0 + x1) / 2, Y + 1, (z0 + z1) / 2, cream, 2, true, 'house'); }
+      const block = (x, z, w, d, fl, mat) => { const H = fl * 3.4; b.box(w, H, d, x, Y + H / 2, z, mat, 2, true, 'house'); for (let f = 0; f < fl; f++) b.box(w + .1, .9, d + .1, x, Y + f * 3.4 + 2, z, winM, 1, false); b.box(w + 1, .5, d + 1, x, Y + H + .25, z, LM(0x8a3a20), 1, false); YABA_MAP.push([x, z, w, d, '#e8e2d0']); TAKEN.push([x, z, w, d]); };
+      for (const [x, z, w, d, fl] of [[U.x0 + 30, U.z1 - 40, 44, 16, 3], [U.x1 - 30, U.z1 - 40, 44, 16, 3], [U.x0 + 30, U.z0 + 34, 44, 16, 3], [U.x1 - 30, U.z0 + 34, 44, 16, 2], [U.x0 + 26, (U.z0 + U.z1) / 2, 16, 40, 2], [U.x1 - 26, (U.z0 + U.z1) / 2, 16, 40, 2]]) block(x, z, w, d, fl, ri2([cream, LM(0xe8d4a8), LM(0xf0e2c4)]));
+      block(cx, U.z0 + 26, 34, 22, 6, cream); sign('SENATE BUILDING', 'UNIVERSITY OF BENIN', '#2f4a7a', 8, 1.1, cx, Y + 4.4, U.z0 + 37.06, 0);
+      block(cx, (U.z0 + U.z1) / 2 + 6, 30, 18, 3, LM(0xd8b88a)); sign('JOHN HAROLD ODUAH LIBRARY', '', '#3a2416', 9, .9, cx, Y + 3.4, (U.z0 + U.z1) / 2 + 15.06, 0, '#f2c230');
+      for (let k = 0; k < 10; k++) palm(cx - 40 + k * 9, U.z1 - 14);
+      people('campus', 26, [U.x0 + 8, U.x1 - 8, U.z0 + 46, U.z1 - 8]);
+      OYO_PLACES.push(['University of Benin (UNIBEN)', cx, U.z1 + 10]);
+    }
+    // Samuel Ogbemudia Stadium: stands round the running track, floodlights, goals, a kickabout on the pitch
+    { const S = EDO.stadium, conc2 = LM(0xc8c4bc), seatC = [LM(0x1f6f3a), LM(0xf2f0ea), LM(0x1f6f3a)];
+      for (let k = 0; k < 40; k++) { const a = (k + .5) / 40 * TAU; if (Math.abs(Math.sin(a) - 1) < .02 || (a > TAU * .23 && a < TAU * .27)) continue;   // a gap for the way in, on the south
+        for (let t = 0; t < 4; t++) { const e = 1.14 + t * .06, x = S.x + Math.cos(a) * S.rx * e, z = S.z + Math.sin(a) * S.rz * e, h = 2.2 + t * 2.8, seg = TAU / 40 * Math.hypot(S.rx * e * Math.sin(a), S.rz * e * Math.cos(a)) + .4;
+          sbox(seg, h, 3.8, x, Y + h / 2, z, -Math.atan2(S.rz * Math.cos(a), -S.rx * Math.sin(a)), t === 3 ? conc2 : seatC[t % 3]); colliders.push({ x0: x - 2.4, x1: x + 2.4, y0: Y, y1: Y + h, z0: z - 2.4, z1: z + 2.4, tag: 'base' }); } }
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const x = S.x + sx * S.rx * 1.05, z = S.z + sz * S.rz * 1.2; b.box(.8, 30, .8, x, Y + 15, z, darkM, 1, true, 'house'); b.box(6, 3, .6, x, Y + 30, z, lampMat, 1, false); }
+      for (const s of [-1, 1]) { const x = S.x + s * S.rx * .62; b.box(.25, 2.4, .25, x, Y + 1.2, S.z - 3.6, white, 1, false); b.box(.25, 2.4, .25, x, Y + 1.2, S.z + 3.6, white, 1, false); b.box(.25, .25, 7.4, x, Y + 2.4, S.z, white, 1, false); }
+      b.box(.2, .02, S.rz * 1.4, S.x, Y + .04, S.z, white, 1, false);
+      sign('SAMUEL OGBEMUDIA STADIUM', 'BENIN CITY', '#1f6f3a', 12, 1.4, S.x, Y + 7, S.z + S.rz * 1.4, 0);
+      for (const o of [-5, 5]) b.box(.3, 7, .3, S.x + o, Y + 3.5, S.z + S.rz * 1.4 - .1, darkM, 1, true, 'house');
+      people('city', 14, [S.x - S.rx * .5, S.x + S.rx * .5, S.z - S.rz * .4, S.z + S.rz * .4]);
+      YABA_MAP.push([S.x, S.z, S.rx * 2.6, S.rz * 2.6, '#cfcac0'], [S.x, S.z, S.rx * 1.5, S.rz * 1.5, '#5f9a3c']); OYO_PLACES.push(['Samuel Ogbemudia Stadium', S.x, S.z + S.rz * 1.5]);
+    }
+    // Benin Airport: the runway (lit along its edges), taxiway and apron, the terminal, the tower, a jet on stand, the Skylink booth
+    { const A = EDO.air, glass = new THREE.MeshLambertMaterial({ color: 0x6a8ea8, emissive: 0x10202c }), tx0 = 1930, tx1 = 2050, tz0 = A.z0 + 12, tz1 = A.z0 + 36, tcx = (tx0 + tx1) / 2, tcz = (tz0 + tz1) / 2;
+      b.box(tx1 - tx0, 11, tz1 - tz0, tcx, Y + 5.5, tcz, white, 2, true, 'house'); b.box(tx1 - tx0 + .2, 8, .2, tcx, Y + 5, tz0 - .05, glass, 1, false); b.box(tx1 - tx0 + .2, 8, .2, tcx, Y + 5, tz1 + .05, glass, 1, false);
+      b.box(tx1 - tx0 + 8, .8, tz1 - tz0 + 10, tcx, Y + 11.4, tcz, LM(0x2f4a7a), 1, true, 'roof');
+      sign('BENIN AIRPORT', 'BENIN CITY · EDO STATE', '#2f4a7a', 18, 2, tcx, Y + 9, tz0 - 5.15, Math.PI, '#ffffff');
+      for (let k = 0; k < 8; k++) b.box(.4, 10.6, .4, tx0 + 6 + k * 15.4, Y + 5.3, tz0 - 4.8, white, 1, false);
+      const tw = [2095, A.z0 + 22]; b.box(4, 26, 4, tw[0], Y + 13, tw[1], white, 2, true, 'house'); b.box(8, 4, 8, tw[0], Y + 28, tw[1], glass, 1, true, 'house'); b.box(9, .6, 9, tw[0], Y + 30.3, tw[1], darkM, 1, false);
+      for (let x = A.rx0 + 4; x < A.rx1; x += 30) for (const s of [-1, 1]) b.box(.5, .4, .5, x, Y + .2, A.rz + s * 16, lampMat, 1, false);
+      for (let z = A.rz - 14; z <= A.rz + 14; z += 4) b.box(.5, .4, .5, A.rx0 - 2, Y + .2, z, LM(0x3fd07a), 1, false);
+      b.box(.2, 6, .2, A.rx1 - 30, Y + 3, A.rz - 26, darkM, 1, false); b.box(2.4, .9, .9, A.rx1 - 28.8, Y + 5.6, A.rz - 26, LM(0xe8742a), 1, false);   // the windsock
+      const jet = makeAirliner(); jet.position.set(2000, Y, A.tz - 30); jet.rotation.y = Math.PI / 2; addStatic(jet); colliders.push({ x0: 1982, x1: 2018, y0: Y, y1: Y + 7, z0: A.tz - 34, z1: A.tz - 26, tag: 'house' });
+      YABA_MAP.push([tcx, tcz, tx1 - tx0, tz1 - tz0, '#7fd3e8'], [(A.rx0 + A.rx1) / 2, A.rz, A.rx1 - A.rx0, 30, '#5a5c60']); TAKEN.push([(A.x0 + A.x1) / 2, (A.z0 + A.z1) / 2, A.x1 - A.x0, A.z1 - A.z0]);
+      people('city', 12, [tx0 + 4, tx1 - 4, A.z0 - 1, A.z0 + 10]); people('security', 3, [tx0 + 10, tx0 + 30, A.z0 + 2, A.z0 + 10], { guard: true });
+      FLIGHT_DESKS.push({ x: tcx - 22, z: A.z0 + 6, y: Y, city: 'benin', to: 'lagos', name: 'Benin Airport', out: [tcx - 26, A.z0 + 2] });
+      OYO_PLACES.push(['Benin Airport', tcx, A.z0 - 4]);
+      for (let z = bz1 - 60; z > ERD + 40; z -= 26) for (const s of [-1, 1]) lamp(kx + s * 6.2, z, -s, 0);   // lamps down the airport road (the south arm)
+    }
+    people('village', 22, [1800, 2250, -5380, -5200]); people('city', 12, [kx - 4, kx + 4, -5400, -5060]); people('city', 10, [kx - 4, kx + 4, -4940, -4720]);
     // the rest of the city: houses on every block, lamps along the main road, people in the streets
-    townHouses(bx0 + 70, bx1 - 4, bz0 + 4, bz1 - 4, 420, (x, z) => Math.hypot(x - kx, z - kz) < EDO.kr + 10 || [EDO.palace, EDO.igun, EDO.market, EDO.station].some(R => inR(R, x, z, 8)));
+    townHouses(bx0 + 70, bx1 - 4, bz0 + 4, bz1 - 4, 1500, (x, z) => Math.hypot(x - kx, z - kz) < EDO.kr + 10 || [EDO.palace, EDO.igun, EDO.market, EDO.station, EDO.uniben, EDO.rail].some(R => inR(R, x, z, 8)) || Math.hypot((x - EDO.stadium.x) / (EDO.stadium.rx + 16), (z - EDO.stadium.z) / (EDO.stadium.rz + 16)) < 1);
     for (let x = bx0 + 70; x < bx1 - 6; x += 24) if (Math.abs(x - kx) > EDO.kr + 8) for (const s of [-1, 1]) lamp(x, ERD + s * 6.2, 0, -s);
     for (const [x0, x1] of [[1800, 1940], [2030, 2250]]) { people('city', 14, [x0, x1, ERD - 12, ERD - 6]); people('city', 14, [x0, x1, ERD + 6, ERD + 12]); }
     people('village', 18, [1800, 2250, -4940, -4880]); people('village', 14, [1800, 2000, -5150, -5070]);
@@ -8449,8 +8518,8 @@ if (YB) withSeed(9494, () => {
     { const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), m4 = new THREE.Matrix4(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), parts = { trunk: [], crown: [], top: [], rtrunk: [], rcrown: [] }, BAND = 400;
       const keep = (x, z) => (x > EDO.ife[0] - 10 && x < EDO.ife[1] + 10 && Math.abs(z - ERD) < 115) || (x > EDO.ore[0] - 20 && x < EDO.ore[1] + 20 && Math.abs(z - ERD) < 95) || (x > bx0 - 8 && z > bz0 - 8 && z < bz1 + 8) || (x > EDO.moat[0] - 8 && x < EDO.moat[1] + 8);
       const push = (k, band, px, py, pz, sx, sy, sz2, ry = 0) => { q.setFromAxisAngle(up, ry); m4.compose(pos.set(px, py, pz), q, sc.set(sx, sy, sz2)); (parts[k][band] ||= []).push(m4.clone()); };
-      for (let x = 372; x < bx0 - 4; x += 4) for (let z = EZ0 + 6; z < EZ1 - 6; z += 4) {
-        if (Math.abs(z - ERD) < 12 || keep(x, z)) continue;
+      for (let x = 372; x < bx0 - 4; x += 4) for (let z = BZ0 + 6; z < BZ1 - 6; z += 4) {
+        if (Math.abs(z - ERD) < 12 || Math.abs(z - RAILZ) < 10 || keep(x, z) || !inEdo(x, z) || (x < BX0 + 6 && (z < EZ0 + 6 || z > EZ1 - 6)) || (z > EDO.air.rz - 40 && z < EDO.air.rz + 40 && x > BX0)) continue;
         const band = Math.floor((x - 360) / BAND);
         if (x > EDO.rubber[0] && x < EDO.rubber[1]) {   // the rubber estate: straight rows, slim grey trunks, light crowns
           if ((x - EDO.rubber[0]) % 8 || (z - EZ0) % 8 > 3) continue; const tx = x + .5, tz = z + .5, y = heightAt(tx, tz), h = 6 + rng() * 2;
@@ -8482,6 +8551,156 @@ if (YB) withSeed(9494, () => {
 });
 function updateForest() { for (const B of FOREST) { const on = B.x !== undefined ? P.pos.x > 300 && Math.abs(B.x - P.pos.x) < 460 : P.pos.x < 800 && Math.abs(B.z - P.pos.z) < 420; for (const m of B.meshes) m.visible = on; } }   // (Edo's bands run along x)
 
+/* ---------- Naija Rail: a standard-gauge line from Meadowbrook on the coast, north inside the east wall past Lagos, Magboro
+   (by the shopping plaza), Mowe and the forest to Ibadan, then east along the Edo road through Ile-Ife and Ore to Benin
+   Central. The track rides a smoothed bed (embankments, and bridges where the ground drops away or there's water);
+   eight stations with platforms, canopies, ticket kiosks and people waiting. Two trains run up and down all day; on any
+   platform press E to board (₦500): the train stops at every station (E there to get off, Space skips to the next stop),
+   or set a map pin and it takes you to the station nearest the pin. ---------- */
+const TRAIN = { list: [], ride: { on: false }, fare: 500, stations: [] };
+const RAILW = YB ? (() => {
+  const Y = TOWN.y, PTS = []; let L = 0;
+  for (let k = 0; k < RAIL_SEGS.length; k++) { const [ax, az, bx, bz] = RAIL_SEGS[k], n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 2));
+    for (let i = k ? 1 : 0; i <= n; i++) PTS.push({ x: ax + (bx - ax) * i / n, z: az + (bz - az) * i / n }); }
+  PTS.forEach((p, i) => { if (i) L += Math.hypot(p.x - PTS[i - 1].x, p.z - PTS[i - 1].z); p.s = L; });
+  PTS.forEach((p, i) => { const a = PTS[Math.max(0, i - 1)], c = PTS[Math.min(PTS.length - 1, i + 1)], l = Math.hypot(c.x - a.x, c.z - a.z) || 1; p.tx = (c.x - a.x) / l; p.tz = (c.z - a.z) / l; });
+  // the bed: the highest ground under the track's width, eased into a gentle grade; over water it stands clear on a bridge
+  const raw = PTS.map(p => { let g = -1e9; for (const o of [-2.4, 0, 2.4]) g = Math.max(g, heightAt(p.x - p.tz * o, p.z + p.tx * o)); p.g = g; return Math.max(g, WATER_Y + 2.4); });
+  const win = (a, r, f) => a.map((_, i) => { let v = f === 'max' ? -1e9 : 0, n = 0; for (let j = Math.max(0, i - r); j <= Math.min(a.length - 1, i + r); j++) { if (f === 'max') v = Math.max(v, a[j]); else { v += a[j]; n++; } } return f === 'max' ? v : v / n; });
+  let d = win(raw, 3, 'max').map((m, i) => Math.max(m, win(raw, 12, 'avg')[i]));
+  d = win(d, 8, 'avg'); d = d.map((v, i) => Math.max(v, raw[i]) + .35); d = win(d, 4, 'avg');
+  PTS.forEach((p, i) => { p.d = d[i]; });
+  const at = s => { s = clamp(s, 0, L); let lo = 0, hi = PTS.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (PTS[m].s <= s) lo = m; else hi = m; } const a = PTS[lo], b = PTS[hi], t = (s - a.s) / ((b.s - a.s) || 1);
+    return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, y: a.d + (b.d - a.d) * t + .3, tx: a.tx, tz: a.tz }; };   // y: the top of the rails
+  const sOf = (x, z) => { let best = 0, bd = 1e9; for (const p of PTS) { const dd = (p.x - x) ** 2 + (p.z - z) ** 2; if (dd < bd) { bd = dd; best = p.s; } } return best; };
+  // ---- the line, built from pieces turned along the track and merged per material ----
+  const ROT = new Map(), rb = (w, h, len, x, y, z, ang, mat) => { const g = boxGeo(w, h, len, 1); g.rotateY(ang); g.translate(x, y, z); if (!ROT.has(mat)) ROT.set(mat, []); ROT.get(mat).push(g); };
+  const ballast = LM(0x7a746a), earth = LM(0x8a6a48), conc = M.concrete, steel = LM(0x5a5e62), sleeperM = LM(0x4a3a2c);
+  for (let i = 0; i + 2 < PTS.length; i += 2) {
+    const a = PTS[i], c = PTS[i + 2], mx = (a.x + c.x) / 2, mz = (a.z + c.z) / 2, ang = Math.atan2(c.x - a.x, c.z - a.z), top = (a.d + c.d) / 2, len = Math.hypot(c.x - a.x, c.z - a.z) + .05;
+    const gmin = Math.min(a.g, c.g, PTS[i + 1].g), high = top - gmin;
+    rb(4.4, .4, len, mx, top - .2, mz, ang, ballast);
+    for (const o of [-.75, .75]) rb(.12, .16, len, mx + Math.cos(ang) * o, top + .08, mz - Math.sin(ang) * o, ang, steel);
+    if (high > 3.2) {   // a bridge: a deck with parapets, a pier every 12 m
+      rb(5.2, .8, len, mx, top - .8, mz, ang, conc); for (const o of [-2.5, 2.5]) rb(.25, 1, len, mx + Math.cos(ang) * o, top + .3, mz - Math.sin(ang) * o, ang, conc);
+      if (i % 6 === 0) rb(3, high - .8, 1.4, mx, gmin + (high - .8) / 2 - .4, mz, ang, conc);
+    } else if (high > .45) rb(5.6, high, len, mx, gmin + high / 2 - .4, mz, ang, earth);   // an embankment
+    if (high > 1.2) colliders.push({ x0: mx - 2.7, x1: mx + 2.7, y0: gmin - 1, y1: top - .2, z0: mz - 2.7, z1: mz + 2.7, tag: 'base' });
+  }
+  { const N2 = Math.floor(L / .9), im = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, .14, .26), sleeperM, N2), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new V3(0, 1, 0), one = new V3(1, 1, 1);
+    for (let k = 0; k < N2; k++) { const p = at(k * .9 + .45); q.setFromAxisAngle(up, Math.atan2(p.tx, p.tz)); m4.compose(new V3(p.x, p.y - .22, p.z), q, one); im.setMatrixAt(k, m4); }
+    im.receiveShadow = true; scene.add(im); }
+  for (const s of [2, L - 2]) { const p = at(s); rb(3, 1.2, .8, p.x, p.y + .6, p.z, Math.atan2(p.tx, p.tz), LM(0xd8342c)); }   // buffer stops at both ends
+  // ---- the stations ----
+  const b = new Builder(), green = LM(0x1f6f3a), white = MM.white, darkM = MM.dark, yel = LM(0xf2c230);
+  const ST = [['Meadowbrook', RAILX, 226], ['Lagos', RAILX, -58], ['Magboro Shopping', RAILX, -1668], ['Mowe', RAILX, -2780], ['Ibadan', RAILX, -4930],
+    ...(ED ? [['Ile-Ife', 915, RAILZ], ['Ore', 1345, RAILZ], ['Benin Central', 1832, RAILZ]] : [])];
+  for (const [name, sx, sz] of ST) {
+    const s0 = sOf(sx, sz), p = at(s0), ns = Math.abs(p.tz) > .5, PL = 76, side = ns ? -1 : 1;   // the platform: west of a north-south track, south of an east-west one
+    const ft = p.y + .75, ox = ns ? side * 3.8 : 0, oz = ns ? 0 : side * 3.8, cx = p.x + ox, cz = p.z + oz, w = 4, g0 = Math.min(heightAt(cx, cz), p.y - .4);
+    const PW = ns ? w : PL, PD = ns ? PL : w, hgt = ft - g0 + .5;
+    b.box(PW, hgt, PD, cx, g0 - .5 + hgt / 2, cz, conc, 2, true, 'base');
+    b.box(ns ? .5 : PL, .03, ns ? PL : .5, cx - (ns ? side * (w / 2 - .4) : 0), ft + .02, cz - (ns ? 0 : side * (w / 2 - .4)), yel, 1, false);   // the yellow line at the edge
+    for (const e of [-1, 1]) for (let k = 1; ; k++) { const h = ft - k * .3; if (h < heightAt(cx, cz) - .1) break;   // steps down at both ends
+      const along = PL / 2 + k * .45 - .2; b.box(ns ? w : .46, .3, ns ? .46 : w, cx + (ns ? 0 : e * along), h - .15, cz + (ns ? e * along : 0), conc, 1, true, 'base'); if (k > 20) break; }
+    // the canopy: green roof on white columns, lamps under it, the name boards, benches, a ticket kiosk
+    for (let t = -PL / 2 + 6; t <= PL / 2 - 6; t += 8) { const px = cx + (ns ? side * .8 : t), pz = cz + (ns ? t : side * .8); b.box(.3, 3.6, .3, px, ft + 1.8, pz, white, 1, true, 'house'); b.box(.4, .1, .4, px - (ns ? side * .8 : 0), ft + 3.5, pz - (ns ? 0 : side * .8), lampMat, 1, false); }
+    b.box(ns ? 5.2 : PL - 6, .3, ns ? PL - 6 : 5.2, cx, ft + 3.75, cz, green, 1, false); b.box(ns ? 5.4 : PL - 5.6, .12, ns ? PL - 5.6 : 5.4, cx, ft + 3.95, cz, white, 1, false);
+    for (const t of [-22, 0, 22]) ySign(ySignMat(name.toUpperCase(), '#1f6f3a', '#ffffff', 'NAIJA RAIL'), 5.2, 1.1, cx + (ns ? side * 1.7 : t), ft + 3, cz + (ns ? t : side * 1.7), ns ? (side < 0 ? Math.PI / 2 : -Math.PI / 2) : (side > 0 ? Math.PI : 0));
+    for (const t of [-14, 14, -30, 30]) { const bx = cx + (ns ? side * 1.4 : t), bz = cz + (ns ? t : side * 1.4); b.box(ns ? .5 : 2.2, .45, ns ? 2.2 : .5, bx, ft + .45, bz, M.oak, 1, false); }
+    const kx = cx + (ns ? side * 1.2 : -8), kz = cz + (ns ? -8 : side * 1.2); b.box(ns ? 1.6 : 2.4, 2.4, ns ? 2.4 : 1.6, kx, ft + 1.2, kz, green, 1, true, 'house');
+    ySign(ySignMat('TICKETS ₦500', '#1f6f3a', '#ffffff', 'ALL STATIONS'), 2.2, .6, kx - (ns ? side * .82 : 0), ft + 2, kz - (ns ? 0 : side * .82), ns ? (side < 0 ? Math.PI / 2 : -Math.PI / 2) : (side > 0 ? Math.PI : 0));
+    const st = { name, s: s0, x: cx, z: cz, y: ft, ns, side, PL, rect: ns ? [cx - w / 2, cx + w / 2, cz - PL / 2, cz + PL / 2] : [cx - PL / 2, cx + PL / 2, cz - w / 2, cz + w / 2] };
+    TRAIN.stations.push(st);
+    for (let k = 0; k < 4; k++) { const v = { x: cx, z: cz, y: ft, houses: [], civs: [], sand: [st.rect[0] + .6, st.rect[1] - .6, st.rect[2] + .6, st.rect[3] - .6], place: 'city' }; const c = makeCivilian(v, { adult: Math.random() < .85 }); c.fixedY = ft; c.g.position.set(RM(v.sand[0], v.sand[1]), ft, RM(v.sand[2], v.sand[3])); }
+    OYO_PLACES.push([`${name} station`, cx + (ns ? side * 6 : 0), cz + (ns ? 0 : side * 6)]);
+  }
+  // Benin Central: the terminus hall at the end of the line
+  if (ED) { const R = EDO.rail, hx = (R.x0 + R.x1) / 2 + 8, hz = R.z1 - 8; b.box(46, 9, 12, hx, Y + 4.5, hz, LM(0xf2e8d0), 2, true, 'house'); b.box(48, .8, 14, hx, Y + 9.4, hz, green, 1, true, 'roof');
+    ySign(ySignMat('BENIN CENTRAL', '#1f6f3a', '#ffffff', 'NAIJA RAIL · TRAINS TO IBADAN, MAGBORO, LAGOS & MEADOWBROOK'), 20, 2, hx, Y + 7, hz + 6.06, 0); }
+  b.build();
+  for (const [mat, geos] of ROT) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); }
+  return { PTS, L, at, sOf };
+})() : null;
+// a train: a locomotive and three coaches, white with the green band; local +z is forward
+function makeTrain() {
+  const T = { cars: [] }, white = MM.white, green = LM(0x1f6f3a), glass = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), dark = LM(0x26282c);
+  const tex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 32; const g = c.getContext('2d'); g.fillStyle = '#1f6f3a'; g.fillRect(0, 0, 256, 32); g.fillStyle = '#fff'; g.font = 'bold 22px sans-serif'; g.textAlign = 'center'; g.fillText('NAIJA RAIL', 128, 24); return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) }); })();
+  for (let k = 0; k < 4; k++) {
+    const g = new THREE.Group(), add = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+    add(3, 3.1, 19.4, 0, 2.25, 0, white); add(3.04, .5, 19.44, 0, 1.25, 0, green); add(3.06, .9, 17, 0, 2.6, 0, glass); add(2.6, .3, 19, 0, 3.95, 0, LM(0xd8dde2));
+    for (const z of [-6.5, 6.5]) add(2.4, .7, 2.6, 0, .55, z, dark);
+    for (const s of [-1, 1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(4, .5), tex); m.position.set(s * 1.53, 1.25, 0); m.rotation.y = s * Math.PI / 2; g.add(m); for (const z of [-4, 4]) add(.06, 2.2, 1.3, s * 1.52, 1.9, z, dark); }
+    if (k === 0) { add(3, 1.6, 2.4, 0, 1.5, 10.6, white); add(2.9, 1.2, .2, 0, 2.9, 9.75, glass); add(3.02, .5, 2.44, 0, 1.25, 10.6, green); add(.5, .3, .1, -.9, 1.6, 11.82, lampMat); add(.5, .3, .1, .9, 1.6, 11.82, lampMat); }
+    g.visible = false; scene.add(g); T.cars.push(g);
+  }
+  return T;
+}
+// moving: brake for the next station in the direction of travel, stand there a while, carry on; turn round at the ends
+function trainNextStop(T) { const st = TRAIN.stations.filter(q => T.dir > 0 ? q.s > T.s + 1 : q.s < T.s - 1).sort((a, c) => T.dir * (a.s - c.s))[0]; return st || null; }
+function trainMove(T, dt) {
+  if (T.dwell > 0) { T.dwell -= dt; T.v = 0; return null; }
+  let st = T.next; if (!st || T.dir * (st.s - T.s) < -.5) st = T.next = trainNextStop(T);   // the stop it's heading for, kept until it gets there
+  if (!st) { T.dir = -T.dir; T.dwell = 20; return null; }
+  const left = Math.abs(st.s - T.s), want = Math.min(T.cruise, Math.sqrt(2 * 1.1 * Math.max(0, left - .5)) + .6);
+  T.v += clamp(want - T.v, -2.4 * dt, 1.1 * dt); T.s += T.dir * T.v * dt;
+  if (Math.abs(st.s - T.s) < .6 || (T.dir > 0 ? T.s > st.s : T.s < st.s)) { T.s = st.s; T.v = 0; T.dwell = T.stopFor ?? 16; T.next = null; return st; }
+  return null;
+}
+function trainPlace(T) {
+  const R = RAILW, near = T.rider || Math.hypot(R.at(T.s).x - P.pos.x, R.at(T.s).z - P.pos.z) < 900;
+  T.cars.forEach((g, k) => { g.visible = near; if (!near) return;
+    const sk = T.s - T.dir * (k * 20.2 + (k ? 1.4 : 0)), a = R.at(sk + T.dir * 7), b = R.at(sk - T.dir * 7);
+    g.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); g.userData.yaw = Math.atan2(a.x - b.x, a.z - b.z); g.rotation.set(-Math.atan2(a.y - b.y, 14), g.userData.yaw, 0, 'YXZ'); });
+}
+if (RAILW && TRAIN.stations.length > 1) {
+  for (const [s, dir] of [[TRAIN.stations[0].s, 1], [TRAIN.stations[TRAIN.stations.length - 1].s, -1]]) { const T = makeTrain(); Object.assign(T, { s, dir, v: 0, dwell: 8, cruise: 28 }); TRAIN.list.push(T); }
+}
+function updateTrains(dt) {
+  if (!RAILW) return;
+  for (const T of TRAIN.list) { trainMove(T, dt); trainPlace(T); }
+  if (!TRAIN.ride.on && !P.driving) for (const T of TRAIN.list) for (const g of T.cars) if (g.visible && T.v > 1) {   // stepping in front of a moving train: you're thrown clear
+    const dx = P.pos.x - g.position.x, dz = P.pos.z - g.position.z, fx = Math.sin(g.userData.yaw), fz = Math.cos(g.userData.yaw), al = dx * fx + dz * fz, la = dx * fz - dz * fx;
+    if (Math.abs(al) < 10.5 && Math.abs(la) < 1.9 && Math.abs(P.pos.y - g.position.y) < 4) { const sg = la < 0 ? -1 : 1; P.pos.x += fz * sg * (2.4 - Math.abs(la)); P.pos.z -= fx * sg * (2.4 - Math.abs(la)); P.vel.set(fz * sg * 6, 4, -fx * sg * 6); sfx('hurt'); toast('🚆 Mind the train!', 'Stay off the track when a train is coming'); }
+  }
+}
+// riding
+function stationNear() { if (!RAILW || P.driving || TRAIN.ride.on) return null; return TRAIN.stations.find(st => P.pos.x > st.rect[0] - .5 && P.pos.x < st.rect[1] + .5 && P.pos.z > st.rect[2] - .5 && P.pos.z < st.rect[3] + .5 && Math.abs(P.pos.y - st.y) < 1.6) || null; }
+function trainDest(st) {   // where you're going: the station nearest your map pin, or the far end of the line
+  const S2 = TRAIN.stations, last = S2[S2.length - 1];
+  if (WAY.on) { let best = null, bd = 1e9; for (const q of S2) { const d = Math.hypot(q.x - WAY.x, q.z - WAY.z); if (d < bd) { bd = d; best = q; } } if (best && best !== st) return best; }
+  return st === last ? S2[0] : last;
+}
+function boardTrain(st) {
+  if (LAND.money < TRAIN.fare) { toast('', `A ticket is ${NAIRA(TRAIN.fare)}; you have ${NAIRA(LAND.money)}`); return; }
+  LAND.money -= TRAIN.fare; saveLand(); sfx('refill');
+  const to = trainDest(st), R = TRAIN.ride; if (!R.T) { R.T = makeTrain(); R.T.rider = true; }
+  Object.assign(R.T, { s: st.s, dir: to.s > st.s ? 1 : -1, v: 0, dwell: 3, cruise: 34, stopFor: 6, next: null });
+  Object.assign(R, { on: true, to, at: st, snap: true }); trainPlace(R.T);
+  toast(`🚆 Naija Rail · ${st.name} → ${to.name}`, `${NAIRA(TRAIN.fare)} · all stations · E at a stop to get off · Space skips to the next stop`);
+}
+function trainRideStep(dt) {
+  const R = TRAIN.ride, T = R.T, arrived = trainMove(T, dt); trainPlace(T);
+  const c = T.cars[1]; P.pos.set(c.position.x, c.position.y + .6, c.position.z); P.vel.set(0, 0, 0);
+  if (arrived) { R.at = arrived; if (arrived === R.to || !trainNextStop(T)) trainAlight(); }
+  else if (T.v > .5) R.at = null;
+}
+function trainSkip() { const R = TRAIN.ride, T = R.T; if (!R.on) return; T.dwell = 0; const st = trainNextStop(T); if (!st) return; const tgt = st.s - T.dir * 160; if (T.dir * (tgt - T.s) > 0) T.s = tgt; T.v = Math.max(T.v, 20); T.next = st; R.at = null; R.snap = true; }
+function trainAlight() {
+  const R = TRAIN.ride, st = R.at; if (!st) return;
+  const T = R.T; R.on = false; T.cars.forEach(g => { g.visible = false; });
+  const p = RAILW.at(st.s), x = st.x + (st.ns ? st.side * .6 : 0), z = st.z + (st.ns ? 0 : st.side * .6);
+  P.pos.set(x, st.y + .1, z); P.vel.set(0, 0, 0); yaw = st.ns ? Math.PI / 2 * -st.side : (st.side > 0 ? Math.PI : 0);
+  toast(`Welcome to ${st.name}`, 'Naija Rail · trains both ways from this platform (E to board)');
+}
+function trainCamera(dt) {
+  const T = TRAIN.ride.T, g = T.cars[1], fx = Math.sin(g.userData.yaw), fz = Math.cos(g.userData.yaw), sd = 1;   // (from the west, away from the east wall)
+  const want = tmpC.set(g.position.x - fx * 30 + fz * 5 * sd, g.position.y + 13, g.position.z - fz * 30 - fx * 5 * sd); want.y = Math.max(want.y, groundAt(want.x, want.z) + 2);
+  if (TRAIN.ride.snap) { camera.position.copy(want); TRAIN.ride.snap = false; } else camera.position.lerp(want, Math.min(1, dt * 3));
+  camera.lookAt(g.position.x + fx * 10, g.position.y + 2, g.position.z + fz * 10); SIM.cutY.constant = 1e5; SIM.t = 0;
+}
+const trainPrompt = () => { const R = TRAIN.ride, T = R.T; return `🚆 Naija Rail → ${R.to.name} · ${R.at && T.dwell > 0 ? `at ${R.at.name} · E: get off here` : `${Math.round(T.v * 3.6)} km/h`} · Space: skip to the next stop`; };
+
 /* ---------- traffic north of Ikeja: the expressway in both lanes each way (heavier: danfos, tippers, Siennas), lighter in
    Ibadan and Oyo town (old cars, kekes), a few on the campus and the airport road ---------- */
 if (YB) {
@@ -8502,18 +8721,19 @@ if (YB) {
 const FLIGHT = { fare: 15000, busy: false, no: 117 };
 if (AP && IBAIR) {
   const [x, z] = Wp(119, 109), [ox, oz] = Wp(117, 105);
-  FLIGHT_DESKS.push({ x, z, y: TOWN.y, to: 'ibadan', name: 'Lagos', out: [ox, oz] });
+  FLIGHT_DESKS.push({ x, z, y: TOWN.y, city: 'lagos', to: 'ibadan', name: 'Lagos', out: [ox, oz] });
+  if (ED) { const [x2, z2] = Wp(131, 109), [ox2, oz2] = Wp(129, 105); FLIGHT_DESKS.push({ x: x2, z: z2, y: TOWN.y, city: 'lagos', to: 'benin', name: 'Lagos', out: [ox2, oz2] }); }   // a second booth along the kerb: flights to Benin
   const b = new Builder(), Y = TOWN.y, red = LM(0x7a1a2a);
   for (const d of FLIGHT_DESKS) {   // the booth: a counter under a red canopy, with the airline's board
     b.box(3, 1.1, 1.2, d.x, Y + .55, d.z, red, 1, true, 'house'); b.box(3.4, .12, 1.6, d.x, Y + 1.16, d.z, MM.white, 1, false);
     for (const [a, c] of [[-1.6, -.7], [1.6, -.7], [-1.6, .7], [1.6, .7]]) b.box(.1, 2.6, .1, d.x + a, Y + 1.3, d.z + c, MM.steel, 1, false);
     b.box(3.8, .2, 2, d.x, Y + 2.7, d.z, red, 1, false);
-    for (const ry of [0, Math.PI]) ySign(ySignMat('OYO SKYLINK', d.to === 'ibadan' ? 'FLIGHTS TO IBADAN · ₦15,000' : 'FLIGHTS TO LAGOS · ₦15,000', '#7a1a2a', '#ffffff'), 3.4, .9, d.x, Y + 3.3, d.z + (ry ? -.06 : .06), ry);
+    for (const ry of [0, Math.PI]) ySign(ySignMat('OYO SKYLINK', `FLIGHTS TO ${CITY_NAMES[d.to].toUpperCase()} · ₦15,000`, '#7a1a2a', '#ffffff'), 3.4, .9, d.x, Y + 3.3, d.z + (ry ? -.06 : .06), ry);
     makeCivilian({ x: d.x, z: d.z - 1.5, y: Y, houses: [], civs: [], sand: [d.x - .4, d.x + .4, d.z - 1.6, d.z - 1.4], place: 'security' }, { adult: true, female: true }).guard = true;
   }
   b.build();
 }
-function flightDeskNear() { if (P.driving) return null; return FLIGHT_DESKS.find(d => Math.hypot(d.x - P.pos.x, d.z - P.pos.z) < 9 && Math.abs(P.pos.y - d.y) < 4) || null; }   // anywhere by the booth
+function flightDeskNear() { if (P.driving) return null; let best = null, bd = 9; for (const d of FLIGHT_DESKS) { const dd = Math.hypot(d.x - P.pos.x, d.z - P.pos.z); if (dd < bd && Math.abs(P.pos.y - d.y) < 4) { bd = dd; best = d; } } return best; }   // anywhere by the booth (the nearest, where two stand together)
 // the trip: you board an Oyo Skylink airliner on the runway; a chase camera follows the roll, the climb, the cruise up the
 // expressway (or down it), the approach and the landing; you step out by the other airport's arrivals. Space skips to the approach.
 const FLY = { on: false, g: null, R: null, s: 0, v: 0, yaw: 0, pitch: 0, roll: 0, to: null, d: null };
@@ -8527,22 +8747,25 @@ function airAt(R, s) {
   const a = P2[k - 1], b = P2[k], L = b.s - a.s || 1, t = clamp((s - a.s) / L, 0, 1);
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, v: a.v + (b.v - a.v) * t, tx: (b.x - a.x) / L, tz: (b.z - a.z) / L, ty: (b.y - a.y) / L };
 }
-const AIR_ROUTES = (AP && IBAIR) ? (() => { const rz = Wp(212, 0)[1], X = IBAIR.rx; return {
+const AIR_ROUTES = (AP && IBAIR) ? (() => { const rz = Wp(212, 0)[1], X = IBAIR.rx, A = EDO?.air, bz = A?.rz; return {
+  // Lagos → Benin: as far as Ibadan, then east along the Edo road, down over the low wall onto Benin's runway eastbound; and back the same way
+  ...(A ? { 'lagos>benin': airRoute([[20, 0, rz, 4], [150, 0, rz, 62], [262, 48, rz - 34, 80], [X, 100, -420, 165], [X, 110, -4300, 165], [900, 110, -4560, 165], [1300, 60, bz, 90], [1600, 22, bz, 72], [A.rx0 + 20, 0, bz, 62], [A.rx1 - 90, 0, bz, 6]], 6),
+    'benin>lagos': airRoute([[A.rx1 - 20, 0, bz, 4], [2000, 0, bz, 62], [1700, 30, bz, 82], [1300, 100, -4520, 165], [X, 100, -4300, 165], [X, 100, -1150, 165], [560, 100, -760, 150], [980, 86, -330, 120], [1220, 66, -120, 92], [1180, 58, rz, 76], [351, 10, rz, 68], [206, 0, rz, 62], [60, 0, rz, 6]], 9) } : {}),
   // Lagos → Ibadan: roll east down the Murtala Muhammed runway, lift off, swing north over the city and up the expressway, land northbound at Alakia
-  ibadan: airRoute([[20, 0, rz, 4], [150, 0, rz, 62], [262, 48, rz - 34, 80], [X, 100, -420, 165], [X, 100, -3480, 165], [X, 22, -4230, 72], [X, 0, IBAIR.rz1 - 18, 62], [X, 0, IBAIR.rz1 - 250, 6]], 4),
+  'lagos>ibadan': airRoute([[20, 0, rz, 4], [150, 0, rz, 62], [262, 48, rz - 34, 80], [X, 100, -420, 165], [X, 100, -3480, 165], [X, 22, -4230, 72], [X, 0, IBAIR.rz1 - 18, 62], [X, 0, IBAIR.rz1 - 250, 6]], 4),
   // Ibadan → Lagos: roll south down the Alakia runway, climb out over the toll plaza, cruise south, turn in over the sea and land westbound in Lagos
-  lagos: airRoute([[X, 0, IBAIR.rz0 + 16, 4], [X, 0, IBAIR.rz0 + 240, 62], [X, 40, IBAIR.rz1 + 60, 82], [X, 100, -3900, 165], [X, 100, -1150, 165], [560, 100, -760, 150], [980, 86, -330, 120], [1220, 66, -120, 92], [1180, 58, rz, 76], [351, 10, rz, 68], [206, 0, rz, 62], [60, 0, rz, 6]], 8),
+  'ibadan>lagos': airRoute([[X, 0, IBAIR.rz0 + 16, 4], [X, 0, IBAIR.rz0 + 240, 62], [X, 40, IBAIR.rz1 + 60, 82], [X, 100, -3900, 165], [X, 100, -1150, 165], [560, 100, -760, 150], [980, 86, -330, 120], [1220, 66, -120, 92], [1180, 58, rz, 76], [351, 10, rz, 68], [206, 0, rz, 62], [60, 0, rz, 6]], 8),
 }; })() : null;
 function flyFrom(d) {
   if (FLIGHT.busy || FLY.on || !AIR_ROUTES) return;
-  const city = d.to === 'ibadan' ? 'Ibadan' : 'Lagos';
+  const city = CITY_NAMES[d.to];
   if (LAND.money < FLIGHT.fare) { toast('', `A seat to ${city} is ${NAIRA(FLIGHT.fare)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= FLIGHT.fare; saveLand(); FLIGHT.busy = true; sfx('refill');
   const fade = $('fade'); fade.style.transition = 'opacity .6s'; fade.style.opacity = '1';
-  toast(`✈ Oyo Skylink OS ${FLIGHT.no} · ${d.to === 'ibadan' ? 'Lagos → Ibadan' : 'Ibadan → Lagos'}`, `${NAIRA(FLIGHT.fare)} · boarding now · Space skips to the landing`);
+  toast(`✈ Oyo Skylink OS ${FLIGHT.no} · ${CITY_NAMES[d.city]} → ${city}`, `${NAIRA(FLIGHT.fare)} · boarding now · Space skips to the landing`);
   setTimeout(() => {
     if (!FLY.g) { FLY.g = makeAirliner(); const tail = FLY.g.children[1]; if (tail) { tail.material = tail.material.clone(); tail.material.color.setHex(0xb8261e); } scene.add(FLY.g); }
-    Object.assign(FLY, { on: true, R: AIR_ROUTES[d.to], s: 0, v: 0, to: d.to, d, pitch: 0, roll: 0 }); FLY.g.visible = true;
+    Object.assign(FLY, { on: true, R: AIR_ROUTES[d.city + '>' + d.to], s: 0, v: 0, to: d.to, from: d.city, d, pitch: 0, roll: 0 }); FLY.g.visible = true;
     const p = airAt(FLY.R, 0); FLY.yaw = Math.atan2(-p.tx, -p.tz); flightStep(0); FLY.snap = true;
     fade.style.opacity = '0';
   }, 700);
@@ -8559,12 +8782,12 @@ function flightStep(dt) {
   P.pos.set(p.x, p.y + 1, p.z); P.vel.set(0, 0, 0);   // you're aboard: the world loads around the plane
 }
 function flightArrive() {
-  const F = FLY, fade = $('fade'), city = F.to === 'ibadan' ? 'Ibadan' : 'Lagos', to = FLIGHT_DESKS.find(q => q !== F.d);
+  const F = FLY, fade = $('fade'), city = CITY_NAMES[F.to], to = FLIGHT_DESKS.find(q => q.city === F.to && q.to === F.from) || FLIGHT_DESKS.find(q => q.city === F.to);
   F.on = false; fade.style.opacity = '1';
   setTimeout(() => {
-    F.g.visible = false; const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0); yaw = F.to === 'ibadan' ? Math.PI / 2 : -Math.PI / 2;
+    F.g.visible = false; const [x, z] = to.out; P.pos.set(x, groundAt(x, z) + .1, z); P.vel.set(0, 0, 0); yaw = F.to === 'ibadan' ? Math.PI / 2 : F.to === 'benin' ? 0 : -Math.PI / 2;
     fade.style.opacity = '0'; FLIGHT.busy = false; FLIGHT.no = 100 + ((FLIGHT.no + 7) % 90);
-    toast(`Welcome to ${city}`, F.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : 'Murtala Muhammed International · flights to Ibadan: the red Oyo Skylink booth beside you (E)');
+    toast(`Welcome to ${city}`, F.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : F.to === 'benin' ? 'Benin Airport · flights back to Lagos: the red Oyo Skylink booth right beside you (E) · King’s Square is straight up the road' : 'Murtala Muhammed International · flights to Ibadan and Benin: the red Oyo Skylink booths beside you (E)');
   }, 650);
 }
 function flightCamera(dt) {   // a chase camera, off the plane's tail and a little to one side
@@ -8574,7 +8797,7 @@ function flightCamera(dt) {   // a chase camera, off the plane's tail and a litt
   SIM.cutY.constant = 1e5; SIM.t = 0;
 }
 const flightPrompt = () => { const F = FLY, ground = F.g ? F.g.position.y - TOWN.y : 0, ph = F.s < 40 ? 'boarding complete, rolling' : ground < 1 && F.s < F.R.L / 2 ? 'take-off roll' : ground < 1 ? 'landed · rolling out' : F.s > F.R.skip ? 'final approach' : ground < 90 ? 'climbing' : 'cruising';
-  return `✈ Oyo Skylink OS ${FLIGHT.no} · ${F.to === 'ibadan' ? 'Lagos → Ibadan' : 'Ibadan → Lagos'} · ${ph} · ${Math.round(Math.max(0, ground) * 3.28 / 10) * 10} ft · ${Math.round(F.v * 3.6)} km/h${F.s < F.R.skip ? ' · Space: skip to the landing' : ''}`; };
+  return `✈ Oyo Skylink OS ${FLIGHT.no} · ${CITY_NAMES[F.from]} → ${CITY_NAMES[F.to]} · ${ph} · ${Math.round(Math.max(0, ground) * 3.28 / 10) * 10} ft · ${Math.round(F.v * 3.6)} km/h${F.s < F.R.skip ? ' · Space: skip to the landing' : ''}`; };
 
 /* ---------- the Lekki Deep Sea Port: the causeway (railings, lamps, the sign at the coast road), the port gate, quays with
    ship-to-shore gantry cranes, the container yard with its gantries, a warehouse and the port authority, floodlight masts,
@@ -9202,6 +9425,7 @@ function updateCamera(dt) {
   }
   if (ARR.on) { arrCamera(); return; }
   if (FLY.on) { flightCamera(dt); return; }
+  if (TRAIN.ride.on) { trainCamera(dt); return; }
   const d = camDir(tmpC);
   if (firstPerson) { SIM.t = 0; SIM.cutY.constant = 1e5; camera.position.set(P.pos.x, P.pos.y + 1.65, P.pos.z); camera.lookAt(tmpA.copy(camera.position).add(d)); return; }
   const target = tmpA.set(P.pos.x, P.pos.y + (P.driving ? vehOf(P.driving).camY : 1.7), P.pos.z);
@@ -9242,6 +9466,7 @@ addEventListener('keydown', e => {
   if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing in a box (chat, sign-in) never drives the game
   if (ARR.on && mode === 'play') { arrKey(e); return; }   // arranging your home: its own keys
   if (FLY.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); flightSkip(); } return; }   // aboard a flight: Space skips to the landing
+  if (TRAIN.ride.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); trainSkip(); } else if (e.code === 'KeyE' && TRAIN.ride.at && TRAIN.ride.T.dwell > 0) trainAlight(); return; }   // on the train: Space skips on, E gets off at a stop
   if (['Tab', 'F5', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF'].includes(e.code) && mode === 'play') e.preventDefault();
   const was = keys[e.code]; keys[e.code] = true;
   if (was || mode !== 'play') return;
@@ -9253,7 +9478,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -9507,7 +9732,7 @@ function playerTimers(dt) {
 }
 function updatePlayerModel(dt) {
   const bike = P.driving && P.driving.kind === 'bike' ? P.driving : null;
-  playerModel.visible = !firstPerson && mode !== 'title' && !ARR.on && !FLY.on && (!P.driving || !!bike);
+  playerModel.visible = !firstPerson && mode !== 'title' && !ARR.on && !FLY.on && !TRAIN.ride.on && (!P.driving || !!bike);
   const aiming = mode === 'play' && (S.time - (P.lastShot ?? -9) < 1.2 || keys.KeyX || midHeld);
   const hs = Math.hypot(P.vel.x, P.vel.z);
   if (bike) {
@@ -9673,10 +9898,12 @@ function updateHUD(dt) {
   if (cue) { const dmg = (20 + spd * 4.2) * (P.sharp > 0 ? 1 : .25) * (spd > 25 ? 1.3 : 1); const lethal = dmg >= cue.hp; cc.classList.toggle('lethal', lethal); cc.textContent = lethal ? 'F · CUT  LETHAL' : 'F · CUT  TOO SLOW'; }
   const pick = nearPickup(), bar = !P.driving && nearBar(), sup = nearSupply(), downed = nearDowned(), lift = nearLift(), who = !TC.conv && talkTarget(), car = !P.driving && nearestCar(), landA = !sup && !car && !who && landAction();
   const desk = !P.driving && flightDeskNear();   // the airline's booth wins over passers-by and parked cars
+  const stn = !P.driving && stationNear(), stnA = stn && landAction();   // a station platform: the train, ahead of the people waiting on it
   const thS = !P.driving && nearThief(), doorS = !thS && !P.driving && doorSpot();
   const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
+  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !stn && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
+  else if (TRAIN.ride.on) { $('prompt').hidden = false; $('prompt').textContent = trainPrompt(); }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
   else if (P.driving && JOBS.del) $('prompt').textContent = delPrompt();
@@ -9700,7 +9927,8 @@ function updateHUD(dt) {
   else if (djB) $('prompt').textContent = `E · DJ booth: pick the next song · ${MUSIC.clubs.get(djB).cur.T.title} is on`;
   else if (ndS) $('prompt').textContent = ndS.label;
   else if (lift) $('prompt').textContent = lift.up ? `E · Take the lift to ${lift.L.name}` : 'E · Take the lift down';
-  else if (desk) $('prompt').textContent = `E · Oyo Skylink: fly to ${desk.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`;
+  else if (stnA) $('prompt').textContent = stnA.label;
+  else if (desk) $('prompt').textContent = `E · Oyo Skylink: fly to ${CITY_NAMES[desk.to]} · ${NAIRA(FLIGHT.fare)}`;
   else if (who) $('prompt').textContent = who.persona?.met ? `E · Talk to ${who.persona.name}` : 'E · Say hello';
   else if (car) $('prompt').textContent = car.lux ? `E · Drive the ${car.luxName || 'Range Rover Sport'} ✦` : (car.kind === 'bike') ? 'E · Ride this motorbike' : car.police ? 'E · Drive the police car' : car.ambulance ? 'E · Drive the ambulance' : car.kind === 'truck' ? 'E · Drive the fire truck' : car.kind === 'bus' ? 'E · Drive the school bus' : car.kind === 'plane' ? 'E · Fly this plane' : car.kind === 'jet' ? 'E · Fly the airliner' : car.kind === 'boat' ? 'E · Take the speedboat' : 'E · Drive this car';
   else if (landA && !JOBS.del) $('prompt').textContent = landA.label;
@@ -9736,6 +9964,11 @@ const mapImg = (() => {
   g.putImageData(img, 0, 0);
   g.translate(MAP_OX, MAP_OY);   // everything below is drawn in old-map coordinates
   for (const [x, z, w, d, col] of YABA_MAP) { g.fillStyle = col; g.fillRect(x + HALF - w / 2, z + HALF - d / 2, w, d); }
+  if (RAILW) {   // Naija Rail: a black line with white ties, the stations as green blocks
+    const line = (wd, col, dash) => { g.strokeStyle = col; g.lineWidth = wd; g.setLineDash(dash); g.beginPath(); RAIL_PTS.forEach(([x, z], k) => k ? g.lineTo(x + HALF, z + HALF) : g.moveTo(x + HALF, z + HALF)); g.stroke(); };
+    line(7, '#2a2a2e', []); line(3, '#f2f0ea', [4, 6]); g.setLineDash([]);
+    g.fillStyle = '#1f6f3a'; for (const st of TRAIN.stations) g.fillRect(st.rect[0] + HALF, st.rect[2] + HALF, st.rect[1] - st.rect[0], st.rect[3] - st.rect[2]);
+  }
   g.fillStyle = '#2f5d22';
   for (const t of TREES) { g.beginPath(); g.arc(t.x + HALF, t.z + HALF, 6, 0, TAU); g.fill(); }
   g.fillStyle = '#8b8f90'; for (const [x, z] of RUINS) g.fillRect(x + HALF - 6, z + HALF - 1.5, 12, 3);
@@ -9857,7 +10090,7 @@ function drawBigMap() {
     for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
     for (const [n, x, z] of OYO_PLACES) label(n, x, z, 11, '#ffd3a8');
     if (PORT) { label('LEKKI DEEP SEA PORT', (PORT.x0 + PORT.x1) / 2, (PORT.z0 + PORT.z1) / 2, 20, '#f2c230'); label('Causeway', PORT.rx + 30, 380, 12, '#f2c230'); label('Breakwater', 230, 920, 11, '#e8e6df'); }
-    for (const d of FLIGHT_DESKS) { const [bx, by] = toB(d.x, d.z); bg2.fillStyle = '#d8342c'; bg2.strokeStyle = '#fff'; bg2.lineWidth = 2; bg2.beginPath(); bg2.arc(bx, by, 7, 0, TAU); bg2.fill(); bg2.stroke(); label(`✈ Oyo Skylink: fly to ${d.to === 'ibadan' ? 'Ibadan' : 'Lagos'}`, d.x, d.z, 12, '#ffb0b0', -14); }
+    for (const d of FLIGHT_DESKS) { const [bx, by] = toB(d.x, d.z); bg2.fillStyle = '#d8342c'; bg2.strokeStyle = '#fff'; bg2.lineWidth = 2; bg2.beginPath(); bg2.arc(bx, by, 7, 0, TAU); bg2.fill(); bg2.stroke(); label(`✈ Oyo Skylink: fly to ${CITY_NAMES[d.to]}`, d.x, d.z, 12, '#ffb0b0', -14); }
     label('IKEJA', GRA.ave, GRA.z1 - 6, 18, '#f2c230'); label('Lagos State Government House', GOVH.bx0 + 18, GOVH.cz - 70, 11, '#ffd3a8');
     label('YABA', YB.x, YB.z - RING - 10, 18, '#f2c230'); label('Tejuosho Market', YB.x - 57, YB.z - 57, 11, '#ffd3a8'); label('Ojuelegba Motor Park', YB.x + 19, YB.z - 57, 11, '#ffd3a8');
     label('UNIVERSITY OF LAGOS', (UNILAG.x0 + UNILAG.lagoonX) / 2, UNILAG.z0 + 30, 15, '#ffb0b0'); label('Senate', 160, -514, 11, '#ffffff'); label('Lagoon', UNILAG.lagoonX + 30, -560, 12, '#bfe3ff');
@@ -10118,7 +10351,7 @@ const MENUS = {
 }
 // the spot you're standing at: a fixture in your own home, or a venue
 function needSpot() {
-  if (!NEEDS.on || P.driving || NEEDS.busy || FLY.on) return null;
+  if (!NEEDS.on || P.driving || NEEDS.busy || FLY.on || TRAIN.ride.on) return null;
   const home = myHome();
   if (home) {
     const f = floorIdx(home.hs); let best = null, bd = 1.9;
@@ -10252,7 +10485,7 @@ function carNap() {
 // each frame: drain, warn, and the consequences
 function updateNeeds(dt) {
   updateGo(dt); updateShowerWater(dt);
-  if (!NEEDS.on || mode !== 'play' || FLY.on || ARR.on || NEEDS.busy) { NEEDS.fly && (NEEDS.fly.visible = false); return; }
+  if (!NEEDS.on || mode !== 'play' || FLY.on || TRAIN.ride.on || ARR.on || NEEDS.busy) { NEEDS.fly && (NEEDS.fly.visible = false); return; }
   const busyBody = P.vel.length() > 6 && !P.driving ? 1.6 : 1;
   NEEDS.h -= NEED_RATE.h * dt * busyBody; NEEDS.b -= NEED_RATE.b * dt; NEEDS.c -= NEED_RATE.c * dt * busyBody; NEEDS.e -= NEED_RATE.e * dt;
   if (P.inWater) NEEDS.c = Math.min(70, NEEDS.c + 4 * dt);   // a swim freshens you up a bit
@@ -11906,7 +12139,8 @@ function taxiPrompt() {
 
 // what E does about land, if anything
 function landAction() {
-  { const fd = typeof flightDeskNear === 'function' && flightDeskNear(); if (fd) return { label: `E · Oyo Skylink: fly to ${fd.to === 'ibadan' ? 'Ibadan' : 'Lagos'} · ${NAIRA(FLIGHT.fare)}`, run: () => flyFrom(fd) }; }
+  { const st = typeof stationNear === 'function' && stationNear(); if (st) { const to = trainDest(st); return { label: `E · 🚆 Naija Rail: ${st.name} → ${to.name} · ${NAIRA(TRAIN.fare)}${WAY.on ? '' : ' · pin a station on the map to pick'}`, run: () => boardTrain(st) }; } }
+  { const fd = typeof flightDeskNear === 'function' && flightDeskNear(); if (fd) return { label: `E · Oyo Skylink: fly to ${CITY_NAMES[fd.to]} · ${NAIRA(FLIGHT.fare)}`, run: () => flyFrom(fd) }; }
   if (nearDealer()) return { label: `E · Buy a bulldozer · ${NAIRA(DOZER_YARD.price)}`, run: buyDozer };
   if (P.driving) return null;
   const info = landInfoAt(P.pos.x, P.pos.z);
@@ -13834,7 +14068,7 @@ function intClassify(B, cx, cz) {
   if (PORT && PORT.yard.some(([a, b, c, e]) => cx > a && cx < b && cz > c && cz < e)) return null;   // shipping containers
   if (cz > 300) return 'warehouse';
   if (H >= 24) return h < .45 ? 'office' : h < .8 ? 'apartment' : 'workfloor';
-  if (YB && (inR(YTECH, cx, cz) || inR(UNILAG, cx, cz))) return h < .7 ? 'classroom' : 'workfloor';
+  if (YB && (inR(YTECH, cx, cz) || inR(UNILAG, cx, cz) || (EDO && inR(EDO.uniben, cx, cz)))) return h < .7 ? 'classroom' : 'workfloor';
   if (cz < -5680 && Math.abs(cx) < 140) return A > 300 ? 'palace' : 'home';   // the Alaafin's palace at Oyo
   if (EDO && (inR(EDO.palace, cx, cz) || inR(EDO.ooni, cx, cz))) return A > 300 ? 'palace' : 'home';   // the Oba's palace in Benin, the Ooni's at Ife
   if (EDO && inR(EDO.museum, cx, cz)) return 'museum';
@@ -14097,7 +14331,7 @@ function frame(now) {
   if (mode === 'play') {
     updateAim();
     S.time += dt;
-    if (FLY.on) flightStep(dt); else if (P.driving) (isAir(P.driving) ? flyStep : P.driving.kind === 'boat' ? boatStep : driveStep)(dt); else if (!updateRide()) for (let i = 0; i < 3; i++) stepPlayer(dt / 3);
+    if (FLY.on) flightStep(dt); else if (TRAIN.ride.on) trainRideStep(dt); else if (P.driving) (isAir(P.driving) ? flyStep : P.driving.kind === 'boat' ? boatStep : driveStep)(dt); else if (!updateRide()) for (let i = 0; i < 3; i++) stepPlayer(dt / 3);
     playerTimers(dt);
     autoPan(dt);
   }
@@ -14110,7 +14344,7 @@ function frame(now) {
   updateAds(dt);
   updatePolice();
   updateDayNight(dt);
-  updateGrass(); updateForest();
+  updateGrass(); updateForest(); if (mode !== 'pause') updateTrains(dt);
   updateHUD(dt);
   updateLand(dt);
   updateWaypoint();
