@@ -549,6 +549,8 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>
 (() => {
 'use strict';
@@ -11202,6 +11204,7 @@ function setPlayerLook(look) {
   playerModel.remove(old.root); playerModel.add(rig.root);
   rig.fArm[0].add(pm.blade); rig.fArm[1].add(pm.pistol); for (const c of pm.cans) rig.pelvis.add(c); rig.head.add(pm.hat, pm.shades);
   pm.rig = rig; pm.legs = rig.thigh; pm.arms = rig.uArm;
+  setPlayerHuman(look);
 }
 function lookChanged() {   // after the creator, or Y / U
   try { localStorage.setItem(LOOK_STORE, JSON.stringify(MY_LOOK)); } catch (e) {}
@@ -11237,11 +11240,354 @@ function vehModel(key) {
     default: return makeCarModel();
   }
 }
+/* ---------- realistic people: rigged human models (Quaternius Universal Base Characters, CC0) animated with motion-
+   capture-style clips (Universal Animation Library, CC0), files in humans/. A person is built from a character look:
+   the male or female body, skin tinted to the look's tone (from the light or dark skin texture, whichever is nearer),
+   a hairstyle bound to the same skeleton, and clothing made from the body itself: the shirt, trousers, shoes or a long
+   garment are copies of those parts of the body, pushed out a few millimetres, so they move exactly with it.
+   Until the files have loaded (or if they can't), the old figure stands in. ---------- */
+var HUM = { ready: false,   // var: setPlayerLook runs once during start-up, before this line
+  failed: false, base: {}, clips: {}, hair: {}, tex: {}, avg: {}, shells: new Map() };
+const HUM_DIR = 'humans/';
+const HAIR_FILE = { messy: 'simpleparted', short: 'buzzed', fade: 'buzzed', curly: 'buzzed', bald: '', afro: 'buzzed', locs: 'long', long: 'long', ponytail: 'buns', bun: 'buns', bob: 'simpleparted', braids: 'long' };
+const HAIR_FILE_F = { messy: 'long', short: 'buzzedfemale', fade: 'buzzedfemale', curly: 'buzzedfemale', bald: '', afro: 'buzzedfemale', locs: 'long', long: 'long', ponytail: 'buns', bun: 'buns', bob: 'long', braids: 'long' };
+function humLoad(url) { return new Promise((ok, no) => new THREE.GLTFLoader().load(HUM_DIR + url, ok, undefined, no)); }
+function humTex(url, srgb = true) { return new Promise((ok, no) => new THREE.TextureLoader().load(HUM_DIR + url, t => { t.flipY = false; if (srgb) t.encoding = THREE.sRGBEncoding; ok(t); }, undefined, no)); }
+function texAverage(tex) {   // the mean colour of a skin texture (its centre, where the body is), in linear terms
+  const img = tex.image, c = document.createElement('canvas'), n = 64; c.width = c.height = n; const g = c.getContext('2d'); g.drawImage(img, 0, 0, n, n);
+  const d = g.getImageData(n * .25, n * .25, n * .5, n * .5).data; let r = 0, gg = 0, b = 0, k = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; k++; }
+  return new THREE.Color(r / k / 255, gg / k / 255, b / k / 255).convertSRGBToLinear();
+}
+async function loadHumans() {
+  if (!THREE.GLTFLoader || !THREE.SkeletonUtils) { HUM.failed = true; return; }
+  try {
+    const [man, woman, anims, hc, hn, ml, wl] = await Promise.all([humLoad('man.glb'), humLoad('woman.glb'), humLoad('anims.glb'), humTex('hair_color.png'), humTex('hair_normal.jpg', false), humTex('skin_man_light.jpg'), humTex('skin_woman_light.jpg')]);
+    for (const [k, g] of [['m', man], ['f', woman]]) {
+      HUM.base[k] = g.scene;
+      g.scene.traverse(o => { if (o.isSkinnedMesh && /Superhero/i.test(o.material.name)) { HUM.tex[k + 'dark'] = o.material.map; HUM.avg[k + 'dark'] = texAverage(o.material.map); slimBody(o); } });
+    }
+    HUM.tex.mlight = ml; HUM.tex.flight = wl; HUM.avg.mlight = texAverage(ml); HUM.avg.flight = texAverage(wl);
+    HUM.tex.hair = hc; HUM.tex.hairN = hn;
+    for (const c of anims.animations) HUM.clips[c.name] = c;
+    HUM.ready = true;
+    humansReady();
+  } catch (e) { console.warn('humans:', e); HUM.failed = true; }
+}
+function hairFile(name) {   // a hairstyle, loaded once and shared
+  if (!name) return Promise.resolve(null);
+  return HUM.hair[name] ||= humLoad('hair_' + name + '.glb').then(g => g.scene).catch(() => null);
+}
+// a clothing layer: the part of the body the given bones carry, cut cleanly where their share of the skinning falls to
+// a half (so hems, cuffs and collars are smooth lines, not the body's triangle edges), pushed out along the normals
+function shellGeometry(mesh, sexKey, part, test, push) {
+  const key = sexKey + ':' + part; if (HUM.shells.has(key)) return HUM.shells.get(key);
+  const src = mesh.geometry, idx = src.index.array, names = mesh.skeleton.bones.map(b => b.name), inc = names.map(n => n !== 'Head' && n !== 'neck_01' && test(n));
+  const P = src.attributes.position, N = src.attributes.normal, SI = src.attributes.skinIndex, SW = src.attributes.skinWeight, G = ['getX', 'getY', 'getZ', 'getW'];
+  // each vertex: its bones and weights (normalised; quantized weights read as raw integers) and how much of it is cloth
+  const vb = [], cov = new Float32Array(P.count);
+  for (let i = 0; i < P.count; i++) {
+    const m = new Map(); let sum = 0;
+    for (let k = 0; k < 4; k++) { const w = SW[G[k]](i); if (w > 0) { const b = SI[G[k]](i); m.set(b, (m.get(b) || 0) + w); sum += w; } }
+    let c = 0; for (const [b, w] of m) { m.set(b, w / sum); if (inc[b]) c += w / sum; }
+    vb.push(m); cov[i] = c;
+  }
+  const pos = [], nor = [], si = [], sw = [];
+  const vert = i => ({ p: [P.getX(i), P.getY(i), P.getZ(i)], n: [N.getX(i), N.getY(i), N.getZ(i)], b: vb[i], c: cov[i] - .5 });
+  const lerp = (a, b) => { const t = a.c / (a.c - b.c), m = new Map();
+    for (const [k, w] of a.b) m.set(k, w * (1 - t)); for (const [k, w] of b.b) m.set(k, (m.get(k) || 0) + w * t);
+    return { p: a.p.map((v, j) => v + (b.p[j] - v) * t), n: a.n.map((v, j) => v + (b.n[j] - v) * t), b: m, c: 0 }; };
+  const emit = v => { const l = Math.hypot(...v.n) || 1; for (let j = 0; j < 3; j++) { pos.push(v.p[j] + v.n[j] / l * push); nor.push(v.n[j] / l); }
+    const top = [...v.b].sort((x, y) => y[1] - x[1]).slice(0, 4), s = top.reduce((a, x) => a + x[1], 0);
+    for (let k = 0; k < 4; k++) { si.push(top[k] ? top[k][0] : 0); sw.push(top[k] ? top[k][1] / s : 0); } };
+  for (let t = 0; t < idx.length; t += 3) {
+    const tri = [vert(idx[t]), vert(idx[t + 1]), vert(idx[t + 2])];
+    if (tri.every(v => v.c < 0)) continue;
+    const poly = [];   // the triangle clipped to the cloth side of the half-way line
+    for (let k = 0; k < 3; k++) { const a = tri[k], b = tri[(k + 1) % 3]; if (a.c >= 0) poly.push(a); if ((a.c >= 0) !== (b.c >= 0)) poly.push(lerp(a, b)); }
+    for (let k = 1; k + 1 < poly.length; k++) { emit(poly[0]); emit(poly[k]); emit(poly[k + 1]); }
+  }
+  drape(pos, nor, part === 'shoes' ? 1 : 4);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  HUM.shells.set(key, g); return g;
+}
+// fabric doesn't follow every muscle: relax the layer (each point toward its neighbours), but only ever outward, so it
+// bridges the hollows between chest and belly, the spine and the shoulder blades, and never sinks into the body
+function drape(pos, nor, iters) {
+  const n = pos.length / 3, id = new Int32Array(n), keys = new Map(); let u = 0;
+  for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] * 2e4) + ',' + Math.round(pos[i * 3 + 1] * 2e4) + ',' + Math.round(pos[i * 3 + 2] * 2e4); let j = keys.get(k); if (j === undefined) keys.set(k, j = u++); id[i] = j; }
+  const P0 = new Float32Array(u * 3), Nn = new Float32Array(u * 3), nb = Array.from({ length: u }, () => new Set()), edge = new Map();
+  for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) { P0[id[i] * 3 + j] = pos[i * 3 + j]; Nn[id[i] * 3 + j] += nor[i * 3 + j]; }
+  for (let t = 0; t < n; t += 3) for (let k = 0; k < 3; k++) { const a = id[t + k], b = id[t + (k + 1) % 3]; nb[a].add(b); nb[b].add(a); const e = a < b ? a + ':' + b : b + ':' + a; edge.set(e, (edge.get(e) || 0) + 1); }
+  const rim = new Uint8Array(u); for (const [e, c] of edge) if (c === 1) { const [a, b] = e.split(':'); rim[a] = rim[b] = 1; }   // hems and cuffs stay where they were cut
+  for (let i = 0; i < u; i++) { const l = Math.hypot(Nn[i * 3], Nn[i * 3 + 1], Nn[i * 3 + 2]) || 1; Nn[i * 3] /= l; Nn[i * 3 + 1] /= l; Nn[i * 3 + 2] /= l; }
+  let A = P0.slice(), B = new Float32Array(u * 3);
+  for (let it = 0; it < iters; it++) {
+    for (let i = 0; i < u; i++) {
+      if (rim[i] || !nb[i].size) { B[i * 3] = A[i * 3]; B[i * 3 + 1] = A[i * 3 + 1]; B[i * 3 + 2] = A[i * 3 + 2]; continue; }
+      let x = 0, y = 0, z = 0; for (const j of nb[i]) { x += A[j * 3]; y += A[j * 3 + 1]; z += A[j * 3 + 2]; } const c = nb[i].size;
+      let dx = (x / c - A[i * 3]) * .6 + A[i * 3] - P0[i * 3], dy = (y / c - A[i * 3 + 1]) * .6 + A[i * 3 + 1] - P0[i * 3 + 1], dz = (z / c - A[i * 3 + 2]) * .6 + A[i * 3 + 2] - P0[i * 3 + 2];
+      const d = dx * Nn[i * 3] + dy * Nn[i * 3 + 1] + dz * Nn[i * 3 + 2]; if (d < 0) { dx -= d * Nn[i * 3]; dy -= d * Nn[i * 3 + 1]; dz -= d * Nn[i * 3 + 2]; }
+      B[i * 3] = P0[i * 3] + dx; B[i * 3 + 1] = P0[i * 3 + 1] + dy; B[i * 3 + 2] = P0[i * 3 + 2] + dz;
+    }
+    [A, B] = [B, A];
+  }
+  for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) pos[i * 3 + j] = A[id[i] * 3 + j];
+  // smooth shading to match: the welded normals
+  for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) nor[i * 3 + j] = Nn[id[i] * 3 + j];
+}
+// the packs' bodies are superhero builds: draw each limb and the chest in toward its bone a little (in the rest pose,
+// once per body, before any clothing is cut from it) for an everyday build
+const SLIM = { upperarm: ['lowerarm', .13], lowerarm: ['hand', .08], clavicle: ['upperarm', .12], spine_03: ['neck_01', .08], spine_02: ['spine_03', .05], neck_01: ['Head', .06], thigh: ['calf', .06], calf: ['foot', .04] };
+function slimBody(body) {
+  const sk = body.skeleton, names = sk.bones.map(b => b.name), at = n => { const i = names.indexOf(n); return i < 0 ? null : new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sk.boneInverses[i]).invert()); };
+  const seg = {};
+  for (const n of names) { const base = n.replace(/_[lr]$/, ''), side = n.slice(base.length), r = SLIM[base]; if (!r) continue; const a = at(n), b = at(r[0] + (r[0] === 'Head' || r[0] === 'neck_01' || r[0] === 'spine_03' ? '' : side)); if (a && b) seg[names.indexOf(n)] = [a, b, r[1]]; }
+  const g = body.geometry, P = g.attributes.position, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, G = ['getX', 'getY', 'getZ', 'getW'], v = new THREE.Vector3(), q = new THREE.Vector3(), d = new THREE.Vector3();
+  for (let i = 0; i < P.count; i++) {
+    let sum = 0; const pull = new THREE.Vector3();
+    for (let k = 0; k < 4; k++) { const w = SW[G[k]](i); sum += w; const sgm = seg[SI[G[k]](i)]; if (!w || !sgm) continue;
+      v.fromBufferAttribute(P, i); d.subVectors(sgm[1], sgm[0]); const t = clamp(q.subVectors(v, sgm[0]).dot(d) / d.lengthSq(), 0, 1);
+      q.copy(sgm[0]).addScaledVector(d, t); pull.addScaledVector(q.sub(v), sgm[2] * w); }
+    if (sum) { v.fromBufferAttribute(P, i).addScaledVector(pull, 1 / sum); P.setXYZ(i, v.x, v.y, v.z); }
+  }
+  g.computeBoundingSphere();
+}
+// at ease: the idle and the walk clench their fists and hunch the shoulders, so after each frame the fingers relax most of
+// the way to open and the shoulders, upper back and neck settle part of the way back to standing straight
+const EASE_BONES = [[/^(thumb|index|middle|ring|pinky)_/, .62], [/^clavicle_/, .45], [/^spine_0[23]$/, .3], [/^neck_01$/, .3]];
+function easeRig(h) {
+  h.ease = [];
+  for (const b of Object.values(h.bones)) for (const [re, k] of EASE_BONES) if (re.test(b.name)) { h.ease.push([b, b.quaternion.clone(), k]); break; }
+}
+const EASED = { Idle_Loop: 1, Idle_Talking_Loop: .6, Walk_Loop: .8, Walk_Formal_Loop: .6, Jog_Fwd_Loop: .5, Sprint_Loop: .35, Dance_Loop: .3 };
+function applyEase(h, dt) {
+  const want = EASED[h.cur] || 0; h.easeW = (h.easeW ?? want) + (want - (h.easeW ?? want)) * Math.min(1, dt * 5);
+  if (h.easeW < .01) return;
+  for (const [b, rest, k] of h.ease) b.quaternion.slerp(rest, k * h.easeW);
+}
+// a skirt (a dress to the knee, a kaftan, agbada or boubou to the ankle): a flared tube measured off this body, hung
+// from the hips and swinging with the thighs, so the legs move inside it rather than through it
+function skirtGeometry(body, scene, sexKey, long) {
+  const key = sexKey + ':skirt' + (long ? 'L' : 'S'); if (HUM.shells.has(key)) return HUM.shells.get(key);
+  scene.updateMatrixWorld(true);
+  const toScene = new THREE.Matrix4().copy(scene.matrixWorld).invert().multiply(body.matrixWorld), toMesh = new THREE.Matrix4().copy(toScene).invert();
+  const names = body.skeleton.bones.map(b => b.name), bi = n => names.indexOf(n), at = n => scene.worldToLocal(body.skeleton.bones[bi(n)].getWorldPosition(new THREE.Vector3()));
+  const pel = at('pelvis'), knee = at('calf_l'), foot = at('foot_l'), lx = at('thigh_l').x > pel.x ? 1 : -1;
+  const yTop = pel.y + .07, yHem = long ? foot.y + .06 : knee.y - .04;
+  // the body's own girth at each height (front, back and side), from its hip and leg vertices
+  const g = body.geometry, P = g.attributes.position, bv = body.userData.bones ||= (() => { const SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, G = ['getX', 'getY', 'getZ', 'getW'], o = [];
+    for (let i = 0; i < SI.count; i++) { let b = 0, w = -1; for (let k = 0; k < 4; k++) if (SW[G[k]](i) > w) { w = SW[G[k]](i); b = SI[G[k]](i); } o.push(names[b]); } return o; })();
+  const R = 10, S = 36, rings = [], v = new THREE.Vector3();
+  for (let j = 0; j <= R; j++) rings.push({ y: yTop + (yHem - yTop) * j / R, sx: .1, zf: .08, zb: .08 });
+  for (let i = 0; i < P.count; i++) {
+    if (!/^(pelvis|spine_01|thigh|calf)/.test(bv[i])) continue;
+    v.fromBufferAttribute(P, i).applyMatrix4(toScene);
+    for (const r of rings) if (Math.abs(v.y - r.y) < .025) { r.sx = Math.max(r.sx, Math.abs(v.x - pel.x)); if (v.z > pel.z) r.zf = Math.max(r.zf, v.z - pel.z); else r.zb = Math.max(r.zb, pel.z - v.z); }
+  }
+  for (let j = 1; j <= R; j++) { const a = rings[j - 1], r = rings[j]; r.sx = Math.max(r.sx, a.sx); r.zf = Math.max(r.zf, a.zf); r.zb = Math.max(r.zb, a.zb); }   // it falls, it doesn't cling
+  const pos = [], nor = [], si = [], sw = [], idx = [], iP = bi('pelvis'), iL = bi('thigh_l'), iR = bi('thigh_r'), iCL = bi('calf_l'), iCR = bi('calf_r');
+  for (let j = 0; j <= R; j++) {
+    const t = j / R, r = rings[j], flare = .025 + (long ? .08 : .06) * t ** 1.2;
+    for (let k = 0; k <= S; k++) {
+      const a = k / S * Math.PI * 2, cx = Math.sin(a), cz = Math.cos(a);
+      v.set(pel.x + cx * (r.sx + flare), r.y, pel.z + cz * ((cz > 0 ? r.zf : r.zb) + flare));
+      const n = new THREE.Vector3(cx / (r.sx + flare), 0, cz / ((cz > 0 ? r.zf : r.zb) + flare)).normalize();
+      pos.push(...v.clone().applyMatrix4(toMesh).toArray()); nor.push(...n.transformDirection(toMesh).toArray());
+      // the waistband rides the hips; lower down each side follows its own leg (the front and back half-way between)
+      const side = (clamp(cx * lx * 1.6, -1, 1) + 1) / 2, leg = long ? clamp((t - .04) / .3, 0, 1) * .6 : clamp(t / .18, 0, 1) * .92, calf = long ? clamp((t - .55) / .45, 0, 1) * .2 : 0;
+      const wl = (leg - calf) * side, wr = (leg - calf) * (1 - side);   // the front and back hang between the legs, the sides with their own
+      si.push(iP, iL, iR, side > .5 ? iCL : iCR); sw.push(1 - leg, wl, wr, calf);
+    }
+  }
+  for (let j = 0; j < R; j++) for (let k = 0; k < S; k++) { const a = j * (S + 1) + k, b = a + S + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4)); geo.setIndex(idx);
+  HUM.shells.set(key, geo); return geo;
+}
+const clothMat = (hex, rough = .82) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear(), roughness: rough, metalness: 0, skinning: true, side: THREE.DoubleSide });   // double-sided like the body (some of its triangles face inward)
+function addShell(body, sexKey, part, test, push, hex, rough) {
+  const geo = shellGeometry(body, sexKey, part, test, push), m = new THREE.SkinnedMesh(geo, clothMat(hex, rough));
+  m.bind(body.skeleton, body.bindMatrix); m.castShadow = true; m.frustumCulled = false; body.parent.add(m); return m;
+}
+// a coily dome: a sphere roughened with small tufts (shared per size)
+function afroGeometry(r, bump) {
+  return HUM.hair['geo' + r] ||= (() => {
+    const g = new THREE.IcosahedronGeometry(r, 4), p = g.attributes.position, v = new THREE.Vector3();
+    const tufts = Array.from({ length: 90 }, () => new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize());
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).normalize(); let k = 0; for (const t of tufts) k = Math.max(k, v.dot(t));
+      const n = 1 + bump * (Math.pow(k, 40) * .9 - .35 + .25 * Math.sin(v.x * 37) * Math.sin(v.y * 41) * Math.sin(v.z * 43));
+      p.setXYZ(i, v.x * r * n, v.y * r * n, v.z * r * n);
+    }
+    g.computeVertexNormals();   // the sphere's corners aren't shared, so average the normals where they meet, for smooth curls
+    const nn = g.attributes.normal, acc = new Map(), key = i => p.getX(i).toFixed(5) + ',' + p.getY(i).toFixed(5) + ',' + p.getZ(i).toFixed(5);
+    for (let i = 0; i < p.count; i++) { const k = key(i), a = acc.get(k) || [0, 0, 0]; a[0] += nn.getX(i); a[1] += nn.getY(i); a[2] += nn.getZ(i); acc.set(k, a); }
+    for (let i = 0; i < p.count; i++) { const a = acc.get(key(i)), l = Math.hypot(...a) || 1; nn.setXYZ(i, a[0] / l, a[1] / l, a[2] / l); }
+    return g;
+  })();
+}
+// build a person from a look (the creator's: female, build, skin, hair, hairStyle, outfit, legs, shirt, pants, boots, facial)
+function makeHuman(L0) {
+  if (!HUM.ready) return null;
+  const L = { ...BASE_LOOK, ...(L0 || {}) }, sex = L.female ? 'f' : 'm';
+  const scene = THREE.SkeletonUtils.clone(HUM.base[sex]), root = new THREE.Group(), wrap = new THREE.Group();
+  wrap.rotation.y = Math.PI; wrap.scale.setScalar(.965 * (L.build || 1) ** .35); wrap.add(scene); root.add(wrap);
+  let body = null, brows = null; const bones = {};
+  scene.traverse(o => {
+    if (o.isBone) bones[o.name] = o;
+    if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material = o.material.clone(); }
+    if (o.isSkinnedMesh && /Superhero/i.test(o.material.name)) body = o;
+    if (o.isSkinnedMesh && /Hair/i.test(o.material.name)) brows = o;
+  });
+  // skin: the nearer of the light and dark textures, tinted to the exact tone
+  const want = new THREE.Color(L.skin || '#6b4a32').convertSRGBToLinear(), lum = c => .3 * c.r + .59 * c.g + .11 * c.b;
+  const kind = Math.abs(lum(want) - lum(HUM.avg[sex + 'light'])) < Math.abs(lum(want) - lum(HUM.avg[sex + 'dark'])) ? 'light' : 'dark', avg = HUM.avg[sex + kind];
+  body.material.map = HUM.tex[sex + kind];
+  body.material.color.setRGB(clamp(want.r / avg.r, .25, 2.2), clamp(want.g / avg.g, .25, 2.2), clamp(want.b / avg.b, .25, 2.2));
+  body.material.needsUpdate = true;
+  const hairC = new THREE.Color(L.hair || '#1a1410').convertSRGBToLinear();
+  if (brows) { brows.material.color.copy(hairC).multiplyScalar(1.4); }
+  // clothes
+  const o = L.outfit, robe = ['kaftan', 'jalabiya', 'agbada', 'boubou'].includes(o), dress = o === 'dress';
+  const isArm = b => /^(upperarm|clavicle)/.test(b), isFore = b => /^lowerarm/.test(b), isTorso = b => /^spine_0[123]$/.test(b), isHip = b => b === 'pelvis';
+  const isThigh = b => /^thigh/.test(b), isCalf = b => /^calf/.test(b), isFoot = b => /^(foot|ball)/.test(b);
+  const longSleeve = o !== 'tee' && o !== 'crop';
+  const parts = [];
+  if (robe || dress) {   // one long garment from the shoulders down (to the knee for a dress, the ankle for robes and gowns)
+    parts.push(addShell(body, sex, o === 'dress' ? 'dress' : 'robe', b => isTorso(b) || isHip(b) || isArm(b) || (robe && isFore(b)), .011, L.shirt, .85));
+    const sk = new THREE.SkinnedMesh(skirtGeometry(body, scene, sex, robe), clothMat(L.shirt, .85));
+    sk.bind(body.skeleton, body.bindMatrix); sk.castShadow = true; sk.frustumCulled = false; body.parent.add(sk); parts.push(sk);
+    if (robe) parts.push(addShell(body, sex, 'trousers', b => isHip(b) || isThigh(b) || isCalf(b), .006, L.pants || '#e8e0c8', .8));   // sokoto under the robe
+  } else {
+    parts.push(addShell(body, sex, 'top:' + (o === 'crop' ? 'crop' : longSleeve ? 'long' : 'tee'), b => (o === 'crop' ? /^spine_0[23]$/.test(b) : isTorso(b)) || isArm(b) || (longSleeve && isFore(b)), .008, L.shirt, .8));
+    const shorts = L.legs === 'shorts', jeans = L.legs === 'jeans' || L.legs === 'ripped';
+    parts.push(addShell(body, sex, shorts ? 'shorts' : 'trousers', b => isHip(b) || isThigh(b) || (!shorts && isCalf(b)), .006, L.pants || '#2a3550', jeans ? .9 : .78));
+  }
+  parts.push(addShell(body, sex, 'shoes', b => isFoot(b), .013, L.boots || '#2a1d14', .55));
+  // hair, bound to this person's skeleton by bone name
+  const style = L.hairStyle || (L.female ? 'long' : 'short'), hf = (L.female ? HAIR_FILE_F : HAIR_FILE)[style] ?? 'buzzed';
+  const hairMat = new THREE.MeshStandardMaterial({ map: HUM.tex.hair, normalMap: HUM.tex.hairN, color: hairC.clone().multiplyScalar(2.2), roughness: .7, metalness: 0, alphaTest: .45, side: THREE.DoubleSide, skinning: true });
+  const bindHair = (src, mat = hairMat) => { if (!src) return; src.traverse(m => { if (!m.isSkinnedMesh) return;
+    const hm = new THREE.SkinnedMesh(m.geometry, mat); hm.castShadow = true; hm.frustumCulled = false;
+    hm.bind(new THREE.Skeleton(m.skeleton.bones.map(b => bones[b.name] || bones.Head), m.skeleton.boneInverses), m.bindMatrix.clone()); body.parent.add(hm); }); };
+  hairFile(hf).then(bindHair);
+  if (!L.female && L.facial && L.facial !== 'none') {   // a beard, or the same beard as a faint shadow for stubble
+    const stub = L.facial !== 'beard', bm = stub ? Object.assign(hairMat.clone(), { transparent: true, opacity: L.facial === 'heavy' ? .55 : .32, alphaTest: .3, depthWrite: false }) : hairMat;
+    hairFile('beard').then(src => bindHair(src, bm));
+  }
+  if (style === 'afro' || style === 'curly') {   // a rounded afro (or tight curls) over the crown, on the head bone
+    scene.updateMatrixWorld(true); const head = bones.Head, top = new THREE.Vector3(); head.getWorldPosition(top);
+    const r = style === 'afro' ? .13 : .108, m = new THREE.Mesh(afroGeometry(r, style === 'afro' ? .09 : .14), new THREE.MeshStandardMaterial({ color: hairC, roughness: 1, metalness: 0 }));
+    scene.worldToLocal(top);   // (the wrap turns and scales the scene, so work in its own space, where the face is +Z)
+    m.scale.set(1.05, .85, 1); m.position.set(top.x, top.y + (style === 'afro' ? .17 : .15), top.z - .035); m.castShadow = true; scene.add(m); head.attach(m);
+  }
+  // motion
+  const mixer = new THREE.AnimationMixer(scene), acts = {};
+  const play = (name, fade = .22, ts = 1) => {
+    const clip = HUM.clips[name]; if (!clip) return;
+    const a = acts[name] ||= mixer.clipAction(clip);
+    if (h.cur === name) { a.timeScale = ts; return; }
+    const once = !/_Loop$/.test(name) && name !== 'Interact';
+    a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); a.clampWhenFinished = once; a.timeScale = ts; a.enabled = true; a.setEffectiveWeight(1);
+    if (h.cur && acts[h.cur]) a.crossFadeFrom(acts[h.cur], fade, false);
+    a.play(); h.cur = name;
+  };
+  const h = { root, scene, body, bones, mixer, play, cur: '', parts }; easeRig(h);
+  play('Idle_Loop', 0);
+  return h;
+}
+// what someone's doing -> which clip, and how fast (the clips' natural speeds: walk ~1.4 m/s, jog ~3.4, sprint ~6.5)
+function gaitClip(speed) {
+  if (speed < .35) return ['Idle_Loop', 1];
+  if (speed < 2.6) return ['Walk_Loop', clamp(speed / 1.4, .6, 1.7)];
+  if (speed < 5.2) return ['Jog_Fwd_Loop', clamp(speed / 3.4, .7, 1.5)];
+  return ['Sprint_Loop', clamp(speed / 6.5, .8, 1.6)];
+}
+function playerClip() {
+  const hs = Math.hypot(P.vel.x, P.vel.z), pose = NEEDS.pose;
+  if (P.dead) return ['Death01', 1];
+  if (P.driving) return ['Driving_Loop', 1];
+  if (RIDE.on || pose?.sit) return ['Sitting_Idle_Loop', 1];
+  if (pose?.cook) return ['Interact', 1];
+  if (pose?.shower) return ['Idle_Talking_Loop', 1.3];
+  if (pose?.rx) return ['Idle_Loop', .5];
+  if (P.dance) { const mp = MUSIC.nearP; return ['Dance_Loop', mp ? clamp(mp.T.bpm / 110, .8, 1.25) : 1]; }
+  if (TC.conv) return ['Idle_Talking_Loop', 1];
+  if (P.inWater) return hs > .8 ? ['Swim_Fwd_Loop', 1] : ['Swim_Idle_Loop', 1];
+  if (!P.grounded) return ['Jump_Loop', 1];
+  if (P.slashT > 0) return ['Sword_Attack', 1.6];
+  if (S.time - (P.lastShot ?? -9) < 1.2 || keys.KeyX || midHeld) return [P.kick > .5 ? 'Pistol_Shoot' : 'Pistol_Aim_Neutral', 1];
+  return gaitClip(hs);
+}
+function remoteClip(p, r) {
+  if (p.anim === 'drive') return ['Driving_Loop', 1];
+  if (p.anim === 'ride') return ['Sitting_Idle_Loop', 1];
+  if ((p.anim || '').startsWith('dance')) return ['Dance_Loop', 1];
+  if (p.anim === 'air') return ['Jump_Loop', 1];
+  return gaitClip(r.speed);
+}
+// gear on the new body: a frame on a bone that lines up with the person (up is up, the face is +Z) in the rest pose,
+// so the old figure's hat, shades and pistol can ride on the head and the right hand
+function boneFrame(h, bone, basis, at) {   // at: where its origin goes (in the person's space), the bone itself if not given
+  const sc = h.scene, a = new THREE.Object3D(); sc.updateMatrixWorld(true);
+  a.position.copy(at || sc.worldToLocal(h.bones[bone].getWorldPosition(new THREE.Vector3())));
+  if (basis) a.quaternion.setFromRotationMatrix(basis);
+  sc.add(a); h.bones[bone].attach(a); return a;
+}
+function eyeLine(h) {   // the middle of the eyes and the front of them, in the person's own space (once per body)
+  if (h.eyes) return h.eyes;
+  const sc = h.scene; let eyes = null; sc.updateMatrixWorld(true); sc.traverse(o => { if (o.isMesh && /Eye/i.test(o.material.name) && !/brow/i.test(o.name)) eyes = o; });
+  const b = new THREE.Box3(), v = new THREE.Vector3(), m = new THREE.Matrix4().copy(sc.matrixWorld).invert().multiply(eyes.matrixWorld), P = eyes.geometry.attributes.position;
+  for (let i = 0; i < P.count; i++) b.expandByPoint(v.fromBufferAttribute(P, i).applyMatrix4(m));
+  return h.eyes = { c: b.getCenter(new THREE.Vector3()), front: b.max.z };
+}
+function wearGear(h, hat, shades, pistol, big) {
+  const e = eyeLine(h), k = .8;   // the old figure's head is a little larger than a real one
+  if (hat || shades) {
+    const head = boneFrame(h, 'Head', null, new THREE.Vector3(e.c.x, e.c.y - .157 * k, e.front + .014 - .142 * k)), g = new THREE.Group(); head.add(g);
+    g.rotation.y = Math.PI; g.scale.setScalar(k);   // the old head looks down -Z
+    if (shades) g.add(shades);
+    if (hat) { g.add(hat); hat.position.y = big ? .03 : 0; }   // sits up on an afro
+  }
+  if (pistol) {   // barrel out along the forearm, grip toward the palm (down, in the rest pose)
+    const sc = h.scene, w = n => sc.worldToLocal(h.bones[n].getWorldPosition(new THREE.Vector3()));
+    const y = w('lowerarm_r').sub(w('hand_r')).normalize(), z = new THREE.Vector3(0, -1, 0), x = new THREE.Vector3().crossVectors(y, z).normalize(); z.crossVectors(x, y);
+    const hand = boneFrame(h, 'hand_r', new THREE.Matrix4().makeBasis(x, y, z));
+    hand.add(pistol); pistol.position.set(0, -.06, .03); pistol.scale.setScalar(1.35 * k);
+  }
+}
+// put the new body in place of the old figure: the player and any online players already here
+function humansReady() {
+  setPlayerHuman();
+  for (const r of NET.others.values()) if (r.lookStr != null) remoteHuman(r, r.lookStr);
+}
+function setPlayerHuman(look) {
+  if (!HUM || !HUM.ready) return;
+  if (pm.human) playerModel.remove(pm.human.root);
+  pm.human = makeHuman(look || MY_LOOK); if (!pm.human) return;
+  playerModel.add(pm.human.root); pm.rig.root.visible = false;   // the old figure stays (other code still poses it) but isn't drawn
+  const L = look || MY_LOOK; wearGear(pm.human, pm.hat, pm.shades, pm.pistol, L.hairStyle === 'afro' || L.hairStyle === 'curly');
+}
+function remoteHuman(r, lookStr) {
+  if (!HUM || !HUM.ready) return;
+  let L = {}; try { L = JSON.parse(lookStr || '{}'); } catch (e) {}
+  if (r.human) r.g.remove(r.human.root);
+  r.human = makeHuman(L); if (!r.human) return;
+  r.g.add(r.human.root); if (r.rig) r.rig.root.visible = false;
+  if (r.hs) wearGear(r.human, r.hs.hat, r.hs.shades, null, L.hairStyle === 'afro' || L.hairStyle === 'curly');
+}
+function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); }
+
 function remoteLook(r, lookStr) {
   r.lookStr = lookStr; let L = {}; try { L = JSON.parse(lookStr || '{}'); } catch (e) {}
   if (r.rig) r.g.remove(r.rig.root);
   r.rig = buildFigure(lookSpec(L)); r.g.add(r.rig.root);
-  const hs = makeHatShades(); r.rig.head.add(hs.hat, hs.shades); hs.hat.visible = !!L.hat; hs.shades.visible = !!L.shades;
+  const hs = r.hs = makeHatShades(); r.rig.head.add(hs.hat, hs.shades); hs.hat.visible = !!L.hat; hs.shades.visible = !!L.shades;
+  remoteHuman(r, lookStr);   // the realistic body, once loaded
 }
 function remoteFor(id, p) {
   let r = NET.others.get(id); if (r) return r;
@@ -11326,6 +11672,7 @@ function updateRemotes(dt) {
       else if (p.anim === 'air') animFigure(r.rig, 0, 0, 'air');
       else { r.phase += r.speed * dt * (r.speed > 5 ? 1.25 : 1.9); animFigure(r.rig, r.phase, Math.min(1, r.speed / 3), r.speed > 5 ? 'run' : 'walk', S.time); }
     }
+    if (r.human && r.g.visible) updateHumanMotion(r.human, remoteClip(p, r), dt);
     if (r.tag) { r.tag.position.y = p.veh && !bike ? 2.9 : 2.25; r.tag.visible = camera.position.distanceTo(r.g.position) > 3.5; }   /* right next to the camera a tag would fill the screen */
     if (p.talk && !r.speak) { r.speak = new THREE.Sprite(SPEAK_MAT); r.speak.scale.set(.5, .5, 1); r.speak.renderOrder = 11; r.g.add(r.speak); }
     if (r.speak) { r.speak.visible = !!p.talk && r.g.visible; r.speak.position.y = (r.tag ? r.tag.position.y : 2.25) + .45; }
@@ -12102,6 +12449,7 @@ function setPeaceful(on, announce) {
 $('peaceBtn').addEventListener('click', () => setPeaceful(!peaceful, false));
 $('needsBtn').addEventListener('click', () => setNeedsOn(!NEEDS.on)); setNeedsOn(NEEDS.on);
 setPeaceful(peaceful, false);
+loadHumans();   // the realistic people (see makeHuman)
 let last = performance.now(), shadowTick = 0, looping = true;
 function frame(now) {
   // paused or dead: the last frame stays on screen under the overlay and the loop stops until play resumes
@@ -12121,6 +12469,7 @@ function frame(now) {
     autoPan(dt);
   }
   updatePlayerModel(dt);
+  if (pm.human) { updateHumanMotion(pm.human, playerClip(), dt); if (NEEDS.pose?.sit) playerModel.position.y += .44; if (!/^Pistol/.test(pm.human.cur)) pm.pistol.visible = false; }   // the realistic body (a seated clip sits higher than the old figure's pose)
   if (mode !== 'pause') updateShells(dt);
   updateParticles(dt);
   updateCamera(dt);

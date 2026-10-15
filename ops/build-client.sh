@@ -17,3 +17,6 @@ PY
 # the club music loops (Pixabay Content License; see ../giantwood-scouts/music/CREDITS.md) sit beside the page
 MUSIC="$(dirname "$SRC")/music"
 if [ -d "$MUSIC" ]; then mkdir -p server/public/music && cp "$MUSIC"/*.mp3 "$MUSIC"/CREDITS.md server/public/music/ && echo "music copied: $(ls "$MUSIC"/*.mp3 | wc -l | tr -d ' ') loops"; fi
+# the realistic people (Quaternius character and animation packs, CC0; see the LICENSE files in humans/) too
+HUMANS="$(dirname "$SRC")/humans"
+if [ -d "$HUMANS" ]; then rm -rf server/public/humans && mkdir -p server/public/humans && cp "$HUMANS"/*.glb "$HUMANS"/*.png "$HUMANS"/*.jpg "$HUMANS"/LICENSE-*.txt server/public/humans/ && echo "humans copied: $(du -sh server/public/humans | cut -f1)"; fi
