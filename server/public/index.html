@@ -1437,7 +1437,9 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
   // meadow beyond the map edge so the horizon never shows a void
   const meadowMat = new THREE.MeshLambertMaterial({ color: 0x5f9a3c }), south = COAST ? 280 : HALF + 2000;
   const nE = HALF + (YB ? ND : 0);
-  for (const [w, d, x, z] of [[4000, 2000, 0, -nE - 1000], [2000, south + nE, XW - 1000, (south - nE) / 2], [2000, south + nE, HALF + 1000, (south - nE) / 2]]) {
+  const westM = WD ? [2400, IKZ0 + nE, -360 - 1200, (IKZ0 - nE) / 2] : [2000, south + nE, -HALF - 1000, (south - nE) / 2];
+  if (WD) { const sea = new THREE.Mesh(new THREE.PlaneGeometry(2000, south - IKZ0 + 40), new THREE.MeshLambertMaterial({ color: 0x2f74a8 })); sea.rotation.x = -Math.PI / 2; sea.position.set(XW - 1000, WATER_Y - .05, (IKZ0 + south + 40) / 2); scene.add(sea); }   // west of Ikoyi and Banana Island West: open water, no wall
+  for (const [w, d, x, z] of [[4000, 2000, 0, -nE - 1000], westM, [2000, south + nE, HALF + 1000, (south - nE) / 2]]) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), meadowMat); m.rotation.x = -Math.PI / 2; m.position.set(x, EDGE_H - .02, z); scene.add(m);
   }
 
@@ -1529,10 +1531,8 @@ DEPOTS.forEach(([x, z]) => {
       const WW = WBOUND + 5, zc = IKZ0 - 4;
       b.box(T, H, WN - HALF, -W, H / 2, -(WN + HALF) / 2, M.stone, 3);   // between the mainland and Ikoyi, down to the old corner
       b.box(WW - W + T, H, T, -(W + WW) / 2, H / 2, zc, M.stone, 3);
-      b.box(T, H, zEnd - zc, -WW, H / 2, (zc + zEnd) / 2, M.stone, 3);
       for (let k = -WN + 6; k < -HALF - 4; k += 8) b.box(T, 3, 4, -W, H + 1.5, k, M.stone, 3);
       for (let k = -WW + 6; k < -W - 4; k += 8) b.box(4, 3, T, k, H + 1.5, zc, M.stone, 3);
-      for (let k = zc + 6; k < zEnd - 4; k += 8) b.box(T, 3, 4, -WW, H + 1.5, k, M.stone, 3);
       b.build(); continue;
     }
     if (ax === 'z') b.box(L, H, T, 0, H / 2, sgn * zw, M.stone, 3);
@@ -3506,13 +3506,51 @@ if (BIW) {
   b.build();
 }
 
+/* tower facades with real windows: one painted tile covers 8 floors × 8 bays (3.4 m each, 27.2 m square), so boxes
+   built with S = FACADE_S line their windows up floor by floor; panes vary (blinds, curtains, a few rooms lit) so the
+   pattern doesn't read as a repeat. Styles: curtain (floor-to-ceiling glass in a grid of mullions), ribbon (bands of
+   glass between spandrel panels) and punched (separate windows in a solid wall). */
+const FACADE_S = 27.2;
+function facadeMat(style, frame, glass, seed = 1) {
+  const n = 512, c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), q = n / 8;
+  let sd = seed * 9301 + 49297; const rnd = () => (sd = (sd * 9301 + 49297) % 233280) / 233280;
+  const shade = (hex, k) => { const v = parseInt(hex.slice(1), 16), f = ch => Math.max(0, Math.min(255, Math.round(((v >> ch) & 255) * k))); return `rgb(${f(16)},${f(8)},${f(0)})`; };
+  g.fillStyle = frame; g.fillRect(0, 0, n, n);
+  for (let fy = 0; fy < 8; fy++) for (let bx = 0; bx < 8; bx++) {
+    const x = bx * q, y = fy * q;
+    let px, py, pw, ph;
+    if (style === 'curtain') { px = x + 2; py = y + 3; pw = q - 4; ph = q - 9; }
+    else if (style === 'ribbon') { px = x; py = y + q * .3; pw = q; ph = q * .52; }
+    else { px = x + q * .22; py = y + q * .22; pw = q * .56; ph = q * .56; }
+    const lit = rnd() < .08, blind = rnd(), grd = g.createLinearGradient(px, py, px + pw, py + ph);
+    if (lit) { grd.addColorStop(0, '#f6dc9a'); grd.addColorStop(1, '#d9a85a'); }
+    else { grd.addColorStop(0, shade(glass, 1.35)); grd.addColorStop(.55, glass); grd.addColorStop(1, shade(glass, .7)); }
+    g.fillStyle = grd; g.fillRect(px, py, pw, ph);
+    if (!lit && blind < .35) { g.fillStyle = 'rgba(230,226,214,.55)'; g.fillRect(px, py, pw, ph * (.2 + blind)); }   // blinds part way down
+    else if (!lit && blind > .85) { g.fillStyle = 'rgba(120,90,70,.35)'; g.fillRect(px, py, pw * .25, ph); g.fillRect(px + pw * .75, py, pw * .25, ph); }   // curtains
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(px, py + ph); g.lineTo(px + pw * .35, py); g.lineTo(px + pw * .5, py); g.lineTo(px + pw * .15, py + ph); g.fill();   // a sky reflection
+    if (style === 'ribbon') { g.fillStyle = frame; for (let m = 0; m <= 4; m++) g.fillRect(x + m * q / 4 - 1, py, 2, ph); }
+    else { g.fillStyle = frame; g.fillRect(px + pw / 2 - 1, py, 2, ph); }   // a mullion down the middle
+  }
+  for (let fy = 0; fy <= 8; fy++) { g.fillStyle = shade(frame, .82); g.fillRect(0, fy * q - 2, n, 4); }   // the floor lines
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return new THREE.MeshLambertMaterial({ map: t, emissive: 0x0a0e12 });
+}
+// the same facade wrapped round a cylinder or prism of this girth and height (its texture repeated to keep floors 3.4 m)
+function facadeWrap(mat, girth, h) { const m = mat.clone(); m.map = mat.map.clone(); m.map.needsUpdate = true; m.map.repeat.set(Math.max(1, Math.round(girth / FACADE_S * 8) / 8), h / FACADE_S); return m; }
+
 /* Ikoyi: the lagoon and its beach, streets with lamps and palms, a board on every block, an arch where the boulevard
    leaves Banana Island West, six one-of-a-kind residential towers, the Ikoyi Grand Mall and a parade of shops, three
    bank headquarters, and car dealerships across the boulevard (their cars are parked once the car models exist) */
 if (IKOYI) withSeed(5151, () => {
   const K = IKOYI, Y = K.y, b = new Builder(), fl = Y + .3;
   const LMe = (c, e = 0x0a1420) => new THREE.MeshLambertMaterial({ color: c, emissive: e });
-  const G = { blue: LMe(0x4a7fae), teal: LMe(0x3f8a8a), bronze: LMe(0x8a6a4a, 0x1a1008), green: LMe(0x4f8f6a), dark: LMe(0x2f3e55), silver: LMe(0xb9c4cc, 0x10161a), gold: LMe(0xd6ae5f, 0x2a1a00) };
+  const G = { gold: LMe(0xd6ae5f, 0x2a1a00), dark: LMe(0x2f3e55), silver: LMe(0xb9c4cc, 0x10161a), blue: LMe(0x4a7fae) };
+  const F = { pearl: facadeMat('ribbon', '#eef0f2', '#3f74a8', 1), crest: facadeMat('curtain', '#e8ecea', '#3f8a8a', 2), twinA: facadeMat('curtain', '#2a3440', '#4a7fae', 3), twinB: facadeMat('punched', '#c9a27a', '#3a4a5a', 4),
+    sailA: facadeMat('curtain', '#d9dde0', '#4f86b8', 5), sailB: facadeMat('ribbon', '#f2f2f0', '#5a7f9a', 6), hexA: facadeMat('ribbon', '#1f2a30', '#3f8a6a', 7), hexB: facadeMat('ribbon', '#e8ecea', '#2f6a8a', 8),
+    cantA: facadeMat('curtain', '#8a6a4a', '#3a4a5a', 9), cantB: facadeMat('punched', '#e6e1d3', '#4a6a8a', 10), bank0: facadeMat('curtain', '#1c2a3a', '#2f5f8f', 11), bank1: facadeMat('ribbon', '#20382a', '#3f7a5a', 12), bank2: facadeMat('curtain', '#3a2020', '#7a5a4a', 13),
+    hall: facadeMat('punched', '#b9b2a2', '#3a4450', 14), mall: facadeMat('ribbon', '#d9d6ce', '#4f86b8', 15), hotel: facadeMat('curtain', '#efe9dc', '#2f4a66', 16) };
+  const FS = FACADE_S;
   const W = MM.white, CON = M.concrete;
   const mesh = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); return m; };
   const solid = (x0, x1, y0, y1, z0, z1) => colliders.push({ x0, x1, y0, y1, z0, z1, tag: 'tower' });
@@ -3554,39 +3592,42 @@ if (IKOYI) withSeed(5151, () => {
   const towers = [
     // the Pearl: a round glass tower ringed with white bands, a crown and a spire
     (x, z) => { podium(x, z, 28, 28, 'EKO PEARL RESIDENCES'); const H = 96, y0 = Y + 5;
-      mesh(new THREE.CylinderGeometry(11, 11, H, 40), G.blue, x, y0 + H / 2, z);
+      mesh(new THREE.CylinderGeometry(11, 11, H, 40), facadeWrap(F.pearl, TAU * 11, H), x, y0 + H / 2, z);
       for (let k = 1; k < 12; k++) mesh(new THREE.CylinderGeometry(11.35, 11.35, .5, 40), W, x, y0 + k * 8, z);
       mesh(new THREE.CylinderGeometry(7, 11, 7, 40), W, x, y0 + H + 3.5, z); mesh(new THREE.CylinderGeometry(.3, .7, 18, 8), MM.steel, x, y0 + H + 16, z);
       solid(x - 11, x + 11, Y, y0 + H + 7, z - 11, z + 11); },
     // Lagoon Crest: a stepped ziggurat of teal glass, a white slab at each setback
     (x, z) => { podium(x, z, 30, 30, 'LAGOON CREST'); let y = Y + 5;
-      for (const [w, h] of [[26, 30], [21, 26], [16, 22], [10, 14]]) { b.box(w, h, w, x, y + h / 2, z, G.teal, 3, true, 'tower'); b.box(w + .8, .6, w + .8, x, y + h, z, W, 1, true, 'roof'); y += h; }
+      for (const [w, h] of [[26, 30.6], [21, 27.2], [16, 20.4], [10, 13.6]]) { b.box(w, h, w, x, y + h / 2, z, F.crest, FS, true, 'tower'); b.box(w + .8, .6, w + .8, x, y + h, z, W, 1, true, 'roof');
+        for (let fy = 3.4; fy < h - .5; fy += 3.4) for (const s2 of [-1, 1]) { b.box(w * .6, .18, 1.4, x, y + fy, z + s2 * (w / 2 + .7), W, 1, false); b.box(w * .6, .9, .06, x, y + fy + .5, z + s2 * (w / 2 + 1.38), MM.glass, 1, false); }   // balconies with glass rails
+        y += h; }
       b.box(.3, 12, .3, x, y + 6, z, MM.steel, 1, false); b.box(.5, .5, .5, x, y + 12, z, MM.tail, 1, false); },
     // Twin Palms: two slabs of different heights joined by a sky bridge, gardens on the roofs
     (x, z) => { podium(x, z, 34, 26, 'TWIN PALMS'); const y0 = Y + 5;
-      b.box(11, 84, 22, x - 9, y0 + 42, z, G.blue, 3, true, 'tower'); b.box(11, 70, 22, x + 9, y0 + 35, z, G.bronze, 3, true, 'tower');
+      b.box(11, 85, 22, x - 9, y0 + 42.5, z, F.twinA, FS, true, 'tower'); b.box(11, 71.4, 22, x + 9, y0 + 35.7, z, F.twinB, FS, true, 'tower');
+      for (let fy = 3.4; fy < 70; fy += 6.8) for (const s2 of [-1, 1]) b.box(8, .2, 1.4, x + 9, y0 + fy, z + s2 * 11.7, W, 1, false);   // the bronze slab's balconies
       for (const s2 of [-1, 1]) for (const zz of [-11.2, 11.2]) b.box(.6, s2 < 0 ? 84 : 70, .6, x + s2 * 9 + (s2 < 0 ? 5.6 : -5.6), y0 + (s2 < 0 ? 42 : 35), z + zz, W, 1, false);
       b.box(8, 5, 8, x, y0 + 52, z, W, 1, true, 'roof'); b.box(7, 3.6, 8.2, x, y0 + 52, z, G.silver, 1, false);
       for (const [dx, h] of [[-9, 84], [9, 70]]) { b.box(10, 1, 20, x + dx, y0 + h + .5, z, M.leaves, 1, true, 'roof'); smallTree(b, x + dx - 2, z - 5, y0 + h + 1); smallTree(b, x + dx + 2, z + 5, y0 + h + 1); } },
     // The Sail: blocks that narrow as they climb, the straight edge on the east, a white fin up its spine
     (x, z) => { podium(x, z, 30, 26, 'THE SAIL'); const y0 = Y + 5;
-      for (let k = 0; k < 13; k++) { const w = 26 - k * 1.6, cx = x + 13 - w / 2; b.box(w, 6, 20, cx, y0 + 3 + k * 6, z, k % 2 ? G.blue : G.silver, 3, true, 'tower'); b.box(w + .3, .35, 20.4, cx, y0 + k * 6 + 6, z, W, 1, false); }
-      b.box(.9, 84, 2.4, x + 13.4, y0 + 42, z, W, 1, false); },
+      for (let k = 0; k < 13; k++) { const w = 26 - k * 1.6, cx = x + 13 - w / 2; b.box(w, 6.8, 20, cx, y0 + 3.4 + k * 6.8, z, k % 2 ? F.sailA : F.sailB, FS, true, 'tower'); b.box(w + .3, .35, 20.4, cx, y0 + k * 6.8 + 6.8, z, W, 1, false); }
+      b.box(.9, 90, 2.4, x + 13.4, y0 + 45, z, W, 1, false); },
     // Hexa: a six-sided tower turning a little with every few floors, a hexagonal cone on top
     (x, z) => { podium(x, z, 30, 30, 'HEXA TOWER'); const y0 = Y + 5;
-      for (let k = 0; k < 9; k++) { mesh(new THREE.CylinderGeometry(12, 12, 8.6, 6), k % 2 ? G.green : G.dark, x, y0 + 4.3 + k * 9, z, k * .2); mesh(new THREE.CylinderGeometry(12.5, 12.5, .4, 6), W, x, y0 + 8.8 + k * 9, z, k * .2 + .1); }
+      for (let k = 0; k < 9; k++) { mesh(new THREE.CylinderGeometry(12, 12, 8.6, 6), facadeWrap(k % 2 ? F.hexA : F.hexB, 72, 8.6), x, y0 + 4.3 + k * 9, z, k * .2); mesh(new THREE.CylinderGeometry(12.5, 12.5, .4, 6), W, x, y0 + 8.8 + k * 9, z, k * .2 + .1); }
       mesh(new THREE.ConeGeometry(9, 12, 6), G.gold, x, y0 + 81 + 6, z, 1.8); solid(x - 11, x + 11, Y, y0 + 93, z - 11, z + 11); },
     // Cantilever: a stack of long blocks crossing each other, each pushed out over the one below
     (x, z) => { podium(x, z, 30, 30, 'CANTILEVER'); const y0 = Y + 5;
       for (let k = 0; k < 8; k++) { const ax = k % 2 === 0, o = (k % 4 < 2 ? 1 : -1) * 3.5;
-        b.box(ax ? 25 : 12, 8.4, ax ? 12 : 25, x + (ax ? o : 0), y0 + 4.2 + k * 9, z + (ax ? 0 : o), k % 3 === 0 ? G.bronze : G.silver, 3, true, 'tower');
+        b.box(ax ? 25 : 12, 8.4, ax ? 12 : 25, x + (ax ? o : 0), y0 + 4.2 + k * 9, z + (ax ? 0 : o), k % 3 === 0 ? F.cantA : F.cantB, FS, true, 'tower');
         b.box(ax ? 25.4 : 12.4, .6, ax ? 12.4 : 25.4, x + (ax ? o : 0), y0 + 8.7 + k * 9, z + (ax ? 0 : o), W, 1, false); } },
   ];
   towers.forEach((fn, k) => fn(TX[k % 2], TZ[Math.floor(k / 2)]));
 
   // ---- the Ikoyi Grand Mall: a long glass-fronted block, an atrium dome, a canopy over the doors, its car park ----
   { const [zB0] = K.zones[1], x = -443, z0 = zB0 + 8, z1 = z0 + 40, zc = (z0 + z1) / 2, w = 66, H = 16;
-    b.box(w, H, 40, x, Y + H / 2, zc, M.renderGrey, 3, true, 'tower');
+    b.box(w, H, 40, x, Y + H / 2, zc, F.mall, FS, true, 'tower');
     b.box(w - 4, 9, .2, x, Y + 5.5, z1 + .1, G.blue, 1, false);
     for (let k = -3; k <= 3; k++) b.box(.8, H, .8, x + k * 10, Y + H / 2, z1 + .3, W, 1, false);
     b.box(18, .6, 7, x, Y + 6, z1 + 3.5, W, 1, true, 'roof'); for (const s2 of [-8, 8]) b.box(.5, 6, .5, x + s2, Y + 3, z1 + 6.5, MM.steel, 1, true, 'house');
@@ -3617,7 +3658,7 @@ if (IKOYI) withSeed(5151, () => {
   { const banks = [['EKO FEDERAL BANK', '#0d3a6a', 132, 'pyramid'], ['LAGOON TRUST BANK', '#1f5a3a', 116, 'ring'], ['ATLANTIC CAPITAL BANK', '#5a1a2a', 124, 'steps']], [zC0] = K.zones[2];
     banks.forEach(([name, col, H, crown], k) => {
       const zc = zC0 + 24 + k * 64, front = -410, hx = -440, hw = 60, hd = 44;
-      b.box(hw, 15, hd, hx, Y + 7.5, zc, M.stone, 3, true, 'tower');                                 // the banking hall
+      b.box(hw, 15, hd, hx, Y + 7.5, zc, F.hall, FS, true, 'tower');                                 // the banking hall
       b.box(hw + 1, 1.2, hd + 1, hx, Y + 15.6, zc, W, 1, true, 'roof');
       b.box(6, 2.2, hd - 6, front + 3, Y + 16.6, zc, W, 1, false);                                     // the pediment over the columns
       for (let c = 0; c < 9; c++) mesh(new THREE.CylinderGeometry(.9, 1, 14, 16), W, front + 4.5, Y + 7.6, zc - 18 + c * 4.5);
@@ -3625,8 +3666,8 @@ if (IKOYI) withSeed(5151, () => {
       sign(name, col, '#d6ae5f', 30, 2, front + 6.2, Y + 16.6, zc, E, '#d6ae5f');
       b.box(5, 6, 3, front + 1, Y + 3, zc, G.dark, 1, false);                                          // the great doors
       const tx = -452, tw = 26, ty = Y + 15;
-      b.box(tw, H, tw, tx, ty + H / 2, zc, k === 1 ? G.green : k === 2 ? G.bronze : G.blue, 3, true, 'tower');
-      for (let y = 12; y < H; y += 12) b.box(tw + .5, .6, tw + .5, tx, ty + y, zc, W, 1, false);
+      b.box(tw, H, tw, tx, ty + H / 2, zc, F['bank' + k], FS, true, 'tower');
+      for (let y = 13.6; y < H; y += 13.6) b.box(tw + .5, .6, tw + .5, tx, ty + y, zc, W, 1, false);
       for (const s2 of [-1, 1]) b.box(1.2, H, 1.2, tx + 13, ty + H / 2, zc + s2 * 12.6, W, 1, false);
       const top = ty + H;
       if (crown === 'pyramid') { mesh(new THREE.ConeGeometry(18.4, 22, 4), G.gold, tx, top + 11, zc, Math.PI / 4); mesh(new THREE.CylinderGeometry(.3, .6, 14, 8), MM.steel, tx, top + 29, zc); }
@@ -3635,6 +3676,29 @@ if (IKOYI) withSeed(5151, () => {
       sign(name.split(' ')[0], col, '#d6ae5f', 16, 2.4, tx + 13.05, top - 4, zc, E, '#d6ae5f');
     });
     K.banks = banks.map((bk, k) => [bk[0], -440, zC0 + 24 + k * 64]);
+  }
+  // ---- the Four Palms Hotel: a 14-floor slab over a podium, a porte-cochère on the boulevard, a pool deck, an enterable
+  // lobby with a reception desk and a lift to the roof bar (the city's tower builder makes the lobby and the lift) ----
+  { const hv = { name: 'Four Palms Hotel Ikoyi', x: -446, z: -607, hw: 30, hd: 16, y: Y, houses: [], civs: [], modern: true }; MY_HOMES.push(hv);
+    const hx = -455, hz = -607, floors = 14, hs = { v: hv, x: hx, z: hz, w: 16, d: 12, side: 'px', floors };
+    b.box(52, 6, 22, -446, Y + 3, hz, F.hall, FS, true, 'tower');                                      // the podium: restaurant and ballroom
+    b.box(52.6, .5, 22.6, -446, Y + 6.2, hz, W, 1, false);
+    buildTower(hs, b);
+    const fl2 = Y + .3, bodyH = floors * 3.4, top = fl2 + 4.6 + bodyH;
+    b.box(16.2, bodyH, 12.2, hx, fl2 + 4.6 + bodyH / 2, hz, F.hotel, FS, false);                          // its rooms' windows
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(.7, bodyH, .7, hx + sx * 8.1, fl2 + 4.6 + bodyH / 2, hz + sz * 6.1, W, 1, false);   // white pilasters at the corners
+    b.box(17.2, 1.6, 13, hx, top + .8, hz, W, 1, true, 'roof'); b.box(14, .5, 10, hx, top + 1.85, hz, lampMat, 1, false);   // a lit crown
+    sign('FOUR PALMS HOTEL', '#0f2a3a', '#ffffff', 14, 1.6, hx + 8.35, top - 3, hz, E, '#d6ae5f');
+    sign('FOUR PALMS · IKOYI', '#0f2a3a', '#ffffff', 12, 1.3, hx, top - 3, hz + 6.45, 0, '#d6ae5f');
+    // the porte-cochère: a canopy over the drive-up on the boulevard side, flags
+    b.box(10, .6, 12, -416, Y + 5, hz, W, 1, true, 'roof'); for (const s2 of [-5, 5]) b.box(.6, 5, .6, -412, Y + 2.5, hz + s2, MM.steel, 1, true, 'house');
+    sign('FOUR PALMS HOTEL', '#0f2a3a', '#d6ae5f', 8, .8, -410.9, Y + 5.6, hz, E, '#d6ae5f');
+    for (const s2 of [-9, 9]) { b.box(.15, 9, .15, -410, Y + 4.5, hz + s2, MM.steel, 1, false); b.box(.06, 1.2, 1.8, -410, Y + 8.2, hz + s2 + .9, LM(s2 < 0 ? 0x0f6a3a : 0x0f2a3a), 1, false); }
+    // the pool deck on the podium's south-west corner
+    b.box(14, .3, 8, -464, Y + 6.5, hz + 6, M.oak, 1, true, 'roof'); b.box(10, .2, 5, -464, Y + 6.7, hz + 6, LM(0x3fc8f0), 1, false);
+    for (let k = 0; k < 3; k++) b.box(.8, .3, 2, -470 + k * 3, Y + 6.85, hz + 9, W, 1, false);
+    VENUES.push({ name: 'the Four Palms Hotel restaurant', x: hx, z: hz, r: 6, food: 'mall', toilet: 0 });
+    K.hotel = { x: hx, z: hz };
   }
   // ---- car dealerships across the boulevard: a glass showroom at the back of a forecourt ----
   K.dealers = [['IKOYI MOTORS', -850], ['EKO AUTO MALL', -700], ['PRESTIGE CARS LAGOS', -520]];
@@ -9531,7 +9595,7 @@ function drawBigMap() {
   if (P.driving && !DRIVER.on && !isAir(P.driving)) { const [hx, hz] = bmFromB(W / 2, 18); label(document.pointerLockElement ? 'Move the mouse and click: your driver takes you there' : 'Tap a spot: your driver takes you there', hx, hz, 13, '#f2c230'); }
   if (BI) label('BANANA ISLAND', (BI.x0 + BI.x1) / 2, (BI.z0 + BI.z1) / 2, 13, '#ffe08a', 0);
   if (BIW) label('BANANA ISLAND WEST · LAND FOR SALE', (BIW.x0 + BIW.x1) / 2, (BIW.z0 + BIW.z1) / 2, 15, '#ffe08a', 0);
-  if (IKOYI) { label('IKOYI · LAND FOR SALE', -588, -640, 15, '#ffe08a', 0); label('Ikoyi Lagoon', -717, -560, 12, '#cfe8ff', 0); label('Ikoyi Grand Mall', IKOYI.mall.x, IKOYI.mall.z, 11, '#ffffff', 0); for (const [n, x, z] of IKOYI.banks) label(n, x, z, 10, '#ffd36a', 0); label('Ikoyi towers', -441, -812, 11, '#ffffff', 0); for (const [n, z] of IKOYI.dealers) label(n, -374, z, 9, '#ffffff', 0); }
+  if (IKOYI) { label('IKOYI · LAND FOR SALE', -588, -640, 15, '#ffe08a', 0); label('Ikoyi Lagoon', -717, -560, 12, '#cfe8ff', 0); label('Ikoyi Grand Mall', IKOYI.mall.x, IKOYI.mall.z, 11, '#ffffff', 0); label('Four Palms Hotel', IKOYI.hotel.x, IKOYI.hotel.z, 10, '#ffffff', 0); for (const [n, x, z] of IKOYI.banks) label(n, x, z, 10, '#ffd36a', 0); label('Ikoyi towers', -441, -812, 11, '#ffffff', 0); for (const [n, z] of IKOYI.dealers) label(n, -374, z, 9, '#ffffff', 0); }
   if (YB) {   // the mainland
     label('LAGOS–IBADAN EXPRESSWAY', expX(-2800) + 80, -2800, 14, '#f2c230'); label('IBADAN', 0, -4930, 24, '#f2c230'); label('OYO', 0, OYO.z1 + 14, 22, '#f2c230');
     for (const R of RIVERS) label(R.name, -220, R.z - 34, 13, '#bfe3ff'); label('OGUN STATE', 250, -3300, 16, '#e8e6df'); label('OYO STATE', 250, -4250, 16, '#e8e6df');
