@@ -1681,6 +1681,7 @@ RUINS.forEach(([x, z], n) => {
   b.build();
 });
 const SUPPLIES = [];
+const BIZ_SITES = [];   // businesses you can buy (see Business, by the phone): Yaba's shopfronts add themselves as they're built
 const VENUES = [];   // places to eat or use the toilet (see the daily needs)
 const DEPOTS = [[15, 11], [-38, -32], [44, 40], [-56, -2]].filter(([x, z]) => !nearVillage(x, z, VR + 8));
 for (const v of VILLAGES) DEPOTS.push([v.x + 6.5, v.z - 3.5]);
@@ -7775,6 +7776,9 @@ if (YABA) withSeed(9191, () => {
     ['YABA TAILORS', '#6a3a8a'], ['JOLLOF HUB', '#c8261e'], ['PRINTING & LAMINATION', '#2a2c30'], ['SUYA SPOT', '#8a2a1a'], ['FAITH SUPERMARKET', '#1f6f9a'], ['ICE COLD DRINKS', '#1fb5a8'],
     ['LAPTOP REPAIRS & SALES', '#2a3a6a'], ['KINGS BARBING SALON', '#141014'], ['ADUNNI HAIR & BEAUTY', '#c84a8a'], ['YABA GADGETS', '#2f5f9a'], ['FRESH PASTRIES', '#d6a040'],
     ['CHOP & GO', '#e8742a'], ['TOKUNBO PARTS', '#4a4a4a'], ['ABULE IJESHA TEXTILES', '#8a5a2a'], ['MOBILE MONEY · AIRTIME', '#2f8a4a'], ['CYBER CAFÉ & CBT', '#1f2f6a']];
+  const SHOP_BIZ = { 'MAMA T BUKA': 'buka', 'GOD’S GRACE PHARMACY': 'pharmacy', 'BLESSED PHONES & ACCESSORIES': 'phones', 'POS · TRANSFER · WITHDRAWAL': 'pos', 'YABA TAILORS': 'tailor', 'JOLLOF HUB': 'buka',
+    'PRINTING & LAMINATION': 'print', 'SUYA SPOT': 'suya', 'FAITH SUPERMARKET': 'minimart', 'ICE COLD DRINKS': 'drinks', 'LAPTOP REPAIRS & SALES': 'phones', 'KINGS BARBING SALON': 'barber',
+    'ADUNNI HAIR & BEAUTY': 'salon', 'YABA GADGETS': 'phones', 'FRESH PASTRIES': 'pastry', 'CHOP & GO': 'buka', 'TOKUNBO PARTS': 'parts', 'ABULE IJESHA TEXTILES': 'textiles', 'MOBILE MONEY · AIRTIME': 'pos', 'CYBER CAFÉ & CBT': 'cafe' };   // what each sign sells
   let shopN = 0;
   function shopfront(b, x, z, len, nx, nz) {   // along the face whose outward normal is (nx, nz), centred at (x, z)
     const n = Math.max(1, Math.floor(len / 6)), tx = -nz, tz = nx;
@@ -7782,8 +7786,9 @@ if (YABA) withSeed(9191, () => {
       const o = (k + .5) * len / n - len / 2, cx = x + tx * o, cz = z + tz * o, sw = len / n - .8;
       b.box(Math.abs(tx) * sw + Math.abs(nx) * .1 || .1, 2.4, Math.abs(tz) * sw + Math.abs(nz) * .1 || .1, cx + nx * .06, Y + 1.25, cz + nz * .06, darkM, 1, false);
       b.box(Math.abs(tx) * sw + Math.abs(nx) * 1.6, .12, Math.abs(tz) * sw + Math.abs(nz) * 1.6, cx + nx * .85, Y + 2.75, cz + nz * .85, ri2(awnings), 1, false);
-      const [txt, bg] = SHOPS[shopN++ % SHOPS.length];
-      ySign(ySignMat(txt, bg), sw, .9, cx + nx * .09, Y + 3.25, cz + nz * .09, facing(nx, nz));
+      const [txt, bg] = SHOPS[shopN++ % SHOPS.length], mat = ySignMat(txt, bg);
+      const sign = ySign(mat, sw, .9, cx + nx * .09, Y + 3.25, cz + nz * .09, facing(nx, nz));
+      BIZ_SITES.push({ key: `y:${Math.round(cx)},${Math.round(cz)}`, x: cx + nx * 2.2, z: cz + nz * 2.2, y: Y, type: SHOP_BIZ[txt], label: txt.replace(/\b([A-Z])([A-Z’]+)/g, (m, a, b) => a + b.toLowerCase()).replace(/\bPos\b/, 'POS').replace(/\bCbt\b/, 'CBT'), txt, sign, mat0: mat, bg, r: 2.6 });
     }
   }
   const lot = (bi, bj) => [YB.x + YABA.BC[bi], YB.z + YABA.BC[bj]];   // a block's centre
@@ -12373,6 +12378,7 @@ function landAction() {
   { const fd = typeof flightDeskNear === 'function' && flightDeskNear(); if (fd) return { label: `E · Oyo Skylink: fly to ${CITY_NAMES[fd.to]} · ${NAIRA(FLIGHT.fare)}`, run: () => flyFrom(fd) }; }
   if (nearDealer()) return { label: `E · Buy a bulldozer · ${NAIRA(DOZER_YARD.price)}`, run: buyDozer };
   if (P.driving) return null;
+  { const bz = bizNear(); if (bz) return bizAction(bz); }   // a business: buy it, or collect from yours
   const info = landInfoAt(P.pos.x, P.pos.z);
   if (info.unit && info.ok && !LAND.plots.has(info.key) && !info.other) return { label: `E · Buy land in ${info.D.name} · from ${m2(1)} · ${NAIRA(info.price)} per unit${info.D.frontOf?.(...unitCR(info.key)) ? ' · ' + info.D.frontOf(...unitCR(info.key)) : ''}`, run: () => openUnitBuyMenu(info.key) };
   if (LAND.plots.has(info.key)) { const hk = homeOf(info.key), h = LAND.plots.get(hk)?.house; if (h && houseAtWorld(P.pos.x, P.pos.z, P.pos.y)) return myHome() ? { label: 'E · Your home: switch things on · B · arrange and shop', run: openHomeMenu } : null; return { label: h ? 'E · Your land: fence or sell' : 'E · Your land: build a house or sell', run: () => openLandMenu(hk) }; }
@@ -15358,6 +15364,7 @@ const GOAL_DEFS = [   // [id, tier, what to do, how many, the event that counts,
   ['thief1', 'hard', 'Catch a pickpocket yourself', 1, 'thief'], ['fly1', 'hard', 'Take an Oyo Skylink flight', 1, 'flight'], ['parcel5', 'hard', 'Deliver 5 parcels', 5, 'parcel'],
   ['fare5', 'hard', 'Drive 5 taxi fares', 5, 'fare'], ['train3', 'hard', 'Get off the train at 3 different stations', 3, 'train', true], ['boat1', 'hard', 'Take tourists on a boat tour', 1, 'boat'],
   ['museums4', 'hard', 'Visit all four state museums', 4, 'museumVisit', true],
+  ['biz2', 'medium', 'Collect takings from your businesses twice (or buy one)', 2, 'biz'],
 ];
 // places a "visit" goal can send you to (found by name on the map)
 const GOAL_PLACES = ['Ile-Ife', 'Ore junction', 'The Oba’s palace, Benin', 'King’s Square & National Museum, Benin', 'Benin Airport', 'Samuel Ogbemudia Stadium', 'University of Benin (UNIBEN)', 'Igun Street bronze casters',
@@ -15765,6 +15772,206 @@ function marketNews(m) {
   garageLoad(); if (PHONE.open && PHONE.app === 'market') marketLoad();
 }
 PHONE_APPS.push(['garage', '🚗', 'Garage'], ['market', '🛒', 'Market']);
+
+// ---- Business: buy a shop, a buka, a kiosk or a filling station and it earns while you play and while you're away ----
+/* Every Yaba shopfront, every shop with rooms (pharmacy, bakery, boutique, electronics, restaurant, supermarket) and the
+   bukas, kiosks and filling stations on the roads are businesses. Walk up to one (E) or use the phone. The till fills by
+   the hour (the kind of business × its level × its prices × its name on the street) up to 8 hours, or 24 with a manager;
+   collecting banks it, now and then with a surprise. Accounts keep theirs on the server (it works out the till), one owner
+   per business worldwide, and the owner's name goes up on the sign; guests keep theirs in this browser. */
+const BIZ_TYPES = {   // [name, price, ₦ an hour at level 1, icon] (the server has the same table and is the one that counts)
+  buka: ['Buka', 2500000, 42000, '🍲'], suya: ['Suya spot', 1500000, 26000, '🍢'], kiosk: ['Provision kiosk', 900000, 15500, '🏪'], drinks: ['Cold drinks stand', 700000, 12000, '🥤'],
+  pos: ['POS & mobile money', 600000, 10500, '💳'], phones: ['Phones & gadgets', 3000000, 50000, '📱'], pharmacy: ['Pharmacy', 6000000, 96000, '💊'], barber: ['Barbing salon', 1200000, 21000, '💈'],
+  salon: ['Hair & beauty salon', 1800000, 31000, '💇'], tailor: ['Tailor’s shop', 1000000, 17500, '🧵'], print: ['Printing press', 1400000, 24000, '🖨'], pastry: ['Pastry shop', 2000000, 34000, '🥐'],
+  cafe: ['Cyber café', 2000000, 33000, '💻'], parts: ['Spare-parts dealer', 5000000, 80000, '🔧'], textiles: ['Textile shop', 3500000, 58000, '🧶'], minimart: ['Minimart', 4000000, 66000, '🛒'],
+  bakery: ['Bakery', 7000000, 112000, '🥖'], boutique: ['Boutique', 6500000, 104000, '👗'], electronics: ['Electronics store', 9000000, 142000, '📺'], restaurant: ['Restaurant', 8000000, 128000, '🍽'],
+  supermarket: ['Supermarket', 14000000, 215000, '🛍'], fuel: ['Filling station', 25000000, 380000, '⛽'],
+};
+const BIZ_LEVEL = [0, 1, 1.5, 2.1, 2.9, 4], BIZ_UP = [0, 0, .5, .8, 1.2, 2], BIZ_MODE = { low: .9, fair: 1, high: 1.12 }, BIZ_MAX = 8, BIZ_CAP = 8, BIZ_CAP_M = 24;
+const BIZ_STORE = 'giantwood-biz';
+const BIZ = { mine: new Map(), owned: new Map(), loaded: false, earned: 0, syncT: 0, fullSaid: new Set(), busy: false, extra: false, sellArm: null };
+const bizRate = b => BIZ_TYPES[b.type][2] * BIZ_LEVEL[b.level] * (BIZ_MODE[b.mode] ?? 1) * (1 + b.rep / 400);
+const bizCap = b => b.manager ? BIZ_CAP_M : BIZ_CAP;
+const bizHours = b => Math.min(bizCap(b), Math.max(0, (Date.now() - b.since) / 3600e3));
+const bizTill = b => Math.floor(bizRate(b) * bizHours(b));
+const bizSave = () => { if (NET.token) return; try { localStorage.setItem(BIZ_STORE, JSON.stringify([...BIZ.mine.values()])); } catch (e) {} };
+function bizLocalLoad() { BIZ.mine.clear(); try { for (const b of JSON.parse(localStorage.getItem(BIZ_STORE) || '[]')) if (BIZ_TYPES[b.type]) BIZ.mine.set(b.key, b); } catch (e) {} }
+// the server's view of one of yours -> ours (it sends 'since' as the time the till started filling)
+const bizFrom = v => ({ key: v.key, type: v.type, label: v.label, level: v.level, mode: v.mode, manager: v.manager, rep: v.rep, invested: v.invested, earned: v.earned, since: v.since });
+async function bizLoad() {
+  if (!NET.token) { if (!BIZ.loaded) bizLocalLoad(); BIZ.loaded = true; bizSigns(); return; }
+  try { const r = await api('/biz/mine'); BIZ.mine.clear(); for (const v of r.mine) BIZ.mine.set(v.key, bizFrom(v)); BIZ.loaded = true; } catch (e) {}
+  bizSigns(); phoneRefresh();
+}
+async function bizSync() {   // who owns what, for the signs and so nobody tries to buy what's taken
+  if (!NET.reachable) return;
+  try { const r = await api('/biz'); BIZ.owned = new Map(r.owned.map(o => [o.key, o])); bizSigns(); } catch (e) {}
+}
+
+// the sites: shopfronts are collected as Yaba is built (BIZ_SITES); shops with rooms and the bukas and kiosks join once the world is up
+const BIZ_INT = { pharmacy: 'pharmacy', bakery: 'bakery', boutique: 'boutique', electronics: 'electronics', restaurant: 'restaurant', supermarket: 'supermarket' };
+function bizSitesFinish() {
+  if (BIZ.extra) return; BIZ.extra = true;
+  const near = (x, z, r) => BIZ_SITES.some(s => Math.hypot(s.x - x, s.z - z) < r);
+  for (const e of INT.ents || []) { const t = BIZ_INT[e.type]; if (!t || near(e.x, e.z, 10)) continue; BIZ_SITES.push({ key: `i:${Math.round(e.x)},${Math.round(e.z)}`, x: e.x, z: e.z, type: t, label: e.name.replace(/^the /i, '').replace(/^./, c => c.toUpperCase()), r: 3.5 }); }
+  for (const v of VENUES) {
+    const t = /Fuels|Gas & Go/.test(v.name) ? 'fuel' : v.food === 'buka' || v.food === 'mamat' ? 'buka' : v.food === 'suya' ? 'suya' : /Bread/.test(v.name) ? 'pastry' : /^the kiosk$/i.test(v.name) ? 'kiosk' : null;
+    if (!t || near(v.x, v.z, 12)) continue;
+    BIZ_SITES.push({ key: `v:${Math.round(v.x)},${Math.round(v.z)}`, x: v.x, z: v.z, type: t, label: t === 'fuel' ? v.name.replace(/ kiosk$/, ' filling station') : v.name.replace(/^the /i, '').replace(/^./, c => c.toUpperCase()), r: Math.min(6, Math.max(3.5, v.r * .6)) });
+  }
+}
+function bizNear(r = 0) {
+  bizSitesFinish(); let best = null, bd = 1e9;
+  for (const s of BIZ_SITES) { const d = Math.hypot(s.x - P.pos.x, s.z - P.pos.z); if (d < (r || s.r || 3.2) && d < bd && Math.abs((s.y ?? P.pos.y) - P.pos.y) < 4) { bd = d; best = s; } }
+  return best;
+}
+const bizOwner = s => BIZ.mine.has(s.key) ? (NET.user?.name || NET.guest || 'You') : BIZ.owned.get(s.key)?.owner || null;
+// an owned shopfront's sign carries its owner's name
+function bizSigns() {
+  for (const s of BIZ_SITES) {
+    if (!s.sign) continue;
+    const who = bizOwner(s);
+    if (who && s.signFor !== who) { s.signFor = who; s.sign.material = ySignMat(s.txt || s.label, s.bg, '#ffffff', `${who.toUpperCase()}’S`); }
+    else if (!who && s.signFor) { s.signFor = null; s.sign.material = s.mat0; }
+  }
+}
+// what E does at a business
+function bizAction(s) {
+  const T = BIZ_TYPES[s.type], b = BIZ.mine.get(s.key), o = !b && BIZ.owned.get(s.key);
+  if (b) return { label: `E · ${T[3]} ${b.label}: ${NAIRA(bizTill(b))} in the till${bizHours(b) >= bizCap(b) ? ' (full)' : ''} · collect`, run: () => bizCollect(b.key) };
+  if (o) return { label: `${T[3]} ${s.label} · ${o.owner}’s ${T[0].toLowerCase()}`, run: () => toast(`${T[3]} ${s.label}`, `${o.owner} runs it. Not for sale`) };
+  return { label: `E · ${T[3]} Buy ${s.label} · ${T[0].toLowerCase()} · ${NAIRA(T[1])} · earns about ${NAIRA(T[2])} an hour`, run: () => bizBuy(s) };
+}
+// the money side: accounts go through the server, guests do the same sums here
+async function bizDo(fn) { if (BIZ.busy) return; BIZ.busy = true; try { await fn(); } catch (e) { toast('🏪 Business', e.message || String(e)); } BIZ.busy = false; bizSigns(); phoneRefresh(); }
+function bizSurprise(b, t) {   // (the same as the server's)
+  if (t <= 0 || Math.random() > .2) return null;
+  const food = ['buka', 'suya', 'restaurant', 'bakery', 'pastry', 'minimart', 'supermarket'].includes(b.type);
+  const L = [['NEPA took light: diesel for the generator', -.1], ['Council officials came for “levy”', -.06], ['Area boys wanted something for the weekend', -.05],
+    ['A big order came in from an office on the street', .25], ['Word got round: a queue at the door all afternoon', .15], ['A customer paid off an old debt', .08]];
+  if (food) L.push(['The owambe next door ordered catering', .4], ['Market day: everyone was hungry', .2]);
+  if (b.type === 'fuel') L.push(['Fuel scarcity: queues round the block', .45], ['The tanker came late', -.12]);
+  if (b.mode === 'high') L.push(['Customers grumbled about your prices', -.08]); if (b.mode === 'low') L.push(['Your low prices brought new faces', .12]);
+  const [text, k] = ri(L); return { text, delta: Math.round(t * k) };
+}
+function bizBuy(s) {
+  const T = BIZ_TYPES[s.type];
+  if (BIZ.mine.size >= BIZ_MAX) { toast('🏪 Business', `You run ${BIZ_MAX} businesses already. Sell one first`); return; }
+  if (LAND.money < T[1]) { toast('🏪 Business', `The ${T[0].toLowerCase()} is ${NAIRA(T[1])}; you have ${NAIRA(LAND.money)}`); return; }
+  bizDo(async () => {
+    if (NET.token) { const r = await walletPost('/biz/buy', { key: s.key, type: s.type, label: s.label }); BIZ.mine.set(s.key, bizFrom(r.biz)); }
+    else { LAND.money -= T[1]; saveLand(); BIZ.mine.set(s.key, { key: s.key, type: s.type, label: s.label, level: 1, mode: 'fair', manager: false, rep: 0, invested: T[1], earned: 0, since: Date.now() }); bizSave(); }
+    bankSpend(T[1], `Bought ${s.label}`); sfx('refill'); goalEv('biz', null, 2);
+    toast(`${T[3]} ${s.label} is yours`, `It earns about ${NAIRA(T[2])} an hour into the till (up to ${BIZ_CAP} hours). Collect here or on your phone`);
+  });
+}
+function bizCollect(key, quiet) {
+  const b = BIZ.mine.get(key); if (!b) return;
+  return bizDo(async () => {
+    let got, sur;
+    if (NET.token) { const r = await walletPost('/biz/collect', { key }); got = r.collected; sur = r.surprise; BIZ.mine.set(key, bizFrom(r.biz)); }
+    else { const t = bizTill(b); sur = bizSurprise(b, t); got = Math.max(0, t + (sur?.delta ?? 0)); LAND.money += got; saveLand(); if (bizHours(b) >= 1) b.rep = clamp(b.rep + (b.mode === 'low' ? 3 : b.mode === 'high' ? -3 : b.rep < 40 ? 1 : 0), -100, 100); b.since = Date.now(); b.earned += got; bizSave(); }
+    BIZ.fullSaid.delete(key);
+    if (got > 0) { bankNote(got, `${b.label}: takings`); BIZ.earned += got; BANK.earned += got; sfx('refill'); goalEv('biz'); }
+    if (!quiet || sur) toast(got > 0 ? `💵 +${NAIRA(got)} from ${b.label}` : `${b.label}`, sur ? sur.text + ` (${sur.delta >= 0 ? '+' : '−'}${NAIRA(Math.abs(sur.delta))})` : got > 0 ? 'Banked' : 'Nothing in the till yet');
+  });
+}
+async function bizCollectAll() { const e0 = BIZ.earned; let n = 0; for (const k of [...BIZ.mine.keys()]) { if (bizTill(BIZ.mine.get(k)) > 0) { await bizCollect(k, true); n++; } } if (BIZ.earned > e0) toast(`💵 +${NAIRA(BIZ.earned - e0)}`, `Collected from ${n} business${n === 1 ? '' : 'es'}`); }
+function bizUpgrade(key) {
+  const b = BIZ.mine.get(key); if (!b || b.level >= 5) return;
+  const cost = Math.round(BIZ_TYPES[b.type][1] * BIZ_UP[b.level + 1]);
+  if (LAND.money + bizTill(b) < cost) { toast('🏪 Upgrade', `It’s ${NAIRA(cost)}; you have ${NAIRA(LAND.money)}`); return; }
+  bizDo(async () => {
+    if (NET.token) { const r = await walletPost('/biz/upgrade', { key }); if (r.collected) bankNote(r.collected, `${b.label}: takings`); BIZ.mine.set(key, bizFrom(r.biz)); }
+    else { const t = bizTill(b); LAND.money += t - cost; saveLand(); b.level++; b.invested += cost; b.since = Date.now(); b.earned += t; bizSave(); if (t) bankNote(t, `${b.label}: takings`); }
+    bankSpend(cost, `${b.label}: upgrade`); sfx('swap');
+    const nb = BIZ.mine.get(key); toast(`⬆ ${b.label}: level ${nb.level}`, `Now about ${NAIRA(bizRate(nb))} an hour`);
+  });
+}
+function bizManager(key) {
+  const b = BIZ.mine.get(key); if (!b || b.manager) return;
+  const cost = Math.round(BIZ_TYPES[b.type][1] * .2);
+  if (LAND.money < cost) { toast('🏪 Manager', `A manager costs ${NAIRA(cost)}; you have ${NAIRA(LAND.money)}`); return; }
+  bizDo(async () => {
+    if (NET.token) { const r = await walletPost('/biz/manager', { key }); BIZ.mine.set(key, bizFrom(r.biz)); }
+    else { LAND.money -= cost; saveLand(); b.manager = true; b.invested += cost; bizSave(); }
+    bankSpend(cost, `${b.label}: hired a manager`); toast(`🧑‍💼 ${b.label} has a manager`, `The till now runs up to ${BIZ_CAP_M} hours between visits`);
+  });
+}
+function bizMode(key, mode) {
+  const b = BIZ.mine.get(key); if (!b || b.mode === mode) return;
+  bizDo(async () => {
+    if (NET.token) { const r = await walletPost('/biz/mode', { key, mode }); if (r.collected) { bankNote(r.collected, `${b.label}: takings`); BANK.earned += r.collected; } BIZ.mine.set(key, bizFrom(r.biz)); }
+    else { const t = bizTill(b); LAND.money += t; saveLand(); b.mode = mode; b.since = Date.now(); b.earned += t; bizSave(); if (t) { bankNote(t, `${b.label}: takings`); BANK.earned += t; } }
+    toast(`🏷 ${b.label}`, { low: 'Low prices: more customers, and the street warms to you', fair: 'Fair prices', high: 'High prices: more on each sale, fewer customers, and people talk' }[mode]);
+  });
+}
+function bizSell(key) {
+  const b = BIZ.mine.get(key); if (!b) return;
+  if (BIZ.sellArm !== key) { BIZ.sellArm = key; phoneRefresh(); setTimeout(() => { if (BIZ.sellArm === key) { BIZ.sellArm = null; phoneRefresh(); } }, 4000); return; }
+  BIZ.sellArm = null;
+  bizDo(async () => {
+    const back = Math.round(b.invested * .7 / 100) * 100;
+    if (NET.token) { const r = await walletPost('/biz/sell', { key }); bankNote(r.back + r.collected, `Sold ${b.label}`); BANK.earned += r.back + r.collected; }
+    else { const t = bizTill(b); LAND.money += back + t; saveLand(); bankNote(back + t, `Sold ${b.label}`); BANK.earned += back + t; }
+    BIZ.mine.delete(key); bizSave(); toast(`🤝 Sold ${b.label}`, `${NAIRA(back)} for the business`);
+  });
+}
+// each second: say when a till is full; every minute: who owns what
+function updateBiz(dt) {
+  if (mode !== 'play') return;
+  if (!BIZ.loaded) { BIZ.loaded = true; bizLoad(); bizSync(); }
+  if ((BIZ.syncT += dt) > 60) { BIZ.syncT = 0; bizSync(); if (NET.token) bizLoad(); }
+  if (PHONE.open && PHONE.app === 'biz' && (BIZ.viewT = (BIZ.viewT || 0) + dt) > 2 && !document.activeElement?.closest?.('#phone input')) { BIZ.viewT = 0; phoneRefresh(); }   // the tills tick up while you watch
+  if ((BIZ.fullT = (BIZ.fullT || 0) + dt) > 5) { BIZ.fullT = 0; for (const b of BIZ.mine.values()) if (bizHours(b) >= bizCap(b) && !BIZ.fullSaid.has(b.key)) { BIZ.fullSaid.add(b.key); toast(`🏪 ${b.label}: the till is full`, `${NAIRA(bizTill(b))} waiting. Collect it on your phone (G) to keep it earning`); } }
+}
+PHONE.apps.biz = { render: () => {
+  const out = [phHead('🏪 Business', 'Shops that earn while you’re away')];
+  if (!BIZ.loaded) bizLoad();
+  const here = bizNear(9);
+  if (here) {
+    const T = BIZ_TYPES[here.type], b = BIZ.mine.get(here.key), o = !b && BIZ.owned.get(here.key), card = ph('div', 'phCard');
+    card.append(ph('span', 'phDim', 'Here'), ph('b', null, `${T[3]} ${here.label}`), ph('span', 'phDim', `${T[0]} · ${b ? 'yours' : o ? o.owner + '’s' : `for sale · ${NAIRA(T[1])} · about ${NAIRA(T[2])} an hour`}`));
+    if (!b && !o) card.append(ph('button', 'phBtn phWide', `Buy it for ${NAIRA(T[1])}`, { type: 'button', on: { click: () => bizBuy(here) } }));
+    out.push(card);
+  }
+  const mine = [...BIZ.mine.values()], waiting = mine.reduce((a, b) => a + bizTill(b), 0), perH = mine.reduce((a, b) => a + bizRate(b), 0);
+  const sum = ph('div', 'phCard');
+  sum.append(ph('b', 'phBig', NAIRA(waiting)), ph('span', 'phDim', `in ${mine.length ? 'your tills' : 'tills'} · ${mine.length} of ${BIZ_MAX} businesses · about ${NAIRA(perH)} an hour${BIZ.earned ? ` · ${NAIRA(BIZ.earned)} collected this visit` : ''}`));
+  if (waiting > 0) sum.append(ph('button', 'phBtn phWide', `Collect everything (${NAIRA(waiting)})`, { type: 'button', on: { click: () => bizCollectAll() } }));
+  out.push(sum);
+  for (const b of mine) {
+    const T = BIZ_TYPES[b.type], card = ph('div', 'phCard'), h = bizHours(b), cap = bizCap(b), site = BIZ_SITES.find(s => s.key === b.key);
+    card.append(ph('b', null, `${T[3]} ${b.label}`), ph('span', 'phDim', `${T[0]} · level ${b.level} of 5 · ${b.mode} prices${b.manager ? ' · managed' : ''} · ${b.rep >= 20 ? 'well liked' : b.rep <= -20 ? 'people grumble' : 'known on the street'}`));
+    const bar = ph('div', 'phBar'), f = ph('i'); f.style.width = `${Math.round(h / cap * 100)}%`; bar.append(f);
+    card.append(ph('span', null, `${NAIRA(bizTill(b))} in the till · ${h >= cap ? 'full: collect it' : `${(cap - h).toFixed(1)} h till full`} · about ${NAIRA(bizRate(b))} an hour`), bar);
+    const row = ph('div', 'phChips');
+    row.append(ph('button', 'phBtn', 'Collect', { type: 'button', on: { click: () => bizCollect(b.key) } }));
+    if (b.level < 5) row.append(ph('button', 'phChip', `⬆ Level ${b.level + 1} · ${NAIRA(Math.round(T[1] * BIZ_UP[b.level + 1]))} (×${(BIZ_LEVEL[b.level + 1] / BIZ_LEVEL[b.level]).toFixed(2)})`, { type: 'button', on: { click: () => bizUpgrade(b.key) } }));
+    if (!b.manager) row.append(ph('button', 'phChip', `🧑‍💼 Manager · ${NAIRA(Math.round(T[1] * .2))}`, { type: 'button', on: { click: () => bizManager(b.key) } }));
+    card.append(row);
+    const pr = ph('div', 'phChips'); pr.append(ph('span', 'phDim', 'Prices'));
+    for (const m of ['low', 'fair', 'high']) pr.append(ph('button', 'phChip' + (b.mode === m ? ' on' : ''), m[0].toUpperCase() + m.slice(1), { type: 'button', on: { click: () => bizMode(b.key, m) } }));
+    card.append(pr);
+    const r2 = ph('div', 'phChips');
+    if (site) r2.append(ph('button', 'phChip', '📍 Show me', { type: 'button', on: { click: () => { setWaypoint(site.x, site.z); toast('📍 Pinned', b.label); } } }));
+    r2.append(ph('button', 'phChip', BIZ.sellArm === b.key ? `Tap again to sell for ${NAIRA(Math.round(b.invested * .7 / 100) * 100)}` : 'Sell', { type: 'button', on: { click: () => bizSell(b.key) } }));
+    card.append(r2, ph('span', 'phDim', `Earned ${NAIRA(b.earned)} so far · put in ${NAIRA(b.invested)}`)); out.push(card);
+  }
+  // for sale nearby
+  bizSitesFinish();
+  const free = BIZ_SITES.filter(s => !BIZ.mine.has(s.key) && !BIZ.owned.has(s.key)).map(s => [s, Math.hypot(s.x - P.pos.x, s.z - P.pos.z)]).sort((a, b) => a[1] - b[1]).slice(0, 8);
+  if (free.length) out.push(ph('div', 'phDim phFoot', 'For sale nearby'));
+  for (const [s, d] of free) {
+    const T = BIZ_TYPES[s.type], row = ph('div', 'phLine');
+    row.append(ph('span', null, `${T[3]} ${s.label} · ${fmtDist(d)}`), ph('b', null, NAIRA(T[1])), ph('button', 'phChip', '📍', { type: 'button', 'aria-label': 'Show me', on: { click: () => { setWaypoint(s.x, s.z); toast('📍 Pinned', `${s.label} · ${T[0].toLowerCase()} · ${NAIRA(T[1])}`); } } }));
+    out.push(row);
+  }
+  out.push(ph('div', 'phDim phFoot', `Tills fill for ${BIZ_CAP} hours (${BIZ_CAP_M} with a manager), even while you’re away. Selling gets back 70% of what you put in.${NET.token ? '' : ' Sign in to keep them in your account; as a guest they live in this browser.'}`));
+  return out;
+} };
+PHONE_APPS.push(['biz', '🏪', 'Business']);
+
 setInterval(() => { if (PHONE.open && PHONE.app === 'market' && MKT.view === 'browse' && !(document.activeElement && $('phone').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName))) phoneRefresh(); }, 1000);   // (auction clocks; not while you're typing a bid)
 
 $('phHome').addEventListener('click', () => phoneApp('home'));
@@ -15822,7 +16029,7 @@ function frame(now) {
   updateLand(dt);
   updateWaypoint();
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch(); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
+  updateTouch(); updateBiz(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)

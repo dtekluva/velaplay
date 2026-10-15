@@ -11,6 +11,7 @@ import { visits } from "./visits";
 import { progress } from "./progress";
 import { phone } from "./phone";
 import { market, settleAuctions } from "./market";
+import { business } from "./business";
 import { WorldRoom } from "./rooms/WorldRoom";
 
 async function main() {
@@ -32,6 +33,7 @@ async function main() {
   app.use("/api", progress);
   app.use("/api", phone);
   app.use("/api", market);
+  app.use("/api", business);
   app.get("/stats", (_req, res) => res.sendFile(path.join(__dirname, "..", "public", "stats.html")));   // the admin stats page
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
