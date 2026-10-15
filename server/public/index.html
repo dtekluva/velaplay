@@ -8714,13 +8714,26 @@ function makeTrain() {
 }
 // moving: brake for the next station in the direction of travel, stand there a while, carry on; turn round at the ends
 function trainNextStop(T) { const st = TRAIN.stations.filter(q => T.dir > 0 ? q.s > T.s + 1 : q.s < T.s - 1).sort((a, c) => T.dir * (a.s - c.s))[0]; return st || null; }
+// signals: the end of the line past each crossover is one block, one train at a time (an arriving train waits at the
+// signal outside while another is in there, turning back or crossing over); on the run, a train keeps 40 m behind the one ahead
+const TRAIN_LEN = 3 * 20.2 + 1.4, trainsAll = () => [...TRAIN.list, ...(TRAIN.ride.on && TRAIN.ride.T ? [TRAIN.ride.T] : [])];
+const trainSpan = O => [Math.min(O.s, O.s - O.dir * TRAIN_LEN), Math.max(O.s, O.s - O.dir * TRAIN_LEN)];
+const endBlocks = () => { const X = RAILW?.XOV; return X && X.length > 1 ? [{ inside: s => s < X[0].b + 15, edge: X[0].b + 15, dir: -1 }, { inside: s => s > X[1].a - 15, edge: X[1].a - 15, dir: 1 }] : []; };
+const blockBusy = (Bk, except) => trainsAll().some(O => O !== except && trainSpan(O).some(Bk.inside));
+function trainRoom(T) {   // how far it may go before it has to stand at a signal (Infinity: the line's clear)
+  let room = Infinity;
+  for (const O of trainsAll()) { if (O === T || O.dir !== T.dir || O.cross || T.cross) continue; const [o0, o1] = trainSpan(O), gap = T.dir > 0 ? o0 - T.s : T.s - o1; if (gap > -5) room = Math.min(room, gap - 40); }
+  for (const Bk of endBlocks()) if (T.dir === Bk.dir && !Bk.inside(T.s) && blockBusy(Bk, T)) room = Math.min(room, Math.abs(Bk.edge - T.s) - 10);
+  return room;
+}
 function trainMove(T, dt) {
   if (T.dwell > 0) { T.dwell -= dt; T.v = 0; return null; }
   let st = T.next; if (!st || T.dir * (st.s - T.s) < -.5) st = T.next = trainNextStop(T);   // the stop it's heading for, kept until it gets there
   if (!st) {   // the end of the line: the cab at the back takes over, and the train will cross back to the other line on the points outside
     const from = T.dir; T.dir = -T.dir; T.dwell = 20; T.s = clamp(T.s - from * (3 * 20.2 + 1.4), 0, RAILW.L); T.cars.reverse(); for (const g of T.cars) g.userData.flip = !g.userData.flip;
     const X = RAILW.XOV[T.dir > 0 ? 0 : 1]; if (X) T.cross = { a: X.a, b: X.b, inc: T.dir > 0, from, to: T.dir }; T.next = null; return null; }
-  const left = Math.abs(st.s - T.s), want = Math.min(T.cruise, Math.sqrt(2 * 1.1 * Math.max(0, left - .5)) + .6);
+  const room = trainRoom(T); T.held = room < .6; if (T.held) { T.v = 0; return null; }   // standing at a signal
+  const left = Math.min(Math.abs(st.s - T.s), room), want = Math.min(T.cruise, Math.sqrt(2 * 1.1 * Math.max(0, left - .5)) + (left === room ? 0 : .6));
   T.v += clamp(want - T.v, -2.4 * dt, 1.1 * dt); T.s += T.dir * T.v * dt;
   if (Math.abs(st.s - T.s) < .6 || (T.dir > 0 ? T.s > st.s : T.s < st.s)) { T.s = st.s; T.v = 0; T.dwell = T.stopFor ?? 16; T.next = null; return st; }
   return null;
@@ -8758,7 +8771,7 @@ function boardTrain(st) {
   if (LAND.money < TRAIN.fare) { toast('', `A ticket is ${NAIRA(TRAIN.fare)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= TRAIN.fare; saveLand(); sfx('refill');
   const to = trainDest(st), R = TRAIN.ride; if (!R.T) { R.T = makeTrain(); R.T.rider = true; }
-  const dir = to.s > st.s ? 1 : -1, end = st === TRAIN.stations[0] || st === TRAIN.stations[TRAIN.stations.length - 1], X = end && RAILW.XOV[dir > 0 ? 0 : 1];
+  const dir = to.s > st.s ? 1 : -1, end = st === TRAIN.stations[0] || st === TRAIN.stations[TRAIN.stations.length - 1], Bk = end && endBlocks()[dir > 0 ? 0 : 1], X = end && !(Bk && blockBusy(Bk, R.T)) && RAILW.XOV[dir > 0 ? 0 : 1];   // (with another train in at the end, yours waits on the far side of the platform and goes straight out)
   Object.assign(R.T, { s: end ? st.s + dir * 30 : st.s, dir, v: 0, dwell: 3, cruise: 34, stopFor: 6, next: null, cross: X ? { a: X.a, b: X.b, inc: dir > 0, from: -dir, to: dir } : null });   // (from a terminus it leaves on the line trains come in on and crosses over)
   Object.assign(R, { on: true, to, at: st, snap: true }); trainPlace(R.T);
   toast(`🚆 Naija Rail · ${st.name} → ${to.name}`, `${NAIRA(TRAIN.fare)} · all stations · E at a stop to get off · Space skips to the next stop`);
@@ -8769,7 +8782,7 @@ function trainRideStep(dt) {
   if (arrived) { R.at = arrived; if (arrived === R.to || !trainNextStop(T)) trainAlight(); }
   else if (T.v > .5) R.at = null;
 }
-function trainSkip() { const R = TRAIN.ride, T = R.T; if (!R.on) return; T.dwell = 0; const st = trainNextStop(T); if (!st) return; const tgt = st.s - T.dir * 160; if (T.dir * (tgt - T.s) > 0) T.s = tgt; T.v = Math.max(T.v, 20); T.next = st; R.at = null; R.snap = true; }
+function trainSkip() { const R = TRAIN.ride, T = R.T; if (!R.on) return; T.dwell = 0; const st = trainNextStop(T); if (!st) return; const tgt = st.s - T.dir * 160, room = trainRoom(T), jump = Math.min(T.dir * (tgt - T.s), room - 60); if (jump > 0) T.s += T.dir * jump; /* (never past a signal or into the train ahead) */ T.v = Math.max(T.v, 20); T.next = st; R.at = null; R.snap = true; }
 function trainAlight() {
   const R = TRAIN.ride, st = R.at; if (!st) return;
   const T = R.T; R.on = false; T.cars.forEach(g => { g.visible = false; });
@@ -8783,7 +8796,7 @@ function trainCamera(dt) {
   if (TRAIN.ride.snap) { camera.position.copy(want); TRAIN.ride.snap = false; } else camera.position.lerp(want, Math.min(1, dt * 3));
   camera.lookAt(g.position.x + fx * 10, g.position.y + 2, g.position.z + fz * 10); SIM.cutY.constant = 1e5; SIM.t = 0;
 }
-const trainPrompt = () => { const R = TRAIN.ride, T = R.T; return `🚆 Naija Rail → ${R.to.name} · ${R.at && T.dwell > 0 ? `at ${R.at.name} · E: get off here` : `${Math.round(T.v * 3.6)} km/h`} · Space: skip to the next stop`; };
+const trainPrompt = () => { const R = TRAIN.ride, T = R.T; return `🚆 Naija Rail → ${R.to.name} · ${R.at && T.dwell > 0 ? `at ${R.at.name} · E: get off here` : T.held ? 'waiting at a signal' : `${Math.round(T.v * 3.6)} km/h`} · Space: skip to the next stop`; };
 
 /* ---------- traffic north of Ikeja: the expressway in both lanes each way (heavier: danfos, tippers, Siennas), lighter in
    Ibadan and Oyo town (old cars, kekes), a few on the campus and the airport road ---------- */
