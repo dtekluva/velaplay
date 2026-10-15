@@ -192,7 +192,7 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #tc{position:absolute;inset:0;touch-action:none;display:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.touch #tc{display:block}
 body.touch #hud *{pointer-events:none}
-body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *{pointer-events:auto}
+body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *,body.touch #phone,body.touch #phone *,body.touch #exhibit,body.touch #exhibit *,body.touch #wayCue #wayX,body.touch #hud .mapwrap,body.touch #hud .mapwrap *{pointer-events:auto}
 body.touch #tc .stick,body.touch #tc .knob{pointer-events:none}
 body.touch #help{display:none!important}
 #helpTab{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:5px 10px;background:var(--panel);border:1px solid var(--edge);color:var(--brass);font:700 12px/1 inherit;letter-spacing:.06em;cursor:pointer;pointer-events:auto;opacity:.75}
@@ -211,6 +211,13 @@ body.touch #cross{opacity:.8}
 #tc .b.pill.sim.off{background:rgba(20,24,28,.7);color:#cfe9ef;border:1px solid rgba(62,232,255,.6)}
 #tc .b.lit{background:rgba(232,180,90,.9);color:#1b1608}
 #tc .b.on{background:rgba(214,174,95,.7);color:#1b1608;transform:scale(.94)}
+#tc .b small{font-size:9px;letter-spacing:.04em;opacity:.85}
+#tc .b.big{flex-direction:column;line-height:1.1}
+#tc .b.gas{background:rgba(127,192,106,.7);border-color:rgba(160,220,140,.9);color:#0f1f0a}
+#tc .b.dpad{bottom:calc(18px + env(safe-area-inset-bottom,0px));width:84px;height:84px;font-size:30px;border-radius:18px}
+#tc .b.dl{left:calc(14px + env(safe-area-inset-left,0px))}
+#tc .b.dr{left:calc(110px + env(safe-area-inset-left,0px))}
+body.dpad #tc .stick{display:none}
 #tc .sys{position:absolute;left:calc(18px + env(safe-area-inset-left,0px));top:calc(86px + env(safe-area-inset-top,0px));display:flex;gap:8px}
 #tc .sys .b,#tc .more .b{position:static;width:46px;height:40px;border-radius:8px;font-size:13px}
 #tc .more{position:absolute;left:calc(18px + env(safe-area-inset-left,0px));top:calc(134px + env(safe-area-inset-top,0px));display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px;background:rgba(18,25,16,.94);border:1px solid var(--edge);z-index:2}
@@ -357,7 +364,7 @@ body:not(.touch) #odock{display:none}
 /* the law: wanted stars, flashing red and blue while a pursuit car is on you */
 #wayCue{position:absolute;left:50%;top:calc(134px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:3px 6px 3px 4px;background:var(--panel);border:1px solid var(--edge);font:600 14px var(--ui);letter-spacing:.05em;color:var(--ink,#f1ebda);white-space:nowrap;z-index:5}
 #wayCue svg{width:30px;height:30px;flex:none}
-#wayCue #wayX{background:none;border:0;color:inherit;font:600 13px var(--ui);opacity:.7;cursor:pointer;padding:2px 4px}
+#wayCue #wayX{pointer-events:auto;background:none;border:0;color:inherit;font:600 13px var(--ui);opacity:.7;cursor:pointer;padding:2px 4px}
 body.touch #wayCue{top:calc(96px + env(safe-area-inset-top,0px));font-size:12px}
 #wanted{position:absolute;left:50%;top:calc(96px + env(safe-area-inset-top,0px));transform:translateX(-50%);padding:4px 14px;font:800 20px var(--ui);letter-spacing:.12em;color:#ffd34a;background:rgba(14,10,10,.75);border:1px solid rgba(255,211,74,.6);border-radius:4px;text-shadow:0 1px 3px #000}
 #wanted.flash{animation:wantedFlash .5s steps(2) infinite}
@@ -386,7 +393,7 @@ body.touch #tc .sys .b{width:44px;height:44px;border-radius:12px;font-size:18px;
 #tc .b.arrt{left:calc(126px + env(safe-area-inset-left,0px));background:rgba(214,174,95,.88);color:#1b1608}
 #tc .b.dancet{background:rgba(255,62,200,.85);color:#fff}
 #tc .b.simt.off{background:rgba(20,24,28,.7);color:#cfe9ef;border:1px solid rgba(62,232,255,.6)}
-body.touch #mstat{display:flex;flex-direction:column;gap:4px;position:absolute;left:calc(112px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));min-width:112px;padding:5px 10px 6px;background:rgba(14,19,13,.72);border:1px solid rgba(214,174,95,.45);border-left:3px solid var(--brass);border-radius:4px;pointer-events:auto}
+body.touch #mstat{display:flex;flex-direction:column;gap:4px;position:absolute;left:calc(166px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));min-width:112px;padding:5px 10px 6px;background:rgba(14,19,13,.72);border:1px solid rgba(214,174,95,.45);border-left:3px solid var(--brass);border-radius:4px;pointer-events:auto}
 #mstat .mm{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
 #mstat .mm b{font-size:16px;color:var(--brass);letter-spacing:.02em}
 #mstat .mm span{font-size:12px;color:var(--ink);font-weight:600}
@@ -394,7 +401,7 @@ body.touch #mstat{display:flex;flex-direction:column;gap:4px;position:absolute;l
 #mstat .mb i{position:absolute;inset:0 auto 0 0;width:100%;background:var(--blood)}
 #mstat .mb.gas i{background:var(--gas)}
 #mstat .mb.gas i.low{background:#e8b45a}
-body.touch .mapwrap{right:calc(10px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));gap:2px;pointer-events:auto}
+body.touch .mapwrap{right:calc(10px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));gap:2px;pointer-events:auto;z-index:2}
 body.touch #minimap{width:88px;height:88px;border-width:2px}
 body.touch #kmh{font-size:13px;margin-top:2px}
 body.touch #clock{font-size:11px;margin-top:0}
@@ -458,11 +465,11 @@ body.touch #bigmap .key{font-size:12px;gap:3px 10px;max-width:none}
 body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;border-color:var(--brass)}
 @media (orientation:portrait){
   body.touch #minimap{width:96px;height:96px}
-  body.touch #mstat{max-width:calc(100vw - 240px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));min-width:0}
+  body.touch #mstat{left:calc(10px + env(safe-area-inset-left,0px));top:calc(62px + env(safe-area-inset-top,0px));max-width:calc(100vw - 140px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));min-width:0}
   #mstat .mm{flex-wrap:wrap;row-gap:0}
   body.touch #odock{right:calc(10px + env(safe-area-inset-right,0px));top:calc(140px + env(safe-area-inset-top,0px));flex-direction:column;align-items:flex-end}
   body.touch #talk,body.touch #lmenu{right:calc(10px + env(safe-area-inset-right,0px));width:auto;top:calc(142px + env(safe-area-inset-top,0px));max-height:calc(60% - 142px)}
-  body.touch #chatLog{width:min(300px,60vw)}
+  body.touch #chatLog{width:min(300px,60vw);top:calc(118px + env(safe-area-inset-top,0px))}
   body.touch #prompt{max-width:80vw;top:52%}
   body.touch #toast{top:22%}
   #drawer aside{width:min(400px,88vw)}
@@ -598,17 +605,15 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     <div class="card" id="card">
       <div class="eyebrow" id="cEyebrow">Lagos · Ibadan · Oyo</div>
       <h1 id="cTitle">NaijLife</h1>
-      <p class="touchhint">Left thumb moves (and steers), right thumb looks around. Hold the HOOK buttons to swing, JUMP twice to boost, and tap the gold button to talk, drive or ride the lift. ☰ has the map and everything else; tap the minimap for the big map.</p>
+      <p class="touchhint">Left thumb moves, right thumb looks around; at the wheel, ◀ ▶ steer and GAS and BRAKE drive. Indoors, pinch to zoom and drag two fingers up or down to tilt the view. JUMP, then hold it in the air to jet, and tap the gold button to talk, drive or ride the lift. ☰ has the map and everything else; tap the minimap for the big map.</p>
       <p class="rotate">Turn your device sideways for the best view.</p>
       <p class="landhint">Buy land: yellow squares on the map are for sale. Stand on one and press E (BUY on touch). The gated estates, Lekki Gardens north of the city and Eastwood Park past the airport, have level plots ready to build on. Bulldozers are sold at Meadowbrook Machinery on the coast road.</p>
-      <p id="cText">Fire anchors into trees a hundred metres tall, swing to build speed, and cut titans at the nape. The faster you hit, the deeper the cut. They never stop coming.</p>
+      <p id="cText">Jet through trees a hundred metres tall on your gas pack, build speed, and cut titans at the nape. The faster you hit, the deeper the cut. They never stop coming.</p>
       <div class="stats" id="cStats" hidden></div>
       <dl class="keys">
-        <dt>LMB / RMB</dt><dd>Hold to anchor left / right hook</dd>
         <dt>↑ ↓ / WASD</dt><dd>Run and steer; the camera follows you</dd>
         <dt>← →</dt><dd>Turn</dd>
         <dt>SPACE</dt><dd>Jump (hold M for a super jump); in the air, gas boost</dd>
-        <dt>SHIFT</dt><dd>Reel in</dd>
         <dt>X</dt><dd>Fire your pistol. Rounds refill 2 per second</dd>
         <dt>F</dt><dd>Slash the nape (needs speed)</dd>
         <dt>E</dt><dd>Refill at blue depots; help knocked-down villagers up</dd>
@@ -4728,6 +4733,11 @@ const pm = {};
     pants: '#e4dcc4', boots: '#3a2a1e', belt: '#2c211a', harness: true, eye: '#3a5a2a' });   // no cloak
   playerModel.add(pm.rig.root);
   pm.legs = pm.rig.thigh; pm.arms = pm.rig.uArm;
+  // boot jets: a nozzle on each heel and a flame that shows under the feet while the gas pack fires
+  const flameM = new THREE.MeshBasicMaterial({ color: 0xffb04a, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flameG = new THREE.ConeGeometry(.055, .5, 8, 1, true); flameG.rotateX(Math.PI); flameG.translate(0, -.25, 0);
+  pm.jets = [0, 1].map(() => { const fl = new THREE.Mesh(flameG, flameM); fl.visible = false; playerModel.add(fl); return fl; });   // placed under the feet each frame
+  pm.nozzleM = metal;
   const blade = mk(pm.rig.fArm[0], .035, .85, .08, -.02, -.75, -.05, metal); blade.rotation.z = -.1; blade.visible = false; pm.blade = blade;   // blade in the left hand (hidden: slashing still works)
   // pistol in the right hand: the barrel runs along the forearm (local -y), the grip hangs along local +z
   const pistol = new THREE.Group(); pistol.position.set(0, -.29, 0); pistol.scale.setScalar(1.35); pm.rig.fArm[1].add(pistol); pm.pistol = pistol;
@@ -4769,37 +4779,7 @@ function toggleLook(k) {
   lookChanged();
 }
 
-/* ---------- hooks ---------- */
-const HOOK_RANGE = 90, HOOK_SPEED = 260;
-const ropeMat = new THREE.MeshBasicMaterial({ color: 0x262626 });
-const hooks = [0, 1].map(i => {
-  const rope = new THREE.Mesh(new THREE.BoxGeometry(.045, .045, 1), ropeMat);
-  rope.geometry.translate(0, 0, .5); rope.visible = false; scene.add(rope);
-  const tip = new THREE.Mesh(new THREE.BoxGeometry(.18, .18, .3), new THREE.MeshLambertMaterial({ color: 0x9aa3a8 }));
-  tip.visible = false; scene.add(tip);
-  return { i, state: 'idle', tip: new V3(), target: new V3(), obj: null, local: new V3(), hit: false, L: 0, rope, tipMesh: tip };
-});
 const tmpA = new V3(), tmpB = new V3(), tmpC = new V3();
-function hookOrigin(h, out) {
-  const s = h.i === 0 ? -1 : 1, a = P.facing;
-  return out.set(P.pos.x + Math.cos(a) * .32 * s, P.pos.y + 1.0, P.pos.z - Math.sin(a) * .32 * s);
-}
-function anchorPos(h, out) { if (h.obj) { out.copy(h.local); h.obj.localToWorld(out); } else out.copy(h.target); return out; }
-function fireHook(i) {
-  const h = hooks[i];
-  if (h.state !== 'idle' || P.dead || P.driving || mode !== 'play') return;
-  hookOrigin(h, h.tip);
-  if (aim.hit && aim.dist <= HOOK_RANGE) {
-    h.hit = true; h.obj = aim.object; h.target.copy(aim.point);
-    if (h.obj) { h.local.copy(aim.point); h.obj.worldToLocal(h.local); }
-  } else {
-    h.hit = false; h.obj = null;
-    const d = aim.hit ? tmpA.copy(aim.point).sub(h.tip).normalize() : camDir(tmpA);
-    h.target.copy(h.tip).addScaledVector(d, HOOK_RANGE);
-  }
-  h.state = 'flying'; sfx('hook');
-}
-function releaseHook(i) { const h = hooks[i]; if (h.state === 'flying' || h.state === 'attached') h.state = 'retract'; }
 
 /* ---------- titans ---------- */
 const titanRoot = new THREE.Group(); scene.add(titanRoot);
@@ -4836,7 +4816,6 @@ function spawnFar(minD = 55) {
   return spawnTitan(clamp(P.pos.x + 80, xLo(P.pos.z), xHi(P.pos.z)), P.pos.z);
 }
 function removeTitan(t) {
-  for (const h of hooks) if (h.obj && h.obj.userData.titan === t) { h.state = 'idle'; h.obj = null; }
   titanRoot.remove(t.g);
   t.g.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
   titans.splice(titans.indexOf(t), 1);
@@ -5552,7 +5531,7 @@ const TALK = {
     village: ['Well met, scout.', 'Good {tod}. The wall still holds?', 'Ah, a scout! Welcome to our little village.'],
     cop: ['Officer {name}. Everything all right?', 'Afternoon. Keep it orderly.'],
     fire: ['Hey! Firefighter {name}. What can I do for you?'],
-    kid: ['Hi! Is that a real sword?', 'Whoa, are those grapple hooks?'],
+    kid: ['Hi! Is that a real sword?', 'Whoa, is that a gas pack?'],
     staff: ['Welcome home, boss!', 'Good {tod}, oga!', 'Ah, you’re back! Everything is in order.', 'Good {tod}, boss. Shall I bring something cold?'],
     club: ['Heyyy! You made it!', 'Good evening! Welcome to the party.', 'Ah, a scout in the club! Love it.', 'Hi! Can you hear me over the music?'],
   },
@@ -5652,10 +5631,10 @@ const TALK = {
     seafront: ['Lovely evening for a walk.', 'Morning, neighbour!', 'Mind the gate, please.'],
     country: ['Howdy!', 'Fine day for it.', 'Mind the cows!', 'Pie’s cooling on the sill!', 'Well, look at you, all kitted out.'],
     country_f: ['Afternoon, dear.', 'You look hungry. Stop by the store.'], country_m: ['How do.', 'Hot one today.'],
-    school: ['Hi scout!!', 'Watch me on the swings!', 'Are those real hooks?!', 'I’m not supposed to talk to strangers. Hi!'],
+    school: ['Hi scout!!', 'Watch me on the swings!', 'Is that a real jet pack?!', 'I’m not supposed to talk to strangers. Hi!'],
     village: ['Well met.', 'Safe travels, scout.', 'The bread’s fresh today.', 'Keep an eye on the trees.'],
     cop: ['Move along, citizen. Stay safe.', 'Keep it orderly.'], fire: ['Stay out of trouble, yeah?'],
-    kid: ['Whoa, a scout!', 'Can I try your hooks?', 'Do a flip!'],
+    kid: ['Whoa, a scout!', 'Can I try your jet pack?', 'Do a flip!'],
     staff: ['Welcome, boss!', 'Good {tod}!', 'Everything is in order!', 'The house is ready, boss.'],
     club: ['Ayyy! This song!', 'Turn it up!', 'Come and dance!', 'Who’s buying the next round?', 'Oya, dance!', 'DJ, play that one again!'],
     club_f: ['Love your outfit!', 'My feet are killing me, but I’m not stopping!', 'Selfie! Come, come!'], club_m: ['My guy! Welcome!', 'VIP is that way, boss.', 'The drinks are on me. Joking!'],
@@ -9195,7 +9174,6 @@ function enterCar(c) {
     c = { g: c.g, kind, lux: lk || undefined, luxName: lk ? LUX[lk].name : undefined, col: c.g.userData.col, police: !!c.police, ambulance: !!c.ambulance, fire: !!c.fire, x, z, y: (c.T || TOWN).y, yaw: c.g.rotation.y, speed: 0, steer: 0, vy: 0, lean: 0 };
     DRIVABLES.push(c);
   }
-  for (const h of hooks) h.state = 'idle';
   P.driving = c; P.vel.set(0, 0, 0); yaw = c.yaw; pitch = -.12; if (c.cab) taxiBoarded(c);
   if (isAir(c)) { engineOn(); sfx('clank'); toast('', 'Hold W for full throttle: it lifts off by itself · ↑↓ pitch · A/D bank and turn · Space brakes · E to get out once stopped'); return; }
   if (c.kind === 'boat') { engineOn(); sfx('clank'); toast('', 'W/S throttle · A/D steer · Space slows · E to get off at the jetty or the beach'); return; }
@@ -9529,6 +9507,12 @@ let shake = 0;
 /* ---------- sim view: step indoors and the camera rises to look down into the room, and every wall between you and it
    drops to waist height (the back walls stay up), like The Sims. Three world-space clip planes, intersected: above the cut
    height AND in front of the far x wall AND in front of the far z wall. People are never cut. K turns it off and on. ---------- */
+// indoor camera zoom (wheel or pinch) and tilt: k scales how far the camera sits from you
+const VIEWZ = { k: 1, min: .45, max: 1.6 };
+const indoorsNow = () => mode === 'play' && !P.driving && !ARR.on && !INSPECT.on && !firstPerson && (!!INSIDE.at || !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y));
+function viewTilt(dy, k) {   // drag up to look more level, down to look more steeply down; in sim view it tilts the room camera
+  if (SIM.t > .5) SIM.pitch = clamp(SIM.pitch - dy * k, -1.45, -.3); else pitch = clamp(pitch - dy * k, -1.35, 1.35);
+}
 const SIM = { on: true, t: 0, room: null, pitch: -.92, wall: 1.45, mats: new Set(), seen: -1e9,
   cutY: new THREE.Plane(new V3(0, -1, 0), 1e5), cutX: new THREE.Plane(new V3(1, 0, 0), 1e5), cutZ: new THREE.Plane(new V3(0, 0, 1), 1e5), pos: new V3(), dir: new V3() };
 renderer.localClippingEnabled = true;
@@ -9558,7 +9542,7 @@ function updateSim(dt, target, d) {
   const zk = 1 - ((SIM.close ?? 1) - .45) / .55, sp = SIM.pitch + (-1.32 - SIM.pitch) * clamp(zk, 0, 1);   // steeper, looking down over the wall, while you're doing something
   const cp = Math.cos(sp), sd = SIM.dir.set(hx * cp, Math.sin(sp), hz * cp);
   SIM.close = (SIM.close ?? 1) + ((NEEDS.pose ? .45 : 1) - (SIM.close ?? 1)) * Math.min(1, dt * 2.5);   // move in while you're cooking, sleeping or in the bathroom
-  const dist = clamp(Math.max(R.w, R.d) * .55 + 5, 9, 18) * SIM.close, np = NEEDS.pose;
+  const dist = clamp(Math.max(R.w, R.d) * .55 + 5, 9, 18) * SIM.close * VIEWZ.k, np = NEEDS.pose;
   SIM.pos.copy(np && np.x !== undefined ? (SIM.at ||= new V3()).set(np.x, np.y + .9, np.z) : target).addScaledVector(sd, -dist);
   camera.position.lerp(SIM.pos, e);
   camera.lookAt(SIM.pos.copy(camera.position).add(d.lerp(sd, e)));
@@ -9581,7 +9565,7 @@ function updateCamera(dt) {
   const d = camDir(tmpC);
   if (firstPerson) { SIM.t = 0; SIM.cutY.constant = 1e5; camera.position.set(P.pos.x, P.pos.y + 1.65, P.pos.z); camera.lookAt(tmpA.copy(camera.position).add(d)); return; }
   const target = tmpA.set(P.pos.x, P.pos.y + (P.driving ? vehOf(P.driving).camY : 1.7), P.pos.z);
-  let dist = P.driving ? vehOf(P.driving).cam : 6;
+  let dist = P.driving ? vehOf(P.driving).cam : 6 * (indoorsNow() ? Math.min(1, VIEWZ.k) : 1);
   const hb = rayBoxes(target, tmpB.copy(d).negate(), .3, dist + .5);
   if (hb >= 0) dist = Math.max(1.2, hb - .4);
   // indoors: keep the camera inside the same room and under its ceiling
@@ -9647,8 +9631,6 @@ addEventListener('keydown', e => {
     case 'KeyY': toggleLook('hat'); break;
     case 'KeyU': toggleLook('shades'); break;
     case 'KeyK': SIM.on = !SIM.on; toast('', SIM.on ? 'Sim view indoors: on (K)' : 'Sim view indoors: off (K)'); break;
-    case 'KeyQ': fireHook(0); break;
-    case 'KeyC': fireHook(1); break;
     case 'KeyT': setPeaceful(!peaceful, true); break;
     case 'KeyN': skipDayNight(); break;
     case 'KeyI': carNap(); break;
@@ -9662,8 +9644,6 @@ let mCombo = false;
 addEventListener('keyup', e => {
   if (e.code === 'KeyM' && mode === 'play' && !mCombo) { vol = (vol + 2) % 3; if (master) master.gain.value = VOLS[vol]; toast('', `Sound ${VOL_NAMES[vol]}`); }
   keys[e.code] = false;
-  if (e.code === 'KeyQ') releaseHook(0);
-  if (e.code === 'KeyC') releaseHook(1);
   if (e.code === 'KeyZ') voiceTalk(false);
   if (e.code === 'Tab') $('board').hidden = true;
 });
@@ -9673,11 +9653,10 @@ renderer.domElement.addEventListener('mousedown', e => {
   if (!$('bigmap').hidden && document.pointerLockElement) { if (e.button === 0) BMV.lockDrag = { moved: 0 }; return; }   // the map is open: hold and drag pans it, a click (on release) picks the spot under the crosshair
   if (hadLock && !document.pointerLockElement) { lockPointer(); return; }
   if (INSPECT.on) return;
-  if (e.button === 0) fireHook(0); else if (e.button === 2) fireHook(1);
-  else if (e.button === 1) { e.preventDefault(); midHeld = true; }
+  if (e.button === 1) { e.preventDefault(); midHeld = true; }
 });
 let midHeld = false;
-addEventListener('mouseup', e => { if (e.button === 0 && BMV.lockDrag) { const d = BMV.lockDrag; BMV.lockDrag = null; if (d.moved < 6 && !$('bigmap').hidden) mapPick(MAPCUR.x, MAPCUR.y); return; } if (e.button === 0) releaseHook(0); else if (e.button === 2) releaseHook(1); else if (e.button === 1) midHeld = false; });
+addEventListener('mouseup', e => { if (e.button === 0 && BMV.lockDrag) { const d = BMV.lockDrag; BMV.lockDrag = null; if (d.moved < 6 && !$('bigmap').hidden) mapPick(MAPCUR.x, MAPCUR.y); return; } if (e.button === 1) midHeld = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 let lastMouse = -9;
 addEventListener('mousemove', e => {
@@ -9687,7 +9666,9 @@ addEventListener('mousemove', e => {
   if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); const nx = MAPCUR.x + e.movementX * k, ny = MAPCUR.y + e.movementY * k, sc = bmC.width / BMV.span; MAPCUR.x = clamp(nx, 0, bmC.width); MAPCUR.y = clamp(ny, 0, bmC.height); if (nx !== MAPCUR.x || ny !== MAPCUR.y) { BMV.cx += (nx - MAPCUR.x) / sc; BMV.cz += (ny - MAPCUR.y) / sc; bmClamp(); } MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
   if (INSPECT.on) { INSPECT.yaw -= e.movementX * .006; INSPECT.pitch = clamp(INSPECT.pitch + e.movementY * .004, -.3, 1.1); INSPECT.moved = performance.now() / 1000; return; }
   yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.35, 1.35);
+  if (SIM.t > .5 && indoorsNow()) SIM.pitch = clamp(SIM.pitch - e.movementY * .0022, -1.45, -.3);
 });
+addEventListener('wheel', e => { if (!indoorsNow() || !$('bigmap').hidden || PHONE.open) return; VIEWZ.k = clamp(VIEWZ.k * (e.deltaY > 0 ? 1.1 : 1 / 1.1), VIEWZ.min, VIEWZ.max); }, { passive: true });
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement) { hadLock = true; if (PHONE.open) phoneToggle(false); }
@@ -9695,9 +9676,12 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 /* ---------- player actions ---------- */
-function puff(n) {
-  const back = tmpB.set(Math.sin(P.facing), 0, Math.cos(P.facing));
-  for (let i = 0; i < n; i++) emit(tmpA.set(P.pos.x + back.x * .4, P.pos.y + .95, P.pos.z + back.z * .4), tmpC.set(back.x * 3 + RM(-1, 1), RM(-.5, 1), back.z * 3 + RM(-1, 1)).addScaledVector(P.vel, .3), .35, RM(.4, .8), 0xffffff, .6, 3);
+function puff(n) {   // exhaust from the boot jets: a hot spark and a plume of smoke blasting down from each foot
+  for (let i = 0; i < n; i++) for (const fl of pm.jets) {
+    fl.getWorldPosition(tmpA); tmpA.y -= .2;
+    emit(tmpA, tmpC.set(RM(-.5, .5), RM(-8, -5), RM(-.5, .5)).addScaledVector(P.vel, .3), .2, RM(.12, .25), 0xffc070, .9, 1);
+    emit(tmpA, tmpC.set(RM(-1, 1), RM(-4, -2), RM(-1, 1)).addScaledVector(P.vel, .3), .28, RM(.4, .8), 0xdedede, .45, 3);
+  }
 }
 function slash() {
   if (P.slashCD > 0 || P.dead) return;
@@ -9740,7 +9724,7 @@ function hurt(d) {
   if (P.dead) return;
   P.health -= d; P.lastHurt = S.time; sfx('hurt');
   const el = $('hurt'); el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 180);
-  if (P.health <= 0) { P.health = 0; P.dead = true; for (const h of hooks) h.state = 'idle'; setTimeout(() => setMode('dead'), 700); }
+  if (P.health <= 0) { P.health = 0; P.dead = true; setTimeout(() => setMode('dead'), 700); }
 }
 
 /* ---------- physics ---------- */
@@ -9753,7 +9737,6 @@ function nearLift() {
 let liftBusy = false;
 function rideLift(r) {
   if (liftBusy) return; liftBusy = true;
-  for (const h of hooks) h.state = 'idle';
   $('fade').classList.add('on'); if (AC) { tone(.18, 880, 880, 'sine', .12); setTimeout(() => tone(.25, 660, 660, 'sine', .1), 160); }
   setTimeout(() => {
     P.pos.set(r.to.x, r.to.y + .05, r.to.z); P.vel.set(0, 0, 0); P.grounded = true;
@@ -9785,50 +9768,24 @@ function stepPlayer(dt) {
   let wx = fx * iz + rx * ix, wz = fz * iz + rz * ix; const wl = Math.hypot(wx, wz); if (wl > 0) { wx /= wl; wz /= wl; }
   if (NEEDS.go && !iz && !ix) { const g = NEEDS.go, dx = g.x - P.pos.x, dz = g.z - P.pos.z, dl = Math.hypot(dx, dz); if (dl > .05) { wx = dx / dl; wz = dz / dl; } }   // walking yourself to the kitchen or the bed
 
-  // hook flight
-  for (const h of hooks) {
-    const origin = hookOrigin(h, tmpA);
-    if (h.state === 'flying') {
-      const goal = h.hit ? anchorPos(h, tmpB) : tmpB.copy(h.target);
-      const toG = goal.sub(h.tip), d = toG.length(), step = HOOK_SPEED * dt;
-      if (d <= step) {
-        h.tip.add(toG);
-        if (h.hit) { h.state = 'attached'; h.L = h.tip.distanceTo(origin); sfx('clank'); }
-        else h.state = 'retract';
-      } else h.tip.addScaledVector(toG, step / d);
-    } else if (h.state === 'retract') {
-      const toO = tmpB.copy(origin).sub(h.tip), d = toO.length(), step = HOOK_SPEED * 1.4 * dt;
-      if (d <= step) h.state = 'idle'; else h.tip.addScaledVector(toO, step / d);
-    }
-  }
-  const att = hooks.filter(h => h.state === 'attached');
 
   // gas
   P.thrust = 0;
   if (keys.Space && !P.jumpHold && P.gas > 0 && !P.grounded) {
-    if (att.length) {
-      const mid = tmpA.set(0, 0, 0); for (const h of att) mid.add(anchorPos(h, tmpB)); mid.multiplyScalar(1 / att.length);
-      mid.sub(tmpB.set(P.pos.x, P.pos.y + 1, P.pos.z)).normalize().multiplyScalar(.7).addScaledVector(camF, .4).normalize();
-      P.vel.addScaledVector(mid, 30 * dt);
-    } else { P.vel.addScaledVector(camF, 20 * dt); P.vel.y += 5 * dt; }
+    P.vel.addScaledVector(camF, 20 * dt); P.vel.y += 5 * dt;
     P.gas -= 12 * dt; P.thrust = 1;
-  }
-  if ((keys.ShiftLeft || keys.ShiftRight) && att.length && P.gas > 0) {
-    for (const h of att) h.L = Math.max(1.5, h.L - 30 * dt);
-    P.gas -= 4.5 * dt; P.thrust = Math.max(P.thrust, .6);
   }
   if (keys.KeyG && P.gas > 0 && !P.grounded) { P.vel.multiplyScalar(Math.exp(-2.6 * dt)); P.gas -= 9 * dt; P.thrust = Math.max(P.thrust, .8); }
   P.gas = Math.max(0, P.gas);
 
   // movement
-  if (P.grounded && !att.length) {
+  if (P.grounded) {
     const hs = Math.hypot(P.vel.x, P.vel.z), k = 1 - Math.exp(-(hs > 10 ? 2.5 : 14) * dt);
     const run = (NEEDS.go ? 3.2 : 8) * needsSpeed();
     P.vel.x += (wx * run - P.vel.x) * k; P.vel.z += (wz * run - P.vel.z) * k;
   } else {
-    const ac = att.length ? 13 : P.inWater ? 16 : 6;
+    const ac = P.inWater ? 16 : 6;
     P.vel.x += wx * ac * dt; P.vel.z += wz * ac * dt;
-    if (att.length && iz) P.vel.y += iz * 3 * dt;
   }
   P.vel.y += GRAV * dt;
   P.vel.multiplyScalar(Math.exp(-.03 * dt));
@@ -9842,18 +9799,6 @@ function stepPlayer(dt) {
   let gh = maxGround(P.pos.x, P.pos.z);
   if (P.pos.y <= gh) { if (P.vel.y < 0) { land(P.vel.y); P.vel.y = 0; } P.pos.y = gh; P.grounded = true; }
 
-  // ropes
-  for (const h of att) {
-    const a = anchorPos(h, tmpA);
-    const chest = tmpB.set(P.pos.x, P.pos.y + 1, P.pos.z);
-    const n = chest.sub(a); const d = n.length();
-    if (d < h.L) h.L = Math.max(1.5, d);
-    else if (d > h.L) {
-      n.multiplyScalar(1 / d);
-      P.pos.set(a.x + n.x * h.L, a.y + n.y * h.L - 1, a.z + n.z * h.L);
-      const vr = P.vel.dot(n); if (vr > 0) P.vel.addScaledVector(n, -vr);
-    }
-  }
   gh = maxGround(P.pos.x, P.pos.z);
   if (P.pos.y < gh) { P.pos.y = gh; if (P.vel.y < 0) P.vel.y = 0; P.grounded = true; }
 
@@ -9886,6 +9831,12 @@ function playerTimers(dt) {
   if (S.time - P.lastHurt > 5 && !P.dead) P.health = Math.min(HP_MAX, P.health + 9 * dt);
   if (P.grounded) P.gas = Math.min(100, P.gas + 6 * dt);   // gas tops up 6% a second while on the ground
   if (P.thrust > 0 && Math.random() < .7) puff(1);
+  pm.jets.forEach((fl, i) => {
+    const foot = pm.human?.bones[i ? 'foot_r' : 'foot_l'];
+    fl.visible = P.thrust > 0 && !P.driving && !!foot; if (!fl.visible) return;
+    playerModel.worldToLocal(foot.getWorldPosition(fl.position)); fl.position.y -= .08;   // the heel, in the body's own frame
+    fl.scale.set(1, (.5 + P.thrust * .7) * RM(.8, 1.15), 1);
+  });
   if (hissG) hissG.gain.setTargetAtTime(P.thrust * .22, AC.currentTime, .05);
   S.top = Math.max(S.top, P.vel.length() * 3.6);
 }
@@ -9939,16 +9890,6 @@ function updatePlayerModel(dt) {
     const r = pm.rig, t = S.time * 6; r.uArm[0].rotation.set(2.5 + Math.sin(t) * .3, 0, -.5); r.uArm[1].rotation.set(2.3 + Math.cos(t * 1.2) * .35, 0, .5); r.fArm[0].rotation.x = r.fArm[1].rotation.x = 1.5 + Math.sin(t * 2) * .2;
     r.head.rotation.x = -.35; for (let i = 0; i < 2; i++) { r.thigh[i].rotation.set(0, 0, 0); r.shin[i].rotation.set(-.04, 0, 0); }
   } else if (NEEDS.pose?.rx) { pm.arms[0].rotation.set(0, 0, -.12); pm.arms[1].rotation.set(0, 0, .12); pm.rig.fArm[0].rotation.x = pm.rig.fArm[1].rotation.x = .1; }   // lying down, arms by the sides
-  // ropes
-  for (const h of hooks) {
-    const vis = h.state !== 'idle';
-    h.rope.visible = h.tipMesh.visible = vis;
-    if (!vis) continue;
-    const o = hookOrigin(h, tmpA);
-    const end = h.state === 'attached' ? anchorPos(h, tmpB) : tmpB.copy(h.tip);
-    h.rope.position.copy(o); h.rope.lookAt(end); h.rope.scale.z = Math.max(.01, o.distanceTo(end));
-    h.tipMesh.position.copy(end); h.tipMesh.lookAt(o);
-  }
 }
 
 /* camera pans to stay behind the scout while moving, unless the mouse was used in the last moment */
@@ -10046,7 +9987,6 @@ function updateHUD(dt) {
   const cross = $('cross');
   hitFlash = Math.max(0, hitFlash - .06);
   cross.classList.toggle('hit', hitFlash > 0);
-  cross.classList.toggle('inrange', aim.hit && aim.dist <= HOOK_RANGE);
   $('aimdist').textContent = aim.hit ? `${Math.round(aim.dist)} m` : '—';
   // nape cue
   const spd = P.vel.length(), chest = tmpA.set(P.pos.x, P.pos.y + 1, P.pos.z);
@@ -10287,7 +10227,6 @@ function resetRun() {
   P.pos.set(0, PYR_TOP + .01, 0); P.vel.set(0, 0, 0);
   Object.assign(S, { score: 0, shown: 0, kills: 0, time: 0, top: 0, fastCut: 0, chain: 0, bestChain: 0, lastKill: -99, rescued: 0 });
   for (const c of civilians) { c.state = 'idle'; c.timer = RM(0, 3); c.marker.visible = false; c.g.rotation.x = 0; }
-  for (const h of hooks) h.state = 'idle';
   yaw = Math.PI; pitch = -.08;
   for (const k of LAW.cars) scene.remove(k.g); Object.assign(LAW, { stars: 0, charges: [], cars: [], arresting: false, serving: false, lostT: 0 });
   if (!peaceful) for (let i = 0; i < 7; i++) spawnFar(40);
@@ -10307,7 +10246,6 @@ function setMode(m) {
   $('board').hidden = true;
   if (m !== 'play') { $('bigmap').hidden = true; $('drawer').hidden = true; talkEnd(); if (typeof TOUCH !== 'undefined') { TOUCH.stick = TOUCH.look = null; TOUCH.sx = TOUCH.sy = 0; TOUCH.dir.clear(); TOUCH.home?.(); } }
   if (m === 'play') return;
-  for (const h of hooks) if (h.state !== 'idle') h.state = 'idle';
   if (document.pointerLockElement) document.exitPointerLock();
   const st = $('cStats');
   if (m === 'pause') {
@@ -10362,20 +10300,21 @@ function touchOn() {
   // [label, key or action, hold?, group, right, bottom, extra class]
   const B = [
     ['JUMP', 'Space', true, 'foot', 0, 0, 'big'], ['FIRE', 'KeyX', true, 'fight', 88, 2], ['SLASH', 'KeyF', false, 'fight', 160, 2],
-    ['HOOK ▶', 'KeyC', true, 'hook', 4, 90], ['◀ HOOK', 'KeyQ', true, 'hook', 76, 76], ['REEL', 'ShiftLeft', true, 'reel', 148, 72],
     ['SUPER', 'super', false, 'ground', 152, 142], ['BRAKE', 'KeyG', true, 'airborne', 152, 142],
-    ['BRAKE', 'Space', true, 'ride', 0, 0, 'big'], ['SIREN', 'KeyB', false, 'siren', 88, 2],
+    ['BRAKE', 'Space', true, 'airride', 0, 0, 'big'], ['SIREN', 'KeyB', false, 'siren', 4, 92],
+    ['GAS', 'KeyW', true, 'drive', 0, 0, 'big gas'], ['BRAKE<br><small>REVERSE</small>', 'KeyS', true, 'drive', 92, 0, 'big'],
+    ['◀', 'KeyA', true, 'drive', 0, 0, 'dpad dl'], ['▶', 'KeyD', true, 'drive', 0, 0, 'dpad dr'],   // steering, bottom-left where the stick was
     ['THR +', 'KeyW', true, 'fly', 4, 90], ['THR −', 'KeyS', true, 'fly', 76, 76],
-    ['BLADE', 'KeyL', false, 'dozer', 88, 2],
-    ['NAP', 'KeyI', false, 'nap', 88, 76],
+    ['BLADE', 'KeyL', false, 'dozer', 4, 92],
+    ['NAP', 'KeyI', false, 'nap', 76, 92],
     ['USE', 'KeyE', false, 'use', 0, 168, 'pill'],
     ['SIM VIEW', 'KeyK', false, 'indoor', 0, 0, 'simt'],   // up by the menu button, not in the pad
     ['🛋 ARRANGE', 'KeyB', false, 'home', 0, 0, 'simt arrt'],
     ['💃 DANCE', 'dance', false, 'club', 0, 0, 'simt arrt dancet'],   // in your own home: straight into arrange and shop
   ];
   for (const [label, key, hold, group, r, b, cls] of B) {
-    const el = document.createElement('div'); el.className = 'b ' + (cls || ''); el.textContent = label; el.dataset.group = group;
-    if (cls?.startsWith('simt')) tc.append(el); else { el.style.right = r + 'px'; el.style.bottom = b + 'px'; pad.append(el); }
+    const el = document.createElement('div'); el.className = 'b ' + (cls || ''); el.innerHTML = label; el.dataset.group = group;
+    if (cls?.startsWith('simt') || cls?.startsWith('dpad')) tc.append(el); else { el.style.right = r + 'px'; el.style.bottom = b + 'px'; pad.append(el); }
     if (key === 'KeyE') TOUCH.useBtn = el;
     if (key === 'KeyK') TOUCH.simBtn = el;
     if (key === 'KeyL') TOUCH.bladeBtn = el;
@@ -10414,14 +10353,31 @@ function touchOn() {
   // one finger on the stick, one looking: tracked by id. Phones use native touch events (reliable for a held, dragging
   // finger on every mobile browser); pens and other pointers fall back to pointer events.
   const ZX = .5, ZY = .3;   // the stick answers anywhere in the left half below the top 30% of the screen
+  // indoors, two fingers: pinch to zoom the room view, drag both up or down to tilt it (what the wheel and the mouse do)
+  const pts = new Map(), pinchGo = () => {
+    const [a, b] = [...pts.values()];
+    TOUCH.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, y: (a.y + b.y) / 2, k: VIEWZ.k };
+    TOUCH.stick = TOUCH.look = null; TOUCH.sx = TOUCH.sy = 0; home();
+  };
   const startAt = (id, x, y) => {
     if (mode !== 'play') return;
-    if (x < innerWidth * ZX && y > innerHeight * ZY && !TOUCH.stick) {
+    pts.set(id, { x, y });
+    if (pts.size === 2 && indoorsNow()) { pinchGo(); return; }
+    if (TOUCH.pinch) return;
+    if (x < innerWidth * ZX && y > innerHeight * ZY && !TOUCH.stick && !TOUCH.dpad) {
       const r = rest(), cx = clamp(x, r.x, Math.max(r.x, innerWidth * ZX - 62)), cy = clamp(y, Math.min(r.y, innerHeight * ZY + 62), r.y);
       TOUCH.stick = { id, x: cx, y: cy }; place(cx, cy); stickEl.classList.add('live'); moveTo(id, x, y);
     } else if (!TOUCH.look) TOUCH.look = { id, x, y };
   };
   const moveTo = (id, x, y) => {
+    const q = pts.get(id); if (q) { q.x = x; q.y = y; }
+    if (TOUCH.pinch) {
+      if (pts.size < 2 || !indoorsNow()) { TOUCH.pinch = null; return; }
+      const [a, b] = [...pts.values()], P2 = TOUCH.pinch, my = (a.y + b.y) / 2;
+      VIEWZ.k = clamp(P2.k * P2.d / (Math.hypot(a.x - b.x, a.y - b.y) || 1), VIEWZ.min, VIEWZ.max);
+      viewTilt(my - P2.y, .006); P2.y = my;
+      return;
+    }
     if (TOUCH.stick && id === TOUCH.stick.id) {
       let dx = x - TOUCH.stick.x, dy = y - TOUCH.stick.y; const L = Math.hypot(dx, dy), R = 52;
       if (L > R) { dx *= R / L; dy *= R / L; }
@@ -10432,6 +10388,7 @@ function touchOn() {
     }
   };
   const endAt = id => {
+    pts.delete(id); if (pts.size < 2) TOUCH.pinch = null;
     if (TOUCH.stick && id === TOUCH.stick.id) { TOUCH.stick = null; TOUCH.sx = TOUCH.sy = 0; home(); }
     if (TOUCH.look && id === TOUCH.look.id) TOUCH.look = null;
   };
@@ -10465,8 +10422,10 @@ function updateTouch() {
     if (want.has(k)) { if (!keys[k]) tKey(k, true); TOUCH.dir.add(k); } else if (TOUCH.dir.has(k)) { tKey(k, false); TOUCH.dir.delete(k); }
   }
   TOUCH.airT = P.grounded || P.coyote > 0 ? 0 : (TOUCH.airT || 0) + 1 / 60;
-  const foot = playing && !d, hooked = hooks.some(h => h.state !== 'idle'), inside = foot && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y);
-  const groups = { foot, hook: foot && (!inside || hooked), fight: foot && !peaceful, reel: foot && hooked, ground: foot && !inside && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', ride: playing && !!d, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, nap: playing && !!d && !air && d.kind !== 'boat' && NEEDS.on && NEEDS.e < 60 && Math.abs(d.speed) < .5, voice: playing && VOICE.on, indoor: inside && !firstPerson, home: foot && !LM_.open && !!myHome(), club: foot && !LM_.open && !!danceClub() };
+  const dp = playing && !!d && !air;   // on the ground at the wheel: a left/right pad and pedals instead of the stick
+  if (dp !== !!TOUCH.dpad) { TOUCH.dpad = dp; document.body.classList.toggle('dpad', dp); if (dp && TOUCH.stick) { TOUCH.stick = null; TOUCH.sx = TOUCH.sy = 0; TOUCH.home?.(); } }
+  const foot = playing && !d, inside = foot && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y);
+  const groups = { foot, fight: foot && !peaceful, ground: foot && !inside && TOUCH.airT < .25, airborne: foot && TOUCH.airT > .35, dozer: playing && d?.kind === 'dozer', airride: playing && air, drive: playing && !!d && !air, siren: playing && !!d && !!(d.police || d.ambulance || d.fire), fly: playing && air, nap: playing && !!d && !air && d.kind !== 'boat' && NEEDS.on && NEEDS.e < 60 && Math.abs(d.speed) < .5, voice: playing && VOICE.on, indoor: inside && !firstPerson, home: foot && !LM_.open && !!myHome(), club: foot && !LM_.open && !!danceClub() };
   for (const el of $('tc').querySelectorAll('.b[data-group]')) { const g = el.dataset.group, h = g === 'use' ? el.hidden : !groups[g]; if (el.hidden !== h) el.hidden = h; }
   const dock = $('odock'), dk = !(playing && NET.room); if (dock.hidden !== dk) { dock.hidden = dk; renderDock(); }
   // the context button says what E would do right now
@@ -12921,6 +12880,7 @@ function setPlayerHuman(look) {
   if (pm.human) playerModel.remove(pm.human.root);
   pm.human = makeHuman(look || MY_LOOK); if (!pm.human) return;
   playerModel.add(pm.human.root); pm.rig.root.visible = false;   // the old figure stays (other code still poses it) but isn't drawn
+  for (const b of ['foot_l', 'foot_r']) { const n = new THREE.Mesh(new THREE.CylinderGeometry(.045, .06, .09, 10), pm.nozzleM); pm.human.bones[b]?.add(n); }   // the boot jets' nozzles
   const L = look || MY_LOOK; wearGear(pm.human, pm.hat, pm.shades, pm.pistol, L.hairStyle === 'afro' || L.hairStyle === 'curly');
 }
 function remoteHuman(r, lookStr) {
