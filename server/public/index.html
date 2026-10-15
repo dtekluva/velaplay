@@ -5215,12 +5215,10 @@ function makeCivilian(v, opts = {}) {
       hat: o.fila || o.headwrap || o.kufi ? null : rural ? (Math.random() < (v.straw ?? .18) ? 'straw' : Math.random() < .1 ? 'cap' : null) : !female && Math.random() < .12 ? 'cap' : null,
       hatColor: ri(['#2a2c30', '#b83a2e', '#2f5f9a', '#e6e1d3']) };
   }
-  const rig = buildFigure({ ...spec, lod: true });
-  const g = new THREE.Group(); g.rotation.order = 'YXZ'; g.add(rig.root);
+  const g = new THREE.Group(); g.rotation.order = 'YXZ';   // (the figure itself is built when they first come near: ensureFig)
   const marker = new THREE.Sprite(markerMat); marker.scale.setScalar(.6); marker.position.y = 2.3; marker.visible = false; g.add(marker);
   g.scale.setScalar((child ? .62 : 1) * RM(.9, 1.0) * (female && !child ? .96 : 1));
-  if (opts.cop) addGun(rig);
-  const c = { g, rig, lo: rig, hi: null, spec, v, marker, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
+  const c = { g, rig: null, lo: null, hi: null, spec, v, marker, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
   if (opts.jog) { c.jog = true; c.speed = RM(2.6, 3.4); c.state = 'walk'; c.path = jogLoop(c); }
   g.position.set(p.x, v.y, p.z); g.rotation.y = RM(0, TAU);
   civRoot.add(g); civilians.push(c); v.civs.push(c);
@@ -5244,7 +5242,20 @@ function jogLoop(c) {
 }
 const addGun = rig => { const gun = new THREE.Mesh(new THREE.BoxGeometry(.035, .17, .05), MM.dark); gun.position.set(0, -.36, -.01); rig.fArm[1].add(gun); };
 // detail on demand: the full figure (sculpted head, painted face, smooth body) is built when you come close, and freed when you leave
-const DETAIL = { near: 16, far: 22, drop: 45, statue: 45, budget: 0 };
+const DETAIL = { near: 16, far: 22, drop: 45, statue: 45, budget: 0, figs: 0 };
+// a civilian's light figure exists only while they're anywhere near you (built a few a frame, freed once they're far): ~1,500
+// people would otherwise hold ~900 MB of figures
+function ensureFig(c) {
+  if (c.lo) return true; if (DETAIL.figs-- <= 0) return false;
+  const rig = buildFigure({ ...c.spec, lod: true }); if (c.cop) addGun(rig); c.g.add(rig.root); c.lo = rig; if (!c.rig) c.rig = rig;
+  if (c.human) rig.root.visible = false; return true;
+}
+function freeFig(c) {
+  if (!c.lo || c.hi || c.human || c.riding) return;
+  c.g.remove(c.lo.root); c.lo.root.traverse(o => { if (o.isMesh && o.material !== faceMat) o.geometry.dispose(); });
+  if (c.statue) { c.g.remove(c.statue); c.statue.geometry.dispose(); c.statue = null; }
+  c.lo = null; c.rig = null;
+}
 function setDetail(c, hi) {
   if (hi && !c.hi) { c.hi = buildFigure(c.spec); if (c.cop) addGun(c.hi); c.g.add(c.hi.root); }
   const was = c.rig, now = hi ? c.hi : c.lo; if (was === now) return;
@@ -5262,6 +5273,7 @@ function statueOf(c) {   // the light figure standing still, merged into one mes
   const m = new THREE.Mesh(geo, figMat); m.position.copy(r.root.position); c.g.add(m); return m;
 }
 function setStatue(c, on) {
+  if (!c.lo) return;
   if (on && !c.statue) { if (DETAIL.budget-- <= 0) return; c.statue = statueOf(c); }
   if (!c.statue) return;
   c.statue.visible = on && !c.human; c.lo.root.visible = !on && c.rig === c.lo && !c.human;
@@ -5364,8 +5376,8 @@ function civHuman(c) {   // -> true while this person is drawn as a real human
   if (want && !c.human && DETAIL.budget-- > 0) {
     if (c.rig === c.hi) setDetail(c, false);
     const [L, o] = civLookOf(c), h = makeHuman(L, o); if (h) { c.human = h; c.formal = o.dress.formal; c.g.add(h.root); if (c.cop) wearGear(h, null, null, copGun()); }
-  } else if (!want && c.human) { disposeHuman(c.human); c.human = null; c.lo.root.visible = !c.statue?.visible; }
-  if (c.human) { c.lo.root.visible = false; if (c.hi) c.hi.root.visible = false; if (c.statue) c.statue.visible = false; }
+  } else if (!want && c.human) { disposeHuman(c.human); c.human = null; if (c.lo) c.lo.root.visible = !c.statue?.visible; }
+  if (c.human) { if (c.lo) c.lo.root.visible = false; if (c.hi) c.hi.root.visible = false; if (c.statue) c.statue.visible = false; }
   return !!c.human;
 }
 function copGun() { const g = new THREE.Group(), m = new THREE.Mesh(new THREE.BoxGeometry(.035, .17, .05), MM.dark); m.position.set(0, -.07, -.005); g.add(m); return g; }
@@ -5378,14 +5390,17 @@ function civClip(c, sp, moving) {
   return ['Idle_Loop', c.elder ? .8 : 1];
 }
 function updateCivilians(dt) {
-  DETAIL.budget = 3; if (HUM?.ready) { pickNpcHumans(dt); DETAIL.budget = 1; }   // build at most a few figures a frame, so walking into a crowd never stalls
+  DETAIL.budget = 3; DETAIL.figs = 6; if (HUM?.ready) { pickNpcHumans(dt); DETAIL.budget = 1; }   // build at most a few figures a frame, so walking into a crowd never stalls
   const alive = aliveTitans();
   for (const c of civilians) {
     if (c.riding) continue;   // in your taxi
     const g = c.g, px = g.position.x, pz = g.position.z;
     const dd = Math.hypot(px - P.pos.x, pz - P.pos.z);
-    c.active = dd < 115 || mode === 'title';   // past the fog: not drawn, not animated
+    c.active = (mode === 'title' ? Math.hypot(px - camera.position.x, pz - camera.position.z) : dd) < 115;   // past the fog: not drawn, not animated
+    if (c.active && !ensureFig(c)) c.active = false;   // (its figure comes next frame)
+    else if (!c.active && c.lo && dd > 250) freeFig(c);
     g.visible = c.active;
+    if (c.active !== (g.parent === civRoot) && (g.parent === civRoot || !g.parent)) { if (c.active) civRoot.add(g); else civRoot.remove(g); }   // (and out of the scene graph, so its parts aren't updated every frame)
     if (dd > DETAIL.drop) dropDetail(c);
     const real = HUM?.ready && (c.human || c.active) && civHuman(c);   // the realistic body, near you
     if (!real && c.active && !HUM?.ready) { if (dd < DETAIL.near && (c.hi || DETAIL.budget-- > 0)) setDetail(c, true); else if (dd > DETAIL.far) setDetail(c, false); }
@@ -7219,6 +7234,7 @@ for (const C of CLUBS) {
   for (const p of C.lounge || []) add('club', p, RM(0, TAU), { female: Math.random() < .6 });
 }
 function danceStep(c, dt) {   // after the walk cycle: bounce, sway and arms in the air
+  if (!c.rig) return;
   const r = c.rig, t = S.time * (c.dj ? 3 : 4.2) + c.phase, s = Math.sin(t), q = Math.cos(t);
   r.pelvis.position.y = r.baseY - .03 + Math.abs(s) * .07;
   r.torso.rotation.set(-.05, Math.sin(t * .5) * .35, s * .06);
@@ -9433,7 +9449,7 @@ function damageTitan(t, dmg, label) {
   if (t.body <= 0) killTitan(t, P.vel.length(), label || 'Brought down by gunfire');
 }
 function copShoot(c, t) {
-  const m = c.rig.fArm[1].localToWorld(new V3(0, -.45, 0));
+  if (!c.rig) return; const m = c.rig.fArm[1].localToWorld(new V3(0, -.45, 0));
   const target = napeWorld(t, new V3()).add(new V3(RM(-1, 1), RM(-1.5, 1), RM(-1, 1)).multiplyScalar(t.H * .08));
   const dir = target.clone().sub(m).normalize();
   const mesh = new THREE.Mesh(shellGeo, shellMat); mesh.position.copy(m); mesh.lookAt(target); scene.add(mesh);
@@ -14307,7 +14323,7 @@ const mapPos = () => INSIDE.at ? INSIDE.at.back : P.pos;
    press E to look closer: the camera circles the piece (move the mouse to turn it, the wheel to come closer), the story
    and the picture open at the side, ◀ ▶ (A / D) go to the next piece, E steps back. Pictures are hot-linked from Wikimedia
    Commons (free licences, credited on each panel); where they can't load (the claude.ai artifact) a title card stands in. ---------- */
-const MUS = { rooms: {}, ex: [], statues: [], built: new Set() };
+const MUS = { rooms: {}, ex: [], statues: [], built: new Set(), lazy: {}, cur: '' };
 const INSPECT = { on: false, ex: null, yaw: 0, pitch: .25, dist: 4, t: 0, moved: -9 };
 // materials for the pieces (lit, with a little metal where it's cast)
 const MUSM = (() => { const S = (c, m = 0, r = .7, e = 0) => new THREE.MeshStandardMaterial({ color: c, metalness: m, roughness: r, emissive: e });
@@ -14736,7 +14752,10 @@ const MUS_PIECE_FOR = {
 
 // ---- panels: wrapped text on canvas, and the picture (a title card until the photo arrives) ----
 function musWrap(x, text, maxW) { const out = []; for (const para of String(text).split('\n')) { let line = ''; for (const w of para.split(' ')) { const t = line ? line + ' ' + w : w; if (x.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; } out.push(line); } return out; }
-function musPanel(title, sub, body, acc, w = 1024, h = 768, fs = 0) {
+function musPanel(title, sub, body, acc, w = 1024, h = 768, fs = 0) {   // (painted the first time someone walks into its museum: musPaint)
+  const mat = new THREE.MeshBasicMaterial({ color: 0xf4efe2 }); (MUS.lazy[MUS.cur] ||= []).push(() => { const m2 = musPanelNow(title, sub, body, acc, w, h, fs); mat.map = m2.map; mat.color.set(0xffffff); mat.needsUpdate = true; }); return mat;
+}
+function musPanelNow(title, sub, body, acc, w = 1024, h = 768, fs = 0) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
   x.fillStyle = '#f4efe2'; x.fillRect(0, 0, w, h); x.fillStyle = acc; x.fillRect(0, 0, w, 14); x.fillRect(0, h - 8, w, 8);
   x.fillStyle = '#1e1a12'; x.font = `bold ${Math.round(w / 15)}px Georgia, serif`; let y = 30 + w / 15; for (const l of musWrap(x, title, w - 80)) { x.fillText(l, 40, y); y += w / 13; }
@@ -14761,7 +14780,7 @@ const MUS_SLOTS = (R) => {   // [x, z, wall, gallery]: wall = where its picture 
 };
 const MUS_BIG = new Set(['stall', 'stools', 'danfo', 'statue', 'eyo', 'egungun', 'adire', 'walls', 'caravel', 'olumo', 'model', 'horse', 'flag', 'cannon', 'press', 'chains', 'opon', 'drum', 'bird', 'canoe', 'arms', 'ledger', 'dyepot', 'ironshrine', 'obelisk', 'palisade', 'casting', 'ruin', 'crate', 'loco', 'saxbooks']);   // these stand on the floor (or their own table)
 function buildMuseumRoom(key) {
-  const info = MUSEUM_INFO[key], type = MUSEUM_TYPE[key], acc = info.accent;
+  const info = MUSEUM_INFO[key], type = MUSEUM_TYPE[key], acc = info.accent; MUS.cur = type;
   const R = intRoom(type, 'the ' + info.name, 48, 36, 8, 'marble', IM.wallC), b = R.b, X0 = R.x0, X1 = R.x1, Z0 = R.z0, Z1 = R.z1, H = R.H, FY = INT_FY, gw = R.W / 3, gz1 = Z1 - 10;
   MUS.rooms[type] = { R, key, info };
   for (const sx of [-1, 1]) { const x = R.ox + sx * gw / 2; b.box(.35, H, gz1 - Z0, x, FY + H / 2, (Z0 + gz1) / 2, IM.wallW, 2, true, 'house'); }   // the partitions
@@ -14832,6 +14851,7 @@ function buildMuseumRoom(key) {
 // the cast figures go up the first time anyone walks in (the people's models have loaded by then)
 function musBuildStatues(type) {
   if (MUS.built.has(type) || !HUM.ready) return; MUS.built.add(type);
+  for (const f of MUS.lazy[type] || []) f(); MUS.lazy[type] = [];   // its panels
   for (const ex of MUS.ex) if (ex.type === type && ex.spec.statue) { const h = musStatue(ex.spec.statue); if (h) { h.root.position.set(0, 0, 0); h.root.rotation.y = Math.PI; ex.g.add(h.root); MUS.statues.push(h); } }   // (turned to face the front)
   musLoadPictures(type);
 }
@@ -15036,6 +15056,47 @@ function crimeTidy(dt) {
   for (const c of civilians) if (c.robbedT > 0) c.robbedT -= dt;
 }
 crimeSetup();
+/* ---------- distance culling for static scenery: every static mesh (the builders' merged scenery, terrain chunks, signs, parked
+   props) goes into a 128 m cell; cells past the draw distance are moved to render layer 1, which the camera and the shadow
+   camera don't draw, so the renderer skips their tests too. (Their visibility stays the game's own business.) ---------- */
+const CULL = { cells: [], t: 0, on: true };
+(function cullSetup() {
+  const S = 128, map = new Map(), sph = new THREE.Sphere(), seen = new Set();
+  const addLeaf = q => {
+    if (seen.has(q) || (q.isInstancedMesh && q.frustumCulled === false) || !q.geometry) return; seen.add(q);
+    if (!q.geometry.boundingSphere) q.geometry.computeBoundingSphere(); sph.copy(q.geometry.boundingSphere).applyMatrix4(q.matrixWorld);
+    const cx = sph.center.x, cz = sph.center.z, r = sph.radius; if (!(r < 400) || !Number.isFinite(cx)) return;
+    const k = Math.floor(cx / S) + ',' + Math.floor(cz / S); let c = map.get(k);
+    if (!c) { c = { x0: Math.floor(cx / S) * S, z0: Math.floor(cz / S) * S, r: 0, leaves: [], near: true }; map.set(k, c); }
+    c.r = Math.max(c.r, r); c.leaves.push(q);
+  };
+  const take = o => { o.updateMatrixWorld(true); o.traverse(q => { if (q.isMesh || q.isPoints || q.isLine) addLeaf(q); }); };
+  for (const o of hookRoot.children) take(o);
+  for (const o of scene.children) if (o !== hookRoot && o.matrixAutoUpdate === false && (o.isMesh || o.isGroup)) take(o);
+  for (const o of ySignRoot.children) take(o);
+  for (const o of STATIC_PROPS) take(o);
+  CULL.cells = [...map.values()]; CULL.size = S; CULL.leaves = CULL.cells.reduce((a, c) => a + c.leaves.length, 0);
+})();
+(function freeAfterUpload() {   // the big merged scenery and terrain: once uploaded to the GPU, its JS copy is dropped (nothing reads it back)
+  const drop = function () { this.array = null; }; let n = 0, bytes = 0;
+  for (const c of CULL.cells) for (const q of c.leaves) {
+    const g = q.geometry; if (!g || q.isSkinnedMesh || q.isInstancedMesh || q.isPoints || q.isLine || g.morphAttributes?.position || g.userData.keep || g.userData.freeing) continue;
+    let b = 0; for (const k in g.attributes) b += g.attributes[k].array?.byteLength || 0; if (b < 150000) continue;
+    if (!g.boundingSphere) g.computeBoundingSphere(); if (!g.boundingBox) g.computeBoundingBox();
+    for (const k in g.attributes) g.attributes[k].onUpload(drop); if (g.index) g.index.onUpload(drop); g.userData.freeing = true; n++; bytes += b;
+  }
+  CULL.freed = { meshes: n, mb: Math.round(bytes / 1e6) };
+})();
+// with the JS copies gone, a lost GPU context can't be restored in place: reload instead (phones do this when backgrounded)
+renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); try { saveLand(); } catch (x) {} toast('', 'Reloading the graphics…'); setTimeout(() => location.reload(), 600); });
+function updateCull(dt) {
+  if ((CULL.t -= dt) > 0) return; CULL.t = .25;
+  const x = camera.position.x, z = camera.position.z, reach = camera.far + 12, S = CULL.size;
+  for (const c of CULL.cells) {
+    const dx = Math.max(c.x0 - x, 0, x - c.x0 - S), dz = Math.max(c.z0 - z, 0, z - c.z0 - S), near = !CULL.on || Math.hypot(dx, dz) < reach + c.r;
+    if (near !== c.near) { c.near = near; for (const q of c.leaves) q.layers.mask = near ? 1 : 2; }
+  }
+}
 /* ---------- daily goals and reputation. Every day (Lagos time) three goals, one easy, one medium, one hard, the same for
    everyone. Each pays money and reputation; all three in a day pays a bonus that grows with your streak of days. Your
    reputation gives you a title (JJC up to Living Legend) that everyone online sees over your head, and pays a little more
@@ -15229,7 +15290,7 @@ function taxiCall() {
   if (!best) { toast('🚕 No taxis here', 'Walk to a road first'); return; }
   CAB.state = 'coming'; CAB.t = 5 + Math.random() * 4; CAB.at = best; toast('🚕 Taxi on the way', `${['Musa', 'Tunde', 'Chinedu', 'Emeka', 'Sola', 'Ibrahim'][Math.floor(Math.random() * 6)]} is about ${Math.ceil(CAB.t)} seconds away · it’ll stop on the road near you`); phoneRefresh();
 }
-function updateTaxi(dt) {
+function updateCab(dt) {   // (the phone's taxi; updateTaxi is the taxi-driver job)
   if (CAB.state === 'coming' && (CAB.t -= dt) <= 0) {
     const [x, z] = CAB.at, yaw = Math.atan2(P.pos.x - x, P.pos.z - z) + Math.PI / 2, c = makeDrivable(x, z, yaw, 'car');
     scene.remove(c.g); c.g = makeTaxi(); scene.add(c.g); beamsFor(c.g, 'car').visible = false; placeCar(c); c.cab = true; CAB.car = c; CAB.state = 'waiting';
@@ -15488,7 +15549,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
   if (mode === 'play') adaptResolution(rawDt);
-  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateTaxi(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
+  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateCab(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
   if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
@@ -15518,7 +15579,7 @@ function frame(now) {
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
-  renderer.render(scene, camera); camAfterRender();
+  updateCull(rawDt); renderer.render(scene, camera); camAfterRender();
 }
 requestAnimationFrame(frame);
 })();
