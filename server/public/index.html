@@ -9962,14 +9962,40 @@ function updateDayNight(dt) {
   $('clock').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} · ${night > .5 ? 'Night' : dusk > .3 ? (sh > 0 && tod < .5 ? 'Dawn' : 'Dusk') : 'Day'}${wk > .3 ? ' · 🌧' : ''}`;
 }
 
-/* ---------- weather: rain. Real time is cut into 6-minute slots and each slot has a 1 in 10 chance of rain, from a hash
-   of the slot number, so every player online sees the same sky without the server. ?rain=1 forces it (testing).
-   Streaks fall in a box that travels with the camera (wrapped in world space, so they don't ride along with you), the
-   sky greys, the fog closes in, the light dims, rain hisses, and a heavy shower now and then throws lightning. ---------- */
-const WX = { k: 0, want: 0, heavy: 0, slot: -1, force: /[?&]rain=1/.test(location.search), boltT: 20, flash: 0, gain: null, cam: new V3(), fogFar: scene.fog.far, fogNear: scene.fog.near };
+/* ---------- weather: rain. Real time is cut into 6-minute slots. In each slot every region rolls for a shower, weighted by how
+   wet it is (Benin's rainforest and the Lagos coast most, the Oyo savanna least), so all players online see the same sky
+   without the server. A shower is a cell a few hundred metres across that drifts with the wind and swells and fades
+   over the slot; streaks are drawn only where each drop is inside a cell, so you can see the edge and walk out of it.
+   Now and then (2%) a downpour covers everywhere. Testing: ?rain=1 forces one, ?rain=x,z,r puts a steady shower there. ---------- */
+const WX = { k: 0, cells: [], slot: -1, force: /[?&]rain=1(&|$)/.test(location.search), at: (m => m ? m.slice(1).map(Number) : null)(/[?&]rain=(-?[\d.]+),(-?[\d.]+),([\d.]+)/.exec(location.search)), boltT: 20, flash: 0, gain: null, cam: new V3(), fogFar: scene.fog.far, fogNear: scene.fog.near };
 const WX_SLOT = 6 * 60e3;
 const wxHash = n => { let h = Math.imul(n | 0, 2654435761 | 0) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h >>> 0) / 4294967296; };
 const WX_GREY = new THREE.Color(0x7d868c);
+// [name, x, z, radius, wetness]: wetness × 8.5% is how often a shower forms there (neighbours' showers spill over, so ~7% to ~19% of the time)
+const WX_REGIONS = [['Lagos coast', 0, 320, 380, 1.8], ['Naija City', 0, 0, 380, 1.1], ['Ikeja', -200, -900, 450, 1.1], ['Ogun', 250, -1800, 700, 1],
+  ['Ogun north', 0, -3300, 700, .9], ['Ibadan', 0, -4930, 500, .8], ['Oyo', 0, -5700, 450, .5], ['Edo road', 900, -5000, 450, 1.4], ['Benin', 1960, -5000, 600, 2]];
+function wxCells(slot) {
+  const cells = [], h = k => wxHash(slot * 131 + k), wind = h(1) * TAU, ws = 40 + h(2) * 80;   // metres the showers travel over the slot
+  if (WX.at) { cells.push({ name: 'test', x: WX.at[0], z: WX.at[1], vx: 0, vz: 0, r: WX.at[2], heavy: 1, steady: true }); return cells; }
+  if (WX.force || h(3) < .02) cells.push({ name: 'everywhere', x: 0, z: 0, vx: 0, vz: 0, r: 1e6, heavy: WX.force ? 1 : h(4) });
+  WX_REGIONS.forEach(([name, x, z, r, w], i) => {
+    if (h(10 + i * 7) >= .085 * w) return;
+    const a = h(11 + i * 7) * TAU, d = h(12 + i * 7) * r * .5;
+    cells.push({ name, x: x + Math.cos(a) * d, z: z + Math.sin(a) * d, vx: Math.cos(wind) * ws, vz: Math.sin(wind) * ws, r: r * (.45 + .45 * h(13 + i * 7)), heavy: h(14 + i * 7) });
+  });
+  return cells;
+}
+const regionName = (x, z) => WX_REGIONS.reduce((b, R) => { const d = Math.hypot(x - R[1], z - R[2]) / R[3]; return d < b[1] ? [R[0], d] : b; }, ['the land', 1e9])[0];
+// how hard it is raining at a spot right now (0 to 1)
+function rainAt(x, z, f = WX.f) {
+  let k = 0;
+  const env = smooth(0, .12, f) * smooth(1, .88, f);   // each shower swells and fades over its slot
+  for (const c of WX.cells) {
+    const cx = c.x + c.vx * (f - .5), cz = c.z + c.vz * (f - .5), d = Math.hypot(x - cx, z - cz);
+    if (d < c.r) k = Math.max(k, (.55 + .45 * c.heavy) * (c.steady ? 1 : env) * smooth(c.r, c.r * .75, d));
+  }
+  return k;
+}
 const rainFx = (() => {
   const n = LITE ? 1100 : 2400, BX = 56, BY = 34, pos = new Float32Array(n * 6), off = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { off[i * 3] = RM(-BX / 2, BX / 2); off[i * 3 + 1] = RM(-BY / 2, BY / 2); off[i * 3 + 2] = RM(-BX / 2, BX / 2); }
@@ -9979,14 +10005,18 @@ const rainFx = (() => {
   return { m, n, BX, BY, pos, off };
 })();
 function updateRain(dt) {
-  const slot = Math.floor(Date.now() / WX_SLOT);
-  if (slot !== WX.slot) { WX.slot = slot; const r = wxHash(slot); WX.want = WX.force || r < .1 ? 1 : 0; WX.heavy = WX.force ? 1 : WX.want ? wxHash(slot + 7919) : 0; }
-  const was = WX.k > .5;
-  WX.k += (WX.want * (.55 + .45 * WX.heavy) - WX.k) * Math.min(1, dt / 25);   // showers build and ease off over half a minute
-  if (Math.abs(WX.k) < .002 && !WX.want) WX.k = 0;
-  if (mode === 'play' && (WX.k > .5) !== was) toast('', WX.k > .5 ? '🌧 Rain is falling over Naija City' : '🌤 The rain has stopped');
+  const now = Date.now(), slot = Math.floor(now / WX_SLOT);
+  if (slot !== WX.slot) { WX.slot = slot; WX.cells = wxCells(slot); }
+  WX.f = now / WX_SLOT - slot;
+  const was = WX.k > .4, cx = camera.position.x, cz = camera.position.z;
+  WX.k += (rainAt(cx, cz) - WX.k) * Math.min(1, dt * 2);
+  if (WX.k < .002) WX.k = 0;
+  if (mode === 'play' && (WX.k > .4) !== was) {
+    const c = WX.cells.find(c => Math.hypot(cx - c.x, cz - c.z) < c.r + 200);
+    toast('', WX.k > .4 ? `🌧 Rain${c && c.r < 1e5 ? ' over ' + regionName(cx, cz) : ' across the land'}` : '🌤 You’re out of the rain');
+  }
   const R = rainFx, k = WX.k, inside = !!INSIDE.at || (!P.driving && !!houseAtWorld(P.pos.x, P.pos.z, P.pos.y));
-  R.m.visible = k > .01 && mode !== 'title' && !inside;
+  R.m.visible = WX.cells.length > 0 && mode !== 'title' && !inside && (k > .01 || rainAt(cx, cz) > 0 || WX.cells.some(c => Math.hypot(cx - c.x, cz - c.z) < c.r + 150));
   // the sound: a low wash of noise, quieter indoors
   if (AC && !WX.gain && k > 0) {
     const src = AC.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
@@ -9999,17 +10029,20 @@ function updateRain(dt) {
   if (mode === 'play' && k > .8 && (WX.boltT -= dt) <= 0) { WX.boltT = RM(18, 55); WX.flash = 1; setTimeout(() => { noise(2.2, 120, 40, 'lowpass', inside ? .35 : .8); }, RM(500, 2500)); }
   if (!R.m.visible) { WX.cam.copy(camera.position); return; }
   const dx = camera.position.x - WX.cam.x, dy = camera.position.y - WX.cam.y, dz = camera.position.z - WX.cam.z; WX.cam.copy(camera.position);
-  const fall = 24 * dt, wx = 2.2, wz = 1.2, len = .9, hx = R.BX / 2, hy = R.BY / 2, o = R.off, p = R.pos, live = Math.floor(R.n * Math.min(1, k * 1.15));
+  const fall = 24 * dt, wx = 2.2, wz = 1.2, len = .9, hx = R.BX / 2, hy = R.BY / 2, o = R.off, p = R.pos;
+  // rain at the four corners of the box, blended across it, so a shower's edge shows as a wall of rain you can walk out of
+  const k00 = rainAt(cx - hx, cz - hx), k10 = rainAt(cx + hx, cz - hx), k01 = rainAt(cx - hx, cz + hx), k11 = rainAt(cx + hx, cz + hx), kc = rainAt(cx, cz);
   for (let i = 0; i < R.n; i++) {
     const j = i * 3; let x = o[j] - dx + wx * dt, y = o[j + 1] - dy - fall, z = o[j + 2] - dz + wz * dt;
     x = ((x + hx) % R.BX + R.BX) % R.BX - hx; y = ((y + hy) % R.BY + R.BY) % R.BY - hy; z = ((z + hx) % R.BX + R.BX) % R.BX - hx;
     o[j] = x; o[j + 1] = y; o[j + 2] = z;
     const q = i * 6;
-    if (i >= live) { p[q] = p[q + 3] = x; p[q + 1] = p[q + 4] = -1e4; p[q + 2] = p[q + 5] = z; continue; }
+    const u = x / R.BX + .5, v = z / R.BX + .5, kl = Math.max(0, (k00 * (1 - u) + k10 * u) * (1 - v) + (k01 * (1 - u) + k11 * u) * v + (kc - (k00 + k10 + k01 + k11) / 4) * (1 - Math.abs(u * 2 - 1)) * (1 - Math.abs(v * 2 - 1)));
+    if (i >= R.n * Math.min(1, kl * 1.15)) { p[q] = p[q + 3] = x; p[q + 1] = p[q + 4] = -1e4; p[q + 2] = p[q + 5] = z; continue; }
     p[q] = x; p[q + 1] = y; p[q + 2] = z; p[q + 3] = x - wx * .04; p[q + 4] = y + len; p[q + 5] = z - wz * .04;
   }
   R.m.geometry.attributes.position.needsUpdate = true; R.m.position.copy(camera.position);
-  R.m.material.opacity = (.32 + .2 * (1 - nightK)) * Math.min(1, k * 1.4);
+  R.m.material.opacity = .32 + .2 * (1 - nightK);
 }
 
 /* ---------- HUD ---------- */
@@ -10213,6 +10246,15 @@ function drawBigMap() {
     if (name) label(name, h.x, h.z, 13, '#f1ebda', -Math.max(h.w, h.d) / 2 * sc - 6);
   }
   if (TOWN && blockAt('gas')) { const [gx, gz] = blockAt('gas'); label('Gas & Go', gx, gz, 13, '#f1ebda'); }
+  // showers: blue patches where it is raining now, where they will be at the end of the slot dashed
+  for (const c of WX.cells) {
+    if (c.r > 1e5) { bg2.fillStyle = 'rgba(90,140,200,.16)'; bg2.fillRect(0, 0, W, W); label('🌧 Rain everywhere', BMV.cx, BMV.cz - BMV.span * .42, 16, '#bfe3ff'); continue; }
+    const k = rainAt(c.x + c.vx * (WX.f - .5), c.z + c.vz * (WX.f - .5)); if (k < .02) continue;
+    const [x, y] = toB(c.x + c.vx * (WX.f - .5), c.z + c.vz * (WX.f - .5));
+    bg2.fillStyle = `rgba(90,150,220,${(.15 + .3 * k).toFixed(2)})`; bg2.beginPath(); bg2.arc(x, y, c.r * sc, 0, TAU); bg2.fill();
+    bg2.strokeStyle = 'rgba(190,225,255,.6)'; bg2.lineWidth = 1.5; bg2.stroke();
+    label('🌧', c.x + c.vx * (WX.f - .5), c.z + c.vz * (WX.f - .5), Math.max(14, Math.min(26, c.r * sc * .5)), '#e6f3ff');
+  }
   // depots, titans, planes
   for (const sp of SUPPLIES) { const [x, y] = toB(sp.x, sp.z); bg2.fillStyle = sp.pump ? '#3fb36a' : '#2f7fd0'; bg2.fillRect(x - 5, y - 5, 10, 10); bg2.strokeStyle = '#fff'; bg2.lineWidth = 1.5; bg2.strokeRect(x - 5, y - 5, 10, 10); }
   for (const t of titans) { if (t.dead) continue; const [x, y] = toB(t.g.position.x, t.g.position.z); bg2.fillStyle = '#e0392b'; bg2.beginPath(); bg2.arc(x, y, 6, 0, TAU); bg2.fill(); bg2.strokeStyle = '#3a0c08'; bg2.lineWidth = 1.5; bg2.stroke(); }
