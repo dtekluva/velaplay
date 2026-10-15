@@ -11369,7 +11369,8 @@ function shellGeometry(mesh, sexKey, part, test, push) {
     for (let k = 0; k < 3; k++) { const a = tri[k], b = tri[(k + 1) % 3]; if (a.c >= 0) poly.push(a); if ((a.c >= 0) !== (b.c >= 0)) poly.push(lerp(a, b)); }
     for (let k = 1; k + 1 < poly.length; k++) { emit(poly[0]); emit(poly[k]); emit(poly[k + 1]); }
   }
-  drape(pos, nor, part === 'shoes' ? 1 : 4);
+  const fit = part === 'shoes' || part === 'briefs' || part.startsWith('top:bikini') ? [1, 0, 0] : /tank/.test(part) ? [10, .008, .006] : /^top:/.test(part) ? [14, .015, .014] : part === 'shorts' ? [14, .018, .024] : [16, .019, .026];
+  drape(pos, nor, ...fit);   // [smoothing passes, ease all over, extra flare at the hems]
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
@@ -11378,7 +11379,7 @@ function shellGeometry(mesh, sexKey, part, test, push) {
 }
 // fabric doesn't follow every muscle: relax the layer (each point toward its neighbours), but only ever outward, so it
 // bridges the hollows between chest and belly, the spine and the shoulder blades, and never sinks into the body
-function drape(pos, nor, iters) {
+function drape(pos, nor, iters, ease = 0, flare = 0) {
   const n = pos.length / 3, id = new Int32Array(n), keys = new Map(); let u = 0;
   for (let i = 0; i < n; i++) { const k = Math.round(pos[i * 3] * 2e4) + ',' + Math.round(pos[i * 3 + 1] * 2e4) + ',' + Math.round(pos[i * 3 + 2] * 2e4); let j = keys.get(k); if (j === undefined) keys.set(k, j = u++); id[i] = j; }
   const P0 = new Float32Array(u * 3), Nn = new Float32Array(u * 3), nb = Array.from({ length: u }, () => new Set()), edge = new Map();
@@ -11397,8 +11398,23 @@ function drape(pos, nor, iters) {
     }
     [A, B] = [B, A];
   }
+  // the cloth's own smooth shading (from its relaxed shape, not the body's muscles underneath)
+  if (iters > 1) {
+    const F = new Float32Array(u * 3), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    for (let t = 0; t < n; t += 3) {
+      const i0 = id[t], i1 = id[t + 1], i2 = id[t + 2];
+      a.set(A[i1 * 3] - A[i0 * 3], A[i1 * 3 + 1] - A[i0 * 3 + 1], A[i1 * 3 + 2] - A[i0 * 3 + 2]); b.set(A[i2 * 3] - A[i0 * 3], A[i2 * 3 + 1] - A[i0 * 3 + 1], A[i2 * 3 + 2] - A[i0 * 3 + 2]); c.crossVectors(a, b);
+      if (c.dot(new THREE.Vector3(Nn[i0 * 3], Nn[i0 * 3 + 1], Nn[i0 * 3 + 2])) < 0) c.negate();   // (some of the body's triangles face inward)
+      for (const k of [i0, i1, i2]) { F[k * 3] += c.x; F[k * 3 + 1] += c.y; F[k * 3 + 2] += c.z; }
+    }
+    for (let i = 0; i < u; i++) { const l = Math.hypot(F[i * 3], F[i * 3 + 1], F[i * 3 + 2]); if (l > 1e-9) { Nn[i * 3] = F[i * 3] / l; Nn[i * 3 + 1] = F[i * 3 + 1] / l; Nn[i * 3 + 2] = F[i * 3 + 2] / l; } }
+    // ease: the garment stands a little off the body, and more at the hems, so sleeves and legs hang open
+    const hop = new Float32Array(u).fill(1e9), q = [];   // distance (in edges) to the nearest hem, up to 4
+    for (let i = 0; i < u; i++) if (rim[i]) { hop[i] = 0; q.push(i); }
+    for (let k = 0; k < q.length; k++) { const i = q[k]; if (hop[i] >= 4) continue; for (const j of nb[i]) if (hop[j] > hop[i] + 1) { hop[j] = hop[i] + 1; q.push(j); } }
+    for (let i = 0; i < u; i++) { const e = ease + flare * Math.max(0, 1 - hop[i] / 4); A[i * 3] += Nn[i * 3] * e; A[i * 3 + 1] += Nn[i * 3 + 1] * e; A[i * 3 + 2] += Nn[i * 3 + 2] * e; }
+  }
   for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) pos[i * 3 + j] = A[id[i] * 3 + j];
-  // smooth shading to match: the welded normals
   for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) nor[i * 3 + j] = Nn[id[i] * 3 + j];
 }
 // the packs' bodies are superhero builds: draw each limb and the chest in toward its bone a little (in the rest pose,
