@@ -29,6 +29,26 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
+/* the loader: on screen from the first paint until the world is built and the people are in. Pure CSS animation
+   (transform and opacity), so it keeps moving while the main script is busy building the world */
+#boot{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px 16px;background:radial-gradient(120% 90% at 50% 40%,#1a2416 0%,#0b100a 70%);color:var(--ink);text-align:center;transition:opacity .6s ease}
+#boot.done{opacity:0;pointer-events:none}
+#boot .bt-name{font:800 clamp(34px,9vw,64px)/1 var(--display);letter-spacing:.14em;color:var(--brass);text-shadow:0 2px 0 #3a2a10}
+#boot .bt-sub{font:600 13px var(--ui);letter-spacing:.32em;text-transform:uppercase;color:var(--muted)}
+#boot .bt-ring{width:54px;height:54px;border-radius:50%;border:4px solid rgba(214,174,95,.18);border-top-color:var(--brass);animation:btSpin .9s linear infinite;will-change:transform}
+#boot .bt-bar{width:min(320px,70vw);height:4px;border-radius:2px;background:rgba(214,174,95,.16);overflow:hidden}
+#boot .bt-bar i{display:block;width:40%;height:100%;border-radius:2px;background:linear-gradient(90deg,transparent,var(--brass),transparent);animation:btSlide 1.4s ease-in-out infinite;will-change:transform}
+#boot .bt-st{font:600 16px var(--ui);letter-spacing:.06em;min-height:1.3em}
+#boot .bt-tips{position:relative;width:min(460px,88vw);height:3.2em;font:500 15px/1.35 var(--ui);color:var(--muted)}
+#boot .bt-tips span{position:absolute;inset:0;opacity:0;animation:btTip 25s infinite;will-change:opacity}
+#boot .bt-tips span:nth-child(2){animation-delay:5s}#boot .bt-tips span:nth-child(3){animation-delay:10s}#boot .bt-tips span:nth-child(4){animation-delay:15s}#boot .bt-tips span:nth-child(5){animation-delay:20s}
+#boot .bt-err{display:none;flex-direction:column;align-items:center;gap:10px;font:500 15px var(--ui);color:#f2c2b8}
+#boot.err .bt-err{display:flex}#boot.err .bt-ring,#boot.err .bt-bar,#boot.err .bt-tips{display:none}
+#boot .bt-err button{font:700 15px var(--ui);letter-spacing:.1em;text-transform:uppercase;padding:10px 22px;border-radius:6px;border:1px solid var(--brass);background:var(--brass);color:#1b1608;cursor:pointer}
+@keyframes btSpin{to{transform:rotate(360deg)}}
+@keyframes btSlide{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}
+@keyframes btTip{0%{opacity:0}3%{opacity:1}18%{opacity:1}21%{opacity:0}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){#boot .bt-ring{animation-duration:2.4s}#boot .bt-bar i{animation-duration:3s}}
 /* Layout: full-bleed WebGL forest, HUD pinned to the four corners like a scout's field instruments */
 :root{
   color-scheme: dark;
@@ -499,6 +519,26 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
 @media (prefers-reduced-motion:reduce){#toast.show{animation-duration:2.4s}}
 </style>
 
+<div id="boot" role="status" aria-live="polite">
+  <div class="bt-name">NaijLife</div>
+  <div class="bt-sub">Lagos · Ibadan · Oyo · Benin</div>
+  <div class="bt-ring" aria-hidden="true"></div>
+  <div class="bt-bar" aria-hidden="true"><i></i></div>
+  <div class="bt-st">Loading the 3D engine…</div>
+  <div class="bt-tips" aria-hidden="true">
+    <span>Press G (or 📱) for your phone: goals, a taxi, the bank, your cars and businesses.</span>
+    <span>Buy a shop, a buka or a filling station: it earns while you’re away. Collect before the till fills.</span>
+    <span>Open the map with P and tap anywhere: in a car, a driver will take you there.</span>
+    <span>Naija Rail runs from Meadowbrook to Benin. Skylink flies Lagos to Ibadan and Benin.</span>
+    <span>Rain moves across the country: Benin and the coast get the most, Oyo the least.</span>
+  </div>
+  <div class="bt-err"><span>Something went wrong while loading.</span><button type="button" onclick="location.reload()">Reload</button></div>
+</div>
+<script>
+  // if loading fails, say so rather than spin for ever
+  addEventListener('error', function (e) { var b = document.getElementById('boot'); if (b && !b.classList.contains('done') && (!e.filename || /index|naijlife|famtime|claude|localhost|three/i.test(e.filename + location.href))) b.classList.add('err'); });
+</script>
+
 </head>
 <body>
 <div id="app">
@@ -629,6 +669,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script>document.querySelector('#boot .bt-st').textContent = 'Building Naija City…';</script>
 <script>
 
 (() => {
@@ -12619,7 +12660,7 @@ function drape(pos, nor, iters, ease = 0, flare = 0) {
 }
 // the packs' bodies are superhero builds: draw each limb and the chest in toward its bone a little (in the rest pose,
 // once per body, before any clothing is cut from it) for an everyday build
-const SLIM = { upperarm: ['lowerarm', .24], lowerarm: ['hand', .13], clavicle: ['upperarm', .22], spine_03: ['neck_01', .15], spine_02: ['spine_03', .09], neck_01: ['Head', .1], thigh: ['calf', .09], calf: ['foot', .06] };   // everyday people, not bodybuilders: arms, shoulders, chest and neck pulled in
+const SLIM = { upperarm: ['lowerarm', .13], lowerarm: ['hand', .08], clavicle: ['upperarm', .12], spine_03: ['neck_01', .08], spine_02: ['spine_03', .05], neck_01: ['Head', .06], thigh: ['calf', .06], calf: ['foot', .04] };   // arms, shoulders, chest and neck pulled in a little (harder pulls pinch the shoulders and warp the arms in motion; the slim build blend shape does the rest)
 function slimBody(body) {
   const sk = body.skeleton, names = sk.bones.map(b => b.name), at = n => { const i = names.indexOf(n); return i < 0 ? null : new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sk.boneInverses[i]).invert()); };
   const seg = {};
@@ -13008,8 +13049,8 @@ function remoteHuman(r, lookStr) {
 function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); narrowShoulders(h); if (h.headScale) h.bones.Head.scale.setScalar(h.headScale); }
 // the animations set every bone's position each frame, so after each update the collarbones are shortened: shoulders an
 // ordinary width rather than a superhero's
-const SHOULDER_K = .78;
-function narrowShoulders(h) { for (const n of ['upperarm_l', 'upperarm_r']) { const b = h.bones[n]; if (b) b.position.multiplyScalar(SHOULDER_K); } }
+const SHOULDER_K = 1;   // (off: moving the joint in stretched the shoulder skin and warped the arms in motion)
+function narrowShoulders(h) { if (SHOULDER_K === 1) return; for (const n of ['upperarm_l', 'upperarm_r']) { const b = h.bones[n]; if (b) b.position.multiplyScalar(SHOULDER_K); } }
 
 function remoteLook(r, lookStr) {
   r.lookStr = lookStr; let L = {}; try { L = JSON.parse(lookStr || '{}'); } catch (e) {}
@@ -16036,6 +16077,15 @@ function frame(now) {
   updateCull(rawDt); renderer.render(scene, camera); camAfterRender();
 }
 requestAnimationFrame(frame);
+// the world is built: wait for the people (or 6 s), let a frame draw, then fade the loader out
+(function bootDone() {
+  const el = document.getElementById('boot'); if (!el) return;
+  el.querySelector('.bt-st').textContent = 'Waking the people up…';
+  const t0 = performance.now(), go = () => { el.classList.add('done'); setTimeout(() => el.remove(), 700); };
+  let shut = false; const fin = () => { if (!shut) { shut = true; go(); } };
+  const wait = () => { if (HUM.ready || HUM.failed || performance.now() - t0 > 6000) { requestAnimationFrame(() => requestAnimationFrame(fin)); setTimeout(fin, 500); } else setTimeout(wait, 150); };   // (a timer too: a tab opened in the background draws no frames)
+  wait();
+})();
 })();
 </script>
 
