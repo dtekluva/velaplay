@@ -552,6 +552,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>
+
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -4739,7 +4740,7 @@ function statueOf(c) {   // the light figure standing still, merged into one mes
 function setStatue(c, on) {
   if (on && !c.statue) { if (DETAIL.budget-- <= 0) return; c.statue = statueOf(c); }
   if (!c.statue) return;
-  c.statue.visible = on; c.lo.root.visible = !on && c.rig === c.lo;
+  c.statue.visible = on && !c.human; c.lo.root.visible = !on && c.rig === c.lo && !c.human;
 }
 function dropDetail(c) {
   if (!c.hi) return;
@@ -4803,8 +4804,42 @@ function rescue(c) {
   S.rescued++; const pts = 150; S.score += pts; earn(500, null);
   toast(`+${pts}`, 'Civilian rescued'); sfx('swap');
 }
+/* realistic passers-by: the nearest people (up to NPC_HUM.max, fewer on phones) are the rigged humans, dressed from
+   their own outfits with their own faces and builds; everyone further out keeps the light figure. Chosen a few times
+   a second, nearest first (someone already real keeps their place until they're past DETAIL.far), built one a frame. */
+const NPC_HUM = { max: LITE ? 6 : 14, set: new Set(), t: 0 };
+function civLookOf(c) {
+  const S = c.spec;
+  S.morph ||= [...faceMorphs(S.face, S.feat, .45, S.beard ? 'beard' : '').slice(0, 6), ...buildMorphs(S.body, S.build)].map((x, i) => i >= 6 ? clamp(x + (Math.random() - .5) * .3, 0, 1) : x);
+  return [{ female: c.female, build: S.build || 1, skin: S.skin, hair: S.hair, hairStyle: S.hairStyle || (c.female ? 'long' : 'short'), facial: S.beard ? 'beard' : S.stubble ? (S.stubble === 'heavy' ? 'heavy' : 'stubble') : S.moustache ? 'stubble' : 'none' },
+    { dress: specDress(S), morph: S.morph, child: c.child, desync: true }];
+}
+function pickNpcHumans(dt) {
+  if ((NPC_HUM.t -= dt) > 0) return; NPC_HUM.t = .4;
+  const cand = [];
+  for (const c of civilians) { if (!c.active || c.riding || c.g.parent !== civRoot) continue; const d = Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z); if (d < (c.human ? DETAIL.far : DETAIL.near)) cand.push([d - (c.human ? 3 : 0), c]); }
+  cand.sort((a, b) => a[0] - b[0]); NPC_HUM.set = new Set(cand.slice(0, NPC_HUM.max).map(x => x[1]));
+}
+function civHuman(c) {   // -> true while this person is drawn as a real human
+  const want = NPC_HUM.set.has(c);
+  if (want && !c.human && DETAIL.budget-- > 0) {
+    if (c.rig === c.hi) setDetail(c, false);
+    const [L, o] = civLookOf(c), h = makeHuman(L, o); if (h) { c.human = h; c.formal = o.dress.formal; c.g.add(h.root); if (c.cop) wearGear(h, null, null, copGun()); }
+  } else if (!want && c.human) { disposeHuman(c.human); c.human = null; c.lo.root.visible = !c.statue?.visible; }
+  if (c.human) { c.lo.root.visible = false; if (c.hi) c.hi.root.visible = false; if (c.statue) c.statue.visible = false; }
+  return !!c.human;
+}
+function copGun() { const g = new THREE.Group(), m = new THREE.Mesh(new THREE.BoxGeometry(.035, .17, .05), MM.dark); m.position.set(0, -.07, -.005); g.add(m); return g; }
+function civClip(c, sp, moving) {
+  if (c.state === 'down') return ['Idle_Loop', .3];
+  if (c.state === 'fight') return ['Pistol_Aim_Neutral', 1];
+  if (moving) { const g = gaitClip(sp); if (g[0] === 'Walk_Loop' && (c.elder || c.formal)) return ['Walk_Formal_Loop', g[1] * .95]; return g; }
+  if ((c.dance || c.dj) && c !== TC.conv?.c) return ['Dance_Loop', c.danceRate ||= .85 + Math.random() * .35];
+  if (c.state === 'talk' || c.hailing || c.chatty) return ['Idle_Talking_Loop', 1];
+  return ['Idle_Loop', c.elder ? .8 : 1];
+}
 function updateCivilians(dt) {
-  DETAIL.budget = 3;   // build at most a few figures a frame, so walking into a crowd never stalls
+  DETAIL.budget = 3; if (HUM?.ready) { pickNpcHumans(dt); DETAIL.budget = 1; }   // build at most a few figures a frame, so walking into a crowd never stalls
   const alive = aliveTitans();
   for (const c of civilians) {
     if (c.riding) continue;   // in your taxi
@@ -4813,8 +4848,9 @@ function updateCivilians(dt) {
     c.active = dd < 115 || mode === 'title';   // past the fog: not drawn, not animated
     g.visible = c.active;
     if (dd > DETAIL.drop) dropDetail(c);
-    else if (c.active) { if (dd < DETAIL.near && (c.hi || DETAIL.budget-- > 0)) setDetail(c, true); else if (dd > DETAIL.far) setDetail(c, false); }
-    if (c.active) setStatue(c, dd > DETAIL.statue && (c.state === 'idle' || c.state === 'walk' || c.state === 'hide'));
+    const real = HUM?.ready && (c.human || c.active) && civHuman(c);   // the realistic body, near you
+    if (!real && c.active && !HUM?.ready) { if (dd < DETAIL.near && (c.hi || DETAIL.budget-- > 0)) setDetail(c, true); else if (dd > DETAIL.far) setDetail(c, false); }
+    if (c.active && !real) setStatue(c, dd > DETAIL.statue && (c.state === 'idle' || c.state === 'walk' || c.state === 'hide'));
     if (!c.active) continue;
     if (c.state === 'down') {
       c.timer += dt;
@@ -4894,7 +4930,8 @@ function updateCivilians(dt) {
     c.phase += dt * (moving ? sp * (c.jog ? 2.3 : sp > 3 ? 2 : 3.6) : 0);
     animFigure(c.rig, c.phase, moving ? 1 : 0, c.state === 'flee' || c.state === 'shelter' ? 'panic' : (c.jog || c.state === 'chase') && moving ? 'run' : 'walk', S.time + c.phase);
     if (c.hailing && !moving) { c.rig.uArm[1].rotation.set(2.8 + Math.sin(S.time * 7 + c.phase) * .25, 0, .3); c.rig.fArm[1].rotation.x = .25; let dy = Math.atan2(-(P.pos.x - g.position.x), -(P.pos.z - g.position.z)) - g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); g.rotation.y += dy * Math.min(1, dt * 4); }
-    if ((c.dance || c.dj) && !moving && dd < DETAIL.statue && c !== TC.conv?.c) danceStep(c, dt);
+    if ((c.dance || c.dj) && !moving && dd < DETAIL.statue && c !== TC.conv?.c && !c.human) danceStep(c, dt);
+    if (c.human) updateHumanMotion(c.human, civClip(c, sp, moving), dt);
     if (c.state === 'fight' && c.aimT) {   // face the titan, two-handed aim at its neck
       const t = c.aimT, dx = t.g.position.x - g.position.x, dz = t.g.position.z - g.position.z, up = Math.atan2(t.H * .8, Math.hypot(dx, dz));
       g.rotation.y = Math.atan2(-dx, -dz);
@@ -11251,7 +11288,10 @@ var HUM = { ready: false,   // var: setPlayerLook runs once during start-up, bef
 const HUM_DIR = 'humans/';
 const HAIR_FILE = { messy: 'simpleparted', short: 'buzzed', fade: 'buzzed', curly: 'buzzed', bald: '', afro: 'buzzed', locs: 'long', long: 'long', ponytail: 'buns', bun: 'buns', bob: 'simpleparted', braids: 'long' };
 const HAIR_FILE_F = { messy: 'long', short: 'buzzedfemale', fade: 'buzzedfemale', curly: 'buzzedfemale', bald: '', afro: 'buzzedfemale', locs: 'long', long: 'long', ponytail: 'buns', bun: 'buns', bob: 'long', braids: 'long' };
-function humLoad(url) { return new Promise((ok, no) => new THREE.GLTFLoader().load(HUM_DIR + url, ok, undefined, no)); }
+function humLoad(url) {   // .glb, or where a host won't serve that (the claude.ai artifact), the same model as self-contained .gltf.json
+  const get = u => new Promise((ok, no) => new THREE.GLTFLoader().load(HUM_DIR + u, ok, undefined, no));
+  return get(url).catch(() => get(url.replace(/\.glb$/, '.gltf.json')));
+}
 function humTex(url, srgb = true) { return new Promise((ok, no) => new THREE.TextureLoader().load(HUM_DIR + url, t => { t.flipY = false; if (srgb) t.encoding = THREE.sRGBEncoding; ok(t); }, undefined, no)); }
 function texAverage(tex) {   // the mean colour of a skin texture (its centre, where the body is), in linear terms
   const img = tex.image, c = document.createElement('canvas'), n = 64; c.width = c.height = n; const g = c.getContext('2d'); g.drawImage(img, 0, 0, n, n);
@@ -11265,7 +11305,7 @@ async function loadHumans() {
     const [man, woman, anims, hc, hn, ml, wl] = await Promise.all([humLoad('man.glb'), humLoad('woman.glb'), humLoad('anims.glb'), humTex('hair_color.png'), humTex('hair_normal.jpg', false), humTex('skin_man_light.jpg'), humTex('skin_woman_light.jpg')]);
     for (const [k, g] of [['m', man], ['f', woman]]) {
       HUM.base[k] = g.scene;
-      g.scene.traverse(o => { if (o.isSkinnedMesh && /Superhero/i.test(o.material.name)) { HUM.tex[k + 'dark'] = o.material.map; HUM.avg[k + 'dark'] = texAverage(o.material.map); slimBody(o); } });
+      g.scene.traverse(o => { if (o.isSkinnedMesh && /Superhero/i.test(o.material.name)) { HUM.tex[k + 'dark'] = o.material.map; HUM.avg[k + 'dark'] = texAverage(o.material.map); slimBody(o); addMorphs(o, g.scene); } });
     }
     HUM.tex.mlight = ml; HUM.tex.flight = wl; HUM.avg.mlight = texAverage(ml); HUM.avg.flight = texAverage(wl);
     HUM.tex.hair = hc; HUM.tex.hairN = hn;
@@ -11293,11 +11333,13 @@ function shellGeometry(mesh, sexKey, part, test, push) {
     vb.push(m); cov[i] = c;
   }
   const pos = [], nor = [], si = [], sw = [];
-  const vert = i => ({ p: [P.getX(i), P.getY(i), P.getZ(i)], n: [N.getX(i), N.getY(i), N.getZ(i)], b: vb[i], c: cov[i] - .5 });
+  const MA = src.morphAttributes.position || [], md = MA.map(() => []);   // the face and build morphs ride along
+  const vert = i => ({ p: [P.getX(i), P.getY(i), P.getZ(i)], n: [N.getX(i), N.getY(i), N.getZ(i)], b: vb[i], c: cov[i] - .5, m: MA.map(a => [a.getX(i), a.getY(i), a.getZ(i)]) });
   const lerp = (a, b) => { const t = a.c / (a.c - b.c), m = new Map();
     for (const [k, w] of a.b) m.set(k, w * (1 - t)); for (const [k, w] of b.b) m.set(k, (m.get(k) || 0) + w * t);
-    return { p: a.p.map((v, j) => v + (b.p[j] - v) * t), n: a.n.map((v, j) => v + (b.n[j] - v) * t), b: m, c: 0 }; };
+    return { p: a.p.map((v, j) => v + (b.p[j] - v) * t), n: a.n.map((v, j) => v + (b.n[j] - v) * t), b: m, c: 0, m: a.m.map((d, q) => d.map((v, j) => v + (b.m[q][j] - v) * t)) }; };
   const emit = v => { const l = Math.hypot(...v.n) || 1; for (let j = 0; j < 3; j++) { pos.push(v.p[j] + v.n[j] / l * push); nor.push(v.n[j] / l); }
+    v.m.forEach((d, q) => md[q].push(d[0], d[1], d[2]));
     const top = [...v.b].sort((x, y) => y[1] - x[1]).slice(0, 4), s = top.reduce((a, x) => a + x[1], 0);
     for (let k = 0; k < 4; k++) { si.push(top[k] ? top[k][0] : 0); sw.push(top[k] ? top[k][1] / s : 0); } };
   for (let t = 0; t < idx.length; t += 3) {
@@ -11311,6 +11353,7 @@ function shellGeometry(mesh, sexKey, part, test, push) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  if (md.length) { g.morphAttributes.position = md.map(a => new THREE.Float32BufferAttribute(a, 3)); g.morphTargetsRelative = true; }
   HUM.shells.set(key, g); return g;
 }
 // fabric doesn't follow every muscle: relax the layer (each point toward its neighbours), but only ever outward, so it
@@ -11368,15 +11411,73 @@ function applyEase(h, dt) {
   if (h.easeW < .01) return;
   for (const [b, rest, k] of h.ease) b.quaternion.slerp(rest, k * h.easeW);
 }
+// faces and builds: morph targets made from the body itself, so one body can be many people. Face shapes move only
+// what the head bone carries, measured from the eyes (a wider jaw, a broader nose, a longer face, fuller cheeks and lips,
+// a narrower head); the build pair fills the body out (and the belly) or trims it. Clothes carry the same morphs.
+const MORPHS = ['jaw', 'nose', 'long', 'cheek', 'lips', 'narrow', 'heavy', 'slim'];
+function addMorphs(body, root) {
+  root.updateMatrixWorld(true);
+  const toS = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(body.matrixWorld), back = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().copy(toS).invert()), nm = new THREE.Matrix3().getNormalMatrix(toS);
+  let eyes = null; root.traverse(o => { if (o.isMesh && /Eye/i.test(o.material.name) && !/brow/i.test(o.name)) eyes = o; });
+  const eb = new THREE.Box3(), v = new THREE.Vector3(), n = new THREE.Vector3(), em = new THREE.Matrix4().copy(root.matrixWorld).invert().multiply(eyes.matrixWorld), EP = eyes.geometry.attributes.position;
+  for (let i = 0; i < EP.count; i++) eb.expandByPoint(v.fromBufferAttribute(EP, i).applyMatrix4(em));
+  const ec = eb.getCenter(new THREE.Vector3()), front = eb.max.z;
+  const g = body.geometry, P = g.attributes.position, N = g.attributes.normal, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, G = ['getX', 'getY', 'getZ', 'getW'];
+  const names = body.skeleton.bones.map(b => b.name), part = names.map(nm2 => nm2 === 'Head' ? 'head' : /^(spine|pelvis)/.test(nm2) ? 'torso' : /^(clavicle|upperarm)/.test(nm2) ? 'arm' : /^lowerarm/.test(nm2) ? 'fore' : /^thigh/.test(nm2) ? 'thigh' : /^calf/.test(nm2) ? 'calf' : /^neck/.test(nm2) ? 'neck' : 'end');
+  const FILL = { torso: 1, arm: .75, fore: .45, thigh: .9, calf: .45, neck: .6, head: 0, end: 0 };
+  const sp1 = names.indexOf('spine_01'), bellyY = new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(body.skeleton.boneInverses[sp1]).invert()).applyMatrix4(toS).y;
+  const bump = (x, a, b) => x <= a || x >= b ? 0 : Math.sin((x - a) / (b - a) * Math.PI);
+  const D = MORPHS.map(() => new Float32Array(P.count * 3)), d = new THREE.Vector3();
+  const put = (k, i, dv) => { dv.applyMatrix3(back); D[k][i * 3] = dv.x; D[k][i * 3 + 1] = dv.y; D[k][i * 3 + 2] = dv.z; };
+  for (let i = 0; i < P.count; i++) {
+    v.fromBufferAttribute(P, i).applyMatrix4(toS); n.fromBufferAttribute(N, i).applyMatrix3(nm).normalize();
+    let sum = 0, hw = 0, fill = 0, belly = 0;
+    for (let k = 0; k < 4; k++) { const w = SW[G[k]](i); if (!w) continue; const b = SI[G[k]](i); sum += w; if (part[b] === 'head') hw += w; fill += FILL[part[b]] * w; if (b === sp1 || names[b] === 'pelvis' || names[b] === 'spine_02') belly += w; }
+    if (!sum) continue; hw /= sum; fill /= sum; belly /= sum;
+    const dy = v.y - ec.y, x = v.x - ec.x, ax = Math.abs(x), fr = v.z > ec.z;
+    if (hw > .01) {
+      put(0, i, d.set(x * .24 * clamp((-dy - .035) / .07, 0, 1) * hw, 0, 0));                                                   // jaw
+      const wn = ax < .03 && fr && v.z > front - .01 ? (1 - ax / .03) * bump(dy, -.07, 0) * hw : 0;
+      put(1, i, d.set(x * .55 * wn, -.003 * wn, -.007 * wn));                                                                 // nose: broader, flatter
+      put(2, i, d.set(0, Math.min(0, dy + .02) * .16 * hw, 0));                                                                // a longer lower face
+      const wc = fr ? bump(ax, .022, .08) * bump(dy, -.095, -.005) * hw : 0;
+      put(3, i, d.copy(n).multiplyScalar(.008 * wc));                                                                         // fuller cheeks
+      const wl = ax < .03 && fr && v.z > front - .02 ? (1 - ax / .03) * bump(dy, -.1, -.058) * hw : 0;
+      put(4, i, d.set(x * .12 * wl, (dy + .079) * .25 * wl, .005 * wl));                                                       // fuller lips
+      put(5, i, d.set(-x * .08 * hw * (dy > -.13 ? 1 : 0), 0, 0));                                                              // a narrower head
+    }
+    if (fill > .01) {
+      d.copy(n).multiplyScalar(.017 * fill);
+      if (belly > .3 && n.z > .1) d.z += .05 * belly * n.z * bump(v.y - bellyY, -.2, .22);                                    // and a belly
+      put(6, i, d);
+      put(7, i, d.copy(n).multiplyScalar(-.01 * fill));
+    }
+  }
+  g.morphAttributes.position = D.map(a => new THREE.Float32BufferAttribute(a, 3)); g.morphTargetsRelative = true;   // (deltas, not absolute shapes)
+  body.updateMorphTargets();
+}
+// a face from the creator's shape (and broad features), or at random for people in the street, kept for the person
+function faceMorphs(face, feat, jitter, facial) {
+  const r = () => jitter ? (Math.random() * 2 - 1) * jitter : 0, F = { jaw: 0, nose: 0, long: 0, cheek: 0, lips: 0, narrow: 0 };
+  Object.assign(F, ({ oval: {}, heart: { jaw: -.5, long: .2, cheek: -.2 }, round: { jaw: .3, long: -.6, cheek: .9, narrow: -.4 }, long: { long: .9, cheek: -.3, narrow: .4 }, jaw: { jaw: .8 }, square: { jaw: .9, long: -.2 } })[face] || {});
+  if (feat) { F.nose += .75; F.lips += .7; }
+  const out = MORPHS.map(k => clamp((F[k] || 0) + r(), -.7, 1));
+  if (facial === 'beard') { out[0] = Math.min(out[0], .25); out[2] = Math.min(out[2], .25); }   // the beard follows the jaw it was made for
+  return out;
+}
+function buildMorphs(body, build) {   // the creator's or a passer-by's body type -> heavy / slim
+  const h = { big: .9, thick: .65, curvy: .45, '': .1 }[body] ?? 0, sl = { slim: .85, fit: .35, athletic: .3 }[body] ?? 0;
+  return [clamp(h + Math.max(0, (build || 1) - 1.05) * 3, 0, 1), sl];
+}
 // a skirt (a dress to the knee, a kaftan, agbada or boubou to the ankle): a flared tube measured off this body, hung
 // from the hips and swinging with the thighs, so the legs move inside it rather than through it
-function skirtGeometry(body, scene, sexKey, long) {
-  const key = sexKey + ':skirt' + (long ? 'L' : 'S'); if (HUM.shells.has(key)) return HUM.shells.get(key);
+function skirtGeometry(body, scene, sexKey, len) {   // len: how far down the legs, from a mini (.22) to the ankle (1)
+  const key = sexKey + ':skirt' + len, long = len > .62; if (HUM.shells.has(key)) return HUM.shells.get(key);
   scene.updateMatrixWorld(true);
   const toScene = new THREE.Matrix4().copy(scene.matrixWorld).invert().multiply(body.matrixWorld), toMesh = new THREE.Matrix4().copy(toScene).invert();
   const names = body.skeleton.bones.map(b => b.name), bi = n => names.indexOf(n), at = n => scene.worldToLocal(body.skeleton.bones[bi(n)].getWorldPosition(new THREE.Vector3()));
   const pel = at('pelvis'), knee = at('calf_l'), foot = at('foot_l'), lx = at('thigh_l').x > pel.x ? 1 : -1;
-  const yTop = pel.y + .07, yHem = long ? foot.y + .06 : knee.y - .04;
+  const yTop = pel.y + .07, yHem = yTop - len * (yTop - foot.y - .06);
   // the body's own girth at each height (front, back and side), from its hip and leg vertices
   const g = body.geometry, P = g.attributes.position, bv = body.userData.bones ||= (() => { const SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, G = ['getX', 'getY', 'getZ', 'getW'], o = [];
     for (let i = 0; i < SI.count; i++) { let b = 0, w = -1; for (let k = 0; k < 4; k++) if (SW[G[k]](i) > w) { w = SW[G[k]](i); b = SI[G[k]](i); } o.push(names[b]); } return o; })();
@@ -11388,14 +11489,16 @@ function skirtGeometry(body, scene, sexKey, long) {
     for (const r of rings) if (Math.abs(v.y - r.y) < .025) { r.sx = Math.max(r.sx, Math.abs(v.x - pel.x)); if (v.z > pel.z) r.zf = Math.max(r.zf, v.z - pel.z); else r.zb = Math.max(r.zb, pel.z - v.z); }
   }
   for (let j = 1; j <= R; j++) { const a = rings[j - 1], r = rings[j]; r.sx = Math.max(r.sx, a.sx); r.zf = Math.max(r.zf, a.zf); r.zb = Math.max(r.zb, a.zb); }   // it falls, it doesn't cling
-  const pos = [], nor = [], si = [], sw = [], idx = [], iP = bi('pelvis'), iL = bi('thigh_l'), iR = bi('thigh_r'), iCL = bi('calf_l'), iCR = bi('calf_r');
+  const pos = [], nor = [], si = [], sw = [], idx = [], mh = [], ms = [], iP = bi('pelvis'), iL = bi('thigh_l'), iR = bi('thigh_r'), iCL = bi('calf_l'), iCR = bi('calf_r');
   for (let j = 0; j <= R; j++) {
     const t = j / R, r = rings[j], flare = .025 + (long ? .08 : .06) * t ** 1.2;
     for (let k = 0; k <= S; k++) {
       const a = k / S * Math.PI * 2, cx = Math.sin(a), cz = Math.cos(a);
       v.set(pel.x + cx * (r.sx + flare), r.y, pel.z + cz * ((cz > 0 ? r.zf : r.zb) + flare));
       const n = new THREE.Vector3(cx / (r.sx + flare), 0, cz / ((cz > 0 ? r.zf : r.zb) + flare)).normalize();
-      pos.push(...v.clone().applyMatrix4(toMesh).toArray()); nor.push(...n.transformDirection(toMesh).toArray());
+      pos.push(...v.clone().applyMatrix4(toMesh).toArray()); const nm = n.clone().transformDirection(toMesh); nor.push(...nm.toArray());
+      const rad = new THREE.Vector3(cx, 0, cz).transformDirection(toMesh);   // a heavier body fills it out at the hips; a slim one less so
+      mh.push(...rad.clone().multiplyScalar(.04 * (1 - t * .5)).toArray()); ms.push(...rad.multiplyScalar(-.012 * (1 - t * .5)).toArray());
       // the waistband rides the hips; lower down each side follows its own leg (the front and back half-way between)
       const side = (clamp(cx * lx * 1.6, -1, 1) + 1) / 2, leg = long ? clamp((t - .04) / .3, 0, 1) * .6 : clamp(t / .18, 0, 1) * .92, calf = long ? clamp((t - .55) / .45, 0, 1) * .2 : 0;
       const wl = (leg - calf) * side, wr = (leg - calf) * (1 - side);   // the front and back hang between the legs, the sides with their own
@@ -11406,9 +11509,10 @@ function skirtGeometry(body, scene, sexKey, long) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4)); geo.setIndex(idx);
+  geo.morphAttributes.position = MORPHS.map(k => new THREE.Float32BufferAttribute(k === 'heavy' ? mh : k === 'slim' ? ms : new Float32Array(mh.length), 3)); geo.morphTargetsRelative = true;
   HUM.shells.set(key, geo); return geo;
 }
-const clothMat = (hex, rough = .82) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear(), roughness: rough, metalness: 0, skinning: true, side: THREE.DoubleSide });   // double-sided like the body (some of its triangles face inward)
+const clothMat = (hex, rough = .82) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear(), roughness: rough, metalness: 0, skinning: true, morphTargets: true, side: THREE.DoubleSide });   // double-sided like the body (some of its triangles face inward)
 function addShell(body, sexKey, part, test, push, hex, rough) {
   const geo = shellGeometry(body, sexKey, part, test, push), m = new THREE.SkinnedMesh(geo, clothMat(hex, rough));
   m.bind(body.skeleton, body.bindMatrix); m.castShadow = true; m.frustumCulled = false; body.parent.add(m); return m;
@@ -11430,10 +11534,70 @@ function afroGeometry(r, bump) {
     return g;
   })();
 }
-// build a person from a look (the creator's: female, build, skin, hair, hairStyle, outfit, legs, shirt, pants, boots, facial)
-function makeHuman(L0) {
+/* what a person wears, in one form for both the character creator's looks and the passers-by's outfits:
+   top (tee, long, crop, croplong, tank, bikini, none), bottom (trousers, shorts, briefs, none), a skirt from the hips
+   (len .22 for a mini to 1 at the ankle), colours, an ankara print, shoes, and what's on the head */
+function lookDress(L) {
+  const o = L.outfit, robe = ['kaftan', 'jalabiya', 'agbada', 'boubou'].includes(o), dress = o === 'dress';
+  if (robe) return { top: 'long', shirt: L.shirt, skirt: { len: 1, col: L.shirt }, bottom: 'trousers', pants: L.pants || '#e8e0c8', shoes: L.boots };
+  if (dress) return { top: 'tee', shirt: L.shirt, skirt: { len: .48, col: L.shirt }, bottom: 'none', shoes: L.boots };
+  return { top: o === 'crop' ? 'crop' : o === 'tee' ? 'tee' : 'long', shirt: L.shirt, bottom: L.legs === 'shorts' ? 'shorts' : 'trousers', pants: L.pants || '#2a3550', jeans: L.legs === 'jeans' || L.legs === 'ripped', shoes: L.boots };
+}
+function specDress(S) {
+  const D = { shirt: S.cardigan || S.shirt || '#e6e1d3', pants: S.overalls || S.pants, shoes: S.shoes || S.boots || '#2a1d14', print: S.print || null, jeans: !!S.jeans };
+  if (S.bare) D.top = 'none';
+  else if (S.bikini) { D.top = 'bikini'; D.shirt = S.bikini; }
+  else if (S.tank) D.top = S.crop ? 'croptank' : 'tank';
+  else if (S.crop) D.top = S.longSleeve ? 'croplong' : 'crop';
+  else D.top = S.longSleeve || S.cardigan || S.blazer ? 'long' : 'tee';
+  const q = x => Math.round(clamp(x, .22, 1) * 20) / 20;   // (skirt lengths in steps, so they share shapes)
+  if (S.robe || S.agbada || S.gown) D.skirt = { len: 1, col: S.robe || S.gown || D.shirt };
+  else if (S.kaftan) D.skirt = { len: .55, col: S.kaftan };
+  else if (S.skirt) D.skirt = { len: q((S.skirtLen ?? .5) * 1.15 - .12), col: S.skirt };
+  D.bottom = S.bikini ? 'briefs' : S.shorts ? 'shorts' : S.gown && !S.robe ? 'none' : D.pants && !(S.skirt && !S.kaftan) ? 'trousers' : 'none';
+  if (S.bikini) D.pants = S.bikini; else if (S.shorts) D.pants = S.shorts;
+  if (D.bottom === 'trousers' && !D.pants) D.pants = '#3b3f4a';
+  D.head = S.helmet ? ['helmet', S.helmet] : S.hat === 'police' ? ['police', '#1a2236'] : S.fila ? ['fila', S.fila] : S.kufi ? ['kufi', S.kufi, S.kufiBand] : S.headwrap ? ['gele', S.headwrap] : S.hat === 'cap' ? ['cap', S.hatColor || '#2a2c30'] : S.hat === 'straw' ? ['straw', '#d9c48a'] : null;
+  D.glasses = !!S.glasses; D.backpack = S.backpack || null; D.formal = !!(S.blazer || S.tie || S.robe);
+  return D;
+}
+// headwear, made in the old figure's head units (eyes at .157 up, the face toward -Z) so it sits like the hat does
+function headwear(kind, col, band) {
+  const g = new THREE.Group(), M = c => new THREE.MeshStandardMaterial({ color: new THREE.Color(c).convertSRGBToLinear(), roughness: .85, metalness: 0 });
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  const m = M(col);
+  if (kind === 'cap') { add(new THREE.SphereGeometry(.145, 18, 10, 0, TAU, 0, Math.PI / 2), m, 0, .225, .01).scale.set(1, .8, 1.05); add(new THREE.BoxGeometry(.2, .012, .13), m, 0, .23, -.18); }
+  else if (kind === 'police') { add(new THREE.CylinderGeometry(.165, .14, .085, 20), m, 0, .3, 0); add(new THREE.CylinderGeometry(.138, .14, .03, 20), M('#111111'), 0, .265, 0); add(new THREE.BoxGeometry(.19, .012, .1), M('#111111'), 0, .25, -.17).rotation.x = .25; }
+  else if (kind === 'kufi') { add(new THREE.CylinderGeometry(.13, .138, .1, 20), m, 0, .28, 0); if (band) add(new THREE.CylinderGeometry(.14, .14, .025, 20), M(band), 0, .245, 0); }
+  else if (kind === 'fila') { const c = add(new THREE.CylinderGeometry(.13, .142, .13, 20), m, 0, .29, 0); c.rotation.z = .22; c.scale.set(1, 1, .95); add(new THREE.SphereGeometry(.13, 16, 8, 0, TAU, 0, Math.PI / 2), m, .03, .35, 0).scale.set(1.1, .45, 1); }
+  else if (kind === 'gele') { add(new THREE.SphereGeometry(.17, 18, 12), m, 0, .3, .02).scale.set(1.15, .72, 1.08); add(new THREE.TorusGeometry(.14, .03, 8, 24), m, 0, .25, 0).rotation.x = Math.PI / 2; add(new THREE.ConeGeometry(.09, .14, 12), m, -.12, .38, .03).rotation.z = .9; }
+  else if (kind === 'straw') { add(new THREE.CylinderGeometry(.24, .25, .012, 24), m, 0, .262, 0); add(new THREE.CylinderGeometry(.11, .135, .12, 20), m, 0, .33, 0); add(new THREE.CylinderGeometry(.137, .137, .025, 20), M('#6b4a30'), 0, .285, 0); }
+  else if (kind === 'helmet') { add(new THREE.SphereGeometry(.17, 18, 10, 0, TAU, 0, Math.PI / 2), m, 0, .24, 0); add(new THREE.CylinderGeometry(.2, .22, .015, 20), m, 0, .25, .03).scale.set(1, 1, 1.25); }
+  return g;
+}
+function glassesGroup() {   // clear lenses in thin frames
+  const g = new THREE.Group(), lens = new THREE.MeshPhongMaterial({ color: 0xbfd0d8, transparent: true, opacity: .25, shininess: 120 });
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  for (const sx of [-1, 1]) { add(new THREE.TorusGeometry(.03, .004, 6, 16), HS_MAT.frame, sx * .045, .157, -.142).scale.set(1.15, .85, 1); add(new THREE.CircleGeometry(.03, 16), lens, sx * .045, .157, -.141).scale.set(1.15, .85, 1); add(new THREE.BoxGeometry(.005, .005, .1), HS_MAT.frame, sx * .088, .162, -.095); }
+  add(new THREE.BoxGeometry(.03, .005, .005), HS_MAT.frame, 0, .165, -.144);
+  return g;
+}
+// an ankara print: three colours in wax-print-like rings and dots, painted per vertex on this person's copy of a garment
+function printGeometry(geo, print) {
+  const g = new THREE.BufferGeometry(); for (const k in geo.attributes) g.setAttribute(k, geo.attributes[k]); if (geo.index) g.setIndex(geo.index); g.morphAttributes = geo.morphAttributes; g.morphTargetsRelative = geo.morphTargetsRelative;
+  const P = geo.attributes.position, col = new Float32Array(P.count * 3), C = print.map(c => new THREE.Color(c).convertSRGBToLinear()), s = 38 + Math.random() * 20, o = Math.random() * 9;
+  for (let i = 0; i < P.count; i++) {
+    const x = P.getX(i) * s + o, y = P.getY(i) * s, z = P.getZ(i) * s, cx = x - Math.round(x / 2.2) * 2.2, cy = y - Math.round(y / 2.2) * 2.2, r = Math.hypot(cx, cy + Math.sin(z) * .3);
+    const c = r < .45 ? C[2] : r < .8 ? C[1] : Math.sin(x * .7 + y * .9) > .6 ? C[1] : C[0];
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); return g;
+}
+// build a person: a look (the creator's: female, build, skin, hair, hairStyle, outfit, legs, shirt, pants, boots, facial,
+// face, feat, body) and, for passers-by, opts: dress (from specDress), morph (their face, kept), child, desync
+function makeHuman(L0, opts = {}) {
   if (!HUM.ready) return null;
-  const L = { ...BASE_LOOK, ...(L0 || {}) }, sex = L.female ? 'f' : 'm';
+  const L = { ...BASE_LOOK, ...(L0 || {}) }, sex = L.female ? 'f' : 'm', D = opts.dress || lookDress(L);
   const scene = THREE.SkeletonUtils.clone(HUM.base[sex]), root = new THREE.Group(), wrap = new THREE.Group();
   wrap.rotation.y = Math.PI; wrap.scale.setScalar(.965 * (L.build || 1) ** .35); wrap.add(scene); root.add(wrap);
   let body = null, brows = null; const bones = {};
@@ -11446,40 +11610,47 @@ function makeHuman(L0) {
   // skin: the nearer of the light and dark textures, tinted to the exact tone
   const want = new THREE.Color(L.skin || '#6b4a32').convertSRGBToLinear(), lum = c => .3 * c.r + .59 * c.g + .11 * c.b;
   const kind = Math.abs(lum(want) - lum(HUM.avg[sex + 'light'])) < Math.abs(lum(want) - lum(HUM.avg[sex + 'dark'])) ? 'light' : 'dark', avg = HUM.avg[sex + kind];
-  body.material.map = HUM.tex[sex + kind];
+  body.material.map = HUM.tex[sex + kind]; body.material.morphTargets = true;
   body.material.color.setRGB(clamp(want.r / avg.r, .25, 2.2), clamp(want.g / avg.g, .25, 2.2), clamp(want.b / avg.b, .25, 2.2));
   body.material.needsUpdate = true;
+  // the face and the build
+  const morph = opts.morph || [...faceMorphs(L.face, L.feat, 0, L.facial).slice(0, 6), ...buildMorphs(L.body, L.build)];
+  body.updateMorphTargets(); morph.forEach((x, i) => body.morphTargetInfluences[i] = x);
   const hairC = new THREE.Color(L.hair || '#1a1410').convertSRGBToLinear();
   if (brows) { brows.material.color.copy(hairC).multiplyScalar(1.4); }
   // clothes
-  const o = L.outfit, robe = ['kaftan', 'jalabiya', 'agbada', 'boubou'].includes(o), dress = o === 'dress';
   const isArm = b => /^(upperarm|clavicle)/.test(b), isFore = b => /^lowerarm/.test(b), isTorso = b => /^spine_0[123]$/.test(b), isHip = b => b === 'pelvis';
   const isThigh = b => /^thigh/.test(b), isCalf = b => /^calf/.test(b), isFoot = b => /^(foot|ball)/.test(b);
-  const longSleeve = o !== 'tee' && o !== 'crop';
-  const parts = [];
-  if (robe || dress) {   // one long garment from the shoulders down (to the knee for a dress, the ankle for robes and gowns)
-    parts.push(addShell(body, sex, o === 'dress' ? 'dress' : 'robe', b => isTorso(b) || isHip(b) || isArm(b) || (robe && isFore(b)), .011, L.shirt, .85));
-    const sk = new THREE.SkinnedMesh(skirtGeometry(body, scene, sex, robe), clothMat(L.shirt, .85));
-    sk.bind(body.skeleton, body.bindMatrix); sk.castShadow = true; sk.frustumCulled = false; body.parent.add(sk); parts.push(sk);
-    if (robe) parts.push(addShell(body, sex, 'trousers', b => isHip(b) || isThigh(b) || isCalf(b), .006, L.pants || '#e8e0c8', .8));   // sokoto under the robe
-  } else {
-    parts.push(addShell(body, sex, 'top:' + (o === 'crop' ? 'crop' : longSleeve ? 'long' : 'tee'), b => (o === 'crop' ? /^spine_0[23]$/.test(b) : isTorso(b)) || isArm(b) || (longSleeve && isFore(b)), .008, L.shirt, .8));
-    const shorts = L.legs === 'shorts', jeans = L.legs === 'jeans' || L.legs === 'ripped';
-    parts.push(addShell(body, sex, shorts ? 'shorts' : 'trousers', b => isHip(b) || isThigh(b) || (!shorts && isCalf(b)), .006, L.pants || '#2a3550', jeans ? .9 : .78));
-  }
-  parts.push(addShell(body, sex, 'shoes', b => isFoot(b), .013, L.boots || '#2a1d14', .55));
+  const parts = [], hipToo = !!D.skirt;   // under a skirt the top runs down over the hips, so no skin shows at the waist
+  const wear = (geo, hex, rough, print) => {
+    const pr = print && print.length > 2, m = new THREE.SkinnedMesh(pr ? printGeometry(geo, print) : geo, clothMat(pr ? '#ffffff' : hex, rough));
+    if (pr) { m.material.vertexColors = true; m.userData.own = true; }
+    m.bind(body.skeleton, body.bindMatrix); m.castShadow = true; m.frustumCulled = false; body.parent.add(m); m.updateMorphTargets(); morph.forEach((x, i) => m.morphTargetInfluences[i] = x); parts.push(m); return m;
+  };
+  const shell = (part, test, push, hex, rough, print) => wear(shellGeometry(body, sex, part, test, push), hex, rough, print);
+  const T = D.top, tops = {
+    tee: b => isTorso(b) || isArm(b), long: b => isTorso(b) || isArm(b) || isFore(b), crop: b => /^spine_0[23]$/.test(b) || isArm(b), croplong: b => /^spine_0[23]$/.test(b) || isArm(b) || isFore(b),
+    tank: b => isTorso(b), croptank: b => /^spine_0[23]$/.test(b), bikini: b => b === 'spine_03' };
+  if (tops[T]) shell('top:' + T + (hipToo ? '+hip' : ''), b => tops[T](b) || (hipToo && isHip(b)), T === 'bikini' ? .004 : D.skirt ? .011 : .008, D.shirt, .8, D.print);
+  if (D.skirt) wear(skirtGeometry(body, scene, sex, D.skirt.len), D.skirt.col, .85, D.print);
+  if (D.bottom === 'trousers') shell('trousers', b => isHip(b) || isThigh(b) || isCalf(b), .006, D.pants, D.jeans ? .9 : .78, D.skirt ? null : D.print);
+  else if (D.bottom === 'shorts') shell('shorts', b => isHip(b) || isThigh(b), .006, D.pants, .8);
+  else if (D.bottom === 'briefs') shell('briefs', b => isHip(b), .004, D.pants, .7);
+  shell('shoes', b => isFoot(b), .013, D.shoes || '#2a1d14', .55);
   // hair, bound to this person's skeleton by bone name
-  const style = L.hairStyle || (L.female ? 'long' : 'short'), hf = (L.female ? HAIR_FILE_F : HAIR_FILE)[style] ?? 'buzzed';
+  const style = L.hairStyle || (L.female ? 'long' : 'short'), hf = D.head && ['gele', 'helmet', 'police', 'fila', 'kufi'].includes(D.head[0]) && style !== 'long' && style !== 'braids' && style !== 'locs' ? (L.female ? 'buzzedfemale' : 'buzzed') : (L.female ? HAIR_FILE_F : HAIR_FILE)[style] ?? 'buzzed';
   const hairMat = new THREE.MeshStandardMaterial({ map: HUM.tex.hair, normalMap: HUM.tex.hairN, color: hairC.clone().multiplyScalar(2.2), roughness: .7, metalness: 0, alphaTest: .45, side: THREE.DoubleSide, skinning: true });
-  const bindHair = (src, mat = hairMat) => { if (!src) return; src.traverse(m => { if (!m.isSkinnedMesh) return;
+  const extra = [];
+  const bindHair = (src, mat = hairMat) => { if (!src || h.gone) return; src.traverse(m => { if (!m.isSkinnedMesh) return;
     const hm = new THREE.SkinnedMesh(m.geometry, mat); hm.castShadow = true; hm.frustumCulled = false;
-    hm.bind(new THREE.Skeleton(m.skeleton.bones.map(b => bones[b.name] || bones.Head), m.skeleton.boneInverses), m.bindMatrix.clone()); body.parent.add(hm); }); };
-  hairFile(hf).then(bindHair);
+    hm.bind(new THREE.Skeleton(m.skeleton.bones.map(b => bones[b.name] || bones.Head), m.skeleton.boneInverses), m.bindMatrix.clone()); body.parent.add(hm); extra.push(hm); }); };
+  hairFile(hf).then(src => bindHair(src));
   if (!L.female && L.facial && L.facial !== 'none') {   // a beard, or the same beard as a faint shadow for stubble
     const stub = L.facial !== 'beard', bm = stub ? Object.assign(hairMat.clone(), { transparent: true, opacity: L.facial === 'heavy' ? .55 : .32, alphaTest: .3, depthWrite: false }) : hairMat;
     hairFile('beard').then(src => bindHair(src, bm));
   }
-  if (style === 'afro' || style === 'curly') {   // a rounded afro (or tight curls) over the crown, on the head bone
+  const covered = D.head && ['gele', 'helmet', 'police', 'fila', 'kufi'].includes(D.head[0]);
+  if ((style === 'afro' || style === 'curly') && !covered) {   // a rounded afro (or tight curls) over the crown, on the head bone
     scene.updateMatrixWorld(true); const head = bones.Head, top = new THREE.Vector3(); head.getWorldPosition(top);
     const r = style === 'afro' ? .13 : .108, m = new THREE.Mesh(afroGeometry(r, style === 'afro' ? .09 : .14), new THREE.MeshStandardMaterial({ color: hairC, roughness: 1, metalness: 0 }));
     scene.worldToLocal(top);   // (the wrap turns and scales the scene, so work in its own space, where the face is +Z)
@@ -11489,16 +11660,32 @@ function makeHuman(L0) {
   const mixer = new THREE.AnimationMixer(scene), acts = {};
   const play = (name, fade = .22, ts = 1) => {
     const clip = HUM.clips[name]; if (!clip) return;
-    const a = acts[name] ||= mixer.clipAction(clip);
+    const fresh = !acts[name], a = acts[name] ||= mixer.clipAction(clip);
     if (h.cur === name) { a.timeScale = ts; return; }
     const once = !/_Loop$/.test(name) && name !== 'Interact';
     a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); a.clampWhenFinished = once; a.timeScale = ts; a.enabled = true; a.setEffectiveWeight(1);
+    if (opts.desync && !once && fresh) a.time = Math.random() * clip.duration;   // a crowd doesn't step in time
     if (h.cur && acts[h.cur]) a.crossFadeFrom(acts[h.cur], fade, false);
     a.play(); h.cur = name;
   };
-  const h = { root, scene, body, bones, mixer, play, cur: '', parts }; easeRig(h);
+  const h = { root, scene, body, bones, mixer, play, cur: '', parts, extra, hairMat, headScale: opts.child ? 1.16 : 0 }; easeRig(h);
+  // what's on the head, glasses, a backpack (the passers-by's; the scout's hat and shades come from wearGear)
+  const near = [];
+  if (D.head) near.push(headwear(D.head[0], D.head[1], D.head[2]));
+  if (D.glasses) near.push(glassesGroup());
+  if (near.length) wearGear(h, null, null, null, false, near);
+  if (D.backpack) { const bp = boneFrame(h, 'spine_03'), m = new THREE.Mesh(new THREE.BoxGeometry(.28, .36, .13), new THREE.MeshStandardMaterial({ color: new THREE.Color(D.backpack).convertSRGBToLinear(), roughness: .8 })); m.position.set(0, -.08, -.17); m.castShadow = true; bp.add(m); }
   play('Idle_Loop', 0);
   return h;
+}
+// free a person's own GPU things (shared shapes and textures stay for the next one)
+function disposeHuman(h) {
+  h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene);
+  h.root.traverse(o => {
+    if (o.isSkinnedMesh) o.skeleton.dispose?.();
+    if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m !== HS_MAT.frame) m.dispose(); if (o.userData.own) o.geometry.dispose(); }
+  });
+  h.root.parent?.remove(h.root);
 }
 // what someone's doing -> which clip, and how fast (the clips' natural speeds: walk ~1.4 m/s, jog ~3.4, sprint ~6.5)
 function gaitClip(speed) {
@@ -11545,13 +11732,14 @@ function eyeLine(h) {   // the middle of the eyes and the front of them, in the 
   for (let i = 0; i < P.count; i++) b.expandByPoint(v.fromBufferAttribute(P, i).applyMatrix4(m));
   return h.eyes = { c: b.getCenter(new THREE.Vector3()), front: b.max.z };
 }
-function wearGear(h, hat, shades, pistol, big) {
+function wearGear(h, hat, shades, pistol, big, extra = []) {
   const e = eyeLine(h), k = .8;   // the old figure's head is a little larger than a real one
-  if (hat || shades) {
+  if (hat || shades || extra.length) {
     const head = boneFrame(h, 'Head', null, new THREE.Vector3(e.c.x, e.c.y - .157 * k, e.front + .014 - .142 * k)), g = new THREE.Group(); head.add(g);
     g.rotation.y = Math.PI; g.scale.setScalar(k);   // the old head looks down -Z
     if (shades) g.add(shades);
     if (hat) { g.add(hat); hat.position.y = big ? .03 : 0; }   // sits up on an afro
+    for (const x of extra) g.add(x);
   }
   if (pistol) {   // barrel out along the forearm, grip toward the palm (down, in the rest pose)
     const sc = h.scene, w = n => sc.worldToLocal(h.bones[n].getWorldPosition(new THREE.Vector3()));
@@ -11580,7 +11768,7 @@ function remoteHuman(r, lookStr) {
   r.g.add(r.human.root); if (r.rig) r.rig.root.visible = false;
   if (r.hs) wearGear(r.human, r.hs.hat, r.hs.shades, null, L.hairStyle === 'afro' || L.hairStyle === 'curly');
 }
-function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); }
+function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); if (h.headScale) h.bones.Head.scale.setScalar(h.headScale); }
 
 function remoteLook(r, lookStr) {
   r.lookStr = lookStr; let L = {}; try { L = JSON.parse(lookStr || '{}'); } catch (e) {}
