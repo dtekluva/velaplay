@@ -669,7 +669,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
   </div>
   <div id="overlay">
     <div class="card" id="card">
-      <div class="eyebrow" id="cEyebrow">Lagos · Ibadan · Oyo</div>
+      <div class="eyebrow" id="cEyebrow">Lagos · Ibadan · Oyo · Benin · Delta</div>
       <h1 id="cTitle">NaijLife</h1>
       <p class="touchhint">Left thumb moves, right thumb looks around; at the wheel, ◀ ▶ steer and GAS and BRAKE drive. Indoors, pinch to zoom and drag two fingers up or down to tilt the view. JUMP, then hold it in the air to jet, and tap the gold button to talk, drive or ride the lift. ☰ has the map and everything else; tap the minimap for the big map.</p>
       <p class="rotate">Turn your device sideways for the best view.</p>
@@ -1626,6 +1626,13 @@ const DEL = DD ? {
   port: { x0: 2984, x1: 3380, z0: -2756, z1: -2684 }, koko: { x0: 2290, x1: 2440, z0: -2800, z1: -2716 },
 } : null;
 const DELTA_MAP = [];   // [x, z, w, d, colour]: buildings and grounds drawn on Delta's map layer
+// the Asaba GRA, Phase 1: land sold in 300 m² units (15 m of frontage, 20 m deep) like Banana Island West and Ikoyi (keys g<col>,<row>;
+// the server's price list has them). Two blocks of ten units either side of a cross street, rows back to back between streets every 48 m
+if (DEL) { const G = DEL.gra = { prefix: 'g', name: 'Asaba GRA', short: 'Asaba GRA', y: TOWN.y, unitW: 15, unitD: 20, price: 18000, cols: [], rows: [], streets: [], cross: [[4038, 4046]], x0: 3880, x1: 4204, z0: -5516, z1: -5316 };
+  let x = 3888; for (let seg = 0; seg < 2; seg++) { for (let c = 0; c < 10; c++) { G.cols.push({ x0: x, seg }); x += 15; } x += 8; }
+  for (let b = 0; b < 4; b++) { const z = -5516 + 48 * b; G.streets.push([z, z + 8]); G.rows.push({ z0: z + 8, side: 'nz', b }, { z0: z + 28, side: 'pz', b }); }
+  G.streets.push([-5324, -5316]); G.priceOf = c => c === 0 || c === 19 ? 22000 : 18000; G.frontOf = c => c === 0 || c === 19 ? 'a corner unit on the GRA’s edge road' : null;
+  Object.assign(G, { ux0: G.cols[0].x0, ux1: G.cols[19].x0 + 15, uz0: G.rows[0].z0, uz1: G.rows[7].z0 + 20 }); }
 const D_SOUTH = DD ? DEL.south.slice(1).map((q, k) => [DEL.south[k][0], DEL.south[k][1], q[0], q[1]]) : [], D_ETH = DD ? DEL.ethiope.slice(1).map((q, k) => [DEL.ethiope[k][0], DEL.ethiope[k][1], q[0], q[1]]) : [];
 const ethiopeDist = (x, z) => { if (x > 2650 || z < -4640 || z > -3400) return 1e9; let b = 1e9; for (const s of D_ETH) b = Math.min(b, segDist(x, z, s)); return b; };
 const ethiopeLine = z => { for (const [ax, az, bx, bz] of D_ETH) if ((z - az) * (z - bz) <= 0 && az !== bz) return ax + (bx - ax) * (z - az) / (bz - az); return DEL.ethiope[0][0]; };   // the Ethiope's x at this z
@@ -1650,6 +1657,7 @@ function dRoadAt(x, z) {   // (deltaRoad, for a point already known to be inside
     if (inR(DEL.air, x, z, 8)) return Math.abs(z - (DEL.air.z1 + 4)) < 4.5 && x > 3740 && x < 3980;   // the airport's front road
     if (Math.abs(x - 3720) < 4.5 && z > DEL.air.z1 && z < DEL.rd) return true;   // Okpanam Road, north to the airport
     if (Math.abs(z - DEL.bridges[1]) < 4.5 && x > 4000) return true;   // the road to the Second Niger Bridge
+    { const G = DEL.gra; if (x >= G.x0 && x < G.x1 && z >= G.z0 && z < G.z1) return x < 3888 || x >= 4196 || (x >= 4038 && x < 4046) || G.streets.some(([a, c]) => z >= a && z < c); }   // the GRA's own streets
     if (D_NOST.asaba.some(R => inR(R, x, z)) || Math.hypot((x - DEL.stad.x) / (DEL.stad.rx * 1.6), (z - DEL.stad.z) / (DEL.stad.rz * 1.6)) < 1) return false;   // the sites keep their grounds
     return grid({ x0: 3640, x1: DEL.niger - 14, z0: -5520, z1: -4280 }, 3648, -5000 + 48, 96);
   }
@@ -9267,11 +9275,12 @@ if (DD) withSeed(7474, () => {
   { const r = K.airport(DEL.air, { name: 'ASABA INTERNATIONAL AIRPORT', sub: 'ASABA · DELTA STATE · THE BIG HEART', col: 0x1f5a2a, signBg: '#1f5a2a', gates: [3810, 3880, 3950], jets: 2, tower: [4030, DEL.air.term[2] - 10], flag: 0x2a5aa8 });
     OYO_PLACES.push(['Asaba International Airport', r.cx, DEL.air.term[3] + 14]); DELTA.asabaDesk = r.desk; }
   /* the GRA and the rest of town: houses in compounds, some blocks of flats, churches (St Joseph's Cathedral), a mosque, the Grand Hotel */
-  { const keepOut = (x, z) => [DEL.gov, DEL.mall, DEL.market, DEL.square, DEL.cable, DEL.palace, DEL.memorial, DEL.anwai, DEL.fmc, DEL.film, DEL.mandela].some(R => inR(R, x, z, 6)) || inR(DEL.air, x, z, 10) || Math.hypot((x - DEL.stad.x) / (DEL.stad.rx * 1.7), (z - DEL.stad.z) / (DEL.stad.rz * 1.7)) < 1 || x > DEL.niger - 30;
+  { const keepOut = (x, z) => [DEL.gov, DEL.mall, DEL.market, DEL.square, DEL.cable, DEL.palace, DEL.memorial, DEL.anwai, DEL.fmc, DEL.film, DEL.mandela, DEL.gra].some(R => inR(R, x, z, 6)) || inR(DEL.air, x, z, 10) || Math.hypot((x - DEL.stad.x) / (DEL.stad.rx * 1.7), (z - DEL.stad.z) / (DEL.stad.rz * 1.7)) < 1 || x > DEL.niger - 30;
     K.fuel(3640, DEL.rd + 30, 'NNPC Fuels, Summit Junction', 'NNPC', 0x1f8a3a); K.fuel(4000, DEL.rd - 30, 'Conoil Fuels, Nnebisi Road', 'CONOIL', 0xd8342a); K.fuel(3900, -4420, 'Oando Fuels, Anwai', 'OANDO', 0x2f6fb0);
     VENUES.push({ name: 'the Grand Hotel, Asaba', x: 3700, z: -4866, r: 9, food: 'mall', toilet: 0, motel: 25000 }); K.club(4080, -4900, 'Big Heart Lounge', '#ff3ec8');
     makeDrivable(DEL.niger + 22, -4700, -Math.PI / 2, 'boat'); makeDrivable(DEL.niger + 22, -4740, -Math.PI / 2, 'boat');   // speedboats at Cable Point
-    K.church(3790, -4780, 'pz', 'ST JOSEPH’S CATHEDRAL', 20, 34); K.church(3982, -5300, 'nz', 'ANGLICAN CHURCH'); K.church(3700, -4650, 'px', 'WINNERS CHAPEL'); K.mosque(4070, -5440);
+    K.church(3790, -4780, 'pz', 'ST JOSEPH’S CATHEDRAL', 20, 34); K.church(3982, -5300, 'nz', 'ANGLICAN CHURCH'); K.church(3700, -4650, 'px', 'WINNERS CHAPEL'); K.mosque(3888, -4712);
+    { const G = DEL.gra; board('ASABA GRA · PHASE 1', 'LAND FOR SALE · 300 m² UNITS FROM ₦18,000', '#1f5a2a', 3884, G.z1 + 6, 0, 10); for (const [a] of G.streets) for (let x = G.x0 + 10; x < G.x1; x += 30) lamp(x, a - 1, 0, 1); for (let z = G.z0 + 20; z < G.z1; z += 26) { K.palm(3884, z); K.palm(4200, z); } DELTA_MAP.push([(G.x0 + G.x1) / 2, (G.z0 + G.z1) / 2, G.x1 - G.x0, G.z1 - G.z0, '#8ac070']); OYO_PLACES.push(['Asaba GRA (land for sale)', 4040, G.z1 + 4]); }
     K.tower(3700, -4880, 22, 18, 10, LM(0xf2ead8), '#f2ead8'); K.sign('GRAND HOTEL ASABA', '', '#7a5a1a', 10, 1.4, 3700, Y + 33, -4870.9, 0, '#f2d29a'); OYO_PLACES.push(['Grand Hotel, Asaba', 3700, -4866]);
     K.tower(3970, -5080, 18, 16, 8); K.tower(3880, -4770, 16, 14, 7);
     K.blocks({ x0: 3610, x1: DEL.niger - 30, z0: -5520, z1: -4260 }, 3648, -4952, 96, keepOut, { two: .45, flats: .12 });
@@ -11873,7 +11882,7 @@ function plotInfo(px, pz) {
 // districts sold in units: Banana Island West (keys u<col>,<row>) and Ikoyi (i<col>,<row>); a unit's district is its key's first letter
 const UNIT_DISTRICTS = [], DISTRICT_OF = {};
 const unitDistrict = k => typeof k === 'string' ? DISTRICT_OF[k[0]] || null : null;
-for (const D of [BIW, IKOYI]) if (D) { UNIT_DISTRICTS.push(D); DISTRICT_OF[D.prefix] = D; }
+for (const D of [BIW, IKOYI, DEL?.gra]) if (D) { UNIT_DISTRICTS.push(D); DISTRICT_OF[D.prefix] = D; }
 const isUnit = k => !!unitDistrict(k), unitCR = k => k.slice(1).split(',').map(Number);
 const unitKey = (D, c, r) => `${D.prefix}${c},${r}`;
 function unitAt(x, z) {
