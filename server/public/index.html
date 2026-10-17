@@ -5873,7 +5873,8 @@ function talkChoose(k) {
   if (o.t === 'gift' || o.t === 'back') { cv.giftMenu = o.t === 'gift'; talkOptions(); return; }
   if (o.t === 'giftpick') {
     cv.giftMenu = false; $('talkOpts').innerHTML = ''; talkSay(c, '…', o.label);
-    relGift(c, o.gid).then(r => { if (TC.conv !== cv) return; const G = REL_GIFTS[o.gid];
+    relGift(c, o.gid).then(r => { const F = FAVOURS[personKey(c.resident.id)]; if (r && F && F.gid === o.gid && Date.now() < F.until) { delete FAVOURS[personKey(c.resident.id)]; relTalk(c, 'favour').then(q => toast(`🙏 Favour done for ${c.resident.name}`, q?.delta ? `+${q.delta} closeness` : 'They’re grateful')); }
+      if (TC.conv !== cv) return; const G = REL_GIFTS[o.gid];
       talkSay(c, r ? (r.birthday ? 'For my birthday? You remembered! Thank you!' : r.suits ? `${G[0]}! How did you know? I love it!` : rp(['Thank you, that’s so kind.', 'Ah, you shouldn’t have! Thank you.', 'For me? Thank you o!'])) : 'Ah, it’s okay. Next time.', o.label); talkOptions(); });
     return;
   }
@@ -15430,7 +15431,7 @@ const GOAL_DEFS = [   // [id, tier, what to do, how many, the event that counts,
   ['fare5', 'hard', 'Drive 5 taxi fares', 5, 'fare'], ['train3', 'hard', 'Get off the train at 3 different stations', 3, 'train', true], ['boat1', 'hard', 'Take tourists on a boat tour', 1, 'boat'],
   ['museums4', 'hard', 'Visit all four state museums', 4, 'museumVisit', true],
   ['biz2', 'medium', 'Collect takings from your businesses twice (or buy one)', 2, 'biz'],
-  ['gift1', 'easy', 'Give one of your contacts a gift', 1, 'gift'], ['friend1', 'hard', 'Become friends with someone (or closer)', 1, 'friend'],
+  ['gift1', 'easy', 'Give one of your contacts a gift', 1, 'gift'], ['friend1', 'hard', 'Become friends with someone (or closer)', 1, 'friend'], ['meet1', 'medium', 'Meet up with one of your contacts', 1, 'hangout'],
 ];
 // places a "visit" goal can send you to (found by name on the map)
 const GOAL_PLACES = ['Ile-Ife', 'Ore junction', 'The Oba’s palace, Benin', 'King’s Square & National Museum, Benin', 'Benin Airport', 'Samuel Ogbemudia Stadium', 'University of Benin (UNIBEN)', 'Igun Street bronze casters',
@@ -15528,7 +15529,7 @@ const ph = (tag, cls, text, attrs = {}) => { const e = document.createElement(ta
 PHONE.apps.home = { render: () => {
   const grid = ph('div', 'phGrid');
   for (const [id, icon, name] of PHONE_APPS) grid.append(ph('button', 'phApp', null, { type: 'button', on: { click: () => phoneApp(id) } }));
-  [...grid.children].forEach((b, i) => { const ic = ph('span', 'phIcon', PHONE_APPS[i][1]); ic.append(ph('span', 'phBadge', PHONE_APPS[i][0] === 'messages' ? (SMS.unread || '') : '', { 'data-badge': PHONE_APPS[i][0] })); b.append(ic, ph('span', 'phName', PHONE_APPS[i][2])); });
+  [...grid.children].forEach((b, i) => { const ic = ph('span', 'phIcon', PHONE_APPS[i][1]); ic.append(ph('span', 'phBadge', PHONE_APPS[i][0] === 'messages' ? (SMS.unread || '') : PHONE_APPS[i][0] === 'contacts' && typeof chatUnread === 'function' ? (chatUnread() || '') : '', { 'data-badge': PHONE_APPS[i][0] })); b.append(ic, ph('span', 'phName', PHONE_APPS[i][2])); });
   const who = ph('div', 'phWho'); who.append(ph('b', null, (NET.user?.name || NET.guest || 'You')), ph('span', null, `🏅 ${repTitle(GOALS.rep)} · ${GOALS.rep} rep`));
   return [who, grid, ph('div', 'phHint', 'G to put the phone away')];
 } };
@@ -16072,7 +16073,7 @@ function peopleHouses() {
   if (PEOPLE.houses) return PEOPLE.houses;
   const m = new Map(), vs = new Set(civilians.map(c => c.v).filter(Boolean));
   for (const v of vs) { if (v.mine || !v.houses) continue; for (const h of v.houses) {
-    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque) continue;
+    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque || h.club) continue;
     m.set(`h:${Math.round(h.x)},${Math.round(h.z)}`, { h, v });
   } }
   return PEOPLE.houses = m;
@@ -16081,6 +16082,7 @@ const peopleIn = key => { let n = 0; for (const R of PEOPLE.cast.values()) if (R
 // where someone is meant to be at this hour of the game's day
 function residentAnchor(c) {
   const R = c.resident, hr = tod * 24, H = c.homeH;
+  if (c.meet && Date.now() < c.meet.until) return { key: 'meet', x: c.meet.x, z: c.meet.z, label: `meeting you at ${c.meet.label}` };   // a meet-up comes first
   if ((hr >= 22 || hr < 6.5) && H) return { key: 'home', x: H.inside.x, z: H.inside.z, y: H.floorY, home: true, label: 'at home' };
   if (hr >= 8 && hr < 17 && R.work) return { key: 'work', x: R.work.x, z: R.work.z, label: `at work${R.work.label ? ' at ' + R.work.label : ''}` };
   if (hr >= 18 && hr < 22 && R.hang) return { key: 'hang', x: R.hang.x, z: R.hang.z, label: `out at ${R.hang.label || 'a spot nearby'}` };
@@ -16151,6 +16153,7 @@ function updatePeople(dt) {
 }
 const contactWhere = c => { const A = c && residentAnchor(c); return A ? A.label : 'somewhere in town'; };
 PHONE.apps.contacts = { render: () => {
+  if (CHAT.view) { const R0 = PEOPLE.cast.get(personKey(CHAT.view.id)); if (R0) return chatView(R0); CHAT.view = null; }
   const out = [phHead('👥 Contacts', 'People you’ve swapped numbers with')];
   if (!PEOPLE.loaded) { peopleLoad(); out.push(ph('div', 'phDim', 'Loading your contacts…')); return out; }
   const list = [...PEOPLE.mine.values()].map(m => [m, PEOPLE.cast.get(personKey(m.id)), PEOPLE.civ.get(personKey(m.id))]).filter(q => q[1]).sort((a, b) => a[1].name.localeCompare(b[1].name));
@@ -16164,7 +16167,8 @@ PHONE.apps.contacts = { render: () => {
       ph('span', null, `${c ? contactWhere(c) : 'on their way'}${d != null ? ` · ${fmtDist(d)} away` : ''}`),
       ph('span', 'phDim', `${ago <= 0 ? 'Talked today' : ago === 1 ? 'Talked yesterday' : `Last talked ${ago} days ago${ago > 3 ? ': it’s fading' : ''}`} · met in ${P0.metAt || P0.hometown || 'town'}${P0.birthday === relDayOfYear() ? ' · 🎂 birthday today!' : ''}`));
     const row = ph('div', 'phChips');
-    if (c) row.append(ph('button', 'phBtn', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(c.g.position.x, c.g.position.z); toast('📍 Pinned', `${R.name}: ${contactWhere(c)}`); } } }));
+    const un = chatOf(R.id).filter(x => !x.mine && !x.read).length; row.append(ph('button', 'phBtn', `💬 Chat${un ? ` (${un})` : ''}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } }));
+    if (c) row.append(ph('button', 'phChip', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(c.g.position.x, c.g.position.z); toast('📍 Pinned', `${R.name}: ${contactWhere(c)}`); } } }));
     const hv = peopleHouses().get(R.home); if (hv) row.append(ph('button', 'phChip', '🏠 Their home', { type: 'button', on: { click: () => { setWaypoint(hv.h.doorOut.x, hv.h.doorOut.z); toast('📍 Pinned', `${R.name}’s home`); } } }));
     row.append(ph('button', 'phChip', PEOPLE.rmArm === m.id ? 'Tap again to delete' : 'Delete', { type: 'button', on: { click: () => peopleForget(m.id) } }));
     card.append(row); out.push(card);
@@ -16271,6 +16275,177 @@ function relAnswer(c, o, r) {
   return '';
 }
 
+// ---- phase 3: texts, calls, meet-ups and favours with the people you know. Their texts come every few minutes across
+// all your contacts (more from closer friends); a kind reply brings you closer, a cold one or silence pushes you apart.
+// Invite someone out (a buka, a club, the beach, a museum) and they head there; turn up and spend a moment together. ----
+const CHAT_STORE = 'giantwood-people-texts';
+const CHAT = { threads: {}, nextT: 0, view: null, call: null, unread: 0 };
+try { Object.assign(CHAT, { threads: JSON.parse(localStorage.getItem(CHAT_STORE) || '{}') }); } catch (e) {}
+const chatSave = () => { try { for (const k in CHAT.threads) CHAT.threads[k] = CHAT.threads[k].slice(-40); localStorage.setItem(CHAT_STORE, JSON.stringify(CHAT.threads)); } catch (e) {} };
+const chatOf = id => CHAT.threads[personKey(id)] ||= [];
+const chatUnread = () => Object.values(CHAT.threads).reduce((a, t) => a + t.filter(m => !m.mine && !m.read).length, 0);
+const hourWord = () => { const h = tod * 24; return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night'; };
+// somewhere to meet: the nearest few kinds of place to you
+function meetPlaces(R) {
+  const P0 = R.persona || {}, out = [], near = (list, f) => list.map(f).filter(Boolean).sort((a, b) => a.d - b.d)[0];
+  const at = (x, z, label, kind) => ({ x, z, label, kind, d: Math.hypot(x - P.pos.x, z - P.pos.z) });
+  const food = near(VENUES.filter(V => V.food && V.food !== 'rest'), V => at(V.x, V.z, V.name.replace(/^the /, ''), 'food')); if (food) out.push(food);
+  const club = near(CLUBS.filter(C => C.hs?.doorOut || C.at), C => C.hs?.doorOut ? at(C.hs.doorOut.x, C.hs.doorOut.z, C.name, 'club') : at(C.at[0], C.at[1], C.name, 'club')); if (club) out.push(club);
+  if (COAST) out.push(at(30, 286, 'Elegushi Beach', 'beach'));
+  const mus = near(Object.entries(MUSEUM_SITES || {}), ([k, M]) => at(M.x, M.z, ({ lagos: 'Lagos History Museum', ogun: 'Ogun State Museum', oyo: 'Museum of Yoruba History', edo: 'National Museum, Benin' })[k] || 'the museum', 'museum')); if (mus) out.push(mus);
+  if (R.hang) out.push(at(R.hang.x, R.hang.z, R.hang.label, 'their spot'));
+  return out.slice(0, 5);
+}
+// their side of a text, by kind
+function npcText(R, kind, extra) {
+  const P0 = R.persona || {}, it = ri(P0.interests || ['life']), w = hourWord();
+  const T = {
+    hello: [`Good ${w}! How’s your day going?`, `Hey you 😊 what are you up to this ${w}?`, `Just thinking about you. How far?`, `Good ${w} o. Hope you’re good.`],
+    chat: [`Have you been following ${it}? I can’t stop thinking about it.`, `${ri(INTEREST_SAY[it] || ['Life is good.'])}`, `Guess what? ${ri(['My boss gave me the afternoon off!', 'I found the best suya spot.', 'Traffic was terrible today 😩', 'My cousin is getting married next month!'])}`],
+    miss: ['Hello stranger 👀 you’ve forgotten me abi?', 'I haven’t heard from you in a while o.', 'Are you avoiding me? 😅'],
+    invite: [`Free this ${w === 'night' ? 'evening' : w}? Let’s meet at ${extra?.label}.`, `Come and hang out at ${extra?.label}! I’m heading there now.`, `${extra?.label}, you and me? Say yes 😄`],
+    favour: [`Can I ask a favour? Bring me ${extra?.name?.toLowerCase()} when you see me today? 🙏`, `Abeg, if you’re passing, I’d love ${extra?.name?.toLowerCase()}. I’ll owe you!`],
+    birthday: ['It’s my birthday today 🎂!!', 'Guess whose birthday it is? 🎉'],
+  };
+  return ri(T[kind] || T.hello);
+}
+function chatPush(id, m) { const t = chatOf(id); t.push({ at: Date.now(), ...m }); chatSave(); }
+// a text from someone you know (every few minutes, from one contact or another)
+function chatTick() {
+  if (mode !== 'play' || Date.now() < CHAT.nextT) return;
+  CHAT.nextT = Date.now() + RM(4, 8) * 60e3;
+  const list = [...PEOPLE.mine.values()].map(m => [m, PEOPLE.cast.get(personKey(m.id))]).filter(q => q[1]);
+  if (!list.length) return;
+  const w = list.map(([m]) => ({ contact: 1, friend: 2.2, close: 3.5 }[relStageOf(relDecayed(m), m.stage)] || 1)), tot = w.reduce((a, b) => a + b, 0);
+  let r = Math.random() * tot, k = 0; while (r > w[k]) r -= w[k++];
+  const [m, R] = list[Math.min(k, list.length - 1)], st = relStageOf(relDecayed(m), m.stage), quiet = (Date.now() - (m.last || m.since)) / 86400e3;
+  let kind = R.persona?.birthday === relDayOfYear() && !chatOf(R.id).some(x => x.kind === 'birthday' && Date.now() - x.at < 86400e3) ? 'birthday' : quiet > 2 ? 'miss' : ri(['hello', 'chat', 'chat', st !== 'contact' ? 'invite' : 'hello', 'favour']), extra = null;
+  if (kind === 'invite') extra = ri(meetPlaces(R).filter(p => p.d < 1500)) || null;
+  if (kind === 'invite' && !extra) kind = 'chat';
+  if (kind === 'favour') { const g = ri(['suya', 'jollof', 'chocolate', 'flowers']); extra = { gid: g, name: REL_GIFTS[g][0] }; }
+  chatPush(R.id, { mine: false, kind, text: npcText(R, kind, extra), extra });
+  sfx('swap'); toast(`💬 ${R.name}`, chatOf(R.id).at(-1).text);
+  phoneRefresh(); peopleBadge();
+}
+// your replies: warm, funny or cold (each moves you, through the server for accounts)
+function chatReplies(R, last) {
+  if (last.kind === 'invite') return [['Yes! I’m on my way 🏃', 'warm', 'accept'], ['Can’t today, sorry. Another time?', 'text_cold', 'decline'], ['😂 Only if you’re buying', 'text_fun', 'accept']];
+  if (last.kind === 'favour') return [['Sure, I’ll bring it 👍', 'warm', 'favour'], ['Ah, I’m too busy today', 'text_cold']];
+  if (last.kind === 'miss') return [['I’m so sorry! I’ve missed you too ❤️', 'warm'], ['Life has been crazy 😅', 'text_fun'], ['I’ve been busy.', 'text_cold']];
+  if (last.kind === 'birthday') return [['Happy birthday!! 🎉🎂 Enjoy your day', 'warm'], ['HBD 🥳 Where’s my cake?', 'text_fun'], ['Nice.', 'text_cold']];
+  return [[ri(['Hey! All good here 😊', 'Good to hear from you!', 'Doing well, and you?']), 'warm'], [ri(['😂😂 you’re funny', 'Na wa o 😅', 'Tell me more 👀']), 'text_fun'], ['k', 'text_cold']];
+}
+async function chatReply(R, i) {
+  const t = chatOf(R.id), last = t.filter(m => !m.mine).at(-1); if (!last || last.answered) return;
+  const [text, tone, act] = chatReplies(R, last)[i]; last.answered = true; last.read = true;
+  chatPush(R.id, { mine: true, text });
+  const c = PEOPLE.civ.get(personKey(R.id)) || { resident: R };
+  await relTalk(c, tone === 'warm' ? 'text_warm' : tone);
+  if (act === 'accept' && last.extra) meetSet(R, last.extra, true);
+  if (act === 'favour' && last.extra) { FAVOURS[personKey(R.id)] = { gid: last.extra.gid, until: Date.now() + 3 * 3600e3 }; toast('🙏 Favour', `Give ${R.name} ${last.extra.name.toLowerCase()} in person (🎁 when you talk) for a bonus`); }
+  setTimeout(() => { if (Math.random() < .7) { chatPush(R.id, { mine: false, kind: 'ack', text: tone === 'text_cold' ? ri(['Okay.', '😐', 'Alright then.']) : act === 'accept' ? ri(['Yay! See you soon 😄', 'Perfect, I’m heading there now.']) : ri(['😄', 'Hehe', 'Talk later!', '❤️']), answered: true }); phoneRefresh(); } }, RM(2500, 6000));
+  phoneRefresh(); peopleBadge();
+}
+const FAVOURS = {};
+// texts you leave hanging for 10 minutes cost a little (once each)
+function chatIgnored() {
+  for (const [id, t] of Object.entries(CHAT.threads)) for (const m of t) if (!m.mine && !m.answered && !m.ignoredMarked && m.kind !== 'ack' && Date.now() - m.at > 10 * 60e3) {
+    m.ignoredMarked = true; const R = PEOPLE.cast.get(id); if (R && PEOPLE.mine.has(id)) relTalk(PEOPLE.civ.get(id) || { resident: R }, 'ignored');
+  }
+  chatSave();
+}
+// texting first: a hello, or an invitation
+async function chatSend(R, kind, place) {
+  const c = PEOPLE.civ.get(personKey(R.id)) || { resident: R }, m = PEOPLE.mine.get(personKey(R.id)), st = m ? relStageOf(relDecayed(m), m.stage) : 'contact';
+  if (kind === 'hello') { chatPush(R.id, { mine: true, text: ri(['Hey! How are you?', 'Thinking of you 😊', 'Good ' + hourWord() + '! What’s up?']) }); relTalk(c, 'text_warm');
+    setTimeout(() => { chatPush(R.id, { mine: false, kind: 'ack', answered: true, text: npcText(R, Math.random() < .5 ? 'chat' : 'hello') }); phoneRefresh(); peopleBadge(); }, RM(3000, 9000)); }
+  if (kind === 'invite') {
+    chatPush(R.id, { mine: true, text: `Want to meet at ${place.label}?` });
+    const yes = Math.random() < ({ contact: .55, friend: .85, close: .97 }[st] || .5) * (R.persona?.mood === 'shy' ? .8 : 1);
+    setTimeout(() => {
+      chatPush(R.id, { mine: false, kind: 'ack', answered: true, text: yes ? ri([`Yes! See you at ${place.label} 😄`, 'I’m coming! Give me a few minutes.', 'Oya, let’s go!']) : ri(['Ah, I can’t today. Rain check?', 'I’m so tired today, another time?', 'Not today o, sorry!']) });
+      if (yes) meetSet(R, place, false); phoneRefresh(); peopleBadge();
+    }, RM(2500, 6000));
+  }
+  phoneRefresh();
+}
+// a meet-up: they go to the place (straight there if you're far away), it's pinned on your map, and they wait a while
+const MEETS = new Map();
+function meetSet(R, place, theyAsked) {
+  MEETS.set(personKey(R.id), { R, x: place.x, z: place.z, label: place.label, kind: place.kind, until: Date.now() + 8 * 60e3, near: 0, done: false });
+  setWaypoint(place.x, place.z); toast(`📍 Meet ${R.name} at ${place.label}`, theyAsked ? 'They’re heading there now' : 'Pinned on your map. They’ll wait a few minutes');
+}
+function updateMeets(dt) {
+  for (const [id, M] of MEETS) {
+    const c = PEOPLE.civ.get(id);
+    if (Date.now() > M.until || !c) { MEETS.delete(id); if (c) c.meet = null; if (!M.done && c) { chatPush(id, { mine: false, kind: 'ack', answered: true, text: ri(['I waited but you didn’t come 😔', 'Where are you? I’m going home.']) }); relTalk(c, 'ignored'); peopleBadge(); } continue; }
+    c.meet = M;
+    const dP = Math.hypot(P.pos.x - M.x, P.pos.z - M.z), dC = Math.hypot(c.g.position.x - M.x, c.g.position.z - M.z);
+    if (!M.done && dP < 9 && dC < 9) {
+      if ((M.near += dt) > 6) {   // a few moments together
+        M.done = true; M.until = Date.now() + 90e3;
+        relTalk(c, 'hangout').then(r => { const what = { food: 'shared a meal', club: 'danced the night away', beach: 'walked on the beach', museum: 'looked round the museum', 'their spot': 'hung out' }[M.kind] || 'hung out';
+          toast(`😊 You ${what} with ${M.R.name}`, r?.delta ? `+${r.delta} closeness` : 'A good time'); });
+        showBubble(c, ri(['This was fun! We should do it again.', 'I’m so glad you came 😊', 'Best time I’ve had all week!']), 4); goalEv('hangout');
+      }
+    } else M.near = Math.max(0, M.near - dt);
+  }
+}
+// calls: they pick up (or not); a few words; two things you could say
+function callStart(R) {
+  const c = PEOPLE.civ.get(personKey(R.id)), A = c && residentAnchor(c), h = tod * 24;
+  const busy = A?.key === 'work' && Math.random() < .5, asleep = (h >= 23 || h < 6) && Math.random() < .6;
+  CHAT.call = { R, t: 0, line: busy ? 'I’m at work, I can’t talk long. What’s up?' : asleep ? '*yawn* …hello? It’s late o.' : ri([`Hello! ${R.name} here 😊`, 'Heyyy! I was just thinking about you.', 'Hello? Ah, it’s you! How far?']),
+    opts: [['Just wanted to hear your voice', 'call'], ['Want to hang out?', 'invite'], [busy || asleep ? 'Sorry, I’ll let you go' : 'Tell me about your day', busy || asleep ? 'text_cold' : 'call']], done: false, missed: Math.random() < .12 };
+  phoneRefresh();
+}
+async function callChoose(i) {
+  const K = CHAT.call; if (!K || K.done) return;
+  const [say, act] = K.opts[i], c = PEOPLE.civ.get(personKey(K.R.id)) || { resident: K.R };
+  K.done = true; K.you = say;
+  if (act === 'invite') { K.line = 'Yes o! Pick the place and text me.'; CHAT.view = { id: K.R.id, tab: 'meet' }; }
+  else { await relTalk(c, act === 'text_cold' ? 'day' : 'call'); K.line = act === 'text_cold' ? 'Okay, talk later!' : ri(['Aww. That’s sweet of you ❤️', 'Haha, you always make me laugh.', 'Thanks for calling. Talk soon!']); }
+  phoneRefresh();
+}
+function peopleBadge() { CHAT.unread = chatUnread(); const b = document.querySelector('[data-badge="contacts"]'); if (b) b.textContent = CHAT.unread || ''; }
+// every few seconds
+function updateChat(dt) {
+  if (!PEOPLE.loaded) return;
+  if ((CHAT.tickT = (CHAT.tickT || 0) + dt) > 5) { CHAT.tickT = 0; chatTick(); chatIgnored(); }
+  updateMeets(dt);
+}
+// the chat view inside Contacts: a thread, quick replies, call and meet buttons
+function chatView(R) {
+  const out = [], head = ph('div', 'phHead'); head.append(ph('button', 'phBack', '‹', { type: 'button', 'aria-label': 'Back', on: { click: () => { CHAT.view = null; CHAT.call = null; phoneRefresh(); } } }), ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}`));
+  out.push(head);
+  const K = CHAT.call && CHAT.call.R.id === R.id ? CHAT.call : null;
+  if (K) {   // on a call
+    const card = ph('div', 'phCard'); card.append(ph('b', null, K.missed ? '📵 No answer' : `📞 On a call with ${R.name}`));
+    if (!K.missed) { if (K.you) card.append(ph('span', 'phDim', `You: “${K.you}”`)); card.append(ph('span', null, `“${K.line}”`)); }
+    const row = ph('div', 'phChips');
+    if (!K.missed && !K.done) K.opts.forEach(([say], i) => row.append(ph('button', 'phChip', say, { type: 'button', on: { click: () => callChoose(i) } })));
+    row.append(ph('button', 'phBtn', '📵 Hang up', { type: 'button', on: { click: () => { CHAT.call = null; phoneRefresh(); } } })); card.append(row); out.push(card);
+  }
+  if (CHAT.view?.tab === 'meet') {
+    const card = ph('div', 'phCard'); card.append(ph('b', null, `📍 Meet ${R.name} at…`));
+    for (const p of meetPlaces(R)) card.append(ph('button', 'phChip', `${{ food: '🍲', club: '🪩', beach: '🏖', museum: '🏛', 'their spot': '⭐' }[p.kind] || '📍'} ${p.label} · ${fmtDist(p.d)}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; chatSend(R, 'invite', p); } } }));
+    card.append(ph('button', 'phChip', 'Cancel', { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } })); out.push(card);
+  }
+  const t = chatOf(R.id), box = ph('div', 'phThread');
+  for (const m of t.slice(-14)) { m.read = true; const b = ph('div', 'phMsg' + (m.mine ? ' mine' : '')); b.append(ph('span', null, m.text), ph('small', 'phDim', new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))); box.append(b); }
+  if (!t.length) box.append(ph('div', 'phDim', `No texts yet. Say hello to ${R.name}.`));
+  out.push(box); chatSave(); peopleBadge();
+  const last = t.filter(m => !m.mine).at(-1);
+  if (last && !last.answered && last.kind !== 'ack') { const row = ph('div', 'phChips'); chatReplies(R, last).forEach(([txt], i) => row.append(ph('button', 'phChip', txt, { type: 'button', on: { click: () => chatReply(R, i) } }))); out.push(row); }
+  const acts = ph('div', 'phChips');
+  acts.append(ph('button', 'phBtn', '💬 Say hi', { type: 'button', on: { click: () => chatSend(R, 'hello') } }), ph('button', 'phChip', '📞 Call', { type: 'button', on: { click: () => callStart(R) } }),
+    ph('button', 'phChip', '📍 Meet up', { type: 'button', on: { click: () => { CHAT.view = { id: R.id, tab: 'meet' }; phoneRefresh(); } } }));
+  out.push(acts);
+  const M = MEETS.get(personKey(R.id)); if (M && !M.done) out.push(ph('div', 'phCard', `📍 Meeting at ${M.label} · ${fmtDist(Math.hypot(M.x - P.pos.x, M.z - P.pos.z))} away · they’ll wait ${Math.max(0, Math.ceil((M.until - Date.now()) / 60e3))} min`));
+  const F = FAVOURS[personKey(R.id)]; if (F && Date.now() < F.until) out.push(ph('div', 'phDim', `🙏 They asked for ${REL_GIFTS[F.gid][0].toLowerCase()}: give it in person (🎁 when you talk)`));
+  return out;
+}
+
 
 
 setInterval(() => { if (PHONE.open && PHONE.app === 'market' && MKT.view === 'browse' && !(document.activeElement && $('phone').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName))) phoneRefresh(); }, 1000);   // (auction clocks; not while you're typing a bid)
@@ -16330,7 +16505,7 @@ function frame(now) {
   updateLand(dt);
   updateWaypoint();
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch(); updateBiz(dt); updatePeople(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
+  updateTouch(); updateBiz(dt); updatePeople(dt); updateChat(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)

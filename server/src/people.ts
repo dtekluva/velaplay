@@ -37,16 +37,19 @@ const lagosDay = () => new Date(Date.now() + 3600e3).toISOString().slice(0, 10);
 const dayOfYear = () => { const d = new Date(Date.now() + 3600e3); return Math.floor((+d - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86400e3); };
 const relOut = (r: any) => ({ id: r.resident_id ?? r.id, stage: r.stage, closeness: r.closeness, since: Math.round(+new Date(r.since)), last: Math.round(+new Date(r.last_contact)) });
 // move closeness by d (talk: counted against the day's cap; gift: counted against the day's gifts)
-async function bump(c: any, me: string, id: number, d: number, kind: "talk" | "gift" | "compliment") {
+async function bump(c: any, me: string, id: number, d: number, kind: "talk" | "gift" | "compliment" | "hangout" | "favour" | "loss") {
   const r = (await c.query("SELECT *, day::text AS day_s FROM relations WHERE user_id = $1 AND resident_id = $2 FOR UPDATE", [me, id])).rows[0];
   if (!r) return null;
   const today = lagosDay(), fresh = r.day_s !== today;   // (as text: a date column comes back shifted by the server's timezone)
-  let gain = fresh ? 0 : r.day_gain, gifts = fresh ? 0 : r.gifts, comps = fresh ? 0 : r.compliments;
+  let gain = fresh ? 0 : r.day_gain, gifts = fresh ? 0 : r.gifts, comps = fresh ? 0 : r.compliments, hang = fresh ? 0 : r.hangouts, fav = fresh ? 0 : r.favours;
   if (kind === "gift") { if (gifts >= GIFTS_A_DAY) return { refused: true }; gifts++; }
+  else if (kind === "hangout") { if (hang >= 1) d = 2; hang++; }   // the first time out together a day counts most
+  else if (kind === "favour") { if (fav >= 1) d = 1; fav++; }
+  else if (kind === "loss") d = Math.min(0, d);   // an ignored text: never more than a nudge down
   else { if (d > 0) { d = Math.max(0, Math.min(d, TALK_CAP - gain)); gain += d; } if (kind === "compliment") comps++; }
   const before = decayed(r.closeness, r.last_contact), now = Math.max(0, Math.min(100, before + d)), stage = stageOf(now, r.stage);
-  const u = (await c.query("UPDATE relations SET closeness = $3, stage = $4, last_contact = now(), day = $5, day_gain = $6, gifts = $7, compliments = $8 WHERE user_id = $1 AND resident_id = $2 RETURNING *",
-    [me, id, now, stage, today, gain, gifts, comps])).rows[0];
+  const u = (await c.query(`UPDATE relations SET closeness = $3, stage = $4, last_contact = ${kind === "loss" ? "last_contact" : "now()"}, day = $5, day_gain = $6, gifts = $7, compliments = $8, hangouts = $9, favours = $10 WHERE user_id = $1 AND resident_id = $2 RETURNING *`,
+    [me, id, now, stage, today, gain, gifts, comps, hang, fav])).rows[0];
   await c.query("UPDATE residents SET last_seen = now() WHERE id = $1", [id]);
   return { rel: relOut(u), delta: now - before, up: STAGES.indexOf(stage) > STAGES.indexOf(r.stage), down: STAGES.indexOf(stage) < STAGES.indexOf(r.stage), compliments: comps };
 }
@@ -104,11 +107,17 @@ people.post("/people/:id/talk", requireUser, wrap(async (req, res) => {
     const prev = (await c.query("SELECT compliments, day::text AS day_s FROM relations WHERE user_id = $1 AND resident_id = $2", [me.id, id])).rows[0];
     if (!prev) { await c.query("ROLLBACK"); return fail(res, 404, "Swap numbers first"); }
     const compsToday = prev.day_s === lagosDay() ? prev.compliments : 0;
-    let d = 1, kind: "talk" | "compliment" = "talk", hit: boolean | null = null;
+    let d = 1, kind: "talk" | "compliment" | "hangout" | "favour" | "loss" = "talk", hit: boolean | null = null;
     if (topic === "interest") { hit = (P.interests || []).includes(about); d = hit ? 5 : 0; }
     else if (topic === "joke") d = P.mood === "grumpy" ? -2 : P.mood === "shy" ? 1 : 3;
     else if (topic === "compliment") { kind = "compliment"; d = compsToday === 0 ? 3 : compsToday === 1 ? 0 : -1; }
     else if (topic === "day") d = 2;
+    else if (topic === "text_warm" || topic === "call") d = 2;            // a kind reply, a phone call
+    else if (topic === "text_fun") d = P.mood === "grumpy" ? 0 : 2;
+    else if (topic === "text_cold") d = -1;
+    else if (topic === "ignored") { kind = "loss"; d = -1; }               // a text left unanswered
+    else if (topic === "hangout") { kind = "hangout"; d = 8; }             // time out together
+    else if (topic === "favour") { kind = "favour"; d = 5; }               // you did what they asked
     const out = await bump(c, me.id, id, d, kind);
     await c.query("COMMIT");
     res.json({ ok: true, hit, ...out });
