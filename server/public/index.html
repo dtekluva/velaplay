@@ -5833,7 +5833,8 @@ function talkStart(c) {
   c.state = 'talk'; c.path.length = 0;
   const first = p.met ? lineFor(TALK.again, c, 0) : lineFor(TALK.greet, c);
   p.met++;
-  $('talkName').textContent = p.name;
+  $('talkName').textContent = p.name + (PEOPLE.mine.has(personKey(c.resident?.id)) ? ' · 📇 your contact' : '');
+  if (c.resident && NET.reachable && String(c.resident.id)[0] !== 'g') api(`/people/${c.resident.id}/seen`, 'POST', {}).catch(() => {});
   $('talkWhere').textContent = (c.child ? 'kid · ' : c.cop ? 'police · ' : c.fire ? 'firefighter · ' : '') + (TALK_PLACE_NAMES[pl] || '').replace(/^the /, '');
   $('talk').hidden = false; $('help').hidden = true;
   const intro = p.met === 1 && Math.random() < .5 && !first.includes(p.name); if (intro) p.introduced = true;
@@ -5853,13 +5854,21 @@ function talkOptions() {
     const all = ['how', 'place', 'titans', 'self', 'tip', 'where', 'joke', 'rumor'], fresh = all.filter(t => !cv.asked.has(t));
     topics = (fresh.length >= 3 ? fresh : all).sort(() => Math.random() - .5).slice(0, 3).concat('bye');
   }
-  cv.opts = topics.map(t => ({ t, label: fillT(rp(t === 'how' && ng ? TALK.opts.how_ng : TALK.opts[t]), c) }));
+  if (!c.child && !cv.swapped && !PEOPLE.mine.has(personKey(c.resident?.id))) topics.splice(Math.max(0, topics.length - 1), 0, 'swap');   // swap numbers: they become someone you know, for good
+  cv.opts = topics.map(t => ({ t, label: t === 'swap' ? '📇 Can I get your number?' : fillT(rp(t === 'how' && ng ? TALK.opts.how_ng : TALK.opts[t]), c) }));
   cv.opts.forEach((o, k) => { const li = document.createElement('li'); li.innerHTML = `<kbd>${k + 1}</kbd>`; li.append(o.label); li.onclick = () => talkChoose(k); el.append(li); });
 }
 function talkChoose(k) {
   const cv = TC.conv; if (!cv || !cv.opts[k]) return;
   const o = cv.opts[k], c = cv.c;
   if (o.t === 'bye') { talkSay(c, lineFor(TALK.bye, c, 0), o.label); $('talkOpts').innerHTML = ''; cv.closing = 1.8; return; }
+  if (o.t === 'swap') {
+    cv.swapped = true; const p = personaOf(c);
+    talkSay(c, rp(['Sure, give me your phone. There: saved.', 'Ehen, why not. Here’s my number. Call me o!', 'Okay! Put me in as ' + p.name + '. Don’t lose it.', 'No wahala. Flash me so I have yours too.']), o.label);
+    peopleSwap(c).then(err => { if (err) { toast('📇 Contacts', err); return; } const R = c.resident, hv = R && peopleHouses().get(R.home);
+      toast(`📇 ${p.name} is in your contacts`, `Lives ${hv ? 'in ' + placeName(hv.h.x, hv.h.z) : 'nearby'}${R?.work ? ' · works at ' + R.work.label : ''} · Contacts on your phone (G)`); sfx('swap'); });
+    talkOptions(); return;
+  }
   cv.asked.add(o.t); cv.turn++;
   let line = answer(c, o.t);
   if (cv.turn >= cv.limit) { line += ' ' + rp(TALK.wrap); cv.ending = 1; }
@@ -16013,6 +16022,140 @@ PHONE.apps.biz = { render: () => {
 } };
 PHONE_APPS.push(['biz', '🏪', 'Business']);
 
+// ---- People: the shared cast. Swap numbers with a passer-by and they become a resident: the same face, name, home,
+// work and evening haunt for every player, from then on. Their day: home at night, at work in the day, out in the
+// evening. The cast comes from the server once the game is up and joins the streets a few people a frame. ----
+const PEOPLE = { cast: new Map(), mine: new Map(), civ: new Map(), queue: [], loaded: false, loading: false, houses: null, t: 0, guestN: 0, rmArm: null };
+const PEOPLE_STORE = 'giantwood-people';
+const INTERESTS = ['football', 'Afrobeats', 'Nollywood', 'cooking', 'fashion', 'church', 'business', 'tech', 'politics', 'owambe parties', 'books', 'cars', 'jollof debates', 'dancing', 'travel', 'fitness'];
+const personKey = id => String(id);
+function peopleLocalLoad() {   // guests: the people they met (and contacts of shared ones) live in this browser
+  try { const d = JSON.parse(localStorage.getItem(PEOPLE_STORE) || '{}'); for (const R of d.cast || []) PEOPLE.cast.set(personKey(R.id), R); for (const m of d.mine || []) PEOPLE.mine.set(personKey(m.id), m); PEOPLE.guestN = d.n || 0; } catch (e) {}
+}
+const peopleSave = () => { if (NET.token) return; try { localStorage.setItem(PEOPLE_STORE, JSON.stringify({ cast: [...PEOPLE.cast.values()].filter(R => String(R.id)[0] === 'g'), mine: [...PEOPLE.mine.values()], n: PEOPLE.guestN })); } catch (e) {} };
+async function peopleLoad() {
+  if (PEOPLE.loading) return; PEOPLE.loading = true;
+  if (!NET.token) peopleLocalLoad();
+  if (NET.reachable) {
+    try {
+      const r = await api('/people');
+      for (const R of r.cast) PEOPLE.cast.set(personKey(R.id), R);
+      if (NET.token) { PEOPLE.mine.clear(); for (const m of r.mine) PEOPLE.mine.set(personKey(m.id), m); }
+    } catch (e) {}
+  }
+  for (const R of PEOPLE.cast.values()) if (!PEOPLE.civ.has(personKey(R.id))) PEOPLE.queue.push(R);
+  PEOPLE.loaded = true; PEOPLE.loading = false; phoneRefresh();
+}
+// every house people could live in, by key: settlements' own houses (not yours, not the police station or the mall)
+function peopleHouses() {
+  if (PEOPLE.houses) return PEOPLE.houses;
+  const m = new Map(), vs = new Set(civilians.map(c => c.v).filter(Boolean));
+  for (const v of vs) { if (v.mine || !v.houses) continue; for (const h of v.houses) {
+    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque) continue;
+    m.set(`h:${Math.round(h.x)},${Math.round(h.z)}`, { h, v });
+  } }
+  return PEOPLE.houses = m;
+}
+const peopleIn = key => { let n = 0; for (const R of PEOPLE.cast.values()) if (R.home === key) n++; return n; };
+// where someone is meant to be at this hour of the game's day
+function residentAnchor(c) {
+  const R = c.resident, hr = tod * 24, H = c.homeH;
+  if ((hr >= 22 || hr < 6.5) && H) return { key: 'home', x: H.inside.x, z: H.inside.z, y: H.floorY, home: true, label: 'at home' };
+  if (hr >= 8 && hr < 17 && R.work) return { key: 'work', x: R.work.x, z: R.work.z, label: `at work${R.work.label ? ' at ' + R.work.label : ''}` };
+  if (hr >= 18 && hr < 22 && R.hang) return { key: 'hang', x: R.hang.x, z: R.hang.z, label: `out at ${R.hang.label || 'a spot nearby'}` };
+  return H ? { key: 'about', x: H.doorOut.x, z: H.doorOut.z, label: 'out and about near home', roam: true } : null;
+}
+// bring someone in the cast to life on their streets
+function spawnResident(R) {
+  const hv = peopleHouses().get(R.home); if (!hv) return null;
+  const c = makeCivilian(hv.v, { adult: true, female: R.female });
+  c.spec = JSON.parse(JSON.stringify(R.spec)); c.elder = !!R.elder; c.child = false; c.ng = R.persona?.ng ?? c.ng; if (c.elder) c.speed *= .75;
+  c.persona = { ...R.persona, name: R.name, met: PEOPLE.mine.has(personKey(R.id)) ? 1 : 0 };
+  c.resident = R; c.homeH = hv.h; PEOPLE.civ.set(personKey(R.id), c);
+  const A = residentAnchor(c); if (A) placeResident(c, A);
+  return c;
+}
+function placeResident(c, A) {
+  const j = A.home ? 0 : 1.5, x = A.x + RM(-j, j), z = A.z + RM(-j, j);
+  c.g.position.set(x, A.home ? A.y : groundAt(x, z), z); c.state = 'idle'; c.timer = RM(4, 12); c.path.length = 0; c.at = A.key;
+}
+// swap numbers: a passer-by joins the cast (or, if they're in it already, your contacts)
+async function peopleSwap(c) {
+  const p = personaOf(c);
+  if (c.resident) {
+    const id = personKey(c.resident.id);
+    if (PEOPLE.mine.has(id)) return `${p.name} already has your number`;
+    try {
+      if (NET.token && String(c.resident.id)[0] !== 'g') await api(`/people/${c.resident.id}/contact`, 'POST', {});
+      PEOPLE.mine.set(id, { id: c.resident.id, stage: 'contact', closeness: 20, since: Date.now() }); peopleSave(); phoneRefresh();
+      return null;
+    } catch (e) { return e.message; }
+  }
+  // a home near where you met: one of the nearest houses on these streets with room for one more
+  const homes = [...peopleHouses()].filter(([k, hv]) => peopleIn(k) < 4).map(([k, hv]) => [k, hv, Math.hypot(hv.h.x - c.g.position.x, hv.h.z - c.g.position.z) + (hv.v === c.v ? 0 : 200)]).sort((a, b) => a[2] - b[2]).slice(0, 6);
+  if (!homes.length) return `${p.name} says they live too far out to visit`;
+  const [hk, hv] = homes[Math.floor(Math.random() * homes.length)];
+  bizSitesFinish();
+  const near = (list, x, z, r) => list.map(s => [s, Math.hypot(s.x - x, s.z - z)]).filter(q => q[1] < r).sort((a, b) => a[1] - b[1])[0]?.[0];
+  const ws = !c.elder && near(BIZ_SITES, c.g.position.x, c.g.position.z, 180), hs = near(VENUES.filter(V => V.food && V.food !== 'rest'), hv.h.x, hv.h.z, 450);
+  civLookOf(c);   // (fixes their face and build for good)
+  const R = { name: p.name, female: c.female, elder: !!c.elder, spec: JSON.parse(JSON.stringify(c.spec)), home: hk,
+    persona: { job: p.job, mood: p.mood, ng: p.ng, dest: p.dest, age: c.elder ? Math.round(RM(60, 78)) : Math.round(RM(19, 48)), interests: [...INTERESTS].sort(() => Math.random() - .5).slice(0, 2),
+      birthday: Math.ceil(RM(0, 365)), hometown: (TALK_PLACE_NAMES[placeOf(c)] || '').replace(/^the /, '') || placeName(c.g.position.x, c.g.position.z), likes: c.elder ? null : ri(['men', 'women', 'both', c.female ? 'men' : 'women', c.female ? 'men' : 'women']),
+      metAt: placeName(c.g.position.x, c.g.position.z) },
+    work: ws ? { x: ws.x, z: ws.z, label: ws.label } : null, hang: hs ? { x: hs.x, z: hs.z, label: hs.name.replace(/^the /, '') } : null };
+  try {
+    let saved, rel;
+    if (NET.token) { const r = await api('/people', 'POST', R); saved = r.resident; rel = r.rel; }
+    else { saved = { ...R, id: 'g' + (++PEOPLE.guestN) }; rel = { id: saved.id, stage: 'contact', closeness: 20, since: Date.now() }; }
+    PEOPLE.cast.set(personKey(saved.id), saved); PEOPLE.mine.set(personKey(saved.id), rel);
+    c.resident = saved; c.homeH = hv.h; c.persona = { ...c.persona, ...saved.persona, name: saved.name }; PEOPLE.civ.set(personKey(saved.id), c);
+    if (c.v !== hv.v) { const i = c.v.civs.indexOf(c); if (i >= 0) c.v.civs.splice(i, 1); c.v = hv.v; hv.v.civs.push(c); }
+    peopleSave(); phoneRefresh(); return null;
+  } catch (e) { return e.message || String(e); }
+}
+// each second: everyone in the cast goes where their day takes them (away from you: there already; near you: they walk)
+function updatePeople(dt) {
+  if (!PEOPLE.loaded) { if (civilians.length && (NET.reachable !== null || performance.now() > 15000)) peopleLoad(); return; }   // (once we know whether the server is there)
+  for (let k = 0; k < 2 && PEOPLE.queue.length; k++) { const R = PEOPLE.queue.shift(); if (!PEOPLE.civ.has(personKey(R.id))) spawnResident(R); }   // a couple a frame: the streets fill in behind you
+  if ((PEOPLE.t += dt) < 1) return; PEOPLE.t = 0;
+  for (const c of PEOPLE.civ.values()) {
+    const A = residentAnchor(c); if (!A || c.state === 'talk' || c.state === 'down' || c.riding || c.state === 'shelter' || c.state === 'hide' || c.state === 'flee') continue;
+    const d = Math.hypot(c.g.position.x - A.x, c.g.position.z - A.z);
+    if (!c.active) { if (c.at !== A.key || (d > 25 && !A.roam)) placeResident(c, A); continue; }
+    if (A.roam) { c.at = A.key; continue; }   // free time: they wander their streets like anyone
+    if (d > 6 && c.goingTo !== A.key) { c.goingTo = A.key; c.state = 'walk'; c.path = A.home ? [c.homeH.doorOut.clone(), c.homeH.doorIn.clone(), c.homeH.inside.clone()] : [new V3(A.x, 0, A.z)]; }
+    else if (d <= 6) { c.at = A.key; c.goingTo = null; if (c.state === 'idle') c.timer = Math.max(c.timer, 4); }   // there: they stay
+  }
+}
+const contactWhere = c => { const A = c && residentAnchor(c); return A ? A.label : 'somewhere in town'; };
+PHONE.apps.contacts = { render: () => {
+  const out = [phHead('👥 Contacts', 'People you’ve swapped numbers with')];
+  if (!PEOPLE.loaded) { peopleLoad(); out.push(ph('div', 'phDim', 'Loading your contacts…')); return out; }
+  const list = [...PEOPLE.mine.values()].map(m => [m, PEOPLE.cast.get(personKey(m.id)), PEOPLE.civ.get(personKey(m.id))]).filter(q => q[1]).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  if (!list.length) out.push(ph('div', 'phCard', 'No contacts yet. Talk to someone (E) and ask for their number: they’ll be in town for good, with a home, a job and a place they go in the evening.'));
+  for (const [m, R, c] of list) {
+    const card = ph('div', 'phCard'), P0 = R.persona || {}, pos = c ? c.g.position : null, d = pos ? Math.hypot(pos.x - P.pos.x, pos.z - P.pos.z) : null;
+    card.append(ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}${P0.age ? ', ' + P0.age : ''}`), ph('span', 'phDim', `${P0.job ? '“' + P0.job + '”' : ''}${P0.interests?.length ? ' · into ' + P0.interests.join(' and ') : ''}`));
+    card.append(ph('span', null, `${c ? contactWhere(c) : 'on their way'}${d != null ? ` · ${fmtDist(d)} away` : ''}`), ph('span', 'phDim', `Contact since ${new Date(m.since).toLocaleDateString()} · met in ${P0.metAt || P0.hometown || 'town'}`));
+    const row = ph('div', 'phChips');
+    if (c) row.append(ph('button', 'phBtn', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(c.g.position.x, c.g.position.z); toast('📍 Pinned', `${R.name}: ${contactWhere(c)}`); } } }));
+    const hv = peopleHouses().get(R.home); if (hv) row.append(ph('button', 'phChip', '🏠 Their home', { type: 'button', on: { click: () => { setWaypoint(hv.h.doorOut.x, hv.h.doorOut.z); toast('📍 Pinned', `${R.name}’s home`); } } }));
+    row.append(ph('button', 'phChip', PEOPLE.rmArm === m.id ? 'Tap again to delete' : 'Delete', { type: 'button', on: { click: () => peopleForget(m.id) } }));
+    card.append(row); out.push(card);
+  }
+  out.push(ph('div', 'phDim phFoot', `${PEOPLE.cast.size} ${PEOPLE.cast.size === 1 ? 'person' : 'people'} in town everyone knows${NET.token ? '' : ' · as a guest your contacts live in this browser'}`));
+  return out;
+} };
+async function peopleForget(id) {
+  if (PEOPLE.rmArm !== id) { PEOPLE.rmArm = id; phoneRefresh(); setTimeout(() => { if (PEOPLE.rmArm === id) { PEOPLE.rmArm = null; phoneRefresh(); } }, 4000); return; }
+  PEOPLE.rmArm = null;
+  try { if (NET.token && String(id)[0] !== 'g') await api(`/people/${id}/contact`, 'DELETE'); } catch (e) { toast('👥 Contacts', e.message); return; }
+  PEOPLE.mine.delete(personKey(id)); peopleSave(); phoneRefresh();
+}
+PHONE_APPS.push(['contacts', '👥', 'Contacts']);
+
+
 setInterval(() => { if (PHONE.open && PHONE.app === 'market' && MKT.view === 'browse' && !(document.activeElement && $('phone').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName))) phoneRefresh(); }, 1000);   // (auction clocks; not while you're typing a bid)
 
 $('phHome').addEventListener('click', () => phoneApp('home'));
@@ -16070,7 +16213,7 @@ function frame(now) {
   updateLand(dt);
   updateWaypoint();
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch(); updateBiz(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
+  updateTouch(); updateBiz(dt); updatePeople(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)
