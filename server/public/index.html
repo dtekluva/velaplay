@@ -1510,7 +1510,7 @@ const EDO = ED ? { ife: [820, 1010], ore: [1300, 1390], rubber: [1440, 1690], mo
 // forest and Ibadan), then east along the Edo road's band to Benin Central. Its course is fixed here so the forests, houses and
 // trees keep off the track (railDist); the line itself is built later (the Naija Rail block).
 const RAILX = 341.5, RAILZ = -5150;   // the middle of the two tracks
-const RAIL_PTS = YB ? [[RAILX, 262], [RAILX, -5086], [342.6, -5110], [346.2, -5130], [353, -5144], [366, -5150], ...(ED ? [[1880, RAILZ]] : [])] : [];
+const RAIL_PTS = YB ? [[RAILX, 262], [RAILX, -5086], [342.6, -5110], [346.2, -5130], [353, -5144], [366, -5150], ...(ED ? [[1880, RAILZ]] : []), ...(ED && YB ? [[1920, RAILZ], [1990, -5222], [2232, -5222], [2262, -5196], [3560, -5196], [3620, -5212], [3940, -5212]] : [])] : [];   // (on into Delta: Agbor, Issele-Uku, Asaba)
 const RAIL_SEGS = RAIL_PTS.slice(1).map((q, k) => [RAIL_PTS[k][0], RAIL_PTS[k][1], q[0], q[1]]);
 const railDist = (x, z) => { let b = 1e9; if (!YB || (x < RAILX - 40 && z > -5000)) return b; for (const r of RAIL_SEGS) b = Math.min(b, segDist(x, z, r)); return b; };
 // the stations' yards: a car park and the road in to it wherever a station is out of town (Lagos, Magboro, Mowe, Ibadan, Ile-Ife,
@@ -1526,6 +1526,8 @@ const STATION_YARDS = YB ? [
   { x0: 324, x1: 332, z0: -4996, z1: -4962, level: 3, kind: 6 }, { x0: 300, x1: 335, z0: -4964, z1: -4908, level: 3, kind: 7, blend: 3, park: 'Ibadan' },
   ...(ED ? [{ x0: 966, x1: 974, z0: -5112, z1: -5005, level: 3, kind: 6, edo: true }, { x0: 893, x1: 974, z0: -5139, z1: -5112, level: 3, kind: 7, edo: true, park: 'Ile-Ife' },
     { x0: 1386, x1: 1394, z0: -5112, z1: -5005, level: 3, kind: 6, edo: true }, { x0: 1316, x1: 1394, z0: -5139, z1: -5112, level: 3, kind: 7, edo: true, park: 'Ore' }] : []),
+  ...(ED ? [{ x0: 2791, x1: 2799, z0: -5188, z1: -5138, level: 3, kind: 6, delta: true }, { x0: 2799, x1: 2846, z0: -5188, z1: -5150, level: 3, kind: 7, delta: true, park: 'Agbor' },
+    { x0: 3251, x1: 3259, z0: -5188, z1: -5138, level: 3, kind: 6, delta: true }, { x0: 3259, x1: 3300, z0: -5188, z1: -5150, level: 3, kind: 7, delta: true, park: 'Issele-Uku' }] : []),
   // streets that ran straight into a hillside: a level cutting through to the flat beyond, or a paved turning bay dug into
   // the slope where the hill is a mountain (found by the road audit: a road heading into ground 1.5 m+ higher, no wall or house in the way)
   { x0: -176, x1: -142, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 }, { x0: 20, x1: 45, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 },   // the north edge of the city grid, east and west
@@ -1614,11 +1616,11 @@ const DEL = DD ? {
   market: { x0: 3940, x1: 4030, z0: -4946, z1: -4862 }, square: { x0: 3790, x1: 3880, z0: -4946, z1: -4862 }, cable: { x0: 4140, x1: 4250, z0: -4800, z1: -4600 },
   palace: { x0: 3990, x1: 4120, z0: -4800, z1: -4684 }, memorial: { x0: 3990, x1: 4110, z0: -4676, z1: -4604 }, anwai: { x0: 3656, x1: 3880, z0: -4570, z1: -4382 },
   fmc: { x0: 3892, x1: 3990, z0: -4570, z1: -4470 }, film: { x0: 3892, x1: 4010, z0: -4452, z1: -4300 }, mandela: { x0: 3992, x1: 4192, z0: -5562, z1: -5530 },
-  air: { x0: 3640, x1: 4200, z0: -5752, z1: -5570, rz: -5672, rx0: 3660, rx1: 4180, tz: -5620 },
+  air: { x0: 3640, x1: 4200, z0: -5752, z1: -5570, rz: -5722, rx0: 3660, rx1: 4180, tz: -5686, apron: [3700, 4060], term: [3770, 3990, -5640, -5606], park: [4004, 4180, -5640, -5576] },   // runway, taxiway, apron (the gates), terminal, landside
   abraka: { x0: 2440, x1: 3140, z0: -4400, z1: -3800 }, delsu: { x0: 2884, x1: 3132, z0: -4392, z1: -4146 }, turf: { x0: 2450, x1: 2584, z0: -4390, z1: -3850 },
   amarket: { x0: 2806, x1: 2874, z0: -4054, z1: -3986 }, apark: { x0: 2886, x1: 2954, z0: -4054, z1: -3986 }, umuaja: [2622, -4596], ethiope: [[2620, -4600], [2604, -4400], [2578, -4220], [2598, -4020], [2560, -3820], [2470, -3620], [2396, -3500], [2290, -3450]],
   sapele: { x0: 2300, x1: 2700, z0: -3720, z1: -3380 }, warri: { x0: DX0, x1: 3400, z0: -3300, z1: -2560 }, river: -2700, effurun: [2900, -3110], er: 34,
-  osubi: { x0: 3400, x1: 3900, z0: -3300, z1: -3020, rz: -3238, rx0: 3440, rx1: 3880, tz: -3200 }, refinery: { x0: 2300, x1: 2530, z0: -3292, z1: -3060 },
+  osubi: { x0: 3400, x1: 3900, z0: -3300, z1: -3020, rz: -3272, rx0: 3440, rx1: 3880, tz: -3238, apron: [3500, 3760], term: [3540, 3720, -3184, -3152], park: [3730, 3880, -3184, -3122] }, refinery: { x0: 2300, x1: 2530, z0: -3292, z1: -3060 },
   pti: { x0: 2944, x1: 3140, z0: -3292, z1: -3154 }, fupre: { x0: 3184, x1: 3392, z0: -3292, z1: -3154 }, army: { x0: 3024, x1: 3176, z0: -3066, z1: -2954 },
   wmarket: { x0: 2624, x1: 2696, z0: -2986, z1: -2914 }, olu: { x0: 2704, x1: 2856, z0: -2906, z1: -2754 }, wstad: { x: 2420, z: -2925, rx: 46, rz: 32 },
   port: { x0: 2984, x1: 3380, z0: -2756, z1: -2684 }, koko: { x0: 2290, x1: 2440, z0: -2800, z1: -2716 },
@@ -1671,7 +1673,7 @@ if (DD) {
   const towns = [[DEL.umunede[0], DEL.umunede[1], EZ0 + 60, EZ1 - 60], [DEL.agbor[0], DEL.agbor[1], EZ0 + 40, EZ1 - 20], [DEL.issele[0], DEL.issele[1], EZ0 + 60, EZ1 - 60], [DEL.ibusa[0], DEL.ibusa[1], EZ0 + 30, EZ1 - 30],
     [2600, 2920, DEL.obiaruku[0], DEL.obiaruku[1]], [A.x0, A.x1, A.z0, A.z1], [DEL.abraka.x0, DEL.abraka.x1, DEL.abraka.z0, DEL.abraka.z1], [DEL.sapele.x0, DEL.sapele.x1, DEL.sapele.z0, DEL.sapele.z1], [2300, 2920, -3420, -3300], [DEL.warri.x0, DEL.warri.x1, DEL.warri.z0, DEL.warri.z1], [DEL.osubi.x0, DEL.osubi.x1, DEL.osubi.z0, DEL.osubi.z1]];
   const TW = new Float64Array(towns.flat()), NT = towns.length;   // (flat numbers: this runs for every cell)
-  const flat = (x, z) => { let m = Math.min(Math.abs(z - DEL.rd) - 16, dSouthDist(x, z) - 16);   // how far from anywhere that must be level: the roads and the towns
+  const flat = (x, z) => { let m = Math.min(Math.abs(z - DEL.rd) - 16, dSouthDist(x, z) - 16, z < -5150 && x < 3640 ? Math.abs(z + 5196) - 14 : 99);   // how far from anywhere that must be level: the roads, the towns and the railway
     for (let t = 0; t < NT * 4; t += 4) { const d = Math.max(TW[t] - x, x - TW[t + 1], TW[t + 2] - z, z - TW[t + 3]); if (d < m) m = d; if (m <= 0) return m; } return m; };
   const RDM = new Uint8Array(DD * DH);   // the roads, worked out once per cell (the kerbs look at the cells round them)
   for (const r of DRECTS) for (let x = r[0] + .5; x < r[1]; x++) for (let z = r[2] + .5; z < r[3]; z++) if (dRoadAt(x, z)) RDM[dIdx(x, z)] = 1;
@@ -1691,8 +1693,8 @@ if (DD) {
     else if (z > DEL.river - 8) { h = 2; kd = 1; }
     else if (inR(DEL.warri, x, z) && (Math.abs(x - 2560 - Math.sin(z / 40) * 14) < 6 || Math.abs(x - 3220 - Math.sin(z / 50) * 18) < 7) && z > -3000) { h = 0; kd = 0; }   // two creeks up into Warri from the river
     if (x >= 3600 && x < DEL.niger) {   // Asaba's grounds: the airfield, the stadium, the market, the square, the promenade, the palace
-      const Ar = DEL.air; if (inR(Ar, x, z)) { const onRw = x > Ar.rx0 && x < Ar.rx1 && Math.abs(z - Ar.rz) < 15, onTw = x > Ar.rx0 + 10 && x < Ar.rx1 - 10 && Math.abs(z - Ar.tz) < 6, link = (Math.abs(x - (Ar.rx0 + 16)) < 6 || Math.abs(x - (Ar.rx1 - 16)) < 6 || Math.abs(x - 3860) < 6) && z > Ar.tz && z < Ar.rz;
-        h = Y; kd = onRw ? (Math.abs(z - Ar.rz) < .8 && Math.floor(x / 12) % 2 ? 8 : 6) : onTw || link ? 6 : x > 3740 && x < 3980 && z > Ar.tz + 6 && z < Ar.z1 - 4 ? 7 : 0; }
+      const Ar = DEL.air; if (inR(Ar, x, z)) { const onRw = x > Ar.rx0 && x < Ar.rx1 && Math.abs(z - Ar.rz) < 15, onTw = x > Ar.rx0 + 10 && x < Ar.rx1 - 10 && Math.abs(z - Ar.tz) < 6, link = (Math.abs(x - (Ar.rx0 + 16)) < 6 || Math.abs(x - (Ar.rx1 - 16)) < 6 || Math.abs(x - 3880) < 6) && z > Ar.rz && z < Ar.tz;
+        h = Y; kd = onRw ? (Math.abs(z - Ar.rz) < .8 && Math.floor(x / 12) % 2 ? 8 : 6) : onTw || link ? 6 : (x > Ar.apron[0] && x < Ar.apron[1] && z > Ar.tz + 6 && z < Ar.term[3] + 40) || inR({ x0: Ar.park[0], x1: Ar.park[1], z0: Ar.park[2], z1: Ar.park[3] }, x, z) ? 7 : 0; }
       { const S = DEL.stad, e = Math.hypot((x - S.x) / S.rx, (z - S.z) / S.rz); if (e < 1.12) { h = Y; kd = e < .78 ? 0 : 5; } }
       if (inR(DEL.market, x, z) || inR(DEL.palace, x, z)) kd = 5; else if (inR(DEL.square, x, z) || (inR(DEL.cable, x, z) && x < DEL.niger - 10) || inR(DEL.mall, x, z) && z > -5100) kd = 7;
     }
@@ -1711,8 +1713,8 @@ if (DD) {
       if (inR(DEL.port, x, z)) { h = Y; kd = 7; } else if (inR(DEL.refinery, x, z) || inR(DEL.army, x, z)) kd = inR(DEL.army, x, z) && x > 3060 && x < 3140 && z > -3030 && z < -2980 ? 5 : 7;
       else if (inR(DEL.wmarket, x, z) || inR(DEL.olu, x, z)) kd = 5;
       { const S = DEL.wstad, e = Math.hypot((x - S.x) / S.rx, (z - S.z) / S.rz); if (e < 1.12) { h = Y; kd = e < .78 ? 0 : 5; } }
-      const Os = DEL.osubi; if (inR(Os, x, z)) { const onRw = x > Os.rx0 && x < Os.rx1 && Math.abs(z - Os.rz) < 15, onTw = x > Os.rx0 + 10 && x < Os.rx1 - 10 && Math.abs(z - Os.tz) < 6, link = (Math.abs(x - (Os.rx0 + 16)) < 6 || Math.abs(x - (Os.rx1 - 16)) < 6 || Math.abs(x - 3620) < 6) && z > Os.tz - 50 && z < Os.rz;
-        h = Y; kd = onRw ? (Math.abs(z - Os.rz) < .8 && Math.floor(x / 12) % 2 ? 8 : 6) : onTw || link ? 6 : x > 3520 && x < 3720 && z > Os.tz - 46 && z < Os.tz - 6 ? 7 : 0; }
+      const Os = DEL.osubi; if (inR(Os, x, z)) { const onRw = x > Os.rx0 && x < Os.rx1 && Math.abs(z - Os.rz) < 15, onTw = x > Os.rx0 + 10 && x < Os.rx1 - 10 && Math.abs(z - Os.tz) < 6, link = (Math.abs(x - (Os.rx0 + 16)) < 6 || Math.abs(x - (Os.rx1 - 16)) < 6 || Math.abs(x - 3630) < 6) && z > Os.rz && z < Os.tz;
+        h = Y; kd = onRw ? (Math.abs(z - Os.rz) < .8 && Math.floor(x / 12) % 2 ? 8 : 6) : onTw || link ? 6 : (x > Os.apron[0] && x < Os.apron[1] && z > Os.tz + 6 && z < Os.term[3] + 40) || inR({ x0: Os.park[0], x1: Os.park[1], z0: Os.park[2], z1: Os.park[3] }, x, z) ? 7 : 0; }
     }
     if (RDM[k]) { h = Y; kd = 6; }   // the roads cross the water on causeways (the bridges are built over them)
     else if (Math.abs(z - DEL.rd) < 1.2 && x < DEL.niger + 196) { h = Y; kd = 7; }   // the expressway's median
@@ -1772,7 +1774,7 @@ const WATER_Y = 1.5;
     for (let x = Math.floor(Y.x0 - m); x < Y.x1 + m; x++) for (let z = Math.floor(Y.z0 - m); z < Y.z1 + m; z++) {
       const cx = x + .5, cz = z + .5, d = Math.hypot(Math.max(Y.x0 - cx, cx - Y.x1, 0), Math.max(Y.z0 - cz, cz - Y.z1, 0)); if (d > m) continue;
       const i = Math.floor(cx + HALF), j = Math.floor(cz + HALF); let H = null, K = null, k = 0;
-      if (i >= 0 && i < N && j >= 0 && j < N) { H = Hm; K = KIND; k = i * N + j; } else if (i >= 0 && i < N && j < 0 && j >= -ND) { H = NHm; K = NKIND; k = i * ND + j + ND; } else if (ED && i >= N && i < N + ED && j >= EJ0 && j < EJ1) { H = EHm; K = EKIND; k = (i - N) * (EJ1 - EJ0) + j - EJ0; }
+      if (i >= 0 && i < N && j >= 0 && j < N) { H = Hm; K = KIND; k = i * N + j; } else if (i >= 0 && i < N && j < 0 && j >= -ND) { H = NHm; K = NKIND; k = i * ND + j + ND; } else if (ED && i >= N && i < N + ED && j >= EJ0 && j < EJ1) { H = EHm; K = EKIND; k = (i - N) * (EJ1 - EJ0) + j - EJ0; } else if (DD && i >= DI0 && i < DI0 + DD && j >= DJ0 && j < DJ1) { H = DHm; K = DKIND; k = (i - DI0) * DH + j - DJ0; }
       if (!H) continue; if (Y.level != null) { const t = d <= 0 ? 1 : 1 - ease(d / m); H[k] = Math.round(H[k] + (Y.level - H[k]) * t); }
       if (d <= 0 && Y.kind) K[k] = Y.kind; }
   }
@@ -7503,7 +7505,7 @@ if (TOWN && TOWN.mallCars) for (const [x, z] of TOWN.mallCars) { const car = mak
 if (TOWN && TOWN.kidSpots) for (const [x, z] of TOWN.kidSpots) { const k = makeCivilian(TOWN, { child: true, place: 'cityschool' }); k.guard = true; k.g.position.set(x, TOWN.y, z); k.g.rotation.y = RM(0, TAU); }
 if (TOWN && TOWN.shopperSpots) for (const [x, z] of TOWN.shopperSpots) { const c = makeCivilian(TOWN); c.guard = true; c.g.position.set(x, TOWN.mall.floorY, z); c.g.rotation.y = RM(0, TAU); }
 /* the club crowd: dancers on the floor, a bartender, bouncers on the door, a queue outside; drinks at the bar; a beat you can hear */
-for (const C of CLUBS) {
+function staffClub(C) {   // (a club built later, out in Delta, calls this itself)
   const add = (place, pos, rot, extra = {}) => { const c = makeCivilian(C.v, { place, female: extra.female, adult: true }); c.guard = true; c.clubRole = place; c.club = C; const y = pos.y > 0 ? pos.y : extra.outside ? groundAt(pos.x, pos.z) : C.fy; c.g.position.set(pos.x, y, pos.z); if (!extra.outside) c.fixedY = y; c.g.rotation.y = rot; Object.assign(c, extra); return c; };
   const toward = (p, q) => Math.atan2(-(q.x - p.x), -(q.z - p.z));
   C.dance.slice(0, LITE ? 6 : 9).forEach((p, k) => add('club', p, toward(p, C.djAt), { dance: true, danceStyle: k % 3, female: k % 2 === 0 }));
@@ -7513,6 +7515,7 @@ for (const C of CLUBS) {
   C.queue.forEach((p, k) => add('club', p, C.faceIn, { female: k !== 1, outside: true }));
   for (const p of C.lounge || []) add('club', p, RM(0, TAU), { female: Math.random() < .6 });
 }
+for (const C of CLUBS) staffClub(C);
 function danceStep(c, dt) {   // after the walk cycle: bounce, sway and arms in the air
   if (!c.rig) return;
   const r = c.rig, t = S.time * (c.dj ? 3 : 4.2) + c.phase, s = Math.sin(t), q = Math.cos(t);
@@ -8976,7 +8979,7 @@ if (DD) withSeed(7373, () => {
   /* the rainforest, the oil palms and the rubber: instanced, in 400 m squares shown near you (updateForest) */
   { const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), m4 = new THREE.Matrix4(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), parts = new Map(), CELL = 400;
     const push = (k, x, z, px, py, pz, sx, sy, sz, ry = 0) => { const key = Math.floor((x - DX0) / CELL) + ',' + Math.floor((z - DZ0) / CELL); let P0 = parts.get(key); if (!P0) parts.set(key, P0 = {}); q.setFromAxisAngle(up, ry); m4.compose(pos.set(px, py, pz), q, sc.set(sx, sy, sz)); (P0[k] ||= []).push(m4.clone()); };
-    const clearOf = (x, z) => Math.abs(z - DEL.rd) < 16 || dSouthDist(x, z) < 14 || heightAt(x, z) <= 2 || ethiopeDist(x, z) < 16 || deltaRoad(x, z) || inR(DEL.asaba, x, z, 6) || inR(DEL.warri, x, z, 6) || inR(DEL.osubi, x, z, 6) || (inR(DEL.glen, x, z) && (Math.hypot(x - DEL.falls.pool[0], z - DEL.falls.pool[1]) < 22 || Math.abs(x - DEL.falls.x) < 7)) || inR(DEL.sapele, x, z, 6) || inR(DEL.abraka, x, z, 4)
+    const clearOf = (x, z) => Math.abs(z - DEL.rd) < 16 || railDist(x, z) < 12 || stationYardAt(x, z, 4) || dSouthDist(x, z) < 14 || heightAt(x, z) <= 2 || ethiopeDist(x, z) < 16 || deltaRoad(x, z) || inR(DEL.asaba, x, z, 6) || inR(DEL.warri, x, z, 6) || inR(DEL.osubi, x, z, 6) || (inR(DEL.glen, x, z) && (Math.hypot(x - DEL.falls.pool[0], z - DEL.falls.pool[1]) < 22 || Math.abs(x - DEL.falls.x) < 7)) || inR(DEL.sapele, x, z, 6) || inR(DEL.abraka, x, z, 4)
       || [DEL.umunede, DEL.agbor, DEL.issele, DEL.ibusa].some(([a, c]) => x > a - 8 && x < c + 8 && Math.abs(z - DEL.rd) < 130) || (x > 2600 && x < 2920 && z > DEL.obiaruku[0] - 8 && z < DEL.obiaruku[1] + 8);
     const palmZone = (x, z) => (x > 2920 && x < 3140 && z < EZ1) || (x > 3310 && x < 3360 && z < EZ1) || (x > 2610 && x < 2740 && z > -4560 && z < -4420);   // oil palm plantations
     const rubberZone = (x, z) => x > 2300 && x < 2440 && z > -3800 && z < -3700 || x > 2780 && x < 2910 && z > -3800 && z < -3440;
@@ -9058,7 +9061,7 @@ function deltaKit(b, ROT) {
     // a street grid's blocks lined with houses: a row along each side of every block, facing its street, set back behind a
     // front yard; a shade tree or a block of flats in the middle. Lots that would touch a road or a site are skipped
     blocks: (R, x0, z0, step, keep, o = {}) => {
-      const hs = step / 2, inner = hs - 7.5, okAt = (x, z, w, d) => { for (let dx = -w / 2 - 1.5; dx <= w / 2 + 1.5; dx += 1.5) for (let dz = -d / 2 - 1.5; dz <= d / 2 + 1.5; dz += 1.5) { const kd = kindAt(x + dx, z + dz), hh = heightAt(x + dx, z + dz); if (kd === 6 || kd === 7 || hh < Y - .5 || hh > Y + .5 || keep(x + dx, z + dz)) return false; } return free(x, z, w, d, 1.5); };
+      const hs = step / 2, inner = hs - 7.5, okAt = (x, z, w, d) => { for (let dx = -w / 2 - 1.5; dx <= w / 2 + 1.5; dx += 1.5) for (let dz = -d / 2 - 1.5; dz <= d / 2 + 1.5; dz += 1.5) { const kd = kindAt(x + dx, z + dz), hh = heightAt(x + dx, z + dz); if (kd === 6 || kd === 7 || hh < Y - .5 || hh > Y + .5 || keep(x + dx, z + dz)) return false; } return free(x, z, w, d, 1.5) && railDist(x, z) > Math.max(w, d) / 2 + 8; };
       for (let cx = x0 + hs + Math.ceil((R.x0 - x0 - hs) / step) * step; cx < R.x1; cx += step) for (let cz = z0 + hs + Math.ceil((R.z0 - z0 - hs) / step) * step; cz < R.z1; cz += step) {
         if (keep(cx, cz)) continue;
         for (const [face, nx, nz] of [['nz', 0, -1], ['pz', 0, 1], ['nx', -1, 0], ['px', 1, 0]]) {
@@ -9075,10 +9078,60 @@ function deltaKit(b, ROT) {
         const r = rng(); if (r < (o.flats ?? .1) && okAt(cx, cz, 18, 16)) K.tower(cx, cz, 18, 16, 3 + Math.floor(rng() * (o.maxFloors ?? 5))); else if (r < .55) { K.shade(cx + R2(-8, 8), cz + R2(-8, 8)); }
       }
     },
+    // an airport: the terminal (glass both sides, a wave roof, the name on top), the drop-off canopy with Departures and
+    // Arrivals, jet bridges with airliners at the gates, the control tower, apron vehicles, the runway's lights, a car park
+    airport: (A, o) => {
+      const [tx0, tx1, za, zl] = A.term, W = tx1 - tx0, D = zl - za, cx = (tx0 + tx1) / 2, cz = (za + zl) / 2, H = 13, col = LM(o.col), white = K.white;
+      b.box(W + 4, 1, D + 4, cx, Y + .5, cz, K.conc, 1, true, 'base'); b.box(W, H, D, cx, Y + H / 2, cz, LM(0xf4f4f0), 2, true, 'house');
+      for (const zz of [za - .12, zl + .12]) { b.box(W - 4, H - 2.4, .2, cx, Y + H / 2, zz, K.glassM, 1, false); for (let x = tx0 + 2; x <= tx1 - 2; x += 4) b.box(.3, H - 2, .4, x, Y + H / 2, zz, white, 1, false); }
+      const n = 16; for (let k = 0; k < n; k++) { const x = tx0 - 4 + (W + 8) * (k + .5) / n, y = Y + H + .6 + Math.sin(Math.PI * (k + .5) / n) * 4; b.box((W + 8) / n + .3, .7, D + 14, x, y, cz, col, 1, k % 4 === 0, 'roof'); b.box((W + 8) / n + .3, .25, .4, x, y - .4, zl + 7, white, 1, false); }   // the wave roof
+      K.sign(o.name, o.sub, o.signBg || '#1f3a5a', Math.min(W - 30, 46), 3.4, cx, Y + H + 7.2, zl + 7.3, 0, '#ffffff');
+      for (let x = tx0 + 8; x <= tx1 - 8; x += 12) b.box(.6, 7.4, .6, x, Y + 3.7, zl + 12, white, 1, true, 'house'); b.box(W - 8, .6, 9, cx, Y + 7.6, zl + 8.5, col, 1, true, 'roof');   // the drop-off canopy
+      K.sign('✈ DEPARTURES', 'CHECK-IN · SKYLINK DESKS', '#1f3a5a', 9, 1.2, tx0 + W * .28, Y + 6.6, zl + 12.6, 0); K.sign('ARRIVALS', 'TAXIS · CAR PARK →', '#2a5a2a', 8, 1.2, tx0 + W * .72, Y + 6.6, zl + 12.6, 0);
+      for (const [i, jx] of o.gates.entries()) { b.box(3.2, 3.2, 20, jx, Y + 5.2, za - 10.5, LM(0xd8d8d4), 1, true, 'roof'); b.box(1.4, 5, 1.4, jx, Y + 2.5, za - 17, LM(0x8a8f94), 1, true, 'house'); b.box(4, 4, 3, jx, Y + 5.4, za - 21.5, LM(0xd8d8d4), 1, false);   // a jet bridge
+        if (o.jets > i) { const jet = makeAirliner(); jet.position.set(jx, Y, za - 46); jet.rotation.y = Math.PI; addStatic(jet); colliders.push({ x0: jx - 18, x1: jx + 18, y0: Y, y1: Y + 7, z0: za - 66, z1: za - 26, tag: 'house' }); }
+        K.sign(`GATE ${i + 1}`, '', '#1f3a5a', 3, .8, jx, Y + 7.2, za - .3, Math.PI); }
+      for (let k = 0; k < 8; k++) { const x = tx0 + 10 + k * (W - 20) / 7, z = za - 20 - (k % 3) * 6; b.box(2.2, .9, 1.4, x, Y + .7, z, LM(k % 2 ? 0x2f6fb0 : 0xe8a020), 1, false); }   // baggage carts and tugs
+      { const fx = tx1 + 16, fz = za - 30; b.box(2.6, 2.6, 8, fx, Y + 1.6, fz, LM(0xd8d8d4), 1, true, 'house'); b.box(2.4, 2, 2.4, fx, Y + 1.4, fz + 5, LM(0xd8342a), 1, false); K.sign('JET A-1', '', '#d8342a', 2.4, .5, fx + 1.32, Y + 2, fz, Math.PI / 2); }   // a fuel truck
+      { const [wx, wz] = o.tower; b.geo(new THREE.CylinderGeometry(2.2, 3, 30, 14).translate(wx, Y + 15, wz), LM(0xf4f4f0)); b.geo(new THREE.CylinderGeometry(5, 4, 4.4, 14).translate(wx, Y + 32.2, wz), K.glassM); b.geo(new THREE.CylinderGeometry(5.6, 5.6, .6, 14).translate(wx, Y + 34.7, wz), K.darkM); b.box(.2, 4, .2, wx, Y + 37, wz, K.darkM, 1, false);
+        colliders.push({ x0: wx - 2.6, x1: wx + 2.6, y0: Y, y1: Y + 35, z0: wz - 2.6, z1: wz + 2.6, tag: 'house' }); }
+      for (let x = A.rx0 + 4; x < A.rx1; x += 24) for (const sd of [-1, 1]) b.box(.5, .4, .5, x, Y + .2, A.rz + sd * 16, lampMat, 1, false);
+      for (let z = A.rz - 14; z <= A.rz + 14; z += 4) { b.box(.5, .4, .5, A.rx0 - 2, Y + .2, z, LM(0x3fd07a), 1, false); b.box(.5, .4, .5, A.rx1 + 2, Y + .2, z, LM(0xd8342a), 1, false); }
+      b.box(.2, 6, .2, A.rx1 - 30, Y + 3, A.rz - 26, K.darkM, 1, false); b.box(2.4, .9, .9, A.rx1 - 28.8, Y + 5.6, A.rz - 26, LM(0xe8742a), 1, false);   // the windsock
+      { const [px0, px1, pz0, pz1] = A.park; for (let x = px0 + 4; x < px1 - 3; x += 3) for (const z of [pz0 + 6, pz0 + 18, pz0 + 30, pz0 + 42]) { if (z > pz1 - 4 || rng() < .4) continue; const car = makeMixed(PARK_MIX); car.position.set(x, Y + .02, z); car.rotation.y = rng() < .5 ? Math.PI / 2 : -Math.PI / 2; addStatic(car); colliders.push({ x0: x - 2.2, x1: x + 2.2, y0: Y, y1: Y + 1.5, z0: z - 1, z1: z + 1, tag: 'car' }); }
+        K.sign('P', 'AIRPORT CAR PARK', '#1f4aa8', 2.4, 1.4, px0 + 1, Y + 3.4, pz1 - 2, -Math.PI / 2); for (let x = px0 + 10; x < px1; x += 30) K.lamp(x, pz1 - 2, 0, -1);
+        for (let k = 0; k < 4; k++) { const car = makeTaxi(); car.position.set(tx0 + 30 + k * 6, Y + .02, zl + 17); car.rotation.y = Math.PI / 2; addStatic(car); } K.sign('TAXI', 'AIRPORT TAXIS', '#f2c230', 2.4, .8, tx0 + 24, Y + 3, zl + 19, 0, '#1b1608'); }
+      for (let x = tx0 - 20; x < tx1 + 20; x += 14) K.palm(x, zl + 26); for (const fx of [cx - 10, cx, cx + 10]) { b.box(.2, 12, .2, fx, Y + 6, zl + 22, LM(0xd8d8d8), 1, true, 'house'); b.box(.08, 1.4, 2.2, fx, Y + 11.2, zl + 23.1, fx === cx ? LM(0x1f8a3a) : LM(o.flag || 0x2a5aa8), 1, false); }
+      K.people('airport', 22, [tx0 + 4, tx1 - 4, zl + 2, zl + 13]); K.people('security', 4, [tx0 + 10, tx0 + 30, zl + 2, zl + 10], { guard: true }); K.people('airport', 8, [tx0 + 6, tx1 - 6, za - 30, za - 6]);
+      DELTA_MAP.push([cx, cz, W, D, '#7fd3e8'], [(A.rx0 + A.rx1) / 2, A.rz, A.rx1 - A.rx0, 30, '#5a5c60']);
+      return { cx, desk: { x: tx0 + 18, z: zl + 9, out: [tx0 + 14, zl + 16] } };
+    },
+    // a filling station (a business you can buy; its kiosk is a shop): it looks for a free, level site beside a road within 70 m
+    fuel: (x0, z0, name, brand, col) => {
+      for (let t = 0; t < 60; t++) { const x = x0 + (t ? R2(-70, 70) : 0), z = z0 + (t ? R2(-70, 70) : 0), W = 24, D = 18;
+        let ok = K.free(x, z, W, D, 2) && railDist(x, z) > 22; for (let dx = -W / 2; dx <= W / 2 && ok; dx += 2) for (let dz = -D / 2; dz <= D / 2; dz += 2) { const kd = kindAt(x + dx, z + dz), hh = heightAt(x + dx, z + dz); if (kd === 6 || kd === 7 || hh !== Y) { ok = false; break; } }
+        if (!ok) continue; let near = false; for (const [ox, oz] of [[0, D / 2 + 4], [0, -D / 2 - 4], [W / 2 + 4, 0], [-W / 2 - 4, 0]]) if (kindAt(x + ox, z + oz) === 6) near = true; if (!near) continue;
+        const C2 = LM(col); b.box(16, .5, 10, x, Y + 5.4, z - 2, LM(0xf4f4f0), 1, true, 'roof'); b.box(16.3, .7, 10.3, x, Y + 5.6, z - 2, C2, 1, false);
+        for (const [px, pz] of [[-6, -5.5], [6, -5.5], [-6, 1.5], [6, 1.5]]) b.box(.5, 5.2, .5, x + px, Y + 2.6, z + pz, LM(0xf4f4f0), 1, true, 'house');
+        for (const px of [-3, 3]) { b.box(1.2, 1.8, .7, x + px, Y + .9, z - 2, LM(0xe8e8e4), 1, true, 'house'); b.box(1.25, .5, .75, x + px, Y + 1.6, z - 2, C2, 1, false); }
+        b.box(14, 4, 7, x, Y + 2, z + 6.5, LM(0xf4f4f0), 2, true, 'house'); b.box(14.4, .5, 7.4, x, Y + 4.2, z + 6.5, C2, 1, false); K.sign(brand, name.toUpperCase(), '#' + col.toString(16).padStart(6, '0'), 8, 1.4, x, Y + 7, z - 7.2, Math.PI);
+        b.box(.3, 7, .3, x + 10, Y + 3.5, z - 8, K.darkM, 1, true, 'house'); K.sign(brand, 'PMS ₦ · AGO · KERO', '#' + col.toString(16).padStart(6, '0'), 2.6, 2.2, x + 10, Y + 7.5, z - 8.2, Math.PI);
+        VENUES.push({ name, x, z: z - 2, r: 11, food: 'kiosk', toilet: 50 }); TAKEN.push([x, z, W, D]); DELTA_MAP.push([x, z, 16, 10, '#d8d8d4']); OYO_PLACES.push([name, x, z]); return true; }
+      return false;
+    },
+    // a nightclub (the same club as in town: a dance floor, a DJ, a bar, bouncers and a queue) on a free site beside a road
+    club: (x0, z0, name, neon) => {
+      for (let t = 0; t < 80; t++) { const x = x0 + (t ? R2(-80, 80) : 0), z = z0 + (t ? R2(-80, 80) : 0), W = 30, D = 26;
+        let ok = K.free(x, z, W, D, 2) && railDist(x, z) > 24; for (let dx = -W / 2; dx <= W / 2 && ok; dx += 2) for (let dz = -D / 2; dz <= D / 2; dz += 2) { const kd = kindAt(x + dx, z + dz), hh = heightAt(x + dx, z + dz); if (kd === 6 || kd === 7 || hh !== Y) { ok = false; break; } }
+        if (!ok) continue; let side = null; for (const [sd, ox, oz] of [['pz', 0, D / 2 + 4], ['nz', 0, -D / 2 - 4], ['px', W / 2 + 4, 0], ['nx', -W / 2 - 4, 0]]) if (!side && kindAt(x + ox, z + oz) === 6) side = sd; if (!side) continue;
+        const v = { x, z, y: Y, houses: [], civs: [], sand: [x - 14, x + 14, z - 12, z + 12], place: 'club' }, C = buildClub({ x, z, w: 24, d: 16, side, v }, b, name, neon);
+        staffClub(C); TAKEN.push([x, z, W, D]); DELTA_MAP.push([x, z, 24, 16, '#2a2030']); OYO_PLACES.push([name, x, z]); return C; }
+      return null;
+    },
     // fill the blocks of a street grid with houses (and some taller buildings), each set back from its street, facing it
     fill: (R, n, keep, opts = {}) => { for (let k = 0; k < n; k++) {
       const x = R2(R.x0, R.x1), z = R2(R.z0, R.z1), tall = rng() < (opts.tall ?? .08), w = tall ? R2(14, 22) : R2(8, 14), d = tall ? R2(12, 18) : R2(7, 12);
-      if (keep(x, z) || !free(x, z, w, d, opts.gap ?? 3)) continue;
+      if (keep(x, z) || !free(x, z, w, d, opts.gap ?? 3) || railDist(x, z) < Math.max(w, d) / 2 + 8) continue;
       let ok = true; for (let dx = -w / 2 - 3; dx <= w / 2 + 3 && ok; dx += 1.5) for (let dz = -d / 2 - 3; dz <= d / 2 + 3; dz += 1.5) { const kd = kindAt(x + dx, z + dz); if (kd === 6 || kd === 7 || heightAt(x + dx, z + dz) < Y - .5 || heightAt(x + dx, z + dz) > Y + .5) { ok = false; break; } }
       if (!ok) continue;
       let face = 'pz', bd = 1e9; for (const [f, ox, oz] of [['pz', 0, 1], ['nz', 0, -1], ['px', 1, 0], ['nx', -1, 0]]) for (let t = 4; t < 30; t += 2) { const kd = kindAt(x + ox * (w / 2 + t), z + oz * (d / 2 + t)); if (kd === 6 || kd === 7) { if (t < bd) { bd = t; face = f; } break; } }
@@ -9210,19 +9263,14 @@ if (DD) withSeed(7474, () => {
   /* the Mandela Garden: 95 trees, one for each of his years */
   { const Mg = DEL.mandela; let n = 0; for (let x = Mg.x0 + 4; x < Mg.x1 - 2 && n < 95; x += 4.2) for (const z of [Mg.z0 + 8, Mg.z0 + 20]) if (n++ < 95) shade(x, z, Y, .6);
     board('NELSON MANDELA GARDEN', '95 TREES · 95 YEARS', '#1f5a2a', Mg.x0 - 6, (Mg.z0 + Mg.z1) / 2, -Math.PI / 2, 8); OYO_PLACES.push(['Mandela Garden of 95 Trees', (Mg.x0 + Mg.x1) / 2, Mg.z1 + 4]); }
-  /* Asaba International Airport: the runway (lit), the taxiway, the terminal, the tower, a jet on stand */
-  { const Ar = DEL.air, tx0 = 3760, tx1 = 3960, tz0 = Ar.z1 - 42, tz1 = Ar.z1 - 12, tcx = (tx0 + tx1) / 2, tcz = (tz0 + tz1) / 2;
-    b.box(tx1 - tx0, 12, tz1 - tz0, tcx, Y + 6, tcz, white, 2, true, 'house'); b.box(tx1 - tx0 + .2, 9, .2, tcx, Y + 5, tz1 + .05, glassM, 1, false); b.box(tx1 - tx0 + 10, .8, tz1 - tz0 + 12, tcx, Y + 12.4, tcz, LM(0x1f5a2a), 1, true, 'roof');
-    sign('ASABA INTERNATIONAL AIRPORT', 'ASABA · DELTA STATE', '#1f5a2a', 22, 2, tcx, Y + 10, tz1 + 6.15, 0, '#ffffff'); for (let k = 0; k < 10; k++) b.box(.4, 11.6, .4, tx0 + 8 + k * 20.5, Y + 5.8, tz1 + 5.8, white, 1, false);
-    const tw = [4010, Ar.z1 - 30]; b.box(4, 28, 4, tw[0], Y + 14, tw[1], white, 2, true, 'house'); b.box(8, 4, 8, tw[0], Y + 30, tw[1], glassM, 1, true, 'house'); b.box(9, .6, 9, tw[0], Y + 32.3, tw[1], darkM, 1, false);
-    for (let x = Ar.rx0 + 4; x < Ar.rx1; x += 30) for (const s of [-1, 1]) b.box(.5, .4, .5, x, Y + .2, Ar.rz + s * 16, lampMat, 1, false);
-    b.box(.2, 6, .2, Ar.rx1 - 30, Y + 3, Ar.rz + 26, darkM, 1, false); b.box(2.4, .9, .9, Ar.rx1 - 28.8, Y + 5.6, Ar.rz + 26, LM(0xe8742a), 1, false);
-    const jet = makeAirliner(); jet.position.set(3900, Y, Ar.tz + 30); jet.rotation.y = -Math.PI / 2; addStatic(jet); colliders.push({ x0: 3882, x1: 3918, y0: Y, y1: Y + 7, z0: Ar.tz + 26, z1: Ar.tz + 34, tag: 'house' });
-    people('city', 12, [tx0 + 4, tx1 - 4, tz1 + 6, Ar.z1 + 2]); people('security', 3, [tx0 + 10, tx0 + 30, tz1 + 2, tz1 + 8], { guard: true });
-    DELTA_MAP.push([tcx, tcz, tx1 - tx0, tz1 - tz0, '#7fd3e8'], [(Ar.rx0 + Ar.rx1) / 2, Ar.rz, Ar.rx1 - Ar.rx0, 30, '#5a5c60']); OYO_PLACES.push(['Asaba International Airport', tcx, Ar.z1 + 8]);
-    DELTA.asabaDesk = { x: tcx - 30, z: tz1 + 6, out: [tcx - 34, Ar.z1 + 4] }; }
+  /* Asaba International Airport: a glass terminal under a wave roof, three gates with jet bridges, the tower, the car park and taxis */
+  { const r = K.airport(DEL.air, { name: 'ASABA INTERNATIONAL AIRPORT', sub: 'ASABA · DELTA STATE · THE BIG HEART', col: 0x1f5a2a, signBg: '#1f5a2a', gates: [3810, 3880, 3950], jets: 2, tower: [4030, DEL.air.term[2] - 10], flag: 0x2a5aa8 });
+    OYO_PLACES.push(['Asaba International Airport', r.cx, DEL.air.term[3] + 14]); DELTA.asabaDesk = r.desk; }
   /* the GRA and the rest of town: houses in compounds, some blocks of flats, churches (St Joseph's Cathedral), a mosque, the Grand Hotel */
   { const keepOut = (x, z) => [DEL.gov, DEL.mall, DEL.market, DEL.square, DEL.cable, DEL.palace, DEL.memorial, DEL.anwai, DEL.fmc, DEL.film, DEL.mandela].some(R => inR(R, x, z, 6)) || inR(DEL.air, x, z, 10) || Math.hypot((x - DEL.stad.x) / (DEL.stad.rx * 1.7), (z - DEL.stad.z) / (DEL.stad.rz * 1.7)) < 1 || x > DEL.niger - 30;
+    K.fuel(3640, DEL.rd + 30, 'NNPC Fuels, Summit Junction', 'NNPC', 0x1f8a3a); K.fuel(4000, DEL.rd - 30, 'Conoil Fuels, Nnebisi Road', 'CONOIL', 0xd8342a); K.fuel(3900, -4420, 'Oando Fuels, Anwai', 'OANDO', 0x2f6fb0);
+    VENUES.push({ name: 'the Grand Hotel, Asaba', x: 3700, z: -4866, r: 9, food: 'mall', toilet: 0, motel: 25000 }); K.club(4080, -4900, 'Big Heart Lounge', '#ff3ec8');
+    makeDrivable(DEL.niger + 22, -4700, -Math.PI / 2, 'boat'); makeDrivable(DEL.niger + 22, -4740, -Math.PI / 2, 'boat');   // speedboats at Cable Point
     K.church(3790, -4780, 'pz', 'ST JOSEPH’S CATHEDRAL', 20, 34); K.church(3982, -5300, 'nz', 'ANGLICAN CHURCH'); K.church(3700, -4650, 'px', 'WINNERS CHAPEL'); K.mosque(4070, -5440);
     K.tower(3700, -4880, 22, 18, 10, LM(0xf2ead8), '#f2ead8'); K.sign('GRAND HOTEL ASABA', '', '#7a5a1a', 10, 1.4, 3700, Y + 33, -4870.9, 0, '#f2d29a'); OYO_PLACES.push(['Grand Hotel, Asaba', 3700, -4866]);
     K.tower(3970, -5080, 18, 16, 8); K.tower(3880, -4770, 16, 14, 7);
@@ -9318,20 +9366,15 @@ if (DD) withSeed(7575, () => {
     sign('NANA LIVING HISTORY MUSEUM', 'NANA OLOMU’S PALACE · KOKO · 1880s', '#4a2a1a', 13, 1.4, cx, Y + 9.6, cz + .2, 0, '#f2d29a');
     for (const s of [-1, 1]) { b.box(.6, .6, 3, cx + s * 4, Y + .3, cz + 6, LM(0x3a3a3e), 1, false); cyl(.35, 2.6, cx + s * 4, Y + .6, cz + 7, LM(0x2a2a2e), 10, false); }   // the old cannons out front
     people('delta', 8, [Kk.x0 + 4, Kk.x1 - 4, cz + 2, Kk.z1 - 4]); DELTA_MAP.push([cx, cz - 10, 30, 16, '#e8dcc0']); OYO_PLACES.push(['Nana Living History Museum, Koko', cx, cz + 6]); DELTA.koko = { x: cx, z: cz - 10 }; }
-  /* Warri Airport at Osubi */
-  { const Os = DEL.osubi, tx0 = 3540, tx1 = 3700, tz0 = Os.tz - 44, tz1 = Os.tz - 18, tcx = (tx0 + tx1) / 2, tcz = (tz0 + tz1) / 2;
-    b.box(tx1 - tx0, 10, tz1 - tz0, tcx, Y + 5, tcz, white, 2, true, 'house'); b.box(tx1 - tx0 + .2, 7, .2, tcx, Y + 4.5, tz0 - .05, glassM, 1, false); b.box(tx1 - tx0 + 8, .8, tz1 - tz0 + 10, tcx, Y + 10.4, tcz, LM(0x2f6fb0), 1, true, 'roof');
-    sign('WARRI AIRPORT', 'OSUBI · OKPE', '#2f6fb0', 16, 2, tcx, Y + 8, tz0 - 5.15, Math.PI, '#ffffff'); for (let k = 0; k < 8; k++) b.box(.4, 9.6, .4, tx0 + 6 + k * 21, Y + 4.8, tz0 - 4.8, white, 1, false);
-    const tw = [3740, tz0 + 10]; b.box(4, 22, 4, tw[0], Y + 11, tw[1], white, 2, true, 'house'); b.box(7, 4, 7, tw[0], Y + 24, tw[1], glassM, 1, true, 'house');
-    for (let x = Os.rx0 + 4; x < Os.rx1; x += 30) for (const s of [-1, 1]) b.box(.5, .4, .5, x, Y + .2, Os.rz + s * 16, lampMat, 1, false);
-    const jet = makeAirliner(); jet.position.set(3600, Y, Os.tz + 24); jet.rotation.y = Math.PI / 2; addStatic(jet); colliders.push({ x0: 3582, x1: 3618, y0: Y, y1: Y + 7, z0: Os.tz + 20, z1: Os.tz + 28, tag: 'house' });
-    people('delta', 10, [tx0 + 4, tx1 - 4, tz0 - 8, tz0 - 1]); people('security', 2, [tx0 + 4, tx0 + 20, tz0 - 6, tz0 - 1], { guard: true });
-    DELTA_MAP.push([tcx, tcz, tx1 - tx0, tz1 - tz0, '#7fd3e8'], [(Os.rx0 + Os.rx1) / 2, Os.rz, Os.rx1 - Os.rx0, 30, '#5a5c60']); OYO_PLACES.push(['Warri Airport, Osubi', tcx, tz0 - 8]);
-    DELTA.warriDesk = { x: tcx - 24, z: tz0 - 6, out: [tcx - 28, tz0 - 10] }; }
+  /* Warri Airport at Osubi: the same family of terminal, smaller: two gates, the tower, the car park */
+  { const r = K.airport(DEL.osubi, { name: 'WARRI AIRPORT', sub: 'OSUBI · OKPE · DELTA STATE', col: 0x2f6fb0, signBg: '#2f6fb0', gates: [3580, 3660], jets: 1, tower: [3740, DEL.osubi.term[2] - 12] });
+    OYO_PLACES.push(['Warri Airport, Osubi', r.cx, DEL.osubi.term[3] + 14]); DELTA.warriDesk = r.desk; }
   /* the rest of Effurun and Warri: houses (more of them under zinc), churches on every other street, a mosque, offices on the way to the port */
   { const W = DEL.warri, keepOut = (x, z) => [DEL.refinery, DEL.pti, DEL.fupre, DEL.army, DEL.wmarket, DEL.olu, DEL.port, DEL.koko].some(R => inR(R, x, z, 6)) || Math.hypot((x - DEL.wstad.x) / (DEL.wstad.rx * 1.7), (z - DEL.wstad.z) / (DEL.wstad.rz * 1.7)) < 1 || Math.hypot(x - ex, z - ez) < DEL.er + 12 || z > DEL.river - 26 || heightAt(x, z) < Y - .5;
     for (const [x, z, f, n] of [[2780, -3030, 'pz', 'ST ANDREW’S ANGLICAN CHURCH'], [3020, -2860, 'nx', 'SACRED HEART CATHEDRAL'], [2620, -2850, 'px', 'DEEPER LIFE CHURCH'], [3300, -2900, 'nz', 'CHRIST EMBASSY'], [2860, -2700 - 70, 'pz', 'REDEEMED CHURCH']]) K.church(x, z, f, n);
-    K.mosque(3260, -3060); K.tower(2980, -2800, 20, 16, 9); K.tower(3100, -2800, 18, 16, 7); K.tower(2700, -3020, 16, 14, 6);
+    K.fuel(ex - 70, ez + 20, 'Conoil Fuels, Effurun', 'CONOIL', 0xd8342a); K.fuel(2700, -2860, 'NNPC Fuels, Warri', 'NNPC', 0x1f8a3a); K.fuel(3250, -3010, 'Oando Fuels, Airport Road', 'OANDO', 0x2f6fb0);
+    K.club(2860, -2950, 'No Carry Last Club', '#3ee8ff'); makeDrivable(2600, DEL.river + 30, Math.PI / 2, 'boat'); makeDrivable(2650, DEL.river + 34, Math.PI / 2, 'boat'); makeDrivable(3240, DEL.river + 30, -Math.PI / 2, 'boat');   // speedboats for the creeks
+    K.mosque(3260, -3060); K.tower(2980, -2800, 20, 16, 9); K.sign('WARRI RIVERSIDE HOTEL', '', '#1f3a5a', 9, 1.3, 2980, Y + 30.5, -2791.9, 0, '#f2d29a'); VENUES.push({ name: 'the Warri Riverside Hotel', x: 2980, z: -2788, r: 9, food: 'mall', toilet: 0, motel: 20000 }); K.tower(3100, -2800, 18, 16, 7); K.tower(2700, -3020, 16, 14, 6);
     K.blocks({ x0: W.x0 + 10, x1: W.x1 - 10, z0: W.z0 + 10, z1: DEL.river - 20 }, ex + 40, ez + 40, 80, keepOut, { two: .3, flats: .08, walls: .5 });
     for (const [x0, x1] of [[2300, 2860], [2940, 3390]]) { people('delta', 10, [x0, x1, ez - 14, ez - 8]); people('delta', 10, [x0, x1, ez + 8, ez + 14]); }
     people('delta', 40, [W.x0 + 20, W.x1 - 20, -3040, -2760]); }
@@ -9384,6 +9427,8 @@ if (DD) withSeed(7676, () => {
   { const Mk = DEL.amarket, Pk = DEL.apark; K.market(Mk); people('market', 22, [Mk.x0 + 2, Mk.x1 - 2, Mk.z0 + 2, Mk.z1 - 2]); board('ABRAKA MARKET', 'ORIA-ABRAKA', '#8a3a1a', (Mk.x0 + Mk.x1) / 2, Mk.z1 + 2, 0, 8); OYO_PLACES.push(['Abraka Market', (Mk.x0 + Mk.x1) / 2, Mk.z1 + 6]);
     for (let x = Pk.x0 + 8; x < Pk.x1 - 6; x += 8) for (const z of [Pk.z0 + 14, Pk.z0 + 34, Pk.z0 + 54]) { if (rng() < .3) continue; const car = makeMixed({ danfo: 5, sienna10: 2 }); car.position.set(x, Y + .02, z); car.rotation.y = rng() < .5 ? 0 : Math.PI; addStatic(car); colliders.push({ x0: x - 1.2, x1: x + 1.2, y0: Y, y1: Y + 2.2, z0: z - 2.8, z1: z + 2.8, tag: 'car' }); }
     board('ABRAKA MOTOR PARK', 'WARRI · SAPELE · AGBOR · ASABA · BENIN', '#2a4a7a', (Pk.x0 + Pk.x1) / 2, Pk.z1 + 2, 0, 9); people('yaba', 14, [Pk.x0 + 2, Pk.x1 - 2, Pk.z0 + 2, Pk.z1 - 2]);
+    K.fuel(2780, -3960, 'Ardova Fuels, Abraka', 'ARDOVA', 0xe8742a); K.club(2990, -3940, 'Campus Vibes, Abraka', '#b14cff');
+    VENUES.push({ name: 'the Turf Club chalets', x: DEL.turf.x1 - 26, z: -4280, r: 12, food: 'boli', toilet: 0, motel: 15000 }); makeDrivable(ethiopeLine(-4180), -4180, 0, 'boat');
     K.church(2700, -3880, 'px', 'ST PETER’S CATHOLIC CHURCH'); K.mosque(3060, -3880);
     const keepOut = (x, z) => [DEL.delsu, DEL.amarket, DEL.apark, DEL.turf].some(R => inR(R, x, z, 6)) || ethiopeDist(x, z) < 20 || x < 2650;
     K.blocks({ x0: 2660, x1: 3130, z0: -4390, z1: -3810 }, 2800, -4060, 80, keepOut, { two: .25, flats: .06 });
@@ -9412,6 +9457,7 @@ if (DD) withSeed(7777, () => {
     for (let x = a + 10; x < c - 6; x += 30) for (const s of [-1, 1]) lamp(x, DEL.rd + s * 10.5, 0, -s);
     people('yaba', 12, [a, c, DEL.rd - 16, DEL.rd - 10]); people('yaba', 12, [a, c, DEL.rd + 10, DEL.rd + 16]); people('yaba', 14, [a, c, DEL.rd - 140, DEL.rd + 140]); };
   /* the expressway's towns */
+  K.fuel(2700, DEL.rd + 26, 'Total Fuels, Agbor', 'TOTAL', 0xd8342a); K.fuel(2450, DEL.rd - 26, 'NNPC Fuels, Umunede', 'NNPC', 0x1f8a3a); K.fuel(3200, DEL.rd + 26, 'Mobil Fuels, Issele-Uku', 'MOBIL', 0x2f6fb0);
   town(DEL.umunede[0], DEL.umunede[1], 'Umunede'); town(DEL.agbor[0], DEL.agbor[1], 'Agbor'); town(DEL.issele[0], DEL.issele[1], 'Issele-Uku'); town(DEL.ibusa[0], DEL.ibusa[1], 'Ibusa');
   { const goods = [0xf2e8c8, 0xd8c890, 0x8a5a2a, 0xe8742a].map(LM); for (let x = DEL.umunede[0] + 16; x < DEL.umunede[1] - 10; x += 9) for (const s of [-1, 1]) { if (rng() < .35) continue; const z = DEL.rd + s * 14;
       b.box(3, .9, 1.6, x, Y + .45, z, M.oak, 1, true, 'roof'); for (let k = 0; k < 4; k++) b.box(.4, .7, .4, x - 1.1 + k * .75, Y + 1.25, z, ri2(goods), 1, false); b.box(.1, 2.6, .1, x, Y + 1.3, z + s * .9, darkM, 1, false); b.box(3.2, .12, 2.4, x, Y + 2.6, z, K.zinc, 1, false); }   // the junction market: palm wine in jerrycans, plantain, bush meat
@@ -9444,6 +9490,7 @@ if (DD) withSeed(7777, () => {
     b.box(1, 14, 1, Wf.x0 + 20, Y + 7, wz, LM(0xe8a020), 1, true, 'house'); b.box(18, 1, 1, Wf.x0 + 12, Y + 14, wz, LM(0xe8a020), 1, false);
     board('SAPELE PORT', 'DELTA PORTS · BENIN RIVER', '#1f4a7a', Wf.x1 + 2, wz, Math.PI / 2, 8); people('yaba', 10, [Wf.x0 + 14, Wf.x1 - 2, Wf.z0 + 4, Wf.z1 - 4]); OYO_PLACES.push(['Sapele Port', wx, Wf.z0 - 6]); DELTA_MAP.push([wx, wz, Wf.x1 - Wf.x0, Wf.z1 - Wf.z0, '#b8b4ac']);
     const Mk = DEL.smarket; K.market(Mk); people('market', 20, [Mk.x0 + 2, Mk.x1 - 2, Mk.z0 + 2, Mk.z1 - 2]); board('SAPELE MAIN MARKET', 'OKPE', '#8a3a1a', (Mk.x0 + Mk.x1) / 2, Mk.z0 - 2, Math.PI, 8); OYO_PLACES.push(['Sapele Main Market', (Mk.x0 + Mk.x1) / 2, Mk.z0 - 6]);
+    K.fuel(2620, -3560, 'NNPC Fuels, Sapele', 'NNPC', 0x1f8a3a); makeDrivable(ethiopeLine(-3560) + 2, -3560, Math.PI, 'boat');
     K.church(2380, -3660, 'pz', 'ST MARY’S CHURCH'); K.mosque(2660, -3440);
     const keep = (x, z) => [DEL.atp, DEL.swharf, DEL.smarket].some(R => inR(R, x, z, 5)) || ethiopeDist(x, z) < 16; K.blocks({ x0: 2305, x1: 2695, z0: -3715, z1: -3385 }, 2596, -3564, 72, keep, { two: .3, flats: .05, shops: .15 });
     people('yaba', 30, [2320, 2690, -3700, -3400]); }
@@ -9478,7 +9525,7 @@ const RAILW = YB ? (() => {
   const sOf = (x, z) => { let best = 0, bd = 1e9; for (const p of PTS) { const dd = (p.x - x) ** 2 + (p.z - z) ** 2; if (dd < bd) { bd = dd; best = p.s; } } return best; };
   // two tracks, one each way (keep right): 4.2 m apart on the run, opening out to 7.3 m round each station's island platform
   const ST = [['Meadowbrook', RAILX, 226], ['Lagos', RAILX, -62, 60], ['Magboro Shopping', RAILX, -1668], ['Mowe', RAILX, -2780], ['Ibadan', RAILX, -4930],
-    ...(ED ? [['Ile-Ife', 915, RAILZ], ['Ore', 1345, RAILZ], ['Benin Central', 1832, RAILZ]] : [])].map(([name, x, z, pl = 76]) => ({ name, s: sOf(x, z), PL: pl }));
+    ...(ED ? [['Ile-Ife', 915, RAILZ], ['Ore', 1345, RAILZ], ['Benin Central', 1832, RAILZ], ['Agbor', 2760, -5196], ['Issele-Uku', 3225, -5196], ['Asaba', 3790, -5212]] : [])].map(([name, x, z, pl = 76]) => ({ name, s: sOf(x, z), PL: pl }));
   const OFF0 = 2.1, OFFS = 3.65;
   const offAt = s => { let d = 1e9; for (const st of ST) d = Math.min(d, Math.abs(s - st.s) - st.PL / 2 - 8); if (d <= 0) return OFFS; if (d >= 40) return OFF0; const t = d / 40, e = t * t * (3 - 2 * t); return OFFS + (OFF0 - OFFS) * e; };
   PTS.forEach(p => { p.o = offAt(p.s); });
@@ -9556,7 +9603,7 @@ const RAILW = YB ? (() => {
   }
   // Benin Central: the terminus hall at the end of the line
   if (ED) { const R = EDO.rail, hx = (R.x0 + R.x1) / 2 + 8, hz = R.z1 - 4.5; b.box(46, 9, 6, hx, Y + 4.5, hz, LM(0xf2e8d0), 2, true, 'house'); b.box(48, .8, 8, hx, Y + 9.4, hz, green, 1, true, 'roof');
-    ySign(ySignMat('BENIN CENTRAL', '#1f6f3a', '#ffffff', 'NAIJA RAIL · TRAINS TO IBADAN, MAGBORO, LAGOS & MEADOWBROOK'), 20, 2, hx, Y + 7, hz + 3.06, 0); }
+    ySign(ySignMat('BENIN CENTRAL', '#1f6f3a', '#ffffff', 'NAIJA RAIL · TRAINS TO LAGOS & MEADOWBROOK · AGBOR & ASABA'), 20, 2, hx, Y + 7, hz + 3.06, 0); }
   b.build();
   for (const [mat, geos] of ROT) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); }
   return { PTS, L, at, sOf, XOV };
@@ -9614,7 +9661,8 @@ function trainPlace(T) {
     const f = g.userData.flip ? Math.PI : 0; g.rotation.set((f ? 1 : -1) * Math.atan2(a.y - b.y, 14), g.userData.yaw + f, 0, 'YXZ'); });   // (a coach turned round when the far cab took over)
 }
 if (RAILW && TRAIN.stations.length > 1) {
-  for (const [s, dir] of [[TRAIN.stations[0].s, 1], [TRAIN.stations[TRAIN.stations.length - 1].s, -1]]) { const T = makeTrain(); Object.assign(T, { s, dir, v: 0, dwell: 8, cruise: 28 }); TRAIN.list.push(T); }
+  const midA = TRAIN.stations.find(q => q.name === 'Ibadan'), midB = TRAIN.stations.find(q => q.name === 'Benin Central');
+  for (const [s, dir] of [[TRAIN.stations[0].s, 1], [TRAIN.stations[TRAIN.stations.length - 1].s, -1], ...(DD && midA && midB ? [[midA.s, 1], [midB.s, -1]] : [])]) { const T = makeTrain(); Object.assign(T, { s, dir, v: 0, dwell: 8, cruise: 28 }); TRAIN.list.push(T); }
 }
 function updateTrains(dt) {
   if (!RAILW) return;
@@ -11043,6 +11091,7 @@ const MAPD_S = 2, mapImgD = DD ? (() => {
   }
   g.putImageData(img, 0, 0); g.scale(1 / MAPD_S, 1 / MAPD_S); g.translate(-DX0, -DZ0);
   for (const [x, z, w, d, col] of DELTA_MAP) { g.fillStyle = col; g.fillRect(x - w / 2, z - d / 2, w, d); }
+  if (RAILW) for (const [wd, col, dash] of [[7, '#2a2a2e', []], [3, '#f2f0ea', [4, 6]]]) { g.strokeStyle = col; g.lineWidth = wd; g.setLineDash(dash); g.beginPath(); RAIL_PTS.forEach(([x, z], k) => k ? g.lineTo(x, z) : g.moveTo(x, z)); g.stroke(); g.setLineDash([]); }   // Naija Rail into Delta
   return c;
 })() : null;
 function drawMapD(ctx, vx, vz, span, W) {   // Delta's layer over a map showing the square (vx, vz, span) of the world at W pixels
