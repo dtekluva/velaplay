@@ -698,9 +698,32 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>document.querySelector('#boot .bt-st').textContent = 'Building Naija City…';</script>
 <script>
-
-(() => {
+// the ground grids (the north, Edo, Delta, Akwa Ibom) take seconds to work out but never change for the same game code: the
+// first load stores them in IndexedDB under a hash of this script, and later loads read them back. The game starts once the
+// read answers (or after 2.5 s, whichever is first), on a fresh task: run inside the IndexedDB callback the build was far
+// slower. ?nocache skips it
+(function naijBoot() {
+  const t = document.currentScript.textContent; let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619);
+  const key = (h >>> 0).toString(36) + '.' + t.length; let started = false;
+  const go = got => { if (started) return; started = true; naijMain({ key, got }); };
+  if (/[?&]nocache(&|$)/.test(location.search) || !window.indexedDB) return go(null);
+  setTimeout(() => go(null), 2500);
+  try { const rq = indexedDB.open('naijlife-grids', 1); rq.onupgradeneeded = () => rq.result.createObjectStore('g'); rq.onerror = () => go(null);
+    rq.onsuccess = () => { try { const db = rq.result, g = db.transaction('g').objectStore('g').get('grids'); g.onsuccess = () => { const r = g.result, blocks = r && r.key === key ? r.blocks : null; db.close(); setTimeout(() => go(blocks), 0); }; g.onerror = () => go(null); } catch (e) { go(null); } };
+  } catch (e) { go(null); }
+})();
+function naijMain(GC) {
 'use strict';
+const GRIDC = { key: GC.key, got: GC.got || {}, put: {}, hit: [], miss: [] };
+const gridLoad = (name, arrs) => { const buf = GRIDC.got[name]; let need = 0; for (const a of arrs) need += a.byteLength;
+  if (!buf || buf.byteLength !== need) { GRIDC.miss.push(name); return false; }
+  const u = new Uint8Array(buf); let o = 0; for (const a of arrs) { new Uint8Array(a.buffer, a.byteOffset, a.byteLength).set(u.subarray(o, o + a.byteLength)); o += a.byteLength; }
+  GRIDC.hit.push(name); return true; };
+const gridSave = (name, arrs) => { if (GRIDC.hit.includes(name)) return; let need = 0; for (const a of arrs) need += a.byteLength;
+  const u = new Uint8Array(need); let o = 0; for (const a of arrs) { u.set(new Uint8Array(a.buffer, a.byteOffset, a.byteLength), o); o += a.byteLength; } GRIDC.put[name] = u.buffer; };
+const gridStore = () => { const blocks = { ...GRIDC.got, ...GRIDC.put }; GRIDC.got = {}; if (!Object.keys(GRIDC.put).length || !window.indexedDB) return;   // (once the game is up and idle; the read-back copies are let go)
+  try { const rq = indexedDB.open('naijlife-grids', 1); rq.onupgradeneeded = () => rq.result.createObjectStore('g');
+    rq.onsuccess = () => { try { const db = rq.result, tx = db.transaction('g', 'readwrite'); tx.objectStore('g').put({ key: GRIDC.key, blocks }, 'grids'); tx.oncomplete = tx.onerror = () => db.close(); GRIDC.put = {}; } catch (e) {} }; } catch (e) {} };
 const $ = id => document.getElementById(id);
 const V3 = THREE.Vector3;
 const TAU = Math.PI * 2;
@@ -1324,7 +1347,7 @@ const OROADS = YB ? [
 const mapoLane = (x, z) => { const lx = ((x - MAPO.x0 - 26) % 34 + 34) % 34, lz = ((z - MAPO.z0 - 24) % 30 + 30) % 30; return lx < 2.6 || lx > 31.4 || lz < 2.6 || lz > 27.4; };
 const OYO_RECTS = [IBD, OYO, ...HAMLETS, ...ROADSIDE, ...(RCCG ? [RCCG] : []), ...(IBAIR ? [IBAIR] : [])];
 const nIdx = (x, z) => clamp(Math.floor(x + HALF), 0, N - 1) * ND + clamp(Math.floor(z - ZN), 0, ND - 1);
-if (YB) {
+if (YB && !gridLoad('north', [NHm, NKIND])) {
   const Y = TOWN.y;
   // pass 1: how far each cell is from the paved roads (RD) and from the expressway's centre line (ED); each road marks only the cells near it
   const RD = new Float32Array(N * ND).fill(99), ED = new Float32Array(N * ND).fill(99);
@@ -1407,6 +1430,7 @@ if (YB) {
     NKIND[k] = kd;
   }
 }
+if (YB) gridSave('north', [NHm, NKIND]);
 /* ---------- the sea south of the old map, out to 720 m past its edge, and the Lekki Deep Sea Port on land reclaimed from it:
    a causeway off the coast road (east of Elegushi beach, the jetty and Bluewave), quays on the west and south sides, a rock
    breakwater sheltering the basin. Its own grid (SHm / SKIND, rows j = N..N+SD-1), like the mainland's. ---------- */
@@ -1562,7 +1586,7 @@ function edoRoad(x, z) {
   for (let gz = kz - 576; gz <= bz1; gz += 64) if (Math.abs(z - gz) < 3.5 && gz !== kz && x > 1790) return true;
   return false;
 }
-if (ED) {
+if (ED && !gridLoad('edo', [EHm, EKIND])) {
   const Y = TOWN.y, H = EJ1 - EJ0, [bx0, bx1, bz0, bz1] = EDO.benin;
   const flat = (x, z) => { let m = Math.abs(z - ERD) - 14;   // how far from anywhere that must be level (the road, the towns)
     for (const [a, c] of [EDO.ife, EDO.ore]) m = Math.min(m, Math.max(a - x, x - c, Math.abs(z - ERD) - 110));
@@ -1585,6 +1609,7 @@ if (ED) {
     EHm[k] = Math.round(h); EKIND[k] = kd;
   }
 }
+if (ED) gridSave('edo', [EHm, EKIND]);
 /* ---------- Delta State (see DELTA_PLAN.md): east of Benin. The Benin–Asaba Expressway carries on out of Benin's east gate
    past Umunede, Agbor, Issele-Uku and Ibusa to Summit Junction, then down Nnebisi Road through Asaba to the Niger Bridge. At
    Agbor a road turns south through Obiaruku to Abraka (Delta State University, the River Ethiope), Eku, Sapele and Oghara to
@@ -1679,7 +1704,7 @@ function dRoadAt(x, z) {   // (deltaRoad, for a point already known to be inside
   }
   return false;
 }
-if (DD) {
+if (DD && !gridLoad('delta', [DHm, DKIND])) {
   const Y = TOWN.y, A = DEL.asaba;
   const towns = [[DEL.umunede[0], DEL.umunede[1], EZ0 + 60, EZ1 - 60], [DEL.agbor[0], DEL.agbor[1], EZ0 + 40, EZ1 - 20], [DEL.issele[0], DEL.issele[1], EZ0 + 60, EZ1 - 60], [DEL.ibusa[0], DEL.ibusa[1], EZ0 + 30, EZ1 - 30],
     [2600, 2920, DEL.obiaruku[0], DEL.obiaruku[1]], [A.x0, A.x1, A.z0, A.z1], [DEL.abraka.x0, DEL.abraka.x1, DEL.abraka.z0, DEL.abraka.z1], [DEL.sapele.x0, DEL.sapele.x1, DEL.sapele.z0, DEL.sapele.z1], [2300, 2920, -3420, -3300], [DEL.warri.x0, DEL.warri.x1, DEL.warri.z0, DEL.warri.z1], [DEL.osubi.x0, DEL.osubi.x1, DEL.osubi.z0, DEL.osubi.z1]];
@@ -1733,6 +1758,7 @@ if (DD) {
     DHm[k] = Math.round(h); DKIND[k] = kd;
   }
 }
+if (DD) gridSave('delta', [DHm, DKIND]);
 /* ---------- Abia and Akwa Ibom (AKWA_PLAN.md): across the Second Niger Bridge, through Anambra's farms to Umuahia, south to
    Ikot Ekpene, east to Uyo, on to Oron on the Cross River estuary, Eket and Ibeno on the Atlantic, Ikot Abasi on the Imo.
    A sparse grid: 32 m tiles, only those the shape (AK.rects) touches are stored. ---------- */
@@ -1805,7 +1831,7 @@ function akRoadAt(x, z) {
 }
 const AK_SITES = AKP ? Object.values(AKP.sites) : [];   // rects the streets keep off
 const akNoStreet = (x, z) => { for (const R of AK_SITES) if (x > R.x0 && x < R.x1 && z > R.z0 && z < R.z1) return true; return false; };
-if (AK) {   // the ground: rolling farmland toward Umuahia, flat coastal plain in Akwa Ibom; the water; the towns and roads level
+if (AK && !gridLoad('akwa', AK.tiles.filter(Boolean).flatMap(t => [t.h, t.k]))) {   // the ground: rolling farmland toward Umuahia, flat coastal plain in Akwa Ibom; the water; the towns and roads level
   const Y = TOWN.y, P = AKP, S = P.sites, towns = [P.umu, P.ike, P.uyo, P.oron, P.eket, P.ikb];
   const each = f => { for (const [x0, x1, z0, z1] of AK.rects) for (let x = x0 + .5; x < x1; x++) for (let z = z0 + .5; z < z1; z++) { const c = AK.cell(x, z); if (c) f(x, z, c[0], c[1]); } };
   for (const t of AK.tiles) if (t) t.r = new Uint8Array(1024);
@@ -1828,6 +1854,7 @@ if (AK) {   // the ground: rolling farmland toward Umuahia, flat coastal plain i
   });
   for (const t of AK.tiles) if (t) delete t.r;
 }
+if (AK) gridSave('akwa', AK.tiles.filter(Boolean).flatMap(t => [t.h, t.k]));
 // out east (the Edo road, Benin, Delta, Akwa Ibom) you stay on the land between the walls: the nearest point of it. Each rect keeps you
 // 12 m off its outer walls; where it meets another rect there's no margin, so you pass straight from one to the next
 const KEEP_RECTS = (() => {
@@ -1899,24 +1926,29 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
     const buf = new Map();
     const get = m => { if (!buf.has(m)) buf.set(m, { p: [], n: [], u: [], ix: [] }); return buf.get(m); };
     // quad from origin o with edges e1, e2 (normal = e1 x e2); uv(fn) maps a corner to texture coords
-    const quad = (m, ox, oy, oz, ax, ay, az, bx, by, bz, nx, ny, nz, uvf) => {
-      const B = get(m), base = B.p.length / 3;
-      const pts = [[ox, oy, oz], [ox + ax, oy + ay, oz + az], [ox + ax + bx, oy + ay + by, oz + az + bz], [ox + bx, oy + by, oz + bz]];
-      for (const q of pts) { B.p.push(q[0], q[1], q[2]); B.n.push(nx, ny, nz); const t = uvf(q); B.u.push(t[0], t[1]); }
+    // (uk picks the texture mapping: 0 tops (x, -z); walls 1 z, 2 -z, 3 x, 4 -x across and height above vo up; no arrays made per quad)
+    const quad = (m, ox, oy, oz, ax, ay, az, bx, by, bz, nx, ny, nz, uk, vo) => {
+      const B = get(m), P = B.p, Nn = B.n, Uu = B.u, base = P.length / 3;
+      for (let c = 0; c < 4; c++) { const A = c === 1 || c === 2, Bb = c >= 2, x = ox + (A ? ax : 0) + (Bb ? bx : 0), y = oy + (A ? ay : 0) + (Bb ? by : 0), z = oz + (A ? az : 0) + (Bb ? bz : 0);
+        P.push(x, y, z); Nn.push(nx, ny, nz); if (uk === 0) Uu.push(x, -z); else Uu.push(uk === 1 ? z : uk === 2 ? -z : uk === 3 ? x : -x, y - vo); }
       B.ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
     };
     // tops: grow rectangles over cells of the same height and ground kind (one quad instead of hundreds on flat ground)
     const i1 = Math.min(AK && ci >= AK.I0 ? AK.I1 : DD && ci >= DI0 ? DI0 + DD : ci >= N ? N + ED : N, ci + CH), j1 = Math.min(jEnd ?? N + SD, cj + CH), used = new Uint8Array(CH * CH), U = (i, j) => (i - ci) * CH + (j - cj);
     for (let i = ci; i < i1; i++) for (let j = cj; j < j1; j++) {
       if (used[U(i, j)]) continue;
-      const h = HH(i, j), kd = KK(i, j), same = (a, b) => !used[U(a, b)] && HH(a, b) === h && KK(a, b) === kd;
-      let w = 1; while (j + w < j1 && same(i, j + w)) w++;
-      let d = 1; grow: while (i + d < i1) { for (let q = 0; q < w; q++) if (!same(i + d, j + q)) break grow; d++; }
+      const h = HH(i, j), kd = KK(i, j);
+      let w = 1; while (j + w < j1 && !used[U(i, j + w)] && HH(i, j + w) === h && KK(i, j + w) === kd) w++;
+      let d = 1; grow: while (i + d < i1) { for (let q = 0; q < w; q++) { const a = i + d, c = j + q; if (used[U(a, c)] || HH(a, c) !== h || KK(a, c) !== kd) break grow; } d++; }
       for (let a = 0; a < d; a++) for (let b = 0; b < w; b++) used[U(i + a, j + b)] = 1;
-      quad(KMATS[kd][0], i - HALF, h, j - HALF, 0, 0, w, d, 0, 0, 0, 1, 0, q => [q[0], -q[2]]);
+      quad(KMATS[kd][0], i - HALF, h, j - HALF, 0, 0, w, d, 0, 0, 0, 1, 0, 0, 0);
     }
     // walls: runs of identical side faces along a row become one strip (a band at the top, then the lower part)
-    const wall = (m1, m2, h, nh, geo, hu) => { quad(m1, ...geo(h - 1, 1), q => [hu(q), q[1] - (h - 1)]); if (h - 1 > nh) quad(m2, ...geo(nh, h - 1 - nh), q => [hu(q), q[1]]); };
+    // one side face from lo, dy high: a band at the top, then the lower part (dir 0 +x, 1 -x, 2 +z, 3 -z)
+    const side = (m, dir, x0, z0, L, lo, dy, vo) => { const x1 = x0 + 1, z1 = z0 + 1;
+      if (dir === 0) quad(m, x1, lo, z0, 0, dy, 0, 0, 0, L, 1, 0, 0, 1, vo); else if (dir === 1) quad(m, x0, lo, z0, 0, 0, L, 0, dy, 0, -1, 0, 0, 2, vo);
+      else if (dir === 2) quad(m, x0, lo, z1, L, 0, 0, 0, dy, 0, 0, 0, 1, 3, vo); else quad(m, x0, lo, z0, 0, dy, 0, L, 0, 0, 0, 0, -1, 4, vo); };
+    const wall = (m1, m2, h, nh, dir, x0, z0, L) => { side(m1, dir, x0, z0, L, h - 1, 1, h - 1); if (h - 1 > nh) side(m2, dir, x0, z0, L, nh, h - 1 - nh, 0); };
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const alongJ = di !== 0;   // faces facing +-x run along z; faces facing +-z run along x
       for (let a = alongJ ? ci : cj; a < (alongJ ? i1 : j1); a++) {
@@ -1926,11 +1958,8 @@ let TUFTS = null, TERRAIN_CHUNK = null;   // TERRAIN_CHUNK(ci, cj) rebuilds one 
           if (nh >= h) { b++; continue; }
           let L = 1;
           while (b + L < bEnd) { const i2 = alongJ ? a : b + L, j2 = alongJ ? b + L : a; if (HH(i2, j2) !== h || colH(i2 + di, j2 + dj) !== nh || KK(i2, j2) !== kd) break; L++; }
-          const [, bandM, lowM] = KMATS[kd], x0 = i - HALF, z0 = j - HALF, x1 = x0 + 1, z1 = z0 + 1;
-          if (di === 1) wall(bandM, lowM, h, nh, (lo, dy) => [x1, lo, z0, 0, dy, 0, 0, 0, L, 1, 0, 0], q => q[2]);
-          else if (di === -1) wall(bandM, lowM, h, nh, (lo, dy) => [x0, lo, z0, 0, 0, L, 0, dy, 0, -1, 0, 0], q => -q[2]);
-          else if (dj === 1) wall(bandM, lowM, h, nh, (lo, dy) => [x0, lo, z1, L, 0, 0, 0, dy, 0, 0, 0, 1], q => q[0]);
-          else wall(bandM, lowM, h, nh, (lo, dy) => [x0, lo, z0, 0, dy, 0, L, 0, 0, 0, 0, -1], q => -q[0]);
+          const KM = KMATS[kd];
+          wall(KM[1], KM[2], h, nh, di === 1 ? 0 : di === -1 ? 1 : dj === 1 ? 2 : 3, i - HALF, j - HALF, L);
           b += L;
         }
       }
@@ -2014,6 +2043,7 @@ RUINS.forEach(([x, z], n) => {
 const SUPPLIES = [];
 const BIZ_SITES = [];   // businesses you can buy (see Business, by the phone): Yaba's shopfronts add themselves as they're built
 const VENUES = [];   // places to eat or use the toilet (see the daily needs)
+const STALLS = [];   // open-market stalls: [x, z, y, tx, tz, goods, hw, d]: where a seller stands (behind the counter), the aisle they face, the counter's half-width and how far in front of them it is (see the market sellers)
 const DEPOTS = [[15, 11], [-38, -32], [44, 40], [-56, -2]].filter(([x, z]) => !nearVillage(x, z, VR + 8));
 for (const v of VILLAGES) DEPOTS.push([v.x + 6.5, v.z - 3.5]);
 if (TOWN) { const [dx, dz] = blockAt('towers4'); DEPOTS.push([dx, dz]); }
@@ -5738,6 +5768,7 @@ function civClip(c, sp, moving) {
   if (c.state === 'fight') return ['Pistol_Aim_Neutral', 1];
   if (moving) { const g = gaitClip(sp); if (g[0] === 'Walk_Loop' && (c.elder || c.formal)) return ['Walk_Formal_Loop', g[1] * .95]; return g; }
   if ((c.dance || c.dj) && c !== TC.conv?.c) return ['Dance_Loop', c.danceRate ||= .85 + Math.random() * .35];
+  if (c.seated && !moving && c.state !== 'talk') return ['Sitting_Idle_Loop', 1];   // a market seller on her stool
   if (c.state === 'talk' || c.hailing || c.chatty) return ['Idle_Talking_Loop', 1];
   return ['Idle_Loop', c.elder ? .8 : 1];
 }
@@ -7481,31 +7512,37 @@ if (COUNTRY) { makeLux('tractor', 253, 201, Math.PI); makeLux('tipper', 236, 205
 RR.car = makeLux('lux', -12.5, 0, Math.PI / 2);   // parked by the pyramid where you start, on the west side, nose out
 /* parked vehicles and planes never move: they are baked into a few static meshes once they are all placed (bakeProps) */
 const STATIC_PROPS = [], addStatic = o => { scene.add(o); STATIC_PROPS.push(o); return o; };
-function bakeProps() {
+function bakeProps() {   // every static prop (cars, furniture, lamps…) into one mesh per material per 120 m cell: vertices are moved straight into the merged arrays
   scene.updateMatrixWorld(true);
-  const byMat = new Map(), keep = [];
+  const byMat = new Map(), keep = [], _c = new V3(), _nm = new THREE.Matrix3();
   const shown = o => { for (let q = o; q; q = q.parent) if (!q.visible) return false; return true; };
+  const plain = g => { const A = g.attributes; if (!A.position || A.position.isInterleavedBufferAttribute || A.position.itemSize !== 3) return false;
+    for (const k in A) if (A[k].isInterleavedBufferAttribute || !A[k].array) return false; return (!A.normal || A.normal.itemSize === 3) && (!A.uv || A.uv.itemSize === 2) && (!A.color || A.color.itemSize === 3); };
   for (const root of STATIC_PROPS) {
-    let ok = true; root.traverse(o => { if (o.isMesh && Array.isArray(o.material)) ok = false; if (o.isSprite || o.isLight) ok = false; });
+    let ok = true; root.traverse(o => { if (o.isMesh && Array.isArray(o.material)) ok = false; if (o.isSprite || o.isLight) ok = false; if (o.isMesh && !plain(o.geometry)) ok = false; });
     if (!ok) { keep.push(root); continue; }
     root.traverse(o => {
       if (!o.isMesh || !shown(o)) return;
-      const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
-      g.computeBoundingSphere(); const c = g.boundingSphere.center, key = o.material.uuid + '|' + Math.floor(c.x / 120) + '|' + Math.floor(c.z / 120);
-      if (!byMat.has(key)) byMat.set(key, { mat: o.material, geos: [] }); byMat.get(key).geos.push(g);
+      const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere(); _c.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld);
+      const key = o.material.uuid + '|' + Math.floor(_c.x / 120) + '|' + Math.floor(_c.z / 120);
+      let B = byMat.get(key); if (!B) byMat.set(key, B = { mat: o.material, list: [], n: 0 });
+      B.list.push(o); B.n += g.index ? g.index.count : g.attributes.position.count;
     });
     scene.remove(root);
   }
-  for (const { mat, geos } of byMat.values()) {
-    let n = 0; for (const g of geos) n += g.attributes.position.count;
+  for (const { mat, list, n } of byMat.values()) {
     const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), col = mat.vertexColors ? new Float32Array(n * 3) : null;
     let o = 0;
-    for (const g of geos) {
-      const c = g.attributes.position.count; pos.set(g.attributes.position.array, o * 3);
-      if (g.attributes.normal) nor.set(g.attributes.normal.array, o * 3);
-      if (g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
-      if (col) { if (g.attributes.color) col.set(g.attributes.color.array, o * 3); else col.fill(1, o * 3, (o + c) * 3); }
-      o += c; g.dispose();
+    for (const ob of list) {
+      const g = ob.geometry, A = g.attributes, P = A.position.array, Nn = A.normal?.array, U = A.uv?.array, C = A.color?.array, I = g.index?.array, cnt = I ? I.length : A.position.count;
+      const e = ob.matrixWorld.elements; _nm.getNormalMatrix(ob.matrixWorld); const m = _nm.elements;
+      for (let k = 0; k < cnt; k++, o++) {
+        const v = I ? I[k] : k, v3 = v * 3, o3 = o * 3, x = P[v3], y = P[v3 + 1], z = P[v3 + 2];
+        pos[o3] = e[0] * x + e[4] * y + e[8] * z + e[12]; pos[o3 + 1] = e[1] * x + e[5] * y + e[9] * z + e[13]; pos[o3 + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+        if (Nn) { const a = Nn[v3], b = Nn[v3 + 1], c = Nn[v3 + 2], nx = m[0] * a + m[3] * b + m[6] * c, ny = m[1] * a + m[4] * b + m[7] * c, nz = m[2] * a + m[5] * b + m[8] * c, l = Math.hypot(nx, ny, nz) || 1; nor[o3] = nx / l; nor[o3 + 1] = ny / l; nor[o3 + 2] = nz / l; }
+        if (U) { uv[o * 2] = U[v * 2]; uv[o * 2 + 1] = U[v * 2 + 1]; }
+        if (col) { if (C) { col[o3] = C[v3]; col[o3 + 1] = C[v3 + 1]; col[o3 + 2] = C[v3 + 2]; } else col[o3] = col[o3 + 1] = col[o3 + 2] = 1; }
+      }
     }
     const m = new THREE.BufferGeometry(); m.setAttribute('position', new THREE.BufferAttribute(pos, 3)); m.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); m.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     if (col) m.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -8213,7 +8250,7 @@ if (YABA) withSeed(9191, () => {
   const tree = (b, x, z) => smallTree(b, x, z, Y);
   const palm = (b, x, z) => { b.box(.5, 7, .5, x, Y + 3.5, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7]]) b.box(dx ? 3 : .6, .25, dz ? 3 : .6, x + dx * 1.4, Y + 7, z + dz * 1.4, M.leaves, 1, false); };
   const umbrella = (b, x, z, m) => { b.box(.08, 2.2, .08, x, Y + 1.1, z, darkM, 1, false); b.box(2.4, .15, 2.4, x, Y + 2.25, z, m, 1, false); b.box(1.6, .15, 1.6, x, Y + 2.4, z, m, 1, false); };
-  const stall = (b, x, z) => { b.box(2, .9, 1.2, x, Y + .45, z, woodM, 1, true, 'house'); for (let k = 0; k < 4; k++) b.box(.4, .25, .4, x - .7 + k * .45, Y + 1.03, z + (rng() - .5) * .4, ri2([LM(0xd8342c), LM(0xf2c230), LM(0x3fae5a), LM(0xe8742a), LM(0x8a5a2a)]), 1, false); };
+  const stall = (b, x, z) => { STALLS.push([x, z - 1.05, Y, x, z + 3, 'lagos', 1, 1.05]); b.box(2, .9, 1.2, x, Y + .45, z, woodM, 1, true, 'house'); for (let k = 0; k < 4; k++) b.box(.4, .25, .4, x - .7 + k * .45, Y + 1.03, z + (rng() - .5) * .4, ri2([LM(0xd8342c), LM(0xf2c230), LM(0x3fae5a), LM(0xe8742a), LM(0x8a5a2a)]), 1, false); };
   const lampPost = (b, x, z, ax, az) => { LAMPS.push([x + ax * 1.25, z + az * 1.25, Y]); b.box(.16, 5.4, .16, x, Y + 2.7, z, darkM, 1, true, 'house'); b.box(ax ? 1.3 : .1, .1, az ? 1.3 : .1, x + ax * .65, Y + 5.35, z + az * .65, darkM, 1, false); b.box(.45, .12, .45, x + ax * 1.25, Y + 5.25, z + az * 1.25, lampMat, 1, false); };
 
   /* ---- the blocks ---- */
@@ -8789,7 +8826,7 @@ if (YB) withSeed(9494, () => {
       if (x1 - x0 < 40) continue;
       for (let x = x0 + 14; x < x1 - 10; x += 30) for (const z of [z0 + 14, z1 - 14]) { const fl2 = 3 + Math.floor(rng() * 5); cottage(x, z, 22, 16, fl2, z < (z0 + z1) / 2 ? 'nz' : 'pz', zinc, ri2([walls[2], walls[5], LM(0xdfe6ea)]), '#dfe6ea'); const [t, c] = BANKS[bk++ % BANKS.length]; sign(t, '', c, 10, 1.2, x, Y + 4, z + (z < (z0 + z1) / 2 ? -8.06 : 8.06), z < (z0 + z1) / 2 ? Math.PI : 0); }
     }
-    for (let x = 32; x < 162; x += 9) for (let z = -4988; z < -4892; z += 8) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); b.box(5, .9, 1.2, x, Y + .45, z - 1.4, M.oak, 1, true, 'house'); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); }
+    for (let x = 32; x < 162; x += 9) for (let z = -4988; z < -4892; z += 8) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); b.box(5, .9, 1.2, x, Y + .45, z - 1.4, M.oak, 1, true, 'house'); STALLS.push([x, z - 2.25, Y, x, z + 2, 'yoruba', 2.5, .85]); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); }
     sign('DUGBE MARKET', '', '#8a2a1a', 8, 1.2, 96, Y + 3.6, -4886.5, 0);
     people('yaba', 20, [24, 320, -4876, -4744]); people('market', 24, [30, 162, -4992, -4892]);
     OYO_PLACES.push(['Dugbe Market', 96, -4884]);
@@ -8863,7 +8900,7 @@ if (YB) withSeed(9494, () => {
     YABA_MAP.push([0, hz, 70, 24, '#9a4a2a']); OYO_PLACES.push(['The Alaafin’s palace, Oyo', 0, A.z1 + 14]);
     // Akesan market: rows of rust-roofed stalls and bright umbrellas
     const K = AKESAN, umb = [0xd8342c, 0x2f8fd0, 0x3fae5a, 0xf2c230, 0xe8742a].map(c => LM(c));
-    for (let x = K.x0 + 6; x < K.x1 - 4; x += 8) for (let z = K.z0 + 6; z < K.z1 - 4; z += 9) { if (Math.abs(x) < 8) continue; if (rng() < .65) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3], [-2.8, 2.3], [2.8, -2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); } else { b.box(.08, 2.2, .08, x, Y + 1.1, z, darkM, 1, false); b.box(2.6, .15, 2.6, x, Y + 2.25, z, ri2(umb), 1, false); } b.box(4.5, .85, 1.3, x, Y + .43, z - 1.2, M.oak, 1, true, 'house'); }
+    for (let x = K.x0 + 6; x < K.x1 - 4; x += 8) for (let z = K.z0 + 6; z < K.z1 - 4; z += 9) { if (Math.abs(x) < 8) continue; if (rng() < .65) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3], [-2.8, 2.3], [2.8, -2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); } else { b.box(.08, 2.2, .08, x, Y + 1.1, z, darkM, 1, false); b.box(2.6, .15, 2.6, x, Y + 2.25, z, ri2(umb), 1, false); } b.box(4.5, .85, 1.3, x, Y + .43, z - 1.2, M.oak, 1, true, 'house'); STALLS.push([x, z - 2.1, Y, x, z + 2, 'yoruba', 2.25, .9]); }
     sign('AKESAN MARKET', 'OYO', '#8a2a1a', 9, 1.3, 0, Y + 4, K.z1 + 1.5, 0); for (const o of [-4, 4]) b.box(.25, 4, .25, o, Y + 2, K.z1 + 1.4, darkM, 1, true, 'house');
     people('market', 26, [K.x0 + 4, K.x1 - 4, K.z0 + 4, K.z1 - 4]);
     OYO_PLACES.push(['Akesan Market, Oyo', 0, K.z1 + 8]);
@@ -8965,7 +9002,7 @@ if (YB) withSeed(9494, () => {
       for (let x = K.x0 + 4; x < K.x1 - 3; x += 8) for (let z = K.z0 + 5; z < K.z1 - 3; z += 8) { if (!offRoad(x, z, 4)) continue;
         if (rng() < .7) { b.box(6, .2, 5, x, Y + 2.6, z, ri2(rusts), 1, false); for (const [px, pz] of [[-2.8, -2.3], [2.8, 2.3], [-2.8, 2.3], [2.8, -2.3]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, M.bark, 1, false); }
         else { b.box(.12, 2.4, .12, x, Y + 1.2, z, darkM, 1, false); b.box(4, .3, 4, x, Y + 2.5, z, ri2(umb), 1, false); }
-        b.box(3.4, .9, 1.4, x, Y + .45, z, M.oak, 1, true, 'house'); for (let t = 0; t < 4; t++) b.box(.4, .3, .4, x - 1.2 + t * .8, Y + 1.05, z, ri2(umb), 1, false); }
+        b.box(3.4, .9, 1.4, x, Y + .45, z, M.oak, 1, true, 'house'); STALLS.push([x, z - 1.1, Y, x, z + 3, 'edo', 1.7, 1.1]); for (let t = 0; t < 4; t++) b.box(.4, .3, .4, x - 1.2 + t * .8, Y + 1.05, z, ri2(umb), 1, false); }
       sign('OBA MARKET', 'BENIN CITY', '#8a2a1a', 9, 1.3, (K.x0 + K.x1) / 2, Y + 4, K.z0 - 1.5, Math.PI); for (const o of [-4, 4]) b.box(.25, 4, .25, (K.x0 + K.x1) / 2 + o, Y + 2, K.z0 - 1.4, darkM, 1, true, 'house');
       YABA_MAP.push([(K.x0 + K.x1) / 2, (K.z0 + K.z1) / 2, K.x1 - K.x0, K.z1 - K.z0, '#d8a070']); TAKEN.push([(K.x0 + K.x1) / 2, (K.z0 + K.z1) / 2, K.x1 - K.x0, K.z1 - K.z0]);
       people('market', 30, [K.x0 + 3, K.x1 - 3, K.z0 + 3, K.z1 - 3]);
@@ -9179,7 +9216,7 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
     people: (place, n, rect, opts = {}) => { for (let k = 0; k < n; k++) { const c = makeCivilian({ x: (rect[0] + rect[1]) / 2, z: (rect[2] + rect[3]) / 2, y: opts.y ?? Y, houses: [], civs: [], sand: rect, place }, { adult: rng() < .85, ...opts }); if (opts.guard) c.guard = true; } },
     // a market: rows of stalls under zinc or umbrellas, piled with goods
     market: (R, rows = 6) => { const goods = [0xb83a2e, 0x2f5f9a, 0xd9a441, 0x3e6e4a, 0xe6e1d3, 0x8a5a9a, 0xe8742a, 0x6a3a1a, 0xf2d24a].map(LM), umb = [0xd8342a, 0x2f6fb0, 0xf2c230, 0x2f8a4a].map(LM);
-      for (let x = R.x0 + 5; x < R.x1 - 4; x += 7) for (let z = R.z0 + 5; z < R.z1 - 4; z += 6) { if (rng() < .12) continue; b.box(4.2, .9, 2, x, Y + .45, z, M.oak, 1, true, 'roof');
+      for (let x = R.x0 + 5; x < R.x1 - 4; x += 7) for (let z = R.z0 + 5; z < R.z1 - 4; z += 6) { if (rng() < .12) continue; b.box(4.2, .9, 2, x, Y + .45, z, M.oak, 1, true, 'roof'); STALLS.push([x, z - 1.45, Y, x, z + 3, AK && x >= AK.X0 ? 'ibom' : 'delta', 2.1, 1.45]);
         for (let k = 0; k < 6; k++) b.box(.5, .4, .5, x - 1.6 + (k % 3) * 1.6 + R2(-.2, .2), Y + 1.1, z - .4 + Math.floor(k / 3) * .8, ri2(goods), 1, false);
         if (rng() < .5) { for (const [px, pz] of [[-2, -1], [2, -1], [-2, 1], [2, 1]]) b.box(.12, 2.6, .12, x + px, Y + 1.3, z + pz, darkM, 1, false); b.box(5, .12, 3, x, Y + 2.65, z, rng() < .5 ? zinc : rust, 1, false); }
         else { b.box(.1, 2.4, .1, x, Y + 1.2, z, darkM, 1, false); b.box(3.4, .2, 3.4, x, Y + 2.5, z, ri2(umb), 1, false); } }
@@ -9779,7 +9816,7 @@ if (AK) withSeed(8383, () => {
     b.box(1.8, 1, 1.8, rx + 30, Y + .5, rz + 8, LM(0xd8d0c0), 1, true, 'base'); b.box(1.2, .1, 1.2, rx + 30, Y + 1.02, rz + 8, LM(0x3fa0d0), 1, false); board('RAFFIA CITY PLAZA', 'IKOT EKPENE', '#7a3a1a', rx + 36, Rp.z1 + 2, 0, 8);
     VENUES.push({ name: 'Four Points by Sheraton, Ikot Ekpene', x: rx - 20, z: rz + 8, r: 10, food: 'mall', toilet: 0, motel: 35000 }); people('ibom', 16, [Rp.x0 + 2, Rp.x1 - 2, rz + 6, Rp.z1 + 4]); OYO_PLACES.push(['Four Points by Sheraton, Ikot Ekpene', rx - 20, rz + 10]);
     const Mk = S.rmkt; for (let x = Mk.x0 + 5; x < Mk.x1 - 4; x += 8) for (let z = Mk.z0 + 5; z < Mk.z1 - 4; z += 7) {   // the raffia market: chairs, baskets, mats, masks
-      b.box(5, .15, 3, x, Y + 2.8, z, K.zinc, 1, false); for (const [px, pz] of [[-2.3, -1.3], [2.3, -1.3], [-2.3, 1.3], [2.3, 1.3]]) b.box(.12, 2.8, .12, x + px, Y + 1.4, z + pz, darkM, 1, false);
+      b.box(5, .15, 3, x, Y + 2.8, z, K.zinc, 1, false); STALLS.push([x + 1.9, z + .9, Y, x + 1.9, z + 4, 'raffia', 0, 0]); for (const [px, pz] of [[-2.3, -1.3], [2.3, -1.3], [-2.3, 1.3], [2.3, 1.3]]) b.box(.12, 2.8, .12, x + px, Y + 1.4, z + pz, darkM, 1, false);
       const r = rng(); if (r < .4) { for (const o of [-1.2, 1.2]) { b.box(1, .5, 1, x + o, Y + .45, z, raffia, 1, true, 'roof'); b.box(1, 1.1, .2, x + o, Y + 1.05, z - .45, raffia, 1, false); } }
       else if (r < .7) { for (let k = 0; k < 3; k++) cyl(.45, .6, x - 1.4 + k * 1.4, Y, z, k % 2 ? raffia : raffiaD, 10, false); }
       else { for (let k = 0; k < 3; k++) { b.box(.7, 1, .12, x - 1.2 + k * 1.2, Y + 1.7, z - 1.4, ri2([LM(0xd8342a), LM(0xf2c230), LM(0x2f6fb0), LM(0x1b1608)]), 1, false); b.box(.3, .2, .14, x - 1.2 + k * 1.2, Y + 1.85, z - 1.47, white, 1, false); } } }   // Ekpo masks
@@ -9816,7 +9853,7 @@ if (AK) withSeed(8383, () => {
   /* ---- Oron: the National Museum, the beach and fish market, the jetties and the terminal, the ferry for Calabar ---- */
   { const Mu = S.oronmus; museum(mid(Mu)[0], mid(Mu)[1] - 4, 56, 30, 'NATIONAL MUSEUM ORON', 'THE EKPU ANCESTOR FIGURES · 1958', 'moron', '#4a2a1a', LM(0x6a4a2a));
     const Fm = S.fishmkt, fishC = LM(0xb8c0c8), smoke = LM(0x8a6a4a); for (let x = Fm.x0 + 4; x < Fm.x1 - 3; x += 7) for (let z = Fm.z0 + 4; z < Fm.z1 - 3; z += 6) {
-      b.box(4.4, .8, 2, x, Y + .4, z, LM(0x6a4a2a), 1, true, 'roof'); for (let k = 0; k < 6; k++) b.box(.6, .15, .2, x - 1.6 + (k % 3) * 1.6, Y + .9, z - .4 + Math.floor(k / 3) * .8, fishC, 1, false);
+      b.box(4.4, .8, 2, x, Y + .4, z, LM(0x6a4a2a), 1, true, 'roof'); STALLS.push([x, z - 1.4, Y, x, z + 3, 'fish', 2.2, 1.4]); for (let k = 0; k < 6; k++) b.box(.6, .15, .2, x - 1.6 + (k % 3) * 1.6, Y + .9, z - .4 + Math.floor(k / 3) * .8, fishC, 1, false);
       if (rng() < .4) { cyl(.7, .9, x + 2.6, Y, z + 1.4, LM(0x3a3a3e), 10, false); cyl(.62, .1, x + 2.6, Y + .9, z + 1.4, smoke, 10, false); } else { b.box(.1, 2.4, .1, x, Y + 1.2, z, darkM, 1, false); b.box(3, .2, 3, x, Y + 2.5, z, ri2([LM(0xd8342a), LM(0x2f6fb0), LM(0xf2c230)]), 1, false); } }
     board('ORON FISH MARKET', 'BONGA · CROAKER · PERIWINKLE · CRAYFISH', '#1f4a7a', mid(Fm)[0], Fm.z0 - 3, Math.PI, 9); people('market', 22, [Fm.x0 + 2, Fm.x1 - 2, Fm.z0 + 2, Fm.z1 - 2]); OYO_PLACES.push(['Oron fish market', mid(Fm)[0], Fm.z0 - 6]);
     VENUES.push({ name: 'Oron fish market bukas', x: mid(Fm)[0], z: mid(Fm)[1], r: 9, food: 'oronfish', toilet: 50 });
@@ -9881,7 +9918,7 @@ function railLine(SEGS, DEFS, main) {   // a line: its track (the bed, rails, sl
   // the bed: the highest ground under both tracks, eased into a gentle grade; over water it stands up on piers
   const raw = PTS.map(p => { let g = -1e9; for (const o of [-p.o - 1.8, -p.o, 0, p.o, p.o + 1.8]) g = Math.max(g, heightAt(p.x - p.tz * o, p.z + p.tx * o)); p.g = g; return Math.max(g, WATER_Y + 2.4); });
   const win = (a, r, f) => a.map((_, i) => { let v = f === 'max' ? -1e9 : 0, n = 0; for (let j = Math.max(0, i - r); j <= Math.min(a.length - 1, i + r); j++) { if (f === 'max') v = Math.max(v, a[j]); else { v += a[j]; n++; } } return f === 'max' ? v : v / n; });
-  let d = win(raw, 3, 'max').map((m, i) => Math.max(m, win(raw, 12, 'avg')[i]));
+  const avg12 = win(raw, 12, 'avg'); let d = win(raw, 3, 'max').map((m, i) => Math.max(m, avg12[i]));   // (the average worked out once, not once a point)
   d = win(d, 8, 'avg'); d = d.map((v, i) => Math.max(v, raw[i]) + .35); d = win(d, 4, 'avg');
   PTS.forEach((p, i) => { p.d = d[i]; });
   const crossI = []; PTS.forEach((p, i) => { const k = kindAt(p.x, p.z); if (k === 6 || k === 8 || k === 9) crossI.push(i); });   // level crossings
@@ -16735,6 +16772,48 @@ function crimeTidy(dt) {
   });
   for (const c of civilians) if (c.robbedT > 0) c.robbedT -= dt;
 }
+// market sellers: in every open market at least half the stalls (60%) have someone minding them, standing at the counter or
+// sitting on a stool behind it, facing the aisle. Walk past and they call out what they sell ("Buy egusi!", "Fresh fish!")
+const SELL_CALLS = {
+  food: ['Buy egusi! Fine egusi!', 'Fresh tomatoes! Come and buy!', 'Yam! Big big yam!', 'Pepper and onions! Buy here!', 'Ugu leaf! Fresh ugu!', 'Garri! White garri, yellow garri!',
+    'Fresh fish! Come and see!', 'Crayfish! Sweet crayfish!', 'Palm oil! Red red oil!', 'Ripe plantain! Buy plantain!', 'Beans! Oloyin beans!', 'Ofada rice! Buy rice!',
+    'Ogbono! Fresh ogbono!', 'Aunty, come and buy!', 'Oga, I go do you good price!', 'My customer! Come, come!', 'Fine boy, buy something now!', 'Fine girl, come and price!', 'Dried fish! Stockfish!', 'Buy bitter leaf! Fresh!'],
+  lagos: ['Ankara! Fine ankara!', 'Lace and aso-oke! Come check am!', 'Shoes, bags! Original!', 'Tatashe, rodo! Buy pepper!', 'Indomie by carton! Come!', 'Ẹ wá ra! Come and buy!'],
+  yoruba: ['Ẹ wá ra! Come and buy!', 'Ẹlẹ́gùsí! Buy egusi here!', 'Ata rodo! Fresh pepper!', 'Ẹ̀wà! Beans, oloyin beans!', 'Iyán flour! Elubo! Buy here!', 'Ọ̀ga, ẹ wá! Good price!', 'Kola nut! Obi abata!'],
+  edo: ['Owo soup spices! Buy here!', 'Banga! Fresh palm fruit!', 'Bush mango! Ogbono!', 'Kola nut! Buy kola!', 'Fresh snails! Big snails!', 'Koyo! Come and buy!'],
+  delta: ['Starch! Buy starch!', 'Banga! Fresh banga fruit!', 'Fresh catfish! Live catfish!', 'Owo soup spices, buy am!', 'My customer, how far? Come buy!', 'Plantain chips! Buy am!', 'Ukodo yam! Fine yam!'],
+  ibom: ['Afang leaf! Fresh afang!', 'Periwinkle! Buy mfi!', 'Waterleaf! Fresh waterleaf!', 'Ekpang leaves! Buy here!', 'Atama! Buy atama!', 'Abadie? Come and buy!', 'Mesiere! Come and see!', 'Dried fish for edikang ikong!', 'Fresh pumpkin leaf! Ugu!'],
+  fish: ['Smoked fish! Fine bonga!', 'Crayfish! Buy crayfish!', 'Fresh croaker! Come and see!', 'Periwinkle! Buy mfi!', 'Catfish! Live catfish!', 'Shrimps! Buy shrimps!', 'Barracuda! Fresh from the boat!', 'Oysters! Buy oysters!'],
+  raffia: ['Raffia chair! Fine raffia chair!', 'Buy basket! Buy bag!', 'Raffia hat! Come and see!', 'Ekpo mask! Buy mask!', 'Raffia mat! Fine mat!', 'I go do you good price, my customer!', 'Sosongo! Come and price!']
+};
+const SELLERS = [];
+if (STALLS.length) {
+  const sb = new Builder(), stoolM = M.oak;
+  for (const [x0, z0, y, tx, tz, goods, hw = 0, dd = 0] of STALLS) {
+    if (Math.random() >= .6) continue;
+    const L0 = Math.hypot(tx - x0, tz - z0) || 1, fx = (tx - x0) / L0, fz = (tz - z0) / L0, seat = Math.random() < .5, side = Math.random() < .5 ? 1 : -1;
+    const x = seat ? x0 + fx * dd - fz * side * (hw + .6) : x0, z = seat ? z0 + fz * dd + fx * side * (hw + .6) : z0;   // sitting: on a stool at the end of the counter, facing the aisle
+    const female = Math.random() < .7, c = makeCivilian({ x, z, y, houses: [], civs: [], sand: [x - .1, x + .1, z - .1, z + .1], place: goods === 'ibom' || goods === 'fish' || goods === 'raffia' ? 'ibom' : goods === 'delta' ? 'delta' : 'market' }, { adult: true, female });
+    c.guard = true; c.seller = goods; c.sellCd = 0; c.g.position.set(x, y, z); c.fixedY = y; c.g.rotation.y = Math.atan2(-fx, -fz); c.homeRot = c.g.rotation.y;
+    if (seat) { c.seated = true; sb.box(.42, .42, .42, x - fx * .3, y + .21, z - fz * .3, stoolM, 1, false); }
+    c.calls = [...SELL_CALLS[goods] || [], ...(goods === 'fish' || goods === 'raffia' ? [] : SELL_CALLS.food)];
+    SELLERS.push(c);
+  }
+  sb.build();
+}
+const SELL = { t: 2 };
+function updateSellers(dt) {   // now and then a seller near you calls out to you, and turns to you while they do
+  if ((SELL.t -= dt) > 0) return; SELL.t = .5;
+  if (mode !== 'play' || P.driving || !SELLERS.length) return;
+  const now = performance.now() / 1000, cand = [];
+  for (const c of SELLERS) { if (!c.active || c.sellCd > now || c === TC.conv?.c || c.state === 'down') continue; const d = Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z); if (d < 10 && Math.abs(c.g.position.y - P.pos.y) < 3) cand.push(c); }
+  if (!cand.length) return;
+  const c = cand[Math.floor(Math.random() * cand.length)];
+  showBubble(c, c.calls[Math.floor(Math.random() * c.calls.length)], 2.8);
+  c.sellCd = now + 6 + Math.random() * 8; SELL.t = 1 + Math.random() * 1.2;
+  c.g.rotation.y = Math.atan2(-(P.pos.x - c.g.position.x), -(P.pos.z - c.g.position.z));
+  setTimeout(() => { if (c.homeRot !== undefined && c !== TC.conv?.c) c.g.rotation.y = c.homeRot; }, 3500);
+}
 // crowds: the far draw distance shows a lot more street, so every ordinary passer-by (not staff, guards, police, dancers or
 // anyone fixed to a spot or indoors) brings company from the same neighbourhood: about 3x the people (2x on phones)
 const CROWD = LITE ? 1 : 2;
@@ -16761,6 +16840,21 @@ const CULL = { cells: [], t: 0, on: true };
   for (const o of ySignRoot.children) take(o);
   for (const o of STATIC_PROPS) take(o);
   CULL.cells = [...map.values()]; CULL.size = S; CULL.leaves = CULL.cells.reduce((a, c) => a + c.leaves.length, 0);
+})();
+(function compactStatic() {   // the big static meshes in a quarter of the memory: normals and colours as bytes, no UVs where no texture reads them
+  const TEX = ['map', 'alphaMap', 'normalMap', 'bumpMap', 'emissiveMap', 'lightMap', 'aoMap', 'specularMap', 'roughnessMap', 'metalnessMap'];
+  const textured = m => (Array.isArray(m) ? m : [m]).some(x => !x || x.isShaderMaterial || x.isRawShaderMaterial || TEX.some(t => x[t]));
+  const uses = new Map(); scene.traverse(o => { if (o.geometry) uses.set(o.geometry, (uses.get(o.geometry) || 0) + 1); });
+  let saved = 0; const seen = new Set();
+  for (const c of CULL.cells) for (const q of c.leaves) {
+    const g = q.geometry; if (!q.isMesh || !g || seen.has(g) || q.isSkinnedMesh || q.isInstancedMesh || q.matrixAutoUpdate || uses.get(g) !== 1 || g.morphAttributes?.position || g.userData.keep) continue; seen.add(g);
+    const P = g.attributes.position; if (!P || !P.array || P.count < 600) continue;
+    if (!g.boundingSphere) g.computeBoundingSphere(); if (!g.boundingBox) g.computeBoundingBox();
+    const N = g.attributes.normal; if (N && N.array instanceof Float32Array && N.itemSize === 3) { const a = N.array, o = new Int8Array(a.length); for (let i = 0; i < a.length; i++) { const v = a[i]; o[i] = v >= 1 ? 127 : v <= -1 ? -127 : Math.round(v * 127); } g.setAttribute('normal', new THREE.BufferAttribute(o, 3, true)); saved += a.byteLength - o.byteLength; }
+    const C = g.attributes.color; if (C && C.array instanceof Float32Array && C.itemSize === 3) { const a = C.array, o = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) { const v = a[i]; o[i] = v >= 1 ? 255 : v <= 0 ? 0 : Math.round(v * 255); } g.setAttribute('color', new THREE.BufferAttribute(o, 3, true)); saved += a.byteLength - o.byteLength; }
+    if (g.attributes.uv && !textured(q.material)) { saved += g.attributes.uv.array?.byteLength || 0; g.deleteAttribute('uv'); }
+  }
+  CULL.compacted = Math.round(saved / 1e6);
 })();
 (function freeAfterUpload() {   // the big merged scenery and terrain: once uploaded to the GPU, its JS copy is dropped (nothing reads it back)
   const drop = function () { this.array = null; }; let n = 0, bytes = 0;
@@ -18119,7 +18213,7 @@ function frame(now) {
   if (mode === 'play') adaptResolution(rawDt);
   updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateCab(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
-  if (mode !== 'pause') { updateCivilians(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
+  if (mode !== 'pause') { updateCivilians(dt); updateSellers(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
   titanRoot.updateMatrixWorld(true);
   if (mode === 'play') {
@@ -18159,7 +18253,8 @@ requestAnimationFrame(frame);
   const wait = () => { if (HUM.ready || HUM.failed || performance.now() - t0 > 6000) { requestAnimationFrame(() => requestAnimationFrame(fin)); setTimeout(fin, 500); } else setTimeout(wait, 150); };   // (a timer too: a tab opened in the background draws no frames)
   wait();
 })();
-})();
+setTimeout(gridStore, 8000);
+}
 </script>
 
 </body>
