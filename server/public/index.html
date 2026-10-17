@@ -212,7 +212,7 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #tc{position:absolute;inset:0;touch-action:none;display:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.touch #tc{display:block}
 body.touch #hud *{pointer-events:none}
-body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *,body.touch #phone,body.touch #phone *,body.touch #exhibit,body.touch #exhibit *,body.touch #wayCue #wayX,body.touch #hud .mapwrap,body.touch #hud .mapwrap *{pointer-events:auto}
+body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *,body.touch #phone,body.touch #phone *,body.touch #exhibit,body.touch #exhibit *,body.touch #wayCue #wayX,body.touch #hud .mapwrap,body.touch #hud .mapwrap *,body.touch #hud #msgNote,body.touch #hud #msgNote *{pointer-events:auto}
 body.touch #tc .stick,body.touch #tc .knob{pointer-events:none}
 body.touch #help{display:none!important}
 #helpTab{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:5px 10px;background:var(--panel);border:1px solid var(--edge);color:var(--brass);font:700 12px/1 inherit;letter-spacing:.06em;cursor:pointer;pointer-events:auto;opacity:.75}
@@ -382,6 +382,16 @@ body:not(.touch) #odock{display:none}
 .best{font-size:15px;color:var(--muted)}
 
 /* the law: wanted stars, flashing red and blue while a pursuit car is on you */
+#msgNote{position:absolute;right:max(18px,env(safe-area-inset-right));top:calc(222px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:7px;max-width:min(320px,60vw);padding:6px 10px 6px 8px;border-radius:20px;border:1px solid rgba(62,232,255,.7);background:rgba(10,26,30,.86);color:var(--ink);font:600 13px var(--ui);cursor:pointer;pointer-events:auto;box-shadow:0 0 0 0 rgba(62,232,255,.6);animation:msgPulse 1.8s ease-out infinite}
+#msgNote i{font-style:normal;font-size:17px}
+#msgNote b{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5372b;color:#fff;font-size:11px;line-height:18px;text-align:center}
+#msgNote span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#msgNote kbd{font:700 11px var(--ui);padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.14);color:var(--muted)}
+body.touch #msgNote{right:calc(10px + env(safe-area-inset-right,0px));top:calc(132px + env(safe-area-inset-top,0px));max-width:min(300px,46vw)}
+@media (orientation:portrait){body.touch #msgNote{right:auto;left:calc(10px + env(safe-area-inset-left,0px));top:calc(120px + env(safe-area-inset-top,0px));max-width:calc(100vw - 130px)}}
+body.touch #msgNote kbd{display:none}
+@keyframes msgPulse{0%{box-shadow:0 0 0 0 rgba(62,232,255,.55)}70%{box-shadow:0 0 0 10px rgba(62,232,255,0)}100%{box-shadow:0 0 0 0 rgba(62,232,255,0)}}
+#tc .sys .b.dot::after{content:'';position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#e5372b;border:2px solid #0e130d}
 #wayCue{position:absolute;left:50%;top:calc(134px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:3px 6px 3px 4px;background:var(--panel);border:1px solid var(--edge);font:600 14px var(--ui);letter-spacing:.05em;color:var(--ink,#f1ebda);white-space:nowrap;z-index:5}
 #wayCue svg{width:30px;height:30px;flex:none}
 #wayCue #wayX{pointer-events:auto;background:none;border:0;color:inherit;font:600 13px var(--ui);opacity:.7;cursor:pointer;padding:2px 4px}
@@ -489,7 +499,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
   #mstat .mm{flex-wrap:wrap;row-gap:0}
   body.touch #odock{right:calc(10px + env(safe-area-inset-right,0px));top:calc(140px + env(safe-area-inset-top,0px));flex-direction:column;align-items:flex-end}
   body.touch #talk,body.touch #lmenu{right:calc(10px + env(safe-area-inset-right,0px));width:auto;top:calc(142px + env(safe-area-inset-top,0px));max-height:calc(60% - 142px)}
-  body.touch #chatLog{width:min(300px,60vw);top:calc(118px + env(safe-area-inset-top,0px))}
+  body.touch #chatLog{width:min(300px,60vw);top:calc(168px + env(safe-area-inset-top,0px))}
   body.touch #prompt{max-width:80vw;top:52%}
   body.touch #toast{top:22%}
   #drawer aside{width:min(400px,88vw)}
@@ -550,6 +560,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span><span id="mNeeds" class="mneeds"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
     <div id="drawer" hidden><div class="scrim"></div><aside id="dAside"></aside></div>
     <div class="mapwrap"><canvas id="minimap" width="300" height="300"></canvas><div id="kmh" class="num">0 km/h</div><div id="clock" class="num">08:00</div></div>
+    <button type="button" id="msgNote" hidden aria-label="New texts"><i>💬</i><b id="msgN">1</b><span id="msgPrev"></span><kbd>G</kbd></button>
     <div id="cross">
       <svg viewBox="-23 -23 46 46" aria-hidden="true">
         <g class="ring" fill="none" stroke-width="1.6">
@@ -8907,11 +8918,25 @@ function trainAlight() {
   P.pos.set(x, st.y + .1, z); P.vel.set(0, 0, 0); yaw = st.ns ? 0 : -Math.PI / 2;
   toast(`Welcome to ${st.name}`, 'Naija Rail · trains both ways from this platform (E to board)'); goalEv('train', st.name);
 }
+// on a train or a flight you can look around: the mouse (or a thumb) swings the camera round the train or plane and
+// tilts it; a few seconds after you let go it drifts back behind
+const RIDE_UP = new V3(0, 1, 0), rideOff = new V3();
+function rideLook(R, dt) {
+  if (R.snap || R.y0 === undefined) { R.y0 = yaw; R.p0 = pitch; }
+  if (performance.now() / 1000 - lastMouse > 3) { const k = Math.min(1, dt * 1.2); R.y0 += (yaw - R.y0) * k; R.p0 += (pitch - R.p0) * k; }
+  return [yaw - R.y0, clamp(pitch - R.p0, -.7, .9)];
+}
+function rideCam(R, g, ox, oy, oz, ahead, fx, fz, dt, snap, rate) {
+  const [dy, dp] = rideLook(R, dt), back = Math.hypot(ox, oz);
+  rideOff.set(ox, 0, oz).applyAxisAngle(RIDE_UP, dy).setLength(back * (1 - Math.max(0, dp) * .35));
+  const want = tmpC.set(g.position.x + rideOff.x, g.position.y + oy - dp * oy * .9, g.position.z + rideOff.z); want.y = Math.max(want.y, groundAt(want.x, want.z) + 2);
+  if (snap) camera.position.copy(want); else camera.position.lerp(want, Math.min(1, dt * rate));
+  const a = Math.max(0, 1 - Math.abs(dy) * 1.5);   // looking off to the side: at the train or plane itself, not ahead of it
+  camera.lookAt(g.position.x + fx * ahead * a, g.position.y + 2, g.position.z + fz * ahead * a); SIM.cutY.constant = 1e5; SIM.t = 0;
+}
 function trainCamera(dt) {
-  const T = TRAIN.ride.T, g = T.cars[1], fx = Math.sin(g.userData.yaw), fz = Math.cos(g.userData.yaw), sd = 1;   // (from the west, away from the east wall)
-  const want = tmpC.set(g.position.x - fx * 30 + fz * 5 * sd, g.position.y + 13, g.position.z - fz * 30 - fx * 5 * sd); want.y = Math.max(want.y, groundAt(want.x, want.z) + 2);
-  if (TRAIN.ride.snap) { camera.position.copy(want); TRAIN.ride.snap = false; } else camera.position.lerp(want, Math.min(1, dt * 3));
-  camera.lookAt(g.position.x + fx * 10, g.position.y + 2, g.position.z + fz * 10); SIM.cutY.constant = 1e5; SIM.t = 0;
+  const R = TRAIN.ride, T = R.T, g = T.cars[1], fx = Math.sin(g.userData.yaw), fz = Math.cos(g.userData.yaw), sd = 1;   // (from the west, away from the east wall)
+  const snap = R.snap; rideCam(R, g, -fx * 30 + fz * 5 * sd, 13, -fz * 30 - fx * 5 * sd, 10, fx, fz, dt, snap, 3); R.snap = false;
 }
 const trainPrompt = () => { const R = TRAIN.ride, T = R.T; return `🚆 Naija Rail → ${R.to.name} · ${R.at && T.dwell > 0 ? `at ${R.at.name} · E: get off here` : T.held ? 'waiting at a signal' : `${Math.round(T.v * 3.6)} km/h`} · Space: skip to the next stop`; };
 
@@ -9004,11 +9029,9 @@ function flightArrive() {
     toast(`Welcome to ${city}`, F.to === 'ibadan' ? 'Ibadan Airport, Alakia · flights back to Lagos: the red Oyo Skylink booth right beside you (E)' : F.to === 'benin' ? 'Benin Airport · flights back to Lagos: the red Oyo Skylink booth right beside you (E) · King’s Square is straight up the road' : 'Murtala Muhammed International · flights to Ibadan and Benin: the red Oyo Skylink booths beside you (E)');
   }, 650);
 }
-function flightCamera(dt) {   // a chase camera, off the plane's tail and a little to one side
-  const g = FLY.g, fx = -Math.sin(FLY.yaw), fz = -Math.cos(FLY.yaw), want = tmpC.set(g.position.x - fx * 38 - fz * 10, g.position.y + 11, g.position.z - fz * 38 + fx * 10);
-  want.y = Math.max(want.y, groundAt(want.x, want.z) + 2);
-  if (FLY.snap) { camera.position.copy(want); FLY.snap = false; } else camera.position.lerp(want, Math.min(1, dt * 2.5)); camera.lookAt(g.position.x, g.position.y + 2, g.position.z);
-  SIM.cutY.constant = 1e5; SIM.t = 0;
+function flightCamera(dt) {   // a chase camera, off the plane's tail and a little to one side (look around with the mouse or a thumb)
+  const g = FLY.g, fx = -Math.sin(FLY.yaw), fz = -Math.cos(FLY.yaw), snap = FLY.snap;
+  rideCam(FLY, g, -fx * 38 - fz * 10, 11, -fz * 38 + fx * 10, 0, fx, fz, dt, snap, 2.5); FLY.snap = false;
 }
 const flightPrompt = () => { const F = FLY, ground = F.g ? F.g.position.y - TOWN.y : 0, ph = F.s < 40 ? 'boarding complete, rolling' : ground < 1 && F.s < F.R.L / 2 ? 'take-off roll' : ground < 1 ? 'landed · rolling out' : F.s > F.R.skip ? 'final approach' : ground < 90 ? 'climbing' : 'cruising';
   return `✈ Oyo Skylink OS ${FLIGHT.no} · ${CITY_NAMES[F.from]} → ${CITY_NAMES[F.to]} · ${ph} · ${Math.round(Math.max(0, ground) * 3.28 / 10) * 10} ft · ${Math.round(F.v * 3.6)} km/h${F.s < F.R.skip ? ' · Space: skip to the landing' : ''}`; };
@@ -9685,13 +9708,13 @@ $('helpTab').addEventListener('click', e => { e.stopPropagation(); setHelp(true)
 addEventListener('keydown', e => {
   if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;   // typing in a box (chat, sign-in) never drives the game
   if (ARR.on && mode === 'play') { arrKey(e); return; }   // arranging your home: its own keys
-  if (FLY.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); flightSkip(); } return; }   // aboard a flight: Space skips to the landing
-  if (e.code === 'KeyG' && mode === 'play' && !(P.driving && isAir(P.driving))) { e.preventDefault(); phoneToggle(); return; }   // the phone
+  if (FLY.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); flightSkip(); } else if (e.code === 'KeyP') toggleBigMap(); return; }   // aboard a flight: Space skips to the landing
+  if (e.code === 'KeyG' && mode === 'play' && !(P.driving && isAir(P.driving))) { e.preventDefault(); if (!PHONE.open && typeof chatUnread === 'function' && chatUnread()) openLatestChat(); else phoneToggle(); return; }   // the phone (straight to a new text, if there is one)
   if (INSPECT.on && mode === 'play') {   // looking closer at a museum piece
     const c = e.code; if (c === 'KeyE' || c === 'KeyQ' || c === 'Backspace') inspectClose(); else if (c === 'KeyD' || c === 'ArrowRight') inspectGo(1); else if (c === 'KeyA' || c === 'ArrowLeft') inspectGo(-1);
     else if (c === 'KeyW' || c === 'ArrowUp') { INSPECT.dist = Math.max(INSPECT.min, INSPECT.dist * .88); INSPECT.moved = performance.now() / 1000; } else if (c === 'KeyS' || c === 'ArrowDown') { INSPECT.dist = Math.min(INSPECT.max, INSPECT.dist * 1.12); INSPECT.moved = performance.now() / 1000; }
     if (c !== 'Escape') e.preventDefault(); return; }
-  if (TRAIN.ride.on && mode === 'play') { if (e.code === 'Space') { e.preventDefault(); trainSkip(); } else if (e.code === 'KeyE' && TRAIN.ride.at && TRAIN.ride.T.dwell > 0) trainAlight(); return; }   // on the train: Space skips on, E gets off at a stop
+  if (TRAIN.ride.on && mode === 'play') { if (e.code === 'KeyP') { toggleBigMap(); return; } if (e.code === 'Space') { e.preventDefault(); trainSkip(); } else if (e.code === 'KeyE' && TRAIN.ride.at && TRAIN.ride.T.dwell > 0) trainAlight(); return; }   // on the train: Space skips on, E gets off at a stop
   if (['Tab', 'F5', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF'].includes(e.code) && mode === 'play') e.preventDefault();
   const was = keys[e.code]; keys[e.code] = true;
   if (was || mode !== 'play') return;
@@ -16416,11 +16439,26 @@ async function callChoose(i) {
   else { await relTalk(c, act === 'text_cold' ? 'day' : 'call'); K.line = act === 'text_cold' ? 'Okay, talk later!' : ri(['Aww. That’s sweet of you ❤️', 'Haha, you always make me laugh.', 'Thanks for calling. Talk soon!']); }
   phoneRefresh();
 }
-function peopleBadge() { CHAT.unread = chatUnread(); const b = document.querySelector('[data-badge="contacts"]'); if (b) b.textContent = CHAT.unread || ''; }
+function peopleBadge() {
+  CHAT.unread = chatUnread(); const b = document.querySelector('[data-badge="contacts"]'); if (b) b.textContent = CHAT.unread || '';
+  // the on-screen chip: how many, and who wrote last (tap it, or G, to read)
+  const el = $('msgNote'), lat = chatLatest(), on = CHAT.unread > 0 && mode === 'play';
+  if (el.hidden !== !on) el.hidden = !on;
+  if (on && lat) { $('msgN').textContent = CHAT.unread; $('msgPrev').textContent = `${lat.R.name}: ${lat.m.text}`; }
+  const ph1 = document.querySelector('#tc .sys .b[aria-label="Phone"]'); if (ph1) ph1.classList.toggle('dot', CHAT.unread > 0);
+}
+function chatLatest() {   // the newest unread text, and who sent it
+  let best = null;
+  for (const [id, t] of Object.entries(CHAT.threads)) for (const m of t) if (!m.mine && !m.read && (!best || m.at > best.m.at)) { const R = PEOPLE.cast.get(id); if (R) best = { R, m }; }
+  return best;
+}
+function openLatestChat() { const lat = chatLatest(); if (!lat) return; if (!PHONE.open) phoneToggle(true); CHAT.view = { id: lat.R.id }; PHONE.app = 'contacts'; phoneRefresh(); }
+$('msgNote').addEventListener('click', e => { e.stopPropagation(); openLatestChat(); });
 // every few seconds
 function updateChat(dt) {
   if (!PEOPLE.loaded) return;
   if ((CHAT.tickT = (CHAT.tickT || 0) + dt) > 5) { CHAT.tickT = 0; chatTick(); chatIgnored(); }
+  if ((CHAT.badgeT = (CHAT.badgeT || 0) + dt) > .5) { CHAT.badgeT = 0; peopleBadge(); }
   updateMeets(dt);
 }
 // the chat view inside Contacts: a thread, quick replies, call and meet buttons
