@@ -14100,8 +14100,8 @@ function buildMorphs(body, build) {   // the creator's or a passer-by's body typ
 }
 // a skirt (a dress to the knee, a kaftan, agbada or boubou to the ankle): a flared tube measured off this body, hung
 // from the hips and swinging with the thighs, so the legs move inside it rather than through it
-function skirtGeometry(body, scene, sexKey, len) {   // len: how far down the legs, from a mini (.22) to the ankle (1)
-  const key = sexKey + ':skirt' + len, long = len > .62; if (HUM.shells.has(key)) return HUM.shells.get(key);
+function skirtGeometry(body, scene, sexKey, len, sit = false) {   // len: how far down the legs, from a mini (.22) to the ankle (1); sit: the seated cut (see below)
+  const key = sexKey + ':skirt' + len + (sit ? ':sit' : ''), long = len > .62; if (HUM.shells.has(key)) return HUM.shells.get(key);
   scene.updateMatrixWorld(true);
   const toScene = new THREE.Matrix4().copy(scene.matrixWorld).invert().multiply(body.matrixWorld), toMesh = new THREE.Matrix4().copy(toScene).invert();
   const names = body.skeleton.bones.map(b => b.name), bi = n => names.indexOf(n), at = n => scene.worldToLocal(body.skeleton.bones[bi(n)].getWorldPosition(new THREE.Vector3()));
@@ -14129,9 +14129,16 @@ function skirtGeometry(body, scene, sexKey, len) {   // len: how far down the le
       const rad = new THREE.Vector3(cx, 0, cz).transformDirection(toMesh);   // a heavier body fills it out at the hips; a slim one less so
       mh.push(...rad.clone().multiplyScalar(.085 * (1 - t * .35)).toArray()); ms.push(...rad.multiplyScalar(-.012 * (1 - t * .5)).toArray());
       // the waistband rides the hips; lower down each side follows its own leg (the front and back half-way between)
-      const side = (clamp(cx * lx * 1.6, -1, 1) + 1) / 2, leg = long ? clamp((t - .04) / .3, 0, 1) * .6 : clamp(t / .18, 0, 1) * .92, calf = long ? clamp((t - .55) / .45, 0, 1) * .2 : 0;
-      const wl = (leg - calf) * side, wr = (leg - calf) * (1 - side);   // the front and back hang between the legs, the sides with their own
-      si.push(iP, iL, iR, side > .5 ? iCL : iCR); sw.push(1 - leg, wl, wr, calf);
+      const side = (clamp(cx * lx * 1.6, -1, 1) + 1) / 2;
+      if (sit) {   // seated: the front lies along the thighs to the knee, then drops with the shins; the back stays on the seat. (Hung the walking way, the knees came up through it)
+        const front = smooth(-.8, .1, cz), tk = clamp((yTop - knee.y) / (yTop - yHem), .05, 1), u = clamp((t - tk) / .14, 0, 1), on = clamp(t / .14, 0, 1) * front;
+        const th = on * (1 - u), cf = on * u;
+        si.push(iP, iL, iR, side > .5 ? iCL : iCR); sw.push(1 - th - cf, th * side, th * (1 - side), cf);
+      } else {
+        const leg = long ? clamp((t - .04) / .3, 0, 1) * .6 : clamp(t / .18, 0, 1) * .92, calf = long ? clamp((t - .55) / .45, 0, 1) * .2 : 0;
+        const wl = (leg - calf) * side, wr = (leg - calf) * (1 - side);   // the front and back hang between the legs, the sides with their own
+        si.push(iP, iL, iR, side > .5 ? iCL : iCR); sw.push(1 - leg, wl, wr, calf);
+      }
     }
   }
   for (let j = 0; j < R; j++) for (let k = 0; k < S; k++) { const a = j * (S + 1) + k, b = a + S + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
@@ -14262,7 +14269,8 @@ function makeHuman(L0, opts = {}) {
     tee: b => isTorso(b) || isArm(b), long: b => isTorso(b) || isArm(b) || isFore(b), crop: b => /^spine_0[23]$/.test(b) || isArm(b), croplong: b => /^spine_0[23]$/.test(b) || isArm(b) || isFore(b),
     tank: b => isTorso(b), croptank: b => /^spine_0[23]$/.test(b), bikini: b => b === 'spine_03' };
   if (tops[T]) shell('top:' + T + (hipToo ? '+hip' : ''), b => tops[T](b) || (hipToo && isHip(b)), T === 'bikini' ? .004 : D.skirt ? .011 : .008, D.shirt, .8, D.print);
-  if (D.skirt) wear(skirtGeometry(body, scene, sex, D.skirt.len), D.skirt.col, .85, D.print);
+  if (D.skirt) { const m = wear(skirtGeometry(body, scene, sex, D.skirt.len), D.skirt.col, .85, D.print), sg = skirtGeometry(body, scene, sex, D.skirt.len, true);
+    m.userData.standGeo = m.geometry; m.userData.sitGeo = D.print && D.print.length > 2 ? printGeometry(sg, D.print) : sg; }   // sitting swaps in the seated cut (in play)
   if (D.bottom === 'trousers') shell('trousers', b => isHip(b) || isThigh(b) || isCalf(b), .006, D.pants, D.jeans ? .9 : .78, D.skirt ? null : D.print);
   else if (D.bottom === 'shorts') shell('shorts', b => isHip(b) || isThigh(b), .006, D.pants, .8);
   else if (D.bottom === 'briefs') shell('briefs', b => isHip(b), .004, D.pants, .7);
@@ -14297,6 +14305,7 @@ function makeHuman(L0, opts = {}) {
     if (opts.desync && !once && fresh) a.time = Math.random() * clip.duration;   // a crowd doesn't step in time
     if (h.cur && acts[h.cur]) a.crossFadeFrom(acts[h.cur], fade, false);
     a.play(); h.cur = name;
+    const sit = /^Sitting/.test(name); for (const m of parts) { const want = m.userData.sitGeo && (sit ? m.userData.sitGeo : m.userData.standGeo); if (want && m.geometry !== want) m.geometry = want; }   // a skirt's seated cut while sitting
   };
   const h = { root, scene, body, bones, mixer, play, cur: '', parts, extra, hairMat, headScale: opts.child ? (sex === 'b' || sex === 'g' ? 1.06 : 1.16) : 0 }; easeRig(h);
   // what's on the head, glasses, a backpack (the passers-by's; the scout's hat and shades come from wearGear)
@@ -14313,7 +14322,7 @@ function disposeHuman(h) {
   h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene);
   h.root.traverse(o => {
     if (o.isSkinnedMesh) o.skeleton.dispose?.();
-    if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m !== HS_MAT.frame) m.dispose(); if (o.userData.own) o.geometry.dispose(); }
+    if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) if (m !== HS_MAT.frame) m.dispose(); if (o.userData.own) { o.geometry.dispose(); if (o.userData.sitGeo) { o.userData.sitGeo.dispose(); o.userData.standGeo.dispose(); } } }
   });
   h.root.parent?.remove(h.root);
 }
