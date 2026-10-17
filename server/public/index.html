@@ -5831,9 +5831,11 @@ function talkStart(c) {
   const p = personaOf(c), pl = placeOf(c);
   TC.conv = { c, turn: 0, limit: 3 + Math.floor(Math.random() * 3), asked: new Set(), ending: 0 }; goalEv('talk');
   c.state = 'talk'; c.path.length = 0;
-  const first = p.met ? lineFor(TALK.again, c, 0) : lineFor(TALK.greet, c);
+  const rm = relOf(c), rs = rm && relStageOf(relDecayed(rm), rm.stage), bday = rm && c.resident.persona?.birthday === relDayOfYear();
+  const first = bday ? 'It’s my birthday today! Thanks for coming to see me.' : rs === 'close' ? rp(['My person! I missed you!', 'See who’s here! Come and gist me.', 'Ahh, my best friend!']) : rs === 'friend' ? rp(['My friend! How far?', 'Ah, good to see you!', 'Hey you! Long time.']) : p.met ? lineFor(TALK.again, c, 0) : lineFor(TALK.greet, c);
+  if (rm) { TC.conv.limit = 6; relTalk(c, 'hello'); }
   p.met++;
-  $('talkName').textContent = p.name + (PEOPLE.mine.has(personKey(c.resident?.id)) ? ' · 📇 your contact' : '');
+  talkHeader(c);
   if (c.resident && NET.reachable && String(c.resident.id)[0] !== 'g') api(`/people/${c.resident.id}/seen`, 'POST', {}).catch(() => {});
   $('talkWhere').textContent = (c.child ? 'kid · ' : c.cop ? 'police · ' : c.fire ? 'firefighter · ' : '') + (TALK_PLACE_NAMES[pl] || '').replace(/^the /, '');
   $('talk').hidden = false; $('help').hidden = true;
@@ -5855,13 +5857,26 @@ function talkOptions() {
     topics = (fresh.length >= 3 ? fresh : all).sort(() => Math.random() - .5).slice(0, 3).concat('bye');
   }
   if (!c.child && !cv.swapped && !PEOPLE.mine.has(personKey(c.resident?.id))) topics.splice(Math.max(0, topics.length - 1), 0, 'swap');   // swap numbers: they become someone you know, for good
-  cv.opts = topics.map(t => ({ t, label: t === 'swap' ? '📇 Can I get your number?' : fillT(rp(t === 'how' && ng ? TALK.opts.how_ng : TALK.opts[t]), c) }));
+  if (relOf(c) && !cv.ending) { cv.opts = relTopics(c, cv); if (!cv.giftMenu) cv.opts.push({ t: 'bye', label: fillT(rp(TALK.opts.bye), c) }); }   // someone you know: their interests, their day, a gift...
+  else cv.opts = topics.map(t => ({ t, label: t === 'swap' ? '📇 Can I get your number?' : fillT(rp(t === 'how' && ng ? TALK.opts.how_ng : TALK.opts[t]), c) }));
   cv.opts.forEach((o, k) => { const li = document.createElement('li'); li.innerHTML = `<kbd>${k + 1}</kbd>`; li.append(o.label); li.onclick = () => talkChoose(k); el.append(li); });
 }
 function talkChoose(k) {
   const cv = TC.conv; if (!cv || !cv.opts[k]) return;
   const o = cv.opts[k], c = cv.c;
   if (o.t === 'bye') { talkSay(c, lineFor(TALK.bye, c, 0), o.label); $('talkOpts').innerHTML = ''; cv.closing = 1.8; return; }
+  if (o.t === 'interest' || o.t === 'day' || o.t === 'compliment' || o.t === 'joke') {   // with someone you know: it moves how close you are
+    cv.turn++; if (cv.turn >= cv.limit) cv.ending = 1; $('talkOpts').innerHTML = ''; talkSay(c, '…', o.label);
+    relTalk(c, o.t, o.about).then(r => { if (TC.conv !== cv) return; talkSay(c, relAnswer(c, o, r) + (cv.ending ? ' ' + rp(TALK.wrap) : ''), o.label); talkOptions(); });
+    return;
+  }
+  if (o.t === 'gift' || o.t === 'back') { cv.giftMenu = o.t === 'gift'; talkOptions(); return; }
+  if (o.t === 'giftpick') {
+    cv.giftMenu = false; $('talkOpts').innerHTML = ''; talkSay(c, '…', o.label);
+    relGift(c, o.gid).then(r => { if (TC.conv !== cv) return; const G = REL_GIFTS[o.gid];
+      talkSay(c, r ? (r.birthday ? 'For my birthday? You remembered! Thank you!' : r.suits ? `${G[0]}! How did you know? I love it!` : rp(['Thank you, that’s so kind.', 'Ah, you shouldn’t have! Thank you.', 'For me? Thank you o!'])) : 'Ah, it’s okay. Next time.', o.label); talkOptions(); });
+    return;
+  }
   if (o.t === 'swap') {
     cv.swapped = true; const p = personaOf(c);
     talkSay(c, rp(['Sure, give me your phone. There: saved.', 'Ehen, why not. Here’s my number. Call me o!', 'Okay! Put me in as ' + p.name + '. Don’t lose it.', 'No wahala. Flash me so I have yours too.']), o.label);
@@ -15415,6 +15430,7 @@ const GOAL_DEFS = [   // [id, tier, what to do, how many, the event that counts,
   ['fare5', 'hard', 'Drive 5 taxi fares', 5, 'fare'], ['train3', 'hard', 'Get off the train at 3 different stations', 3, 'train', true], ['boat1', 'hard', 'Take tourists on a boat tour', 1, 'boat'],
   ['museums4', 'hard', 'Visit all four state museums', 4, 'museumVisit', true],
   ['biz2', 'medium', 'Collect takings from your businesses twice (or buy one)', 2, 'biz'],
+  ['gift1', 'easy', 'Give one of your contacts a gift', 1, 'gift'], ['friend1', 'hard', 'Become friends with someone (or closer)', 1, 'friend'],
 ];
 // places a "visit" goal can send you to (found by name on the map)
 const GOAL_PLACES = ['Ile-Ife', 'Ore junction', 'The Oba’s palace, Benin', 'King’s Square & National Museum, Benin', 'Benin Airport', 'Samuel Ogbemudia Stadium', 'University of Benin (UNIBEN)', 'Igun Street bronze casters',
@@ -16029,6 +16045,11 @@ const PEOPLE = { cast: new Map(), mine: new Map(), civ: new Map(), queue: [], lo
 const PEOPLE_STORE = 'giantwood-people';
 const INTERESTS = ['football', 'Afrobeats', 'Nollywood', 'cooking', 'fashion', 'church', 'business', 'tech', 'politics', 'owambe parties', 'books', 'cars', 'jollof debates', 'dancing', 'travel', 'fitness'];
 const personKey = id => String(id);
+// the neighbourhood someone's in, by name
+function areaName(c) {
+  const pl = placeOf(c), A = { yaba: 'Yaba', market: 'Yaba', campus: 'UNILAG, Yaba', cityschool: 'Naija City', city: 'Naija City', airport: 'the airport', beach: 'Elegushi Beach', country: 'Meadowbrook', school: 'Meadowbrook' }[pl];
+  return c.v?.name || A || placeName(c.g.position.x, c.g.position.z);
+}
 function peopleLocalLoad() {   // guests: the people they met (and contacts of shared ones) live in this browser
   try { const d = JSON.parse(localStorage.getItem(PEOPLE_STORE) || '{}'); for (const R of d.cast || []) PEOPLE.cast.set(personKey(R.id), R); for (const m of d.mine || []) PEOPLE.mine.set(personKey(m.id), m); PEOPLE.guestN = d.n || 0; } catch (e) {}
 }
@@ -16101,8 +16122,8 @@ async function peopleSwap(c) {
   civLookOf(c);   // (fixes their face and build for good)
   const R = { name: p.name, female: c.female, elder: !!c.elder, spec: JSON.parse(JSON.stringify(c.spec)), home: hk,
     persona: { job: p.job, mood: p.mood, ng: p.ng, dest: p.dest, age: c.elder ? Math.round(RM(60, 78)) : Math.round(RM(19, 48)), interests: [...INTERESTS].sort(() => Math.random() - .5).slice(0, 2),
-      birthday: Math.ceil(RM(0, 365)), hometown: (TALK_PLACE_NAMES[placeOf(c)] || '').replace(/^the /, '') || placeName(c.g.position.x, c.g.position.z), likes: c.elder ? null : ri(['men', 'women', 'both', c.female ? 'men' : 'women', c.female ? 'men' : 'women']),
-      metAt: placeName(c.g.position.x, c.g.position.z) },
+      birthday: Math.ceil(RM(0, 365)), hometown: areaName(c), likes: c.elder ? null : ri(['men', 'women', 'both', c.female ? 'men' : 'women', c.female ? 'men' : 'women']),
+      metAt: areaName(c) },
     work: ws ? { x: ws.x, z: ws.z, label: ws.label } : null, hang: hs ? { x: hs.x, z: hs.z, label: hs.name.replace(/^the /, '') } : null };
   try {
     let saved, rel;
@@ -16137,7 +16158,11 @@ PHONE.apps.contacts = { render: () => {
   for (const [m, R, c] of list) {
     const card = ph('div', 'phCard'), P0 = R.persona || {}, pos = c ? c.g.position : null, d = pos ? Math.hypot(pos.x - P.pos.x, pos.z - P.pos.z) : null;
     card.append(ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}${P0.age ? ', ' + P0.age : ''}`), ph('span', 'phDim', `${P0.job ? '“' + P0.job + '”' : ''}${P0.interests?.length ? ' · into ' + P0.interests.join(' and ') : ''}`));
-    card.append(ph('span', null, `${c ? contactWhere(c) : 'on their way'}${d != null ? ` · ${fmtDist(d)} away` : ''}`), ph('span', 'phDim', `Contact since ${new Date(m.since).toLocaleDateString()} · met in ${P0.metAt || P0.hometown || 'town'}`));
+    const cl = relDecayed(m), st = relStageOf(cl, m.stage), bar = ph('div', 'phBar'), f = ph('i'); f.style.width = cl + '%'; bar.append(f);
+    const ago = Math.floor((Date.now() - (m.last || m.since)) / 86400e3);
+    card.append(ph('span', null, `${st === 'close' ? '💛' : st === 'friend' ? '🤝' : '📇'} ${REL_STAGE[st]} · ${cl} / 100${st === 'contact' ? ` · friends at 40` : st === 'friend' ? ' · close at 70' : ''}`), bar,
+      ph('span', null, `${c ? contactWhere(c) : 'on their way'}${d != null ? ` · ${fmtDist(d)} away` : ''}`),
+      ph('span', 'phDim', `${ago <= 0 ? 'Talked today' : ago === 1 ? 'Talked yesterday' : `Last talked ${ago} days ago${ago > 3 ? ': it’s fading' : ''}`} · met in ${P0.metAt || P0.hometown || 'town'}${P0.birthday === relDayOfYear() ? ' · 🎂 birthday today!' : ''}`));
     const row = ph('div', 'phChips');
     if (c) row.append(ph('button', 'phBtn', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(c.g.position.x, c.g.position.z); toast('📍 Pinned', `${R.name}: ${contactWhere(c)}`); } } }));
     const hv = peopleHouses().get(R.home); if (hv) row.append(ph('button', 'phChip', '🏠 Their home', { type: 'button', on: { click: () => { setWaypoint(hv.h.doorOut.x, hv.h.doorOut.z); toast('📍 Pinned', `${R.name}’s home`); } } }));
@@ -16154,6 +16179,98 @@ async function peopleForget(id) {
   PEOPLE.mine.delete(personKey(id)); peopleSave(); phoneRefresh();
 }
 PHONE_APPS.push(['contacts', '👥', 'Contacts']);
+
+// ---- closeness (phase 2): talk and gifts bring you closer; three quiet days in, it fades. Friends at 40, close at 70.
+// Accounts: the server keeps the score. Guests: the same sums here. ----
+const REL_GIFTS = {   // [name, price, closeness, interests it suits] (the server's table counts for accounts)
+  suya: ['Suya wrap', 2000, 3, ['cooking', 'football']], chocolate: ['Chocolates', 3000, 4, []], jollof: ['Party jollof, a pack', 4000, 4, ['jollof debates', 'cooking', 'owambe parties']],
+  flowers: ['Flowers', 5000, 5, []], book: ['A novel', 6000, 5, ['books', 'politics']], cinema: ['Cinema tickets', 8000, 6, ['Nollywood']], jersey: ['Super Eagles jersey', 15000, 7, ['football', 'fitness']],
+  bag: ['Travel bag', 18000, 7, ['travel']], ankara: ['Ankara fabric', 20000, 8, ['fashion', 'owambe parties', 'church']], tickets: ['Concert tickets', 25000, 9, ['Afrobeats', 'dancing']],
+  perfume: ['Perfume', 30000, 9, ['fashion']], watch: ['Wristwatch', 60000, 11, ['business', 'cars', 'fashion']], phone: ['A new phone', 150000, 14, ['tech']],
+};
+const REL_STAGE = { contact: 'Contact', friend: 'Friend', close: 'Close friend' }, REL_RANK = ['contact', 'friend', 'close'];
+const relStageOf = (c, prev) => c >= 70 || (prev === 'close' && c >= 60) ? 'close' : c >= 40 || ((prev === 'friend' || prev === 'close') && c >= 30) ? 'friend' : 'contact';
+const relDecayed = m => Math.max(0, m.closeness - Math.max(0, Math.floor((Date.now() - (m.last || m.since)) / 86400e3) - 3));
+const relToday = () => new Date(Date.now() + 3600e3).toISOString().slice(0, 10);
+const relDayOfYear = () => { const d = new Date(Date.now() + 3600e3); return Math.floor((+d - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86400e3); };
+const relOf = c => c?.resident && PEOPLE.mine.get(personKey(c.resident.id));
+function relLocal(m, d, kind) {   // a guest's version of the server's sums
+  if (m.day !== relToday()) Object.assign(m, { day: relToday(), gain: 0, gifts: 0, comps: 0 });
+  if (kind === 'gift') { if (m.gifts >= 2) return { refused: true }; m.gifts++; }
+  else { if (d > 0) { d = Math.max(0, Math.min(d, 12 - m.gain)); m.gain += d; } if (kind === 'compliment') m.comps++; }
+  const before = relDecayed(m), now = clamp(before + d, 0, 100), prev = m.stage, stage = relStageOf(now, prev);
+  Object.assign(m, { closeness: now, stage, last: Date.now() }); peopleSave();
+  return { rel: m, delta: now - before, up: REL_RANK.indexOf(stage) > REL_RANK.indexOf(prev), down: REL_RANK.indexOf(stage) < REL_RANK.indexOf(prev), compliments: m.comps };
+}
+function relAfter(c, out) {   // the new score into your contacts, and a word when you move up or down
+  if (!out || !out.rel) return;
+  const id = personKey(c.resident.id), m = PEOPLE.mine.get(id); Object.assign(m, out.rel); m.closeness = out.rel.closeness;
+  const name = c.resident.name;
+  if (out.up) { toast(m.stage === 'close' ? `💛 ${name} is a close friend now` : `🤝 ${name} is your friend now`, m.stage === 'close' ? 'They’d do anything for you' : 'Keep in touch and it grows'); sfx('swap'); goalEv('friend'); }
+  else if (out.down) toast(`💔 You and ${name} have drifted`, `${REL_STAGE[m.stage]} again. Talk, text or bring a gift`);
+  if (TC.conv?.c === c) talkHeader(c, out.delta);
+  phoneRefresh();
+}
+async function relTalk(c, topic, about) {
+  const m = relOf(c); if (!m) return null;
+  if (NET.token && String(c.resident.id)[0] !== 'g') { try { const r = await api(`/people/${c.resident.id}/talk`, 'POST', { topic, about }); relAfter(c, r); return r; } catch (e) { return null; } }
+  const P0 = c.resident.persona || {}, comps = m.day === relToday() ? m.comps || 0 : 0;
+  let d = 1, kind = 'talk', hit = null;
+  if (topic === 'interest') { hit = (P0.interests || []).includes(about); d = hit ? 5 : 0; }
+  else if (topic === 'joke') d = P0.mood === 'grumpy' ? -2 : P0.mood === 'shy' ? 1 : 3;
+  else if (topic === 'compliment') { kind = 'compliment'; d = comps === 0 ? 3 : comps === 1 ? 0 : -1; }
+  else if (topic === 'day') d = 2;
+  const out = { hit, ...relLocal(m, d, kind) }; relAfter(c, out); return out;
+}
+async function relGift(c, gid) {
+  const G = REL_GIFTS[gid], m = relOf(c); if (!G || !m) return null;
+  if (LAND.money < G[1]) { toast('🎁 Gift', `${G[0]} is ${NAIRA(G[1])}; you have ${NAIRA(LAND.money)}`); return null; }
+  try {
+    let out;
+    if (NET.token && String(c.resident.id)[0] !== 'g') out = await walletPost(`/people/${c.resident.id}/gift`, { gift: gid });
+    else {
+      const P0 = c.resident.persona || {}, suits = G[3].some(x => (P0.interests || []).includes(x)), birthday = P0.birthday === relDayOfYear();
+      const r = relLocal(m, Math.round(G[2] * (suits ? 2 : 1) * (birthday ? 1.5 : 1)), 'gift'); if (r.refused) throw new Error('They won’t take another gift today');
+      LAND.money -= G[1]; saveLand(); out = { suits, birthday, ...r };
+    }
+    bankSpend(G[1], `Gift for ${c.resident.name}`); goalEv('gift'); relAfter(c, out); return out;
+  } catch (e) { toast('🎁 Gift', e.message || String(e)); return null; }
+}
+function talkHeader(c, delta) {
+  const p = personaOf(c), m = relOf(c);
+  $('talkName').textContent = p.name + (m ? ` · ${REL_STAGE[relStageOf(relDecayed(m), m.stage)]} · 💛 ${relDecayed(m)}${delta ? ` (${delta > 0 ? '+' : ''}${delta})` : ''}` : '');
+}
+const INTEREST_SAY = {
+  football: ['Did you see the match? That referee sha!', 'Super Eagles will win the next AFCON, mark my words.'], Afrobeats: ['Have you heard the new Burna track? On repeat!', 'Rema or Asake? Don’t make me choose.'],
+  Nollywood: ['I just watched a new Nollywood film. The ending got me.', 'Funke Akindele can do no wrong.'], cooking: ['I made egusi yesterday. You should taste it.', 'My mother’s jollof recipe is a family secret.'],
+  fashion: ['I’m sewing a new outfit for an owambe.', 'Aso-ebi season is expensive o!'], church: ['Service was powerful on Sunday.', 'Our choir is practising for the harvest.'],
+  business: ['I’m saving up to open my own shop.', 'Buy low, sell high. That’s the hustle.'], tech: ['I’m learning to code at night.', 'Yaba is the Silicon Valley of Africa, you know.'],
+  politics: ['Don’t get me started on fuel prices.', 'Lagos traffic is a political issue, I’m telling you.'], 'owambe parties': ['There’s an owambe this weekend. Come!', 'The money spraying at the last party was crazy.'],
+  books: ['I’m reading Chimamanda again.', 'Have you read Things Fall Apart?'], cars: ['One day I’ll drive a G-Wagon.', 'Tokunbo cars last longer, abeg.'],
+  'jollof debates': ['Nigerian jollof is the best. Ghana should rest.', 'Party jollof hits different, smoky.'], dancing: ['Let’s go to Club Prestige sometime!', 'I can do the latest dance, watch.'],
+  travel: ['I want to see Obudu Ranch one day.', 'Next holiday: Accra, then Dubai.'], fitness: ['I run on the beach every morning.', 'No sugar this month. Pray for me.'],
+};
+// the talk options for someone you know (asked by talkOptions)
+function relTopics(c, cv) {
+  if (cv.giftMenu) {
+    const list = Object.entries(REL_GIFTS).sort((a, b) => a[1][1] - b[1][1]).filter(([, G]) => G[1] <= Math.max(LAND.money, 2000)).slice(0, 8);
+    return [...list.map(([id, G]) => ({ t: 'giftpick', gid: id, label: `${G[0]} · ${NAIRA(G[1])}` })), { t: 'back', label: '‹ Back' }];
+  }
+  const P0 = c.resident.persona || {}, mine = P0.interests || [], others = INTERESTS.filter(x => !mine.includes(x));
+  const about = Math.random() < .6 && mine.length ? ri(mine) : ri(others);
+  const pool = [{ t: 'interest', about, label: `Ask about ${about}` }, { t: 'day', label: 'How was your day?' },
+    { t: 'compliment', label: ri(['You look sharp today.', 'I like your style.', 'You always make me smile.', 'That colour suits you.']) }, { t: 'joke', label: 'Tell a joke' }];
+  return [...pool.sort(() => Math.random() - .5).slice(0, 3), { t: 'gift', label: '🎁 Give a gift' }];
+}
+function relAnswer(c, o, r) {
+  const P0 = c.resident.persona || {};
+  if (o.t === 'interest') return r?.hit ? `${o.about}! You remembered. ${ri(INTEREST_SAY[o.about] || ['I love it.'])}` : ri([`${o.about}? Not really my thing, to be honest.`, `Me and ${o.about}? No o.`, `Hmm, ${o.about}. I don’t know much about it.`]);
+  if (o.t === 'day') return ri([`Long day${P0.job ? ' at work' : ''}, but I’m good. Thanks for asking.`, 'Busy, busy. Better now you’re here.', 'My mum called and we gisted for an hour.', 'Traffic ate half my day. As usual.']);
+  if (o.t === 'compliment') return (r?.compliments || 1) <= 1 ? ri(['Awww, thank you!', 'You’re too kind.', 'Haha, stop it. Thank you!']) : (r?.compliments || 2) === 2 ? 'Hehe, you said that already.' : 'Okay o, that’s enough flattery.';
+  if (o.t === 'joke') return P0.mood === 'grumpy' ? ri(['Not funny.', 'Is that supposed to be a joke?']) : P0.mood === 'shy' ? 'Hehe. That’s a good one.' : ri(['Hahaha! You’re mad!', 'Ahahah, stop! My stomach!', 'That one is too much!']);
+  return '';
+}
+
 
 
 setInterval(() => { if (PHONE.open && PHONE.app === 'market' && MKT.view === 'browse' && !(document.activeElement && $('phone').contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName))) phoneRefresh(); }, 1000);   // (auction clocks; not while you're typing a bid)
