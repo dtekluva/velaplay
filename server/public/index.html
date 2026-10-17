@@ -212,7 +212,7 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #tc{position:absolute;inset:0;touch-action:none;display:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body.touch #tc{display:block}
 body.touch #hud *{pointer-events:none}
-body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *,body.touch #phone,body.touch #phone *,body.touch #exhibit,body.touch #exhibit *,body.touch #wayCue #wayX,body.touch #hud .mapwrap,body.touch #hud .mapwrap *,body.touch #hud #msgNote,body.touch #hud #msgNote *{pointer-events:auto}
+body.touch #tc,body.touch #tc *,body.touch #talk,body.touch #talk *,body.touch #lmenu,body.touch #lmenu *,body.touch #odock,body.touch #odock *,body.touch #chatBar,body.touch #chatBar *,body.touch #bigmapC,body.touch #bigmap .bmz,body.touch #bigmap .bmz *,body.touch #phone,body.touch #phone *,body.touch #exhibit,body.touch #exhibit *,body.touch #wayCue #wayX,body.touch #hud .mapwrap,body.touch #hud .mapwrap *,body.touch #hud #msgNote,body.touch #hud #msgNote *,body.touch #hud #goalHud,body.touch #hud #goalHud *{pointer-events:auto}
 body.touch #tc .stick,body.touch #tc .knob{pointer-events:none}
 body.touch #help{display:none!important}
 #helpTab{position:absolute;right:max(18px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom,0px));padding:5px 10px;background:var(--panel);border:1px solid var(--edge);color:var(--brass);font:700 12px/1 inherit;letter-spacing:.06em;cursor:pointer;pointer-events:auto;opacity:.75}
@@ -360,7 +360,7 @@ body.arr canvas{touch-action:none;cursor:pointer}
 .chips button.on{background:var(--brass);color:#1b1608;border-color:var(--brass)}
 .sw button{width:24px;height:24px;border:2px solid rgba(255,255,255,.18);cursor:pointer;padding:0}
 .sw button.on{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass)}
-#chatLog{position:absolute;left:max(18px,env(safe-area-inset-left));top:150px;width:min(360px,60vw);display:flex;flex-direction:column;gap:3px;font-size:15px;pointer-events:none;text-shadow:0 1px 2px #000}
+#chatLog{position:absolute;left:max(18px,env(safe-area-inset-left));top:305px;width:min(360px,60vw);display:flex;flex-direction:column;gap:3px;font-size:15px;pointer-events:none;text-shadow:0 1px 2px #000}
 #chatLog .chathead{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass);font-weight:700}
 #chatLog .chatline{background:rgba(16,20,15,.55);padding:3px 8px;align-self:flex-start;max-width:100%;overflow-wrap:anywhere}
 #chatLog b{color:var(--brass)}
@@ -392,6 +392,20 @@ body.touch #msgNote{right:calc(10px + env(safe-area-inset-right,0px));top:calc(1
 body.touch #msgNote kbd{display:none}
 @keyframes msgPulse{0%{box-shadow:0 0 0 0 rgba(62,232,255,.55)}70%{box-shadow:0 0 0 10px rgba(62,232,255,0)}100%{box-shadow:0 0 0 0 rgba(62,232,255,0)}}
 #tc .sys .b.dot::after{content:'';position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#e5372b;border:2px solid #0e130d}
+#goalHud{position:absolute;left:max(18px,env(safe-area-inset-left));top:calc(150px + env(safe-area-inset-top,0px));width:250px;padding:8px 10px 9px;background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--brass);font:600 13px var(--ui);color:var(--ink);pointer-events:auto;cursor:pointer}
+#goalHud .gh{display:flex;justify-content:space-between;gap:8px;color:var(--brass);letter-spacing:.06em;text-transform:uppercase;font-size:12px;font-weight:700}
+#goalHud ol{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+#goalHud li{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:6px;line-height:1.2}
+#goalHud li em{font-style:normal;font-size:12px}
+#goalHud li small{grid-column:2;color:var(--muted);font-size:11px;font-weight:500}
+#goalHud li u{grid-column:2;display:block;height:3px;margin-top:2px;background:rgba(255,255,255,.14);border-radius:2px;overflow:hidden;text-decoration:none}
+#goalHud li u i{display:block;height:100%;background:var(--brass)}
+#goalHud li.done{opacity:.55}#goalHud li.done span{text-decoration:line-through}
+#goalHud.flash{animation:ghFlash .8s ease-out 2}
+@keyframes ghFlash{0%{box-shadow:0 0 0 0 rgba(214,174,95,.8)}100%{box-shadow:0 0 0 14px rgba(214,174,95,0)}}
+body.touch #goalHud{width:auto;left:calc(306px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));padding:6px 10px}
+body.touch #goalHud ol{display:none}
+@media (orientation:portrait){body.touch #goalHud{left:calc(10px + env(safe-area-inset-left,0px));top:calc(168px + env(safe-area-inset-top,0px))}}
 #wayCue{position:absolute;left:50%;top:calc(134px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:3px 6px 3px 4px;background:var(--panel);border:1px solid var(--edge);font:600 14px var(--ui);letter-spacing:.05em;color:var(--ink,#f1ebda);white-space:nowrap;z-index:5}
 #wayCue svg{width:30px;height:30px;flex:none}
 #wayCue #wayX{pointer-events:auto;background:none;border:0;color:inherit;font:600 13px var(--ui);opacity:.7;cursor:pointer;padding:2px 4px}
@@ -499,7 +513,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
   #mstat .mm{flex-wrap:wrap;row-gap:0}
   body.touch #odock{right:calc(10px + env(safe-area-inset-right,0px));top:calc(140px + env(safe-area-inset-top,0px));flex-direction:column;align-items:flex-end}
   body.touch #talk,body.touch #lmenu{right:calc(10px + env(safe-area-inset-right,0px));width:auto;top:calc(142px + env(safe-area-inset-top,0px));max-height:calc(60% - 142px)}
-  body.touch #chatLog{width:min(300px,60vw);top:calc(168px + env(safe-area-inset-top,0px))}
+  body.touch #chatLog{width:min(300px,60vw);top:calc(212px + env(safe-area-inset-top,0px))}
   body.touch #prompt{max-width:80vw;top:52%}
   body.touch #toast{top:22%}
   #drawer aside{width:min(400px,88vw)}
@@ -555,6 +569,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
   <div id="fade"></div>
   <div id="hud" hidden>
     <div id="tc"><div class="stick"><div class="knob"></div></div><div class="pad"></div><div class="sys"></div></div>
+    <div id="goalHud" hidden role="button" tabindex="0" aria-label="Today’s goals"><div class="gh"><span>🏅 Today’s goals</span><b id="ghN">0/3</b></div><ol id="ghList"></ol></div>
     <div class="score"><span class="lbl">Score</span><b id="score" class="num">0</b><div class="money"><b id="money" class="num">₦0</b></div><div class="rep" id="repChip"></div><div class="slain"><i></i><b id="slain" class="num">0</b>titans slain</div></div>
     <div class="banner"><div class="mode" id="modeName">Free Roam</div><div class="sub" id="modeSub">The forest keeps sending titans</div><div class="pill num" id="nearby">Titans nearby 0 · Slain 0</div></div>
     <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span><span id="mNeeds" class="mneeds"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
@@ -2708,7 +2723,7 @@ if (TOWN && blockAt('gas')) {
   adPanel(b, cx, fl + 3.4, cz + 3.4 - .12, Math.PI, 4.4, 2.2, 2);
   b.build();
   addDoor(F, 0, -DL / 2 + T / 2, fl, 2.0, 2.6, MM.glass, T0);
-  Object.assign(hs, { doorOut: pt(0, -DL / 2 - 1.8), doorIn: pt(0, inZ0 + 1), inside: pt(-1.6, -2.5), floorY: fl, two: false, top: fl + wallH });
+  Object.assign(hs, { doorOut: pt(0, -DL / 2 - 1.8), doorIn: pt(0, inZ0 + 1), inside: pt(-1.6, -2.5), floorY: fl, two: false, top: fl + wallH, shop: true });
   T0.houses.push(hs);
   // a car filling up (its model is made once the car code has loaded, see below)
   TOWN.gasCar = [cx - 5.2, y + .02, cz - 4];
@@ -3259,7 +3274,7 @@ if (AP) {
   }
   addDoor(F, 0, -DL / 2 + T / 2, fl, 4, 3.4, gl, TOWN);
   addDoor(F, 0, -DL / 2 + T / 2, fl2, 4, 3.4, gl, TOWN);
-  Object.assign(hs, { doorOut: pt(0, -DL / 2 - 1.8), doorIn: pt(0, inZ0 + 1.2), inside: pt(-30, -6), floorY: fl, two: true, upper: fl2, top: y + 14 });
+  Object.assign(hs, { doorOut: pt(0, -DL / 2 - 1.8), doorIn: pt(0, inZ0 + 1.2), inside: pt(-30, -6), floorY: fl, two: true, upper: fl2, top: y + 14, shop: true });
   TOWN.houses.push(hs);
   // where the planes and travellers go once their models exist
   AP.parked = [130, 105, 82].map(v => [...Wp(165, v), yawTo(-1, 0)]);
@@ -5532,7 +5547,7 @@ function updateCivilians(dt) {
     animFigure(c.rig, c.phase, moving ? 1 : 0, c.state === 'flee' || c.state === 'shelter' ? 'panic' : (c.jog || c.state === 'chase') && moving ? 'run' : 'walk', S.time + c.phase);
     if (c.hailing && !moving) { c.rig.uArm[1].rotation.set(2.8 + Math.sin(S.time * 7 + c.phase) * .25, 0, .3); c.rig.fArm[1].rotation.x = .25; let dy = Math.atan2(-(P.pos.x - g.position.x), -(P.pos.z - g.position.z)) - g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); g.rotation.y += dy * Math.min(1, dt * 4); }
     if ((c.dance || c.dj) && !moving && dd < DETAIL.statue && c !== TC.conv?.c && !c.human) danceStep(c, dt);
-    if (c.human) updateHumanMotion(c.human, civClip(c, sp, moving), dt);
+    if (c.human) updateHumanMotion(c.human, civClip(c, sp, moving), dt, c.dance && !c.dj && c !== TC.conv?.c ? [c.danceMove ??= ((c.danceStyle || 0) + 3 * Math.floor(Math.random() * 3)) % 9, danceBeat() + (c.phase0 ??= Math.random() * 2)] : null);
     if (c.state === 'fight' && c.aimT) {   // face the titan, two-handed aim at its neck
       const t = c.aimT, dx = t.g.position.x - g.position.x, dz = t.g.position.z - g.position.z, up = Math.atan2(t.H * .8, Math.hypot(dx, dz));
       g.rotation.y = Math.atan2(-dx, -dz);
@@ -5840,6 +5855,7 @@ function talkTarget() {
   }
   return best;
 }
+const contactTarget = () => { const c = !P.driving && talkTarget(); return c && relOf(c) ? c : null; };   // someone you know, right in front of you: talking to them beats the shop door behind them
 function talkStart(c) {
   const p = personaOf(c), pl = placeOf(c);
   TC.conv = { c, turn: 0, limit: 3 + Math.floor(Math.random() * 3), asked: new Set(), ending: 0 }; goalEv('talk');
@@ -5871,7 +5887,7 @@ function talkOptions() {
     topics = (fresh.length >= 3 ? fresh : all).sort(() => Math.random() - .5).slice(0, 3).concat('bye');
   }
   if (!c.child && !cv.swapped && !PEOPLE.mine.has(personKey(c.resident?.id))) topics.splice(Math.max(0, topics.length - 1), 0, 'swap');   // swap numbers: they become someone you know, for good
-  if (relOf(c) && !cv.ending) { cv.opts = relTopics(c, cv); if (!cv.giftMenu) cv.opts.push({ t: 'bye', label: fillT(rp(TALK.opts.bye), c) }); }   // someone you know: their interests, their day, a gift...
+  if (relOf(c) && !cv.ending) { cv.opts = relTopics(c, cv); if (!cv.giftMenu) cv.opts.push(c.follow ? { t: 'unfollow', label: '👋 You can head back now' } : { t: 'follow', label: '🚶 Come with me' }, { t: 'bye', label: fillT(rp(TALK.opts.bye), c) }); }   // someone you know: their interests, their day, a gift...
   else cv.opts = topics.map(t => ({ t, label: t === 'swap' ? '📇 Can I get your number?' : fillT(rp(t === 'how' && ng ? TALK.opts.how_ng : TALK.opts[t]), c) }));
   cv.opts.forEach((o, k) => { const li = document.createElement('li'); li.innerHTML = `<kbd>${k + 1}</kbd>`; li.append(o.label); li.onclick = () => talkChoose(k); el.append(li); });
 }
@@ -5885,6 +5901,12 @@ function talkChoose(k) {
     return;
   }
   if (['flirt', 'ask_out', 'commit', 'propose', 'move_in', 'wedding'].includes(o.t)) { cv.turn++; loveChoose(c, o, cv); return; }   // romance
+  if (o.t === 'follow' || o.t === 'unfollow') {   // they walk with you (somewhere quieter to talk, your place, anywhere) or go back to their day
+    $('talkOpts').innerHTML = '';
+    if (o.t === 'follow') { c.follow = Date.now() + 20 * 60e3; talkSay(c, ri(['Sure, lead the way.', 'Okay o, where are we going?', 'Let’s go!', 'I’m right behind you.']), o.label); toast(`🚶 ${c.resident.name} is walking with you`, 'Talk to them again to send them back. Driving off ends it too'); }
+    else { followStop(c); talkSay(c, ri(['Okay, see you later!', 'That was nice. Bye for now.', 'Alright, I’ll head back.']), o.label); }
+    cv.closing = 1.6; return;
+  }
   if (o.t === 'gift' || o.t === 'back') { cv.giftMenu = o.t === 'gift'; talkOptions(); return; }
   if (o.t === 'giftpick') {
     cv.giftMenu = false; $('talkOpts').innerHTML = ''; talkSay(c, '…', o.label);
@@ -7577,8 +7599,9 @@ function offence(code, detail) {
   LAW.stars = Math.min(3, LAW.stars + O.stars);
   toast(`🚨 ${O.label}`, `Wanted ${'★'.repeat(LAW.stars)} · the police are after you`);
 }
-function lawGunfire() {   // fighting titans is fine; shooting in a town or near people isn't
-  if (titans.some(t => !t.dead && Math.hypot(t.g.position.x - P.pos.x, t.g.position.z - P.pos.z) < 90)) return;
+function lawGunfire() {   // fighting titans is fine (aiming at one, or one anywhere near); shooting in a town or near people isn't
+  if (aim.hit && aim.object?.userData?.titan) return;
+  if (!peaceful && titans.some(t => !t.dead && Math.hypot(t.g.position.x - P.pos.x, t.g.position.z - P.pos.z) < 250)) return;
   if (builtUp(P.pos.x, P.pos.z) || civilians.some(c => c.active && Math.hypot(c.g.position.x - P.pos.x, c.g.position.z - P.pos.z) < 25)) offence('gun');
 }
 // a pursuit car: follows the road you took (your trail), sirens going, and pulls you over when you stop
@@ -9728,7 +9751,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ct = contactTarget(); if (ct) { talkStart(ct); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -10212,6 +10235,7 @@ function updateHUD(dt) {
   else if (P.driving) $('prompt').textContent = 'E · Get out · Space · Handbrake' + (NEEDS.on && NEEDS.e < 60 && Math.abs(P.driving.speed) < .5 && P.driving.kind !== 'boat' ? ' · I · Nap' : '');
   else if (RIDE.on) $('prompt').textContent = `🚗 Riding with ${NET.room?.state.players.get(RIDE.driver)?.name || 'a friend'} · E · Get out`;
   else if (thS) $('prompt').textContent = '🦸 E · Grab the thief!';
+  else if (who && relOf(who)) $('prompt').textContent = `E · Talk to ${who.persona?.name || who.resident.name}`;
   else if (doorS) $('prompt').textContent = doorS.label;
   else if (exS) $('prompt').textContent = `🔍 E · Look closer: ${exS.title}`;
   else if (salesDesk()) $('prompt').textContent = '🔑 E · See the sales manager: buy a car';
@@ -10355,6 +10379,7 @@ function drawBigMap() {
     if (name) label(name, h.x, h.z, 13, '#f1ebda', -Math.max(h.w, h.d) / 2 * sc - 6);
   }
   if (TOWN && blockAt('gas')) { const [gx, gz] = blockAt('gas'); label('Gas & Go', gx, gz, 13, '#f1ebda'); }
+  for (const g of GOALS.set) if (g.ev === 'visit' && !GOALS.claimed.includes(g.id) && g.x != null) label('🏅 ' + g.text.replace(/^Visit /, ''), g.x, g.z, 15, '#f2c230', -14);   // today's visit goal
   // showers: blue patches where it is raining now, where they will be at the end of the slot dashed
   for (const c of WX.cells) {
     if (c.r > 1e5) { bg2.fillStyle = 'rgba(90,140,200,.16)'; bg2.fillRect(0, 0, W, W); label('🌧 Rain everywhere', BMV.cx, BMV.cz - BMV.span * .42, 16, '#bfe3ff'); continue; }
@@ -13098,7 +13123,30 @@ function remoteHuman(r, lookStr) {
   r.g.add(r.human.root); if (r.rig) r.rig.root.visible = false;
   if (r.hs) wearGear(r.human, r.hs.hat, r.hs.shades, null, L.hairStyle === 'afro' || L.hairStyle === 'curly');
 }
-function updateHumanMotion(h, clip, dt) { if (!h) return; h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); narrowShoulders(h); if (h.headScale) h.bones.Head.scale.setScalar(h.headScale); }
+// the bodies have one dance clip; each move bends it its own way on the beat (turns about the person's own axes: up is +Y, the face +Z, their left +X)
+const _dqP = new THREE.Quaternion(), _dqS = new THREE.Quaternion(), _dqA = new THREE.Quaternion(), _dv = new THREE.Vector3();
+function boneTurn(h, name, ax, ay, az, ang) {
+  const b = h.bones[name]; if (!b || !ang) return;
+  h.scene.getWorldQuaternion(_dqS); _dv.set(ax, ay, az).applyQuaternion(_dqS).normalize(); _dqA.setFromAxisAngle(_dv, ang);
+  b.parent.getWorldQuaternion(_dqP); b.quaternion.premultiply(_dqA.premultiply(_dqP.clone().invert()).multiply(_dqP));
+}
+const DANCE_BONES = ['pelvis', 'spine_02', 'spine_03', 'Head', 'clavicle_l', 'clavicle_r', 'upperarm_l', 'upperarm_r', 'lowerarm_l', 'lowerarm_r', 'thigh_l', 'thigh_r', 'calf_l', 'calf_r'];
+function danceBones(h, style, t) {   // (the mixer only writes a bone when its value changes, so what's bent here is put back before the next frame's update)
+  h.dOff ||= DANCE_BONES.filter(n => h.bones[n]).map(n => [h.bones[n], new THREE.Quaternion()]); for (const [b, q] of h.dOff) q.copy(b.quaternion); h.dOn = true;
+  const s = Math.sin(t), c = Math.cos(t), up = Math.max(0, s), dn = Math.max(0, -s), T = (n, x, y, z, a) => boneTurn(h, n, x, y, z, a);
+  switch (style % 9) {
+    case 0: T('upperarm_l', 0, 0, 1, 2.2 + .25 * s); T('upperarm_r', 0, 0, 1, -2.2 + .25 * s); T('spine_03', 0, 1, 0, .12 * c); break;   // hands in the air, swaying
+    case 1: T('spine_02', 0, 1, 0, .35 * s); T('pelvis', 0, 1, 0, -.15 * s); T('upperarm_l', 1, 0, 0, -.7 - .5 * s); T('upperarm_r', 1, 0, 0, -.7 + .5 * s); T('lowerarm_l', 1, 0, 0, -.6); T('lowerarm_r', 1, 0, 0, -.6); break;   // shoki: shoulders rolling, torso twisting
+    case 2: T('upperarm_r', 0, 0, 1, -2.0 - .15 * s); T('upperarm_l', 0, 0, 1, .3); T('pelvis', 1, 0, 0, .14 * s); T('pelvis', 0, 0, 1, .14 * c); T('spine_02', 0, 0, 1, -.12 * c); break;   // point up and wind the waist
+    case 3: T('thigh_l', 1, 0, 0, -.8 * up); T('calf_l', 1, 0, 0, .5 * up); T('thigh_r', 1, 0, 0, -.8 * dn); T('calf_r', 1, 0, 0, .5 * dn); T('upperarm_l', 1, 0, 0, .5 * s); T('upperarm_r', 1, 0, 0, -.5 * s); T('spine_02', 1, 0, 0, .15); break;   // zanku: kick one foot, then the other
+    case 4: T('spine_02', 1, 0, 0, .25); T('upperarm_l', 1, 0, 0, -1.1 - .2 * s); T('upperarm_r', 1, 0, 0, -1.1 - .2 * s); T('upperarm_l', 0, 1, 0, -.4); T('upperarm_r', 0, 1, 0, .4); T('thigh_l', 1, 0, 0, -.45 * up); T('thigh_r', 1, 0, 0, -.45 * dn); break;   // shaku shaku: wrists crossed, hunched, stepping
+    case 5: T('upperarm_l', 1, 0, 0, -1 - .8 * s); T('upperarm_r', 1, 0, 0, -1 + .8 * s); T('lowerarm_l', 1, 0, 0, -.8); T('lowerarm_r', 1, 0, 0, -.8); T('spine_03', 0, 1, 0, .25 * c); T('thigh_l', 1, 0, 0, -.25 * up); T('thigh_r', 1, 0, 0, -.25 * dn); break;   // azonto: arms acting it out
+    case 6: T('upperarm_r', 0, 0, 1, -1.3 - 1.0 * up); T('upperarm_r', 1, 0, 0, -.4 * c); T('thigh_r', 0, 0, 1, -.45 * up); T('spine_02', 0, 0, 1, .2 * up); T('upperarm_l', 0, 0, 1, .5); break;   // gwara gwara: an arm rolled over the head, the leg out
+    case 7: T('pelvis', 0, 1, 0, .3 * s); T('spine_02', 0, 1, 0, -.2 * s); T('thigh_l', 0, 0, 1, .3 * up); T('thigh_r', 0, 0, 1, -.3 * dn); T('spine_03', 1, 0, 0, -.12); T('Head', 1, 0, 0, .15 * Math.abs(s)); break;   // amapiano: easy side shuffle, head nodding
+    default: T('clavicle_l', 0, 0, 1, .35 * up); T('clavicle_r', 0, 0, 1, -.35 * dn); T('spine_03', 0, 1, 0, .2 * s); T('upperarm_l', 0, 0, 1, .4); T('upperarm_r', 0, 0, 1, -.4); break;   // shoulder bounce
+  }
+}
+function updateHumanMotion(h, clip, dt, dance) { if (!h) return; if (h.dOn) { for (const [b, q] of h.dOff) b.quaternion.copy(q); h.dOn = false; } h.play(clip[0], .22, clip[1]); h.mixer.update(dt); applyEase(h, dt); if (dance && h.cur === 'Dance_Loop') danceBones(h, dance[0], dance[1]); narrowShoulders(h); if (h.headScale) h.bones.Head.scale.setScalar(h.headScale); }
 // the animations set every bone's position each frame, so after each update the collarbones are shortened: shoulders an
 // ordinary width rather than a superhero's
 const SHOULDER_K = 1;   // (off: moving the joint in stretched the shoulder skin and warped the arms in motion)
@@ -13194,7 +13242,7 @@ function updateRemotes(dt) {
       else if (p.anim === 'air') animFigure(r.rig, 0, 0, 'air');
       else { r.phase += r.speed * dt * (r.speed > 5 ? 1.25 : 1.9); animFigure(r.rig, r.phase, Math.min(1, r.speed / 3), r.speed > 5 ? 'run' : 'walk', S.time); }
     }
-    if (r.human && r.g.visible) updateHumanMotion(r.human, remoteClip(p, r), dt);
+    if (r.human && r.g.visible) updateHumanMotion(r.human, remoteClip(p, r), dt, (p.anim || '').startsWith('dance') ? [parseInt(p.anim.slice(5)) || 0, danceBeat() + (r.phase0 ??= Math.random() * 2)] : null);
     if (r.tag) { r.tag.position.y = p.veh && !bike ? 2.9 : 2.25; r.tag.visible = camera.position.distanceTo(r.g.position) > 3.5; }   /* right next to the camera a tag would fill the screen */
     if (p.talk && !r.speak) { r.speak = new THREE.Sprite(SPEAK_MAT); r.speak.scale.set(.5, .5, 1); r.speak.renderOrder = 11; r.g.add(r.speak); }
     if (r.speak) { r.speak.visible = !!p.talk && r.g.visible; r.speak.position.y = (r.tag ? r.tag.position.y : 2.25) + .45; }
@@ -15486,15 +15534,40 @@ function goalsDay() {   // a new day: new goals (and the streak goes if yesterda
   GOALS.day = today; GOALS.set = goalsFor(today);
   if (GOALS.fullDay !== today && GOALS.fullDay !== lagosDay(Date.now() - 86400e3)) GOALS.streak = 0;
   goalsSave(); phoneRefresh();
+  if (mode === 'play') { toast('🏅 New daily goals', GOALS.set.map(g => g.text).join(' · ')); goalHud(true); }
 }
 // something happened that a goal might count: goalEv('train', 'Ore'), goalEv('drive', metres)
+// today's goals on screen: what's left, how far along, ticked when done (click or tap: the Goals app)
+function goalProgressText(g) { const pr = GOALS.prog[g.id]?.n || 0; return g.ev === 'drive' || g.ev === 'walk' ? `${(Math.min(pr, g.need) / 1000).toFixed(1)} / ${g.need / 1000} km` : `${Math.min(pr, g.need)} / ${g.need}`; }
+function goalHud(flash) {
+  const el = $('goalHud'); if (!el) return;
+  const on = mode === 'play' && GOALS.set.length > 0 && !FLY.on && !TRAIN.ride.on; if (el.hidden !== !on) el.hidden = !on; if (!on) return;
+  const done = GOALS.set.filter(g => GOALS.claimed.includes(g.id)).length, all = done === GOALS.set.length;
+  $('ghN').textContent = all ? `All done${GOALS.streak > 1 ? ` · 🔥${GOALS.streak}` : ''}` : `${done}/${GOALS.set.length}`;
+  const ol = $('ghList'), key = GOALS.set.map(g => g.id + (GOALS.claimed.includes(g.id) ? 'd' : goalProgressText(g))).join('|');
+  if (ol.dataset.k !== key) {
+    ol.dataset.k = key; ol.replaceChildren();
+    for (const g of GOALS.set) {
+      const isDone = GOALS.claimed.includes(g.id), pr = GOALS.prog[g.id]?.n || 0, li = document.createElement('li'); li.className = isDone ? 'done' : '';
+      const em = document.createElement('em'); em.textContent = isDone ? '✅' : { easy: '🟢', medium: '🟡', hard: '🔴' }[g.tier];
+      const sp = document.createElement('span'); sp.textContent = g.text;
+      const sm = document.createElement('small'); sm.textContent = isDone ? `Done · +${NAIRA(GOAL_PAY[g.tier])}` : `${goalProgressText(g)}${g.ev === 'visit' ? ' · 🏅 on the map (P)' : ''}`;
+      li.append(em, sp, sm);
+      if (!isDone) { const u = document.createElement('u'), i = document.createElement('i'); i.style.width = Math.round(Math.min(1, pr / g.need) * 100) + '%'; u.append(i); li.append(u); }
+      ol.append(li);
+    }
+  }
+  if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+$('goalHud').addEventListener('click', e => { e.stopPropagation(); if (!PHONE.open) phoneToggle(true); phoneApp('goals'); });
 function goalEv(ev, key, n = 1) {
   if (!GOALS.set.length) return;
   for (const g of GOALS.set) {
     if (g.ev !== ev || GOALS.claimed.includes(g.id)) continue;
     const pr = GOALS.prog[g.id] ||= { n: 0, seen: [] };
     if (g.distinct) { if (key == null || pr.seen.includes(key)) continue; pr.seen.push(key); pr.n = pr.seen.length; } else pr.n += n;
-    if (pr.n >= g.need) goalDone(g); else if (ev !== 'drive' && ev !== 'walk') { goalsSave(); phoneRefresh(); }
+    if (pr.n >= g.need) goalDone(g); else if (ev !== 'drive' && ev !== 'walk') { goalsSave(); phoneRefresh(); toast(`🏅 ${g.text}`, `${goalProgressText(g)} · keep going`); goalHud(true); }
+    else { const q = Math.floor(pr.n / g.need * 4); if (q !== pr.q) { pr.q = q; goalHud(true); } }   // a quarter of the way at a time
   }
 }
 function goalDone(g) {
@@ -15508,7 +15581,7 @@ function goalDone(g) {
     const bonus = Math.round(GOAL_ALL.pay * Math.min(2, 1 + (GOALS.streak - 1) * .25) / 100) * 100; earn(bonus, null, 'Daily goals: all three'); GOALS.rep += GOAL_ALL.rep;
     extra = ` · all three done: +${NAIRA(bonus)} · ${GOALS.streak}-day streak 🔥`;
   }
-  toast(`🏅 Goal done: ${g.text}`, `+${NAIRA(pay)} · +${GOAL_REP[g.tier]} reputation${extra}`); sfx('refill');
+  toast(`🏅 Goal done: ${g.text}`, `+${NAIRA(pay)} · +${GOAL_REP[g.tier]} reputation${extra}`); sfx('refill'); goalHud(true);
   if (repTier(GOALS.rep) > tier0) setTimeout(() => toast(`👑 You're now ${aOrAn(repTitle(GOALS.rep))}`, `${GOALS.rep} reputation · everyone online sees your new title`), 2600);
   goalsSave(); phoneRefresh(); repHud();
   if (NET.token) api('/progress/claim', 'POST', { goal: g.id, day: GOALS.day }).then(goalsFromServer).catch(e => { if (e.body?.rep != null) goalsFromServer(e.body); });
@@ -15526,7 +15599,7 @@ function goalsLoad() { if (NET.token) api('/progress').then(goalsFromServer).cat
 const GOAL_MOVE = { x: null, z: null };
 function updateGoals(dt) {
   if (mode !== 'play') return;
-  if ((GOALS.t -= dt) <= 0) { GOALS.t = .5; goalsDay();
+  if ((GOALS.t -= dt) <= 0) { GOALS.t = .5; goalsDay(); goalHud();
     for (const g of GOALS.set) if (g.ev === 'visit' && !GOALS.claimed.includes(g.id)) { const M = mapPos(); if (Math.hypot(M.x - g.x, M.z - g.z) < 45) goalEv('visit', g.id); }
     const at = INSIDE.at && MUS.rooms[INSIDE.at.R.type]; if (at) goalEv('museumVisit', INSIDE.at.R.type);
   }
@@ -16069,7 +16142,7 @@ PHONE_APPS.push(['biz', '🏪', 'Business']);
 // ---- People: the shared cast. Swap numbers with a passer-by and they become a resident: the same face, name, home,
 // work and evening haunt for every player, from then on. Their day: home at night, at work in the day, out in the
 // evening. The cast comes from the server once the game is up and joins the streets a few people a frame. ----
-const PEOPLE = { cast: new Map(), mine: new Map(), civ: new Map(), queue: [], loaded: false, loading: false, houses: null, t: 0, guestN: 0, rmArm: null };
+const PEOPLE = { cast: new Map(), mine: new Map(), civ: new Map(), queue: [], loaded: false, loading: false, houses: null, t: 0, ft: 0, guestN: 0, rmArm: null };
 const PEOPLE_STORE = 'giantwood-people';
 const INTERESTS = ['football', 'Afrobeats', 'Nollywood', 'cooking', 'fashion', 'church', 'business', 'tech', 'politics', 'owambe parties', 'books', 'cars', 'jollof debates', 'dancing', 'travel', 'fitness'];
 const personKey = id => String(id);
@@ -16100,8 +16173,8 @@ function peopleHouses(all) {   // (all: your own homes too, where a partner may 
   if (all) { const m = new Map(peopleHouses()); for (const [k, h, v] of myHomeKeys()) m.set(k, { h, v }); return m; }
   if (PEOPLE.houses) return PEOPLE.houses;
   const m = new Map(), vs = new Set(civilians.map(c => c.v).filter(Boolean));
-  for (const v of vs) { if (v.mine || !v.houses) continue; for (const h of v.houses) {
-    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque || h.club || h.nonres) continue;
+  for (const v of vs) { if (v.mine || !v.houses || v.interior) continue; for (const h of v.houses) {
+    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque || h.club || h.nonres || h.shop) continue;   // (shops: Gas & Go's store, the department store)
     m.set(`h:${Math.round(h.x)},${Math.round(h.z)}`, { h, v });
   } }
   return PEOPLE.houses = m;
@@ -16112,6 +16185,7 @@ const peopleIn = key => { let n = 0; for (const R of PEOPLE.cast.values()) if (R
 // where someone is meant to be at this hour of the game's day
 function residentAnchor(c) {
   const R = c.resident, hr = tod * 24, H = c.homeH;
+  if (c.follow) return { key: 'follow', x: P.pos.x, z: P.pos.z, follow: true, label: 'walking with you' };
   if (c.meet && Date.now() < c.meet.until) return c.meet.house ? { key: 'meet', x: c.meet.house.inside.x, z: c.meet.house.inside.z, y: c.meet.house.floorY, home: true, house: c.meet.house, label: `at ${c.meet.label}` } : { key: 'meet', x: c.meet.x, z: c.meet.z, label: `meeting you at ${c.meet.label}` };   // a meet-up comes first
   const Ap = c.homeApt;
   if ((hr >= 22 || hr < 6.5) && Ap) return { key: 'home', x: Ap.x, z: Ap.z, flat: true, label: `at home in their flat${Ap.name ? ', ' + Ap.name.replace(/^the /, '') : ''}` };
@@ -16190,9 +16264,10 @@ async function peopleSwap(c) {
 function updatePeople(dt) {
   if (!PEOPLE.loaded) { if (civilians.length && (NET.reachable !== null || performance.now() > 15000)) peopleLoad(); return; }   // (once we know whether the server is there)
   for (let k = 0; k < 2 && PEOPLE.queue.length; k++) { const R = PEOPLE.queue.shift(); if (!PEOPLE.civ.has(personKey(R.id))) spawnResident(R); }   // a couple a frame: the streets fill in behind you
+  if ((PEOPLE.ft += dt) >= .25) { PEOPLE.ft = 0; for (const c of PEOPLE.civ.values()) if (c.follow) followTick(c); }
   if ((PEOPLE.t += dt) < 1) return; PEOPLE.t = 0;
   for (const c of PEOPLE.civ.values()) {
-    const A = residentAnchor(c); if (!A || c.state === 'talk' || c.state === 'down' || c.riding || c.state === 'shelter' || c.state === 'hide' || c.state === 'flee') continue;
+    const A = residentAnchor(c); if (!A || A.follow || c.state === 'talk' || c.state === 'down' || c.riding || c.state === 'shelter' || c.state === 'hide' || c.state === 'flee') continue;
     const d = Math.hypot(c.g.position.x - A.x, c.g.position.z - A.z);
     const inside = A.home && (A.house || c.homeH), Hh = inside && (A.house || c.homeH);   // on someone else's floor: stand on it, not the ground under it
     c.fixedY = Hh && Math.abs(c.g.position.x - Hh.x) < Hh.w / 2 && Math.abs(c.g.position.z - Hh.z) < Hh.d / 2 && !houseAt(c.v, c.g.position.x, c.g.position.z) ? Hh.floorY : undefined;
@@ -16205,6 +16280,21 @@ function updatePeople(dt) {
     else if (d <= 6) { c.at = A.key; c.goingTo = null; if (c.state === 'idle') c.timer = Math.max(c.timer, 4); }   // there: they stay
   }
 }
+// "come with me": a step or two behind you, indoors and up the stairs too, for 20 minutes or till you send them back or drive off
+function followTick(c) {
+  const off = P.driving || FLY.on || TRAIN.ride.on;
+  if (Date.now() > c.follow || off) { followStop(c); toast('', off ? `${c.resident.name} waves you off and heads back` : `${c.resident.name} heads back to their day`); return; }
+  if (c.state === 'talk' || c.state === 'down' || c.riding) return;
+  const g = c.g.position, d = Math.hypot(g.x - P.pos.x, g.z - P.pos.z), up = P.grounded && P.pos.y - groundAt(P.pos.x, P.pos.z) > .3;
+  const bx = P.pos.x + Math.sin(yaw) * 1.4, bz = P.pos.z + Math.cos(yaw) * 1.4;   // just behind you
+  c.away = false; c.baseSpeed ??= c.speed; c.at = 'follow';
+  if (d > 25 || (d > 3 && Math.abs(g.y - P.pos.y) > 1.5)) { g.set(bx, up ? P.pos.y : groundAt(bx, bz), bz); c.path.length = 0; c.state = 'idle'; c.timer = 3; }   // caught up (out of sight, up the lift)
+  c.fixedY = up && d < 8 ? P.pos.y : undefined;
+  if (d > 2.2) { c.state = 'walk'; c.path = [new V3(bx, 0, bz)]; c.speed = d > 5 ? 5 : c.baseSpeed; }
+  else if (c.state === 'walk') { c.state = 'idle'; c.path.length = 0; }
+  if (c.state === 'idle') c.timer = Math.max(c.timer, 2);
+}
+function followStop(c) { c.follow = 0; c.fixedY = undefined; if (c.baseSpeed) c.speed = c.baseSpeed; c.goingTo = null; c.at = null; }
 const contactWhere = c => { const A = c && residentAnchor(c); return A ? A.label : 'somewhere in town'; };
 PHONE.apps.contacts = { render: () => {
   if (CHAT.view) { const R0 = PEOPLE.cast.get(personKey(CHAT.view.id)); if (R0) return chatView(R0); CHAT.view = null; }
@@ -16679,7 +16769,7 @@ function frame(now) {
     autoPan(dt);
   }
   updatePlayerModel(dt);
-  if (pm.human) { updateHumanMotion(pm.human, playerClip(), dt); if (NEEDS.pose?.sit) playerModel.position.y += .44; if (!/^Pistol/.test(pm.human.cur)) pm.pistol.visible = false; }   // the realistic body (a seated clip sits higher than the old figure's pose)
+  if (pm.human) { updateHumanMotion(pm.human, playerClip(), dt, P.dance && !P.driving ? [P.dance.style, danceBeat()] : null); if (NEEDS.pose?.sit) playerModel.position.y += .44; if (!/^Pistol/.test(pm.human.cur)) pm.pistol.visible = false; }   // the realistic body (a seated clip sits higher than the old figure's pose)
   if (mode !== 'pause') updateShells(dt);
   updateParticles(dt);
   updateCamera(dt);
