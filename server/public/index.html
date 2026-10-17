@@ -1512,7 +1512,8 @@ const EDO = ED ? { ife: [820, 1010], ore: [1300, 1390], rubber: [1440, 1690], mo
 const RAILX = 341.5, RAILZ = -5150;   // the middle of the two tracks
 const RAIL_PTS = YB ? [[RAILX, 262], [RAILX, -5086], [342.6, -5110], [346.2, -5130], [353, -5144], [366, -5150], ...(ED ? [[1880, RAILZ]] : []), ...(ED && YB ? [[1920, RAILZ], [1990, -5222], [2232, -5222], [2262, -5196], [3560, -5196], [3620, -5212], [3940, -5212]] : [])] : [];   // (on into Delta: Agbor, Issele-Uku, Asaba)
 const RAIL_SEGS = RAIL_PTS.slice(1).map((q, k) => [RAIL_PTS[k][0], RAIL_PTS[k][1], q[0], q[1]]);
-const railDist = (x, z) => { let b = 1e9; if (!YB || (x < RAILX - 40 && z > -5000)) return b; for (const r of RAIL_SEGS) b = Math.min(b, segDist(x, z, r)); return b; };
+const RAIL2_PTS = YB && ED ? [[2820, -5184], [2820, -2960]] : [], RAIL2_SEGS = RAIL2_PTS.slice(1).map((q, k) => [RAIL2_PTS[k][0], RAIL2_PTS[k][1], q[0], q[1]]);   // the Delta Line: Agbor Junction down to Warri (Delta's own; built with Delta)
+const railDist = (x, z) => { let b = 1e9; if (!YB || (x < RAILX - 40 && z > -5000)) return b; for (const r of RAIL_SEGS) b = Math.min(b, segDist(x, z, r)); if (x > 2700 && x < 2940) for (const r of RAIL2_SEGS) b = Math.min(b, segDist(x, z, r)); return b; };
 // the stations' yards: a car park and the road in to it wherever a station is out of town (Lagos, Magboro, Mowe, Ibadan, Ile-Ife,
 // Ore), a footway at Meadowbrook, and the cutting that takes the line level through the Lagos hill beside the east wall. Each
 // rect is levelled (eased into the ground round it over blend m) and paved: kind 6 road, 7 car park. applyYards() runs before
@@ -1526,8 +1527,7 @@ const STATION_YARDS = YB ? [
   { x0: 324, x1: 332, z0: -4996, z1: -4962, level: 3, kind: 6 }, { x0: 300, x1: 335, z0: -4964, z1: -4908, level: 3, kind: 7, blend: 3, park: 'Ibadan' },
   ...(ED ? [{ x0: 966, x1: 974, z0: -5112, z1: -5005, level: 3, kind: 6, edo: true }, { x0: 893, x1: 974, z0: -5139, z1: -5112, level: 3, kind: 7, edo: true, park: 'Ile-Ife' },
     { x0: 1386, x1: 1394, z0: -5112, z1: -5005, level: 3, kind: 6, edo: true }, { x0: 1316, x1: 1394, z0: -5139, z1: -5112, level: 3, kind: 7, edo: true, park: 'Ore' }] : []),
-  ...(ED ? [{ x0: 2791, x1: 2799, z0: -5188, z1: -5138, level: 3, kind: 6, delta: true }, { x0: 2799, x1: 2846, z0: -5188, z1: -5150, level: 3, kind: 7, delta: true, park: 'Agbor' },
-    { x0: 3251, x1: 3259, z0: -5188, z1: -5138, level: 3, kind: 6, delta: true }, { x0: 3259, x1: 3300, z0: -5188, z1: -5150, level: 3, kind: 7, delta: true, park: 'Issele-Uku' }] : []),
+  ...(ED ? [{ x0: 3251, x1: 3259, z0: -5188, z1: -5138, level: 3, kind: 6, delta: true }, { x0: 3259, x1: 3300, z0: -5188, z1: -5150, level: 3, kind: 7, delta: true, park: 'Issele-Uku' }] : []),
   // streets that ran straight into a hillside: a level cutting through to the flat beyond, or a paved turning bay dug into
   // the slope where the hill is a mountain (found by the road audit: a road heading into ground 1.5 m+ higher, no wall or house in the way)
   { x0: -176, x1: -142, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 }, { x0: 20, x1: 45, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 },   // the north edge of the city grid, east and west
@@ -1607,10 +1607,10 @@ const DEL = DD ? {
   rd: ERD,   // the expressway's line, and Nnebisi Road on through Asaba to the bridge
   south: [[2760, ERD], [2760, -3920], [2640, -3760], [2560, -3600], [2560, -3420], [2700, -3260], [2900, -3110]],   // Agbor junction → Obiaruku → Abraka → Eku → Sapele → Oghara → Effurun
   umunede: [2400, 2540], agbor: [2620, 2900], issele: [3150, 3300], ibusa: [3360, 3560], obiaruku: [-4720, -4560],
-  dein: { x0: 2652, x1: 2738, z0: -5150, z1: -5064 }, agmarket: { x0: 2792, x1: 2858, z0: -4958, z1: -4902 }, obi: { x0: 3192, x1: 3258, z0: -5134, z1: -5066 },
+  dein: { x0: 2652, x1: 2738, z0: -5150, z1: -5064 }, agmarket: { x0: 2652, x1: 2718, z0: -4958, z1: -4902 }, obi: { x0: 3192, x1: 3258, z0: -5134, z1: -5066 },
   falls: { x: 3440, z: -5292, pool: [3440, -5272] }, glen: { x0: 3380, x1: 3500, z0: -5330, z1: EZ0 },
   atp: { x0: 2610, x1: 2694, z0: -3712, z1: -3640 }, swharf: { x0: 2436, x1: 2484, z0: -3606, z1: -3516 }, smarket: { x0: 2530, x1: 2590, z0: -3486, z1: -3426 },
-  eku: { x0: 2620, x1: 2700, z0: -3792, z1: -3742 }, delsuth: { x0: 2780, x1: 2862, z0: -3412, z1: -3352 },
+  eku: { x0: 2620, x1: 2700, z0: -3792, z1: -3742 }, delsuth: { x0: 2470, x1: 2552, z0: -3412, z1: -3352 },
   asaba: { x0: 3600, x1: DX1, z0: -5760, z1: -4240 }, niger: 4250, bridges: [ERD, -4420],
   stad: { x: 4110, z: -5125, rx: 58, rz: 38 }, gov: { x0: 3760, x1: 3880, z0: -5420, z1: -5262 }, mall: { x0: 3758, x1: 3880, z0: -5190, z1: -5062 },
   market: { x0: 3940, x1: 4030, z0: -4946, z1: -4862 }, square: { x0: 3790, x1: 3880, z0: -4946, z1: -4862 }, cable: { x0: 4140, x1: 4250, z0: -4800, z1: -4600 },
@@ -1618,7 +1618,7 @@ const DEL = DD ? {
   fmc: { x0: 3892, x1: 3990, z0: -4570, z1: -4470 }, film: { x0: 3892, x1: 4010, z0: -4452, z1: -4300 }, mandela: { x0: 3992, x1: 4192, z0: -5562, z1: -5530 },
   air: { x0: 3640, x1: 4200, z0: -5752, z1: -5570, rz: -5722, rx0: 3660, rx1: 4180, tz: -5686, apron: [3700, 4060], term: [3770, 3990, -5640, -5606], park: [4004, 4180, -5640, -5576] },   // runway, taxiway, apron (the gates), terminal, landside
   abraka: { x0: 2440, x1: 3140, z0: -4400, z1: -3800 }, delsu: { x0: 2884, x1: 3132, z0: -4392, z1: -4146 }, turf: { x0: 2450, x1: 2584, z0: -4390, z1: -3850 },
-  amarket: { x0: 2806, x1: 2874, z0: -4054, z1: -3986 }, apark: { x0: 2886, x1: 2954, z0: -4054, z1: -3986 }, umuaja: [2622, -4596], ethiope: [[2620, -4600], [2604, -4400], [2578, -4220], [2598, -4020], [2560, -3820], [2470, -3620], [2396, -3500], [2290, -3450]],
+  amarket: { x0: 2966, x1: 3034, z0: -4054, z1: -3986 }, apark: { x0: 2886, x1: 2954, z0: -4054, z1: -3986 }, umuaja: [2622, -4596], ethiope: [[2620, -4600], [2604, -4400], [2578, -4220], [2598, -4020], [2560, -3820], [2470, -3620], [2396, -3500], [2290, -3450]],
   sapele: { x0: 2300, x1: 2700, z0: -3720, z1: -3380 }, warri: { x0: DX0, x1: 3400, z0: -3300, z1: -2560 }, river: -2700, effurun: [2900, -3110], er: 34,
   osubi: { x0: 3400, x1: 3900, z0: -3300, z1: -3020, rz: -3272, rx0: 3440, rx1: 3880, tz: -3238, apron: [3500, 3760], term: [3540, 3720, -3184, -3152], park: [3730, 3880, -3184, -3122] }, refinery: { x0: 2300, x1: 2530, z0: -3292, z1: -3060 },
   pti: { x0: 2944, x1: 3140, z0: -3292, z1: -3154 }, fupre: { x0: 3184, x1: 3392, z0: -3292, z1: -3154 }, army: { x0: 3024, x1: 3176, z0: -3066, z1: -2954 },
@@ -1681,7 +1681,7 @@ if (DD) {
   const towns = [[DEL.umunede[0], DEL.umunede[1], EZ0 + 60, EZ1 - 60], [DEL.agbor[0], DEL.agbor[1], EZ0 + 40, EZ1 - 20], [DEL.issele[0], DEL.issele[1], EZ0 + 60, EZ1 - 60], [DEL.ibusa[0], DEL.ibusa[1], EZ0 + 30, EZ1 - 30],
     [2600, 2920, DEL.obiaruku[0], DEL.obiaruku[1]], [A.x0, A.x1, A.z0, A.z1], [DEL.abraka.x0, DEL.abraka.x1, DEL.abraka.z0, DEL.abraka.z1], [DEL.sapele.x0, DEL.sapele.x1, DEL.sapele.z0, DEL.sapele.z1], [2300, 2920, -3420, -3300], [DEL.warri.x0, DEL.warri.x1, DEL.warri.z0, DEL.warri.z1], [DEL.osubi.x0, DEL.osubi.x1, DEL.osubi.z0, DEL.osubi.z1]];
   const TW = new Float64Array(towns.flat()), NT = towns.length;   // (flat numbers: this runs for every cell)
-  const flat = (x, z) => { let m = Math.min(Math.abs(z - DEL.rd) - 16, dSouthDist(x, z) - 16, z < -5150 && x < 3640 ? Math.abs(z + 5196) - 14 : 99);   // how far from anywhere that must be level: the roads, the towns and the railway
+  const flat = (x, z) => { let m = Math.min(Math.abs(z - DEL.rd) - 16, dSouthDist(x, z) - 16, z < -5150 && x < 3640 ? Math.abs(z + 5196) - 14 : 99, z > -5190 && z < -2950 ? Math.abs(x - 2820) - 12 : 99);   // how far from anywhere that must be level: the roads, the towns and the railway
     for (let t = 0; t < NT * 4; t += 4) { const d = Math.max(TW[t] - x, x - TW[t + 1], TW[t + 2] - z, z - TW[t + 3]); if (d < m) m = d; if (m <= 0) return m; } return m; };
   const RDM = new Uint8Array(DD * DH);   // the roads, worked out once per cell (the kerbs look at the cells round them)
   for (const r of DRECTS) for (let x = r[0] + .5; x < r[1]; x++) for (let z = r[2] + .5; z < r[3]; z++) if (dRoadAt(x, z)) RDM[dIdx(x, z)] = 1;
@@ -8961,7 +8961,7 @@ if (DD) withSeed(7373, () => {
   water(DRECTS[2][0], DRECTS[2][1], DRECTS[2][2], DRECTS[2][3], 0x2f9ad0, .8); water(DEL.abraka.x0, DEL.abraka.x1, DEL.abraka.z0, DEL.abraka.z1, 0x2f9ad0, .78);   // the Ethiope: clear blue
   water(DRECTS[4][0], DRECTS[4][1], DRECTS[4][2], DRECTS[4][3], 0x2f86b0, .82); water(DX0 - 300, 3400 + 300, -3300, DZ1 + 500, 0x2f5f6a, .88);   // Sapele's water, and the Warri River out past the wall
   /* the expressway: two carriageways either side of a concrete median barrier, broken where roads cross */
-  const gapAt = x => Math.abs(x - DEL.south[0][0]) < 14 || Math.abs(x - 3600) < 12 || (x > 3600 && x < DEL.niger - 10 && Math.abs(((x - 3648) % 96 + 96) % 96 - 48) > 41) || Math.abs(x - 3720) < 10;
+  const gapAt = x => Math.abs(x - DEL.south[0][0]) < 14 || Math.abs(x - 2820) < 12 || Math.abs(x - 3600) < 12 || (x > 3600 && x < DEL.niger - 10 && Math.abs(((x - 3648) % 96 + 96) % 96 - 48) > 41) || Math.abs(x - 3720) < 10;
   for (let x = DX0 + 20; x < DEL.niger - 12; x += 4) if (!gapAt(x) && !gapAt(x + 4)) b.box(4, .9, .5, x + 2, Y + .45, DEL.rd, conc, 1, true, 'base');
   for (const s of [-1, 1]) {
     for (let x = DX0 + 12; x < DEL.niger + 180; x += 10) if (!gapAt(x)) b.box(4, .02, .14, x + 2, Y + .04, DEL.rd + s * 4.7, white, 1, false);   // the lane line
@@ -9117,7 +9117,7 @@ function deltaKit(b, ROT) {
     // a filling station (a business you can buy; its kiosk is a shop): it looks for a free, level site beside a road within 70 m
     fuel: (x0, z0, name, brand, col) => {
       for (let t = 0; t < 60; t++) { const x = x0 + (t ? R2(-70, 70) : 0), z = z0 + (t ? R2(-70, 70) : 0), W = 24, D = 18;
-        let ok = K.free(x, z, W, D, 2) && railDist(x, z) > 22; for (let dx = -W / 2; dx <= W / 2 && ok; dx += 2) for (let dz = -D / 2; dz <= D / 2; dz += 2) { const kd = kindAt(x + dx, z + dz), hh = heightAt(x + dx, z + dz); if (kd === 6 || kd === 7 || hh !== Y) { ok = false; break; } }
+        let ok = K.free(x, z, W, D, 2) && railDist(x, z) > 22; for (let dx = -W / 2; dx <= W / 2 && ok; dx += 2) for (let dz = -D / 2; dz <= D / 2; dz += 2) { const kd = kindAt(x + dx, z + dz), hh = heightAt(x + dx, z + dz); if (kd === 6 || kd === 7 || kd === 5 || hh !== Y) { ok = false; break; } }
         if (!ok) continue; let near = false; for (const [ox, oz] of [[0, D / 2 + 4], [0, -D / 2 - 4], [W / 2 + 4, 0], [-W / 2 - 4, 0]]) if (kindAt(x + ox, z + oz) === 6) near = true; if (!near) continue;
         const C2 = LM(col); b.box(16, .5, 10, x, Y + 5.4, z - 2, LM(0xf4f4f0), 1, true, 'roof'); b.box(16.3, .7, 10.3, x, Y + 5.6, z - 2, C2, 1, false);
         for (const [px, pz] of [[-6, -5.5], [6, -5.5], [-6, 1.5], [6, 1.5]]) b.box(.5, 5.2, .5, x + px, Y + 2.6, z + pz, LM(0xf4f4f0), 1, true, 'house');
@@ -9525,16 +9525,15 @@ function updateForest() { for (const B of FOREST) { const on = B.d ? Math.abs(B.
    platform press E to board (₦500): the train stops at every station (E there to get off, Space skips to the next stop),
    or set a map pin and it takes you to the station nearest the pin. ---------- */
 const TRAIN = { list: [], ride: { on: false }, fare: 500, stations: [] };
-const RAILW = YB ? (() => {
+function railLine(SEGS, DEFS, main) {   // a line: its track (the bed, rails, sleepers, crossovers at both ends), its stations; the main line also has the car parks and Benin's hall
   const Y = TOWN.y, PTS = []; let L = 0;
-  for (let k = 0; k < RAIL_SEGS.length; k++) { const [ax, az, bx, bz] = RAIL_SEGS[k], n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 2));
+  for (let k = 0; k < SEGS.length; k++) { const [ax, az, bx, bz] = SEGS[k], n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 2));
     for (let i = k ? 1 : 0; i <= n; i++) PTS.push({ x: ax + (bx - ax) * i / n, z: az + (bz - az) * i / n }); }
   PTS.forEach((p, i) => { if (i) L += Math.hypot(p.x - PTS[i - 1].x, p.z - PTS[i - 1].z); p.s = L; });
   PTS.forEach((p, i) => { const a = PTS[Math.max(0, i - 1)], c = PTS[Math.min(PTS.length - 1, i + 1)], l = Math.hypot(c.x - a.x, c.z - a.z) || 1; p.tx = (c.x - a.x) / l; p.tz = (c.z - a.z) / l; });
   const sOf = (x, z) => { let best = 0, bd = 1e9; for (const p of PTS) { const dd = (p.x - x) ** 2 + (p.z - z) ** 2; if (dd < bd) { bd = dd; best = p.s; } } return best; };
   // two tracks, one each way (keep right): 4.2 m apart on the run, opening out to 7.3 m round each station's island platform
-  const ST = [['Meadowbrook', RAILX, 226], ['Lagos', RAILX, -62, 60], ['Magboro Shopping', RAILX, -1668], ['Mowe', RAILX, -2780], ['Ibadan', RAILX, -4930],
-    ...(ED ? [['Ile-Ife', 915, RAILZ], ['Ore', 1345, RAILZ], ['Benin Central', 1832, RAILZ], ['Agbor', 2760, -5196], ['Issele-Uku', 3225, -5196], ['Asaba', 3790, -5212]] : [])].map(([name, x, z, pl = 76]) => ({ name, s: sOf(x, z), PL: pl }));
+  const ST = DEFS.map(([name, x, z, pl = 76]) => ({ name, s: sOf(x, z), PL: pl }));
   const OFF0 = 2.1, OFFS = 3.65;
   const offAt = s => { let d = 1e9; for (const st of ST) d = Math.min(d, Math.abs(s - st.s) - st.PL / 2 - 8); if (d <= 0) return OFFS; if (d >= 40) return OFF0; const t = d / 40, e = t * t * (3 - 2 * t); return OFFS + (OFF0 - OFFS) * e; };
   PTS.forEach(p => { p.o = offAt(p.s); });
@@ -9588,7 +9587,7 @@ const RAILW = YB ? (() => {
     // the canopy down the middle, lamps, the name boards facing each track, benches back to back, a ticket kiosk
     for (let t = -PL / 2 + 6; t <= PL / 2 - 6; t += 8) { const px = cx + (ns ? 0 : t), pz = cz + (ns ? t : 0); b.box(.3, 3.6, .3, px, ft + 1.8, pz, white, 1, true, 'house'); for (const sd of [-1, 1]) b.box(.4, .1, .4, px + (ns ? sd * 1.4 : 0), ft + 3.5, pz + (ns ? 0 : sd * 1.4), lampMat, 1, false); }
     b.box(ns ? w + .6 : PL - 6, .3, ns ? PL - 6 : w + .6, cx, ft + 3.75, cz, green, 1, false); b.box(ns ? w + .8 : PL - 5.6, .12, ns ? PL - 5.6 : w + .8, cx, ft + 3.95, cz, white, 1, false);
-    for (const t of [-24, 0, 24]) for (const sd of [-1, 1]) ySign(ySignMat(st.name.toUpperCase(), '#1f6f3a', '#ffffff', 'NAIJA RAIL'), 4.6, 1, cx + (ns ? sd * .22 : t), ft + 2.85, cz + (ns ? t : sd * .22), ns ? sd * Math.PI / 2 : (sd > 0 ? 0 : Math.PI));
+    for (const t of [-24, 0, 24]) for (const sd of [-1, 1]) ySign(ySignMat(st.name.toUpperCase(), main ? '#1f6f3a' : '#2a4a7a', '#ffffff', main ? 'NAIJA RAIL' : 'DELTA LINE · NAIJA RAIL'), 4.6, 1, cx + (ns ? sd * .22 : t), ft + 2.85, cz + (ns ? t : sd * .22), ns ? sd * Math.PI / 2 : (sd > 0 ? 0 : Math.PI));
     for (const t of [-14, 14, -32, 32]) for (const sd of [-1, 1]) b.box(ns ? .45 : 2.2, .45, ns ? 2.2 : .45, cx + (ns ? sd * .5 : t), ft + .45, cz + (ns ? t : sd * .5), M.oak, 1, false);
     b.box(ns ? 1.6 : 2.4, 2.4, ns ? 2.4 : 1.6, cx + (ns ? 0 : -8), ft + 1.2, cz + (ns ? -8 : 0), green, 1, true, 'house');
     for (const sd of [-1, 1]) ySign(ySignMat('TICKETS ₦500', '#1f6f3a', '#ffffff', 'BOTH WAYS · ALL STATIONS'), 2.2, .6, cx + (ns ? sd * .82 : -8), ft + 2, cz + (ns ? -8 : sd * .82), ns ? sd * Math.PI / 2 : (sd > 0 ? 0 : Math.PI));
@@ -9598,7 +9597,7 @@ const RAILW = YB ? (() => {
     OYO_PLACES.push([`${st.name} station`, cx, cz]);
   }
   // the car parks: painted bays in rows, cars in about half of them, lamps, the P sign at the way in
-  for (const Yd of STATION_YARDS) if (Yd.park) {
+  if (main) for (const Yd of STATION_YARDS) if (Yd.park) {
     const w = Yd.x1 - Yd.x0, dd = Yd.z1 - Yd.z0, alongZ = dd >= w, y = Yd.level ?? heightAt((Yd.x0 + Yd.x1) / 2, (Yd.z0 + Yd.z1) / 2), white2 = MM.white;
     const rows = alongZ ? [Yd.x0 + 3.2, Yd.x1 - 3.2, ...(w > 26 ? [(Yd.x0 + Yd.x1) / 2 - 3, (Yd.x0 + Yd.x1) / 2 + 3] : [])] : [Yd.z0 + 3.2, Yd.z1 - 3.2, ...(dd > 26 ? [(Yd.z0 + Yd.z1) / 2 - 3, (Yd.z0 + Yd.z1) / 2 + 3] : [])];
     const L0 = alongZ ? Yd.z0 + 4 : Yd.x0 + 4, L1 = alongZ ? Yd.z1 - 4 : Yd.x1 - 4; let n = 0;
@@ -9611,12 +9610,17 @@ const RAILW = YB ? (() => {
     OYO_PLACES.push([`${Yd.park} station car park`, (Yd.x0 + Yd.x1) / 2, (Yd.z0 + Yd.z1) / 2]);
   }
   // Benin Central: the terminus hall at the end of the line
-  if (ED) { const R = EDO.rail, hx = (R.x0 + R.x1) / 2 + 8, hz = R.z1 - 4.5; b.box(46, 9, 6, hx, Y + 4.5, hz, LM(0xf2e8d0), 2, true, 'house'); b.box(48, .8, 8, hx, Y + 9.4, hz, green, 1, true, 'roof');
+  if (ED && main) { const R = EDO.rail, hx = (R.x0 + R.x1) / 2 + 8, hz = R.z1 - 4.5; b.box(46, 9, 6, hx, Y + 4.5, hz, LM(0xf2e8d0), 2, true, 'house'); b.box(48, .8, 8, hx, Y + 9.4, hz, green, 1, true, 'roof');
     ySign(ySignMat('BENIN CENTRAL', '#1f6f3a', '#ffffff', 'NAIJA RAIL · TRAINS TO LAGOS & MEADOWBROOK · AGBOR & ASABA'), 20, 2, hx, Y + 7, hz + 3.06, 0); }
   b.build();
   for (const [mat, geos] of ROT) { const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); }
-  return { PTS, L, at, sOf, XOV };
-})() : null;
+  const line = { PTS, L, at, sOf, XOV, stations: ST, name: main ? 'Naija Rail' : 'Delta Line' }; for (const st of ST) st.line = line;
+  return line;
+}
+const RAILW = YB ? railLine(RAIL_SEGS, [['Meadowbrook', RAILX, 226], ['Lagos', RAILX, -62, 60], ['Magboro Shopping', RAILX, -1668], ['Mowe', RAILX, -2780], ['Ibadan', RAILX, -4930],
+  ...(ED ? [['Ile-Ife', 915, RAILZ], ['Ore', 1345, RAILZ], ['Benin Central', 1832, RAILZ], ['Agbor', 2760, -5196], ['Issele-Uku', 3225, -5196], ['Asaba', 3790, -5212]] : [])], true) : null;
+// the Delta Line (like the real Warri–Itakpe line through Agbor): Agbor Junction, a short walk from Naija Rail's Agbor platform, south through Obiaruku, Abraka, Eku and Sapele to Warri
+const RAIL2 = RAILW && DD && RAIL2_SEGS.length ? railLine(RAIL2_SEGS, [['Agbor Junction', 2820, -5140], ['Obiaruku', 2820, -4640], ['Abraka', 2820, -4180], ['Eku', 2820, -3770], ['Sapele Road', 2820, -3540], ['Warri', 2820, -3020]], false) : null;
 // a train: a locomotive and three coaches, white with the green band; local +z is forward
 function makeTrain() {
   const T = { cars: [] }, white = MM.white, green = LM(0x1f6f3a), glass = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), dark = LM(0x26282c);
@@ -9633,25 +9637,25 @@ function makeTrain() {
   return T;
 }
 // moving: brake for the next station in the direction of travel, stand there a while, carry on; turn round at the ends
-function trainNextStop(T) { const st = TRAIN.stations.filter(q => T.dir > 0 ? q.s > T.s + 1 : q.s < T.s - 1).sort((a, c) => T.dir * (a.s - c.s))[0]; return st || null; }
+function trainNextStop(T) { const st = TRAIN.stations.filter(q => q.line === T.line && (T.dir > 0 ? q.s > T.s + 1 : q.s < T.s - 1)).sort((a, c) => T.dir * (a.s - c.s))[0]; return st || null; }
 // signals: the end of the line past each crossover is one block, one train at a time (an arriving train waits at the
 // signal outside while another is in there, turning back or crossing over); on the run, a train keeps 40 m behind the one ahead
 const TRAIN_LEN = 3 * 20.2 + 1.4, trainsAll = () => [...TRAIN.list, ...(TRAIN.ride.on && TRAIN.ride.T ? [TRAIN.ride.T] : [])];
 const trainSpan = O => [Math.min(O.s, O.s - O.dir * TRAIN_LEN), Math.max(O.s, O.s - O.dir * TRAIN_LEN)];
-const endBlocks = () => { const X = RAILW?.XOV; return X && X.length > 1 ? [{ inside: s => s < X[0].b + 15, edge: X[0].b + 15, dir: -1 }, { inside: s => s > X[1].a - 15, edge: X[1].a - 15, dir: 1 }] : []; };
-const blockBusy = (Bk, except) => trainsAll().some(O => O !== except && trainSpan(O).some(Bk.inside));
+const endBlocks = line => { const X = line?.XOV; return X && X.length > 1 ? [{ line, inside: s => s < X[0].b + 15, edge: X[0].b + 15, dir: -1 }, { line, inside: s => s > X[1].a - 15, edge: X[1].a - 15, dir: 1 }] : []; };
+const blockBusy = (Bk, except) => trainsAll().some(O => O !== except && O.line === Bk.line && trainSpan(O).some(Bk.inside));
 function trainRoom(T) {   // how far it may go before it has to stand at a signal (Infinity: the line's clear)
   let room = Infinity;
-  for (const O of trainsAll()) { if (O === T || O.dir !== T.dir || O.cross || T.cross) continue; const [o0, o1] = trainSpan(O), gap = T.dir > 0 ? o0 - T.s : T.s - o1; if (gap > -5) room = Math.min(room, gap - 40); }
-  for (const Bk of endBlocks()) if (T.dir === Bk.dir && !Bk.inside(T.s) && blockBusy(Bk, T)) room = Math.min(room, Math.abs(Bk.edge - T.s) - 10);
+  for (const O of trainsAll()) { if (O === T || O.line !== T.line || O.dir !== T.dir || O.cross || T.cross) continue; const [o0, o1] = trainSpan(O), gap = T.dir > 0 ? o0 - T.s : T.s - o1; if (gap > -5) room = Math.min(room, gap - 40); }
+  for (const Bk of endBlocks(T.line)) if (T.dir === Bk.dir && !Bk.inside(T.s) && blockBusy(Bk, T)) room = Math.min(room, Math.abs(Bk.edge - T.s) - 10);
   return room;
 }
 function trainMove(T, dt) {
   if (T.dwell > 0) { T.dwell -= dt; T.v = 0; return null; }
   let st = T.next; if (!st || T.dir * (st.s - T.s) < -.5) st = T.next = trainNextStop(T);   // the stop it's heading for, kept until it gets there
   if (!st) {   // the end of the line: the cab at the back takes over, and the train will cross back to the other line on the points outside
-    const from = T.dir; T.dir = -T.dir; T.dwell = 20; T.s = clamp(T.s - from * (3 * 20.2 + 1.4), 0, RAILW.L); T.cars.reverse(); for (const g of T.cars) g.userData.flip = !g.userData.flip;
-    const X = RAILW.XOV[T.dir > 0 ? 0 : 1]; if (X) T.cross = { a: X.a, b: X.b, inc: T.dir > 0, from, to: T.dir }; T.next = null; return null; }
+    const from = T.dir; T.dir = -T.dir; T.dwell = 20; T.s = clamp(T.s - from * (3 * 20.2 + 1.4), 0, T.line.L); T.cars.reverse(); for (const g of T.cars) g.userData.flip = !g.userData.flip;
+    const X = T.line.XOV[T.dir > 0 ? 0 : 1]; if (X) T.cross = { a: X.a, b: X.b, inc: T.dir > 0, from, to: T.dir }; T.next = null; return null; }
   const room = trainRoom(T); T.held = room < .6; if (T.held) { T.v = 0; return null; }   // standing at a signal
   const left = Math.min(Math.abs(st.s - T.s), room), want = Math.min(T.cruise, Math.sqrt(2 * 1.1 * Math.max(0, left - .5)) + (left === room ? 0 : .6));
   T.v += clamp(want - T.v, -2.4 * dt, 1.1 * dt); T.s += T.dir * T.v * dt;
@@ -9663,15 +9667,16 @@ function laneAt(T, s) {   // which line (-1 / +1, in between on the points) the 
 }
 function trainPlace(T) {
   if (T.cross && (T.cross.inc ? T.s - 70 > T.cross.b : T.s + 70 < T.cross.a)) T.cross = null;   // all of it is over the points
-  const R = RAILW, near = T.rider || Math.hypot(R.at(T.s).x - P.pos.x, R.at(T.s).z - P.pos.z) < 900;
+  const R = T.line, near = T.rider || Math.hypot(R.at(T.s).x - P.pos.x, R.at(T.s).z - P.pos.z) < 900;
   T.cars.forEach((g, k) => { g.visible = near; if (!near) return;
     const sk = T.s - T.dir * (k * 20.2 + (k ? 1.4 : 0)), sa = sk + T.dir * 7, sb = sk - T.dir * 7, a = R.at(sa, laneAt(T, sa)), b = R.at(sb, laneAt(T, sb));   // each way keeps to its own (right-hand) track, crossing on the points
     g.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); g.userData.yaw = Math.atan2(a.x - b.x, a.z - b.z);
     const f = g.userData.flip ? Math.PI : 0; g.rotation.set((f ? 1 : -1) * Math.atan2(a.y - b.y, 14), g.userData.yaw + f, 0, 'YXZ'); });   // (a coach turned round when the far cab took over)
 }
-if (RAILW && TRAIN.stations.length > 1) {
-  const midA = TRAIN.stations.find(q => q.name === 'Ibadan'), midB = TRAIN.stations.find(q => q.name === 'Benin Central');
-  for (const [s, dir] of [[TRAIN.stations[0].s, 1], [TRAIN.stations[TRAIN.stations.length - 1].s, -1], ...(DD && midA && midB ? [[midA.s, 1], [midB.s, -1]] : [])]) { const T = makeTrain(); Object.assign(T, { s, dir, v: 0, dwell: 8, cruise: 28 }); TRAIN.list.push(T); }
+if (RAILW && RAILW.stations.length > 1) {
+  const S0 = RAILW.stations, midA = S0.find(q => q.name === 'Ibadan'), midB = S0.find(q => q.name === 'Benin Central');
+  for (const [s, dir] of [[S0[0].s, 1], [S0[S0.length - 1].s, -1], ...(DD && midA && midB ? [[midA.s, 1], [midB.s, -1]] : [])]) { const T = makeTrain(); Object.assign(T, { line: RAILW, s, dir, v: 0, dwell: 8, cruise: 28 }); TRAIN.list.push(T); }
+  if (RAIL2) { const S2 = RAIL2.stations; for (const [s, dir] of [[S2[0].s, 1], [S2[S2.length - 1].s, -1]]) { const T = makeTrain(); Object.assign(T, { line: RAIL2, s, dir, v: 0, dwell: 8, cruise: 26 }); TRAIN.list.push(T); } }
 }
 function updateTrains(dt) {
   if (!RAILW) return;
@@ -9684,7 +9689,7 @@ function updateTrains(dt) {
 // riding
 function stationNear() { if (!RAILW || P.driving || TRAIN.ride.on) return null; return TRAIN.stations.find(st => P.pos.x > st.rect[0] - .5 && P.pos.x < st.rect[1] + .5 && P.pos.z > st.rect[2] - .5 && P.pos.z < st.rect[3] + .5 && Math.abs(P.pos.y - st.y) < 1.6) || null; }
 function trainDest(st) {   // where you're going: the station nearest your map pin, or the far end of the line
-  const S2 = TRAIN.stations, last = S2[S2.length - 1];
+  const S2 = st.line.stations, last = S2[S2.length - 1];
   if (WAY.on) { let best = null, bd = 1e9; for (const q of S2) { const d = Math.hypot(q.x - WAY.x, q.z - WAY.z); if (d < bd) { bd = d; best = q; } } if (best && best !== st) return best; }
   return st === last ? S2[0] : last;
 }
@@ -9692,10 +9697,11 @@ function boardTrain(st) {
   if (LAND.money < TRAIN.fare) { toast('', `A ticket is ${NAIRA(TRAIN.fare)}; you have ${NAIRA(LAND.money)}`); return; }
   LAND.money -= TRAIN.fare; saveLand(); bankSpend(TRAIN.fare, 'Naija Rail ticket'); sfx('refill');
   const to = trainDest(st), R = TRAIN.ride; if (!R.T) { R.T = makeTrain(); R.T.rider = true; }
-  const dir = to.s > st.s ? 1 : -1, end = st === TRAIN.stations[0] || st === TRAIN.stations[TRAIN.stations.length - 1], Bk = end && endBlocks()[dir > 0 ? 0 : 1], X = end && !(Bk && blockBusy(Bk, R.T)) && RAILW.XOV[dir > 0 ? 0 : 1];   // (with another train in at the end, yours waits on the far side of the platform and goes straight out)
+  const line = st.line, SL = line.stations; R.T.line = line;
+  const dir = to.s > st.s ? 1 : -1, end = st === SL[0] || st === SL[SL.length - 1], Bk = end && endBlocks(line)[dir > 0 ? 0 : 1], X = end && !(Bk && blockBusy(Bk, R.T)) && line.XOV[dir > 0 ? 0 : 1];   // (with another train in at the end, yours waits on the far side of the platform and goes straight out)
   Object.assign(R.T, { s: end ? st.s + dir * 30 : st.s, dir, v: 0, dwell: 3, cruise: 34, stopFor: 6, next: null, cross: X ? { a: X.a, b: X.b, inc: dir > 0, from: -dir, to: dir } : null });   // (from a terminus it leaves on the line trains come in on and crosses over)
   Object.assign(R, { on: true, to, at: st, snap: true }); trainPlace(R.T);
-  toast(`🚆 Naija Rail · ${st.name} → ${to.name}`, `${NAIRA(TRAIN.fare)} · all stations · E at a stop to get off · Space skips to the next stop`);
+  toast(`🚆 ${line.name} · ${st.name} → ${to.name}`, `${NAIRA(TRAIN.fare)} · all stations · E at a stop to get off · Space skips to the next stop`);
 }
 function trainRideStep(dt) {
   const R = TRAIN.ride, T = R.T, arrived = trainMove(T, dt); trainPlace(T);
@@ -9731,7 +9737,7 @@ function trainCamera(dt) {
   const R = TRAIN.ride, T = R.T, g = T.cars[1], fx = Math.sin(g.userData.yaw), fz = Math.cos(g.userData.yaw), sd = 1;   // (from the west, away from the east wall)
   const snap = R.snap; rideCam(R, g, -fx * 30 + fz * 5 * sd, 13, -fz * 30 - fx * 5 * sd, 10, fx, fz, dt, snap, 3); R.snap = false;
 }
-const trainPrompt = () => { const R = TRAIN.ride, T = R.T; return `🚆 Naija Rail → ${R.to.name} · ${R.at && T.dwell > 0 ? `at ${R.at.name} · E: get off here` : T.held ? 'waiting at a signal' : `${Math.round(T.v * 3.6)} km/h`} · Space: skip to the next stop`; };
+const trainPrompt = () => { const R = TRAIN.ride, T = R.T; return `🚆 ${T.line?.name || 'Naija Rail'} → ${R.to.name} · ${R.at && T.dwell > 0 ? `at ${R.at.name} · E: get off here` : T.held ? 'waiting at a signal' : `${Math.round(T.v * 3.6)} km/h`} · Space: skip to the next stop`; };
 
 /* ---------- traffic north of Ikeja: the expressway in both lanes each way (heavier: danfos, tippers, Siennas), lighter in
    Ibadan and Oyo town (old cars, kekes), a few on the campus and the airport road ---------- */
@@ -11100,7 +11106,7 @@ const MAPD_S = 2, mapImgD = DD ? (() => {
   }
   g.putImageData(img, 0, 0); g.scale(1 / MAPD_S, 1 / MAPD_S); g.translate(-DX0, -DZ0);
   for (const [x, z, w, d, col] of DELTA_MAP) { g.fillStyle = col; g.fillRect(x - w / 2, z - d / 2, w, d); }
-  if (RAILW) for (const [wd, col, dash] of [[7, '#2a2a2e', []], [3, '#f2f0ea', [4, 6]]]) { g.strokeStyle = col; g.lineWidth = wd; g.setLineDash(dash); g.beginPath(); RAIL_PTS.forEach(([x, z], k) => k ? g.lineTo(x, z) : g.moveTo(x, z)); g.stroke(); g.setLineDash([]); }   // Naija Rail into Delta
+  if (RAILW) for (const [wd, col, dash] of [[7, '#2a2a2e', []], [3, '#f2f0ea', [4, 6]]]) { g.strokeStyle = col; g.lineWidth = wd; g.setLineDash(dash); g.beginPath(); for (const PT of [RAIL_PTS, RAIL2_PTS]) { g.moveTo(...PT[0]); PT.forEach(([x, z], k) => k && g.lineTo(x, z)); } g.stroke(); g.setLineDash([]); }   // Naija Rail into Delta, and the Delta Line
   return c;
 })() : null;
 function drawMapD(ctx, vx, vz, span, W) {   // Delta's layer over a map showing the square (vx, vz, span) of the world at W pixels
