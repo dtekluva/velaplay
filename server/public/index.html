@@ -15310,7 +15310,7 @@ if (YB) {
     const [wx, wz] = at(0, fv); MUSEUM_ENTS.push({ x: wx + F[0] * 1.3, z: wz + F[1] * 1.3, wx, wz, gy: top, ox: F[0], oz: F[1], type: MUSEUM_TYPE[key], name: 'the ' + info.name, bx: S.x, bz: S.z, br: Math.max(S.w, S.d) / 2 + 2, top: top + 11 });
     YABA_MAP.push([S.x, S.z, S.w, S.d, '#e8d8b0']); OYO_PLACES.push([info.name, ...at(0, D / 2 + 6)]);
     for (let k = 0; k < 6; k++) { const [px, pz] = at(-8 + k * 3.2, D / 2 + 3); makeCivilian({ x: px, z: pz, y: top, houses: [], civs: [], sand: [Math.min(...[at(-10, D / 2 - 2)[0], at(10, D / 2 + 1)[0]]), Math.max(...[at(-10, D / 2 - 2)[0], at(10, D / 2 + 1)[0]]), Math.min(at(-10, D / 2 - 2)[1], at(10, D / 2 + 1)[1]), Math.max(at(-10, D / 2 - 2)[1], at(10, D / 2 + 1)[1])], place: 'city' }, { adult: k < 5 }).fixedY = top; }
-    if (S.path) for (const [x0, z0, x1, z1, pw = 2.4] of S.path) { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 2); for (let i = 0; i <= n; i++) { const x = x0 + (x1 - x0) * i / n, z = z0 + (z1 - z0) * i / n; b.box(pw, .25, pw, x, heightAt(x, z) + .12, z, stoneM, 1, false); } }   // a paved way (pw wide)
+    if (S.path) for (const [x0, z0, x1, z1, pw = 2.4] of S.path) { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 2); for (let i = 0; i <= n; i++) { const x = x0 + (x1 - x0) * i / n, z = z0 + (z1 - z0) * i / n; b.box(pw, .2, pw, x, heightAt(x, z) - .07, z, stoneM, 1, false); } }   // a paved way (pw wide), flush with the ground you walk on
   }
   b.build();
 }
@@ -16273,6 +16273,7 @@ function updatePeople(dt) {
     c.fixedY = Hh && Math.abs(c.g.position.x - Hh.x) < Hh.w / 2 && Math.abs(c.g.position.z - Hh.z) < Hh.d / 2 && !houseAt(c.v, c.g.position.x, c.g.position.z) ? Hh.floorY : undefined;
     if (c.away && !A.flat) c.away = false;   // back down from the flat
     if (A.flat && (d < 3 || (!c.active && !c.away))) { if (!c.away) { c.g.position.set(A.x, groundAt(A.x, A.z), A.z); c.away = true; c.at = A.key; } continue; }   // home: up to the flat
+    if (A.key === 'meet' && c.at !== 'meet' && d > 30 && Math.hypot(A.x - P.pos.x, A.z - P.pos.z) > 50) { placeResident(c, A); c.away = false; continue; }   // a meet-up: there before you are
     if (!c.active) { if (c.at !== A.key || (d > 25 && !A.roam)) placeResident(c, A); continue; }
     if (A.roam) { c.at = A.key; continue; }   // free time: they wander their streets like anyone
     const HH = A.house || c.homeH;
@@ -16434,6 +16435,7 @@ const chatOf = id => CHAT.threads[personKey(id)] ||= [];
 const chatUnread = () => Object.values(CHAT.threads).reduce((a, t) => a + t.filter(m => !m.mine && !m.read).length, 0);
 const hourWord = () => { const h = tod * 24; return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night'; };
 // somewhere to meet: the nearest few kinds of place to you
+const museumFront = M => { const F = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[M.face] || [0, 1]; return [M.x + F[0] * (M.w / 2 + 5), M.z + F[1] * (M.d / 2 + 5)]; };   // at the foot of its front steps (its middle is inside the building)
 function meetPlaces(R) {
   const P0 = R.persona || {}, out = [], near = (list, f) => list.map(f).filter(Boolean).sort((a, b) => a.d - b.d)[0];
   const at = (x, z, label, kind) => ({ x, z, label, kind, d: Math.hypot(x - P.pos.x, z - P.pos.z) });
@@ -16441,7 +16443,7 @@ function meetPlaces(R) {
   const food = near(VENUES.filter(V => V.food && V.food !== 'rest'), V => at(V.x, V.z, V.name.replace(/^the /, ''), 'food')); if (food) out.push(food);
   const club = near(CLUBS.filter(C => C.hs?.doorOut || C.at), C => C.hs?.doorOut ? at(C.hs.doorOut.x, C.hs.doorOut.z, C.name, 'club') : at(C.at[0], C.at[1], C.name, 'club')); if (club) out.push(club);
   if (COAST) out.push(at(30, 286, 'Elegushi Beach', 'beach'));
-  const mus = near(Object.entries(MUSEUM_SITES || {}), ([k, M]) => at(M.x, M.z, ({ lagos: 'Lagos History Museum', ogun: 'Ogun State Museum', oyo: 'Museum of Yoruba History', edo: 'National Museum, Benin' })[k] || 'the museum', 'museum')); if (mus) out.push(mus);
+  const mus = near(Object.entries(MUSEUM_SITES || {}), ([k, M]) => at(...museumFront(M), ({ lagos: 'Lagos History Museum', ogun: 'Ogun State Museum', oyo: 'Museum of Yoruba History', edo: 'National Museum, Benin' })[k] || 'the museum', 'museum')); if (mus) out.push(mus);
   if (R.hang) out.push(at(R.hang.x, R.hang.z, R.hang.label, 'their spot'));
   return out.slice(0, 6);
 }
@@ -16468,35 +16470,87 @@ function chatTick() {
   const w = list.map(([m]) => ({ contact: 1, friend: 2.2, close: 3.5 }[relStageOf(relDecayed(m), m.stage)] || 1)), tot = w.reduce((a, b) => a + b, 0);
   let r = Math.random() * tot, k = 0; while (r > w[k]) r -= w[k++];
   const [m, R] = list[Math.min(k, list.length - 1)], st = relStageOf(relDecayed(m), m.stage), quiet = (Date.now() - (m.last || m.since)) / 86400e3;
-  let kind = R.persona?.birthday === relDayOfYear() && !chatOf(R.id).some(x => x.kind === 'birthday' && Date.now() - x.at < 86400e3) ? 'birthday' : quiet > 2 ? 'miss' : ri(['hello', 'chat', 'chat', st !== 'contact' ? 'invite' : 'hello', 'favour']), extra = null;
+  let kind = R.persona?.birthday === relDayOfYear() && !chatOf(R.id).some(x => x.kind === 'birthday' && Date.now() - x.at < 86400e3) ? 'birthday' : quiet > 2 ? 'miss' : ri(['hello', 'chat', 'ask', 'ask', 'news', st !== 'contact' ? 'invite' : 'ask', 'favour']), extra = null;
   if (m.romance && kind !== 'birthday' && kind !== 'miss' && Math.random() < .5) kind = Math.random() < .35 ? 'invite' : 'love';   // someone you're with texts sweeter (and asks you out more)
   if (kind === 'invite') extra = ri(meetPlaces(R).filter(p => p.d < 1500 && p.kind !== 'home')) || null;
   if (kind === 'invite' && !extra) kind = 'chat';
   if (kind === 'favour') { const g = ri(['suya', 'jollof', 'chocolate', 'flowers']); extra = { gid: g, name: REL_GIFTS[g][0] }; }
-  chatPush(R.id, { mine: false, kind, text: kind === 'love' ? loveText(R) : kind === 'invite' && m.romance ? `Date night? Meet me at ${extra.label} ❤️` : npcText(R, kind, extra), extra });
+  if (kind === 'ask' || kind === 'news') { const Q = kind === 'ask' ? ri(chatQs(R)) : chatNews(); chatPush(R.id, { mine: false, kind, text: Q.q, opts: Q.a, depth: 0 }); }
+  else chatPush(R.id, { mine: false, kind, text: kind === 'love' ? loveText(R) : kind === 'invite' && m.romance ? `Date night? Meet me at ${extra.label} ❤️` : npcText(R, kind, extra), extra });
   sfx('swap'); toast(`💬 ${R.name}`, chatOf(R.id).at(-1).text);
   phoneRefresh(); peopleBadge();
 }
-// your replies: warm, funny or cold (each moves you, through the server for accounts)
+// your replies: [what you say, its tone, what it does, an interest]. Tones: warm, text_fun, text_cold (each moves you, through the
+// server for accounts), interest (theirs, if it is: +5), busy (a polite "later": no change, and it isn't ignoring them).
+// What it does: accept / decline an invite, favour, meetpick (opens Meet up). Warm and funny answers keep it going: they answer and
+// often ask something back, two or three times, then wrap up.
+const CHAT_BUSY = ['Busy now, talk later 🙏', 'busy'];
+function chatQs(R) {
+  const P0 = R.persona || {}, it = ri(P0.interests?.length ? P0.interests : ['Afrobeats']), w = hourWord();
+  return [
+    { q: `What are you up to this ${w}?`, a: [['Just exploring the city 🏙', 'warm'], ['Working. The hustle no dey stop 💪', 'warm'], ['Thinking about you, honestly 😏', 'text_fun'], ['Come and find out 😉', 'warm', 'meetpick']] },
+    { q: 'Have you eaten today?', a: [['Yes o, some jollof 🍛', 'warm'], ['Not yet. You’re buying? 😂', 'text_fun'], ['Let’s grab food together', 'warm', 'meetpick']] },
+    { q: 'Any plans for the weekend?', a: [['No plans yet. Want to hang out?', 'warm', 'meetpick'], ['Resting. My body needs it 😴', 'warm'], ['Top secret 🤫', 'text_fun']] },
+    { q: `Be honest, what do you think about ${it}?`, a: [[`I love ${it} too!`, 'interest', null, it], [`Teach me about ${it} 😄`, 'warm'], ['Not really my thing', 'text_cold']] },
+    { q: 'Did you see the titans by the walls? 😱', a: [['I fought one! 💪', 'text_fun'], ['Stay safe, okay? ❤️', 'warm'], ['Titans don’t scare me', 'warm']] },
+    { q: 'What made you smile today?', a: [['This text 😊', 'warm'], ['Lagos traffic actually moving 😂', 'text_fun'], ['Nothing much, honestly', 'text_cold']] },
+    { q: 'Jollof: Nigerian or Ghanaian? Choose wisely 😤', a: [['Naija jollof, no contest 🇳🇬', 'warm'], ['Ghana… just kidding 😂', 'text_fun'], ['I don’t really care', 'text_cold']] },
+    { q: 'If you could travel anywhere tomorrow, where would you go?', a: [['Obudu Ranch, with you 😊', 'warm'], ['Dubai, for the shopping 😂', 'text_fun'], ['Nowhere, I like it here', 'warm']] },
+    { q: 'What music are you listening to these days?', a: [['Burna on repeat 🔥', 'warm'], ['Asake. Don’t judge me 😂', 'text_fun'], ['Whatever’s playing at the club', 'warm']] },
+  ];
+}
+function chatNews() {
+  return Math.random() < .55
+    ? { q: ri(['I got a raise at work today!! 🎉', 'I finally passed my driving test 🚗', 'My small business made its best sale ever today 💰', 'Guess who just got front row tickets? 🎤']), a: [['Congrats!! 🎉 You deserve it', 'warm'], ['Where’s my share? 😂', 'text_fun'], ['We have to celebrate! Meet up?', 'warm', 'meetpick'], ['Ok', 'text_cold']] }
+    : { q: ri(['Today has been rough 😞', 'My landlord increased the rent again 😩', 'I lost my phone charger and my patience 😤', 'Work was crazy today. I’m so tired']), a: [['Ah sorry o. Want to talk about it? ❤️', 'warm'], ['Let me come and cheer you up', 'warm', 'meetpick'], ['Sending you a hug 🤗', 'warm'], ['That’s life 🤷', 'text_cold']] };
+}
 function chatReplies(R, last) {
-  if (last.kind === 'invite') return [['Yes! I’m on my way 🏃', 'warm', 'accept'], ['Can’t today, sorry. Another time?', 'text_cold', 'decline'], ['😂 Only if you’re buying', 'text_fun', 'accept']];
-  if (last.kind === 'favour') return [['Sure, I’ll bring it 👍', 'warm', 'favour'], ['Ah, I’m too busy today', 'text_cold']];
-  if (last.kind === 'miss') return [['I’m so sorry! I’ve missed you too ❤️', 'warm'], ['Life has been crazy 😅', 'text_fun'], ['I’ve been busy.', 'text_cold']];
-  if (last.kind === 'love') return [['❤️ Me too, so much', 'warm'], ['😘😘', 'text_fun'], ['ok', 'text_cold']];
-  if (last.kind === 'birthday') return [['Happy birthday!! 🎉🎂 Enjoy your day', 'warm'], ['HBD 🥳 Where’s my cake?', 'text_fun'], ['Nice.', 'text_cold']];
-  return [[ri(['Hey! All good here 😊', 'Good to hear from you!', 'Doing well, and you?']), 'warm'], [ri(['😂😂 you’re funny', 'Na wa o 😅', 'Tell me more 👀']), 'text_fun'], ['k', 'text_cold']];
+  let o;
+  if (last.opts) o = last.opts;
+  else if (last.kind === 'invite') o = [['Yes! I’m on my way 🏃', 'warm', 'accept'], ['😂 Only if you’re buying', 'text_fun', 'accept'], ['Somewhere else? Let me pick', 'warm', 'meetpick'], ['Can’t today, sorry. Another time?', 'busy', 'decline']];
+  else if (last.kind === 'favour') o = [['Sure, I’ll bring it 👍', 'warm', 'favour'], ['For you? Anything 😄', 'text_fun', 'favour'], ['Ah, I’m too busy today', 'text_cold']];
+  else if (last.kind === 'miss') o = [['I’m so sorry! I’ve missed you too ❤️', 'warm'], ['Let’s meet up and catch up!', 'warm', 'meetpick'], ['Life has been crazy 😅', 'text_fun'], ['I’ve been busy.', 'text_cold']];
+  else if (last.kind === 'love') o = [['❤️ Me too, so much', 'warm'], ['Come and see me? 😉', 'warm', 'meetpick'], ['😘😘', 'text_fun'], ['ok', 'text_cold']];
+  else if (last.kind === 'birthday') o = [['Happy birthday!! 🎉🎂 Enjoy your day', 'warm'], ['Let me take you out for it 🎂', 'warm', 'meetpick'], ['HBD 🥳 Where’s my cake?', 'text_fun'], ['Nice.', 'text_cold']];
+  else if (last.kind === 'chat') o = [['Tell me more 👀', 'warm'], ['Haha, same here 😄', 'warm'], ['😂😂 you’re funny', 'text_fun'], ['k', 'text_cold']];
+  else o = [[ri(['Hey! All good here 😊 You?', 'Good to hear from you!', 'Doing well, and you?']), 'warm'], ['I was just thinking about you too', 'warm'], ['Na wa o, who is this? 😂 Kidding', 'text_fun'], ['k', 'text_cold']];
+  return o.some(x => x[1] === 'busy') ? o : [...o, CHAT_BUSY];
+}
+// their answer to yours, and maybe a question back (a few times, then they wrap up)
+function chatAnswer(R, tone, depth, lead) {
+  const P0 = R.persona || {}, more = tone !== 'text_cold' && tone !== 'busy' && depth < 3 && Math.random() < .8 - depth * .22;
+  let say = lead || (tone === 'busy' ? ri(['No wahala, talk later 👋', 'Okay, go and do your thing!', 'Alright, catch you later 😊'])
+    : tone === 'text_cold' ? ri(['Okay.', '😐', 'Alright then.', 'Hmm. Okay.'])
+    : tone === 'text_fun' ? (P0.mood === 'grumpy' ? ri(['Funny.', 'Hmm 😏']) : ri(['😂😂😂', 'You’re mad o 🤣', 'Stop it, my stomach 😆', 'Hahaha!']))
+    : ri(['Aww 😊', 'I like that.', 'Same here!', 'You’re sweet.', 'Haha nice!', 'That’s good to hear.']));
+  if (more) { const Q = ri(chatQs(R).filter(q => !chatOf(R.id).slice(-8).some(m => m.text?.includes(q.q)))) || ri(chatQs(R)); return { mine: false, kind: 'ask', text: `${say} ${Q.q}`, opts: Q.a, depth: depth + 1 }; }
+  return { mine: false, kind: 'ack', answered: true, text: tone === 'busy' || tone === 'text_cold' || !depth ? say : `${say} ${ri(['Talk later! 😊', 'Okay let me go, talk soon ❤️', 'Gotta run. Text me later!'])}` };
 }
 async function chatReply(R, i) {
   const t = chatOf(R.id), last = t.filter(m => !m.mine).at(-1); if (!last || last.answered) return;
-  const [text, tone, act] = chatReplies(R, last)[i]; last.answered = true; last.read = true;
+  const [text, tone, act, about] = chatReplies(R, last)[i]; last.answered = true; last.read = true;
   chatPush(R.id, { mine: true, text });
   const c = PEOPLE.civ.get(personKey(R.id)) || { resident: R };
-  await relTalk(c, tone === 'warm' ? 'text_warm' : tone);
+  const r = tone === 'busy' ? null : tone === 'interest' ? await relTalk(c, 'interest', about) : await relTalk(c, tone === 'warm' ? 'text_warm' : tone);
   if (act === 'accept' && last.extra) meetSet(R, last.extra, true);
   if (act === 'favour' && last.extra) { FAVOURS[personKey(R.id)] = { gid: last.extra.gid, until: Date.now() + 3 * 3600e3 }; toast('🙏 Favour', `Give ${R.name} ${last.extra.name.toLowerCase()} in person (🎁 when you talk) for a bonus`); }
-  setTimeout(() => { if (Math.random() < .7) { chatPush(R.id, { mine: false, kind: 'ack', text: tone === 'text_cold' ? ri(['Okay.', '😐', 'Alright then.']) : act === 'accept' ? ri(['Yay! See you soon 😄', 'Perfect, I’m heading there now.']) : ri(['😄', 'Hehe', 'Talk later!', '❤️']), answered: true }); phoneRefresh(); } }, RM(2500, 6000));
+  if (act === 'meetpick') { CHAT.view = { id: R.id, tab: 'meet' }; phoneRefresh(); return; }   // you pick the place; their yes comes with it
+  const lead = act === 'accept' ? ri(['Yay! See you soon 😄', 'Perfect, I’m heading there now.']) : act === 'decline' ? ri(['Aww okay. Next time then 😊', 'No wahala. Another day!']) : act === 'favour' ? ri(['You’re the best 🙏', 'Thank you! ❤️']) : tone === 'interest' ? (r?.hit ? `You remembered! ${ri(INTEREST_SAY[about] || ['I love it.'])}` : `${about}? Not really my thing 😅`) : null;
+  setTimeout(() => { chatPush(R.id, chatAnswer(R, act === 'accept' || act === 'decline' ? 'busy' : tone === 'interest' ? (r?.hit ? 'warm' : 'text_cold') : tone, last.depth || 0, lead)); phoneRefresh(); peopleBadge(); }, RM(2500, 6000));
   phoneRefresh(); peopleBadge();
 }
+// texting first: pick what to say (their interests, a joke, a compliment...), or an invitation
+function chatTopics(R) {
+  const m = PEOPLE.mine.get(personKey(R.id)), P0 = R.persona || {}, mine = P0.interests || [], st = m ? relStageOf(relDecayed(m), m.stage) : 'contact';
+  const v = CHAT.view; v.about ||= mine.length && Math.random() < .6 ? ri(mine) : ri(INTERESTS.filter(x => !mine.includes(x)));
+  const out = [['hello', '👋 Say hi'], ['day', '❓ How was your day?'], ['interest', `💬 Talk about ${v.about}`], ['joke', '😂 Send a joke']];
+  if (st !== 'contact' || m?.romance) out.push(['compliment', '💛 Send a compliment']);
+  if (m?.romance) out.push(['love', '❤️ I miss you']);
+  const lastMine = chatOf(R.id).filter(x => !x.mine).at(-1);
+  if (m && ((Date.now() - (m.last || m.since)) / 86400e3 > 2 || lastMine?.ignoredMarked)) out.push(['sorry', '🙏 Sorry I’ve been quiet']);
+  return out;
+}
+const CHAT_JOKES = ['Why did the danfo driver bring a ladder? He heard the fare had gone up 😂', 'Me: I’ll sleep early tonight. Also me at 2am: 📱👀', 'NEPA brought light and I forgot what to do 😂', 'My bank account and I are no longer on speaking terms 😭', 'Lagos traffic is the only place you can age gracefully in one trip 😂'];
 const FAVOURS = {};
 // texts you leave hanging for 10 minutes cost a little (once each)
 function chatIgnored() {
@@ -16508,8 +16562,17 @@ function chatIgnored() {
 // texting first: a hello, or an invitation
 async function chatSend(R, kind, place) {
   const c = PEOPLE.civ.get(personKey(R.id)) || { resident: R }, m = PEOPLE.mine.get(personKey(R.id)), st = m ? relStageOf(relDecayed(m), m.stage) : 'contact';
-  if (kind === 'hello') { chatPush(R.id, { mine: true, text: ri(['Hey! How are you?', 'Thinking of you 😊', 'Good ' + hourWord() + '! What’s up?']) }); relTalk(c, 'text_warm');
-    setTimeout(() => { chatPush(R.id, { mine: false, kind: 'ack', answered: true, text: npcText(R, Math.random() < .5 ? 'chat' : 'hello') }); phoneRefresh(); peopleBadge(); }, RM(3000, 9000)); }
+  if (kind === 'topic') {
+    const T = place, about = CHAT.view?.about; if (CHAT.view) { CHAT.view.tab = null; CHAT.view.about = null; }
+    const say = { hello: ri(['Hey! How are you?', 'Thinking of you 😊', 'Good ' + hourWord() + '! What’s up?']), day: ri(['How was your day?', 'How did today treat you?']), interest: ri([`Have you been following ${about}?`, `Let’s talk ${about} 😄`, `What’s the latest with ${about}?`]),
+      joke: ri(CHAT_JOKES), compliment: ri(['You always make my day better 😊', 'You have the best smile, you know that?', 'Talking to you is my favourite part of the day']), love: loveText(R), sorry: ri(['Sorry I’ve been quiet o. Life got busy 🙏', 'I owe you an apology for disappearing 🙈']) }[T];
+    chatPush(R.id, { mine: true, text: say });
+    const r = await relTalk(c, { hello: 'text_warm', love: 'text_warm', sorry: 'text_warm' }[T] || T, about);
+    const lead = T === 'hello' ? npcText(R, 'hello') : T === 'love' ? ri(['Aww ❤️ I miss you more', 'You’re making me blush 🙈 ❤️']) : T === 'sorry' ? ri(['It’s okay. I’m just glad you texted 😊', 'Hmm. Don’t do it again o 😤 But okay ❤️', 'Apology accepted ❤️'])
+      : T === 'joke' && R.persona?.mood !== 'grumpy' ? ri(['😂😂😂 where do you get these?', 'Hahaha! You’re mad 🤣', 'Stop it 😆']) : relAnswer(c, { t: T, about }, r) || 'Haha 😊';
+    const tone = T === 'interest' ? (r?.hit ? 'warm' : 'text_cold') : T === 'joke' && R.persona?.mood === 'grumpy' ? 'text_cold' : 'warm';
+    setTimeout(() => { chatPush(R.id, chatAnswer(R, tone, 0, lead)); phoneRefresh(); peopleBadge(); }, RM(3000, 8000));
+  }
   if (kind === 'invite') {
     chatPush(R.id, { mine: true, text: `Want to meet at ${place.label}?` });
     const yes = Math.random() < ({ contact: .55, friend: .85, close: .97 }[st] || .5) * (R.persona?.mood === 'shy' ? .8 : 1);
@@ -16530,6 +16593,7 @@ function updateMeets(dt) {
   for (const [id, M] of MEETS) {
     const c = PEOPLE.civ.get(id);
     if (Date.now() > M.until || !c) { MEETS.delete(id); if (c) c.meet = null; if (!M.done && c) { chatPush(id, { mine: false, kind: 'ack', answered: true, text: ri(['I waited but you didn’t come 😔', 'Where are you? I’m going home.']) }); relTalk(c, 'ignored'); peopleBadge(); } continue; }
+    if (!M.house && museumSiteAt(M.x, M.z)) { const S = Object.values(MUSEUM_SITES).find(S => Math.abs(M.x - S.x) < S.w / 2 && Math.abs(M.z - S.z) < S.d / 2); if (S) [M.x, M.z] = museumFront(S); }   // (meet-ups set before the museum's spot moved outside)
     c.meet = M;
     const dP = Math.hypot(P.pos.x - M.x, P.pos.z - M.z), dC = Math.hypot(c.g.position.x - M.x, c.g.position.z - M.z);
     if (!M.done && dP < 9 && dC < 9) {
@@ -16703,6 +16767,11 @@ function chatView(R) {
     if (!K.missed && !K.done) K.opts.forEach(([say], i) => row.append(ph('button', 'phChip', say, { type: 'button', on: { click: () => callChoose(i) } })));
     row.append(ph('button', 'phBtn', '📵 Hang up', { type: 'button', on: { click: () => { CHAT.call = null; phoneRefresh(); } } })); card.append(row); out.push(card);
   }
+  if (CHAT.view?.tab === 'text') {   // what to text
+    const card = ph('div', 'phCard'); card.append(ph('b', null, `💬 Text ${R.name}…`));
+    for (const [k, label] of chatTopics(R)) card.append(ph('button', 'phChip', label, { type: 'button', on: { click: () => chatSend(R, 'topic', k) } }));
+    card.append(ph('button', 'phChip', 'Cancel', { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } })); out.push(card);
+  }
   if (CHAT.view?.tab === 'meet') {
     const card = ph('div', 'phCard'); card.append(ph('b', null, `📍 Meet ${R.name} at…`));
     for (const p of meetPlaces(R)) card.append(ph('button', 'phChip', `${{ food: '🍲', club: '🪩', beach: '🏖', museum: '🏛', 'their spot': '⭐', home: '🏠' }[p.kind] || '📍'} ${p.label} · ${fmtDist(p.d)}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; chatSend(R, 'invite', p); } } }));
@@ -16715,7 +16784,7 @@ function chatView(R) {
   const last = t.filter(m => !m.mine).at(-1);
   if (last && !last.answered && last.kind !== 'ack') { const row = ph('div', 'phChips'); chatReplies(R, last).forEach(([txt], i) => row.append(ph('button', 'phChip', txt, { type: 'button', on: { click: () => chatReply(R, i) } }))); out.push(row); }
   const acts = ph('div', 'phChips');
-  acts.append(ph('button', 'phBtn', '💬 Say hi', { type: 'button', on: { click: () => chatSend(R, 'hello') } }), ph('button', 'phChip', '📞 Call', { type: 'button', on: { click: () => callStart(R) } }),
+  acts.append(ph('button', 'phBtn', '💬 Text…', { type: 'button', on: { click: () => { CHAT.view = { id: R.id, tab: CHAT.view?.tab === 'text' ? null : 'text' }; phoneRefresh(); } } }), ph('button', 'phChip', '📞 Call', { type: 'button', on: { click: () => callStart(R) } }),
     ph('button', 'phChip', '📍 Meet up', { type: 'button', on: { click: () => { CHAT.view = { id: R.id, tab: 'meet' }; phoneRefresh(); } } }));
   out.push(acts);
   const M = MEETS.get(personKey(R.id)); if (M && !M.done) out.push(ph('div', 'phCard', `📍 Meeting at ${M.label} · ${fmtDist(Math.hypot(M.x - P.pos.x, M.z - P.pos.z))} away · they’ll wait ${Math.max(0, Math.ceil((M.until - Date.now()) / 60e3))} min`));
