@@ -1625,7 +1625,7 @@ const DEL = DD ? {
   wmarket: { x0: 2624, x1: 2696, z0: -2986, z1: -2914 }, olu: { x0: 2704, x1: 2856, z0: -2906, z1: -2754 }, wstad: { x: 2420, z: -2925, rx: 46, rz: 32 },
   port: { x0: 2984, x1: 3380, z0: -2756, z1: -2684 }, koko: { x0: 2290, x1: 2440, z0: -2800, z1: -2716 },
 } : null;
-const DELTA_MAP = [];   // [x, z, w, d, colour]: buildings and grounds drawn on Delta's map layer
+const DELTA_MAP = [], DELTA_DOORS = [];   // (DELTA_DOORS: Delta's front doors, for parcels)   // [x, z, w, d, colour]: buildings and grounds drawn on Delta's map layer
 // the Asaba GRA, Phase 1: land sold in 300 m² units (15 m of frontage, 20 m deep) like Banana Island West and Ikoyi (keys g<col>,<row>;
 // the server's price list has them). Two blocks of ten units either side of a cross street, rows back to back between streets every 48 m
 if (DEL) { const G = DEL.gra = { prefix: 'g', name: 'Asaba GRA', short: 'Asaba GRA', y: TOWN.y, unitW: 15, unitD: 20, price: 18000, cols: [], rows: [], streets: [], cross: [[4038, 4046]], x0: 3880, x1: 4204, z0: -5516, z1: -5316 };
@@ -1635,6 +1635,8 @@ if (DEL) { const G = DEL.gra = { prefix: 'g', name: 'Asaba GRA', short: 'Asaba G
   Object.assign(G, { ux0: G.cols[0].x0, ux1: G.cols[19].x0 + 15, uz0: G.rows[0].z0, uz1: G.rows[7].z0 + 20 }); }
 const D_SOUTH = DD ? DEL.south.slice(1).map((q, k) => [DEL.south[k][0], DEL.south[k][1], q[0], q[1]]) : [], D_ETH = DD ? DEL.ethiope.slice(1).map((q, k) => [DEL.ethiope[k][0], DEL.ethiope[k][1], q[0], q[1]]) : [];
 const ethiopeDist = (x, z) => { if (x > 2650 || z < -4640 || z > -3400) return 1e9; let b = 1e9; for (const s of D_ETH) b = Math.min(b, segDist(x, z, s)); return b; };
+const deltaTown = (x, z) => inR(DEL.asaba, x, z) ? (inR(DEL.gra, x, z) ? 'the Asaba GRA' : 'Asaba') : z > -3300 ? (Math.hypot(x - DEL.effurun[0], z - DEL.effurun[1]) < 420 ? 'Effurun' : 'Warri') : inR(DEL.abraka, x, z) ? 'Abraka' : inR(DEL.sapele, x, z) ? 'Sapele' : z > -3420 ? 'Oghara' : z > -3800 ? 'Eku' : z > -4800 ? 'Obiaruku'
+  : [['Umunede', DEL.umunede], ['Agbor', DEL.agbor], ['Issele-Uku', DEL.issele], ['Ibusa', DEL.ibusa]].find(([, r]) => x > r[0] - 20 && x < r[1] + 20)?.[0] || 'Delta';
 const ethiopeLine = z => { for (const [ax, az, bx, bz] of D_ETH) if ((z - az) * (z - bz) <= 0 && az !== bz) return ax + (bx - ax) * (z - az) / (bz - az); return DEL.ethiope[0][0]; };   // the Ethiope's x at this z
 const dSouthDist = (x, z) => { if (x < 2530 || x > 2930 || z < DEL.rd - 30 || z > -3080) return 1e9; let b = 1e9; for (const s of D_SOUTH) b = Math.min(b, segDist(x, z, s)); return b; };
 // Delta's streets: the expressway (a dual carriageway with a median), the road south, and the grids of Asaba, Abraka, Sapele and Warri
@@ -9042,7 +9044,7 @@ function deltaKit(b, ROT) {
       b.box(along ? 1.1 : .08, 2.1, along ? .08 : 1.1, x + fx * (w / 2 + .03), Y + 1.05, z + fz * (d / 2 + .03), MM.door || darkM, 1, false);
       for (let f = 0; f < floors; f++) for (const o of [-.3, .3]) { const L = along ? w : d; b.box(along ? 1 : .08, 1, along ? .08 : 1, x + fx * (w / 2 + .03) + (along ? o * L : 0), Y + f * 3.1 + 1.7, z + fz * (d / 2 + .03) + (along ? 0 : o * L), winM, 1, false); }
       hipRoof(b, roofM || (rng() < .7 ? gerardMat(roofColour(x, z)) : rng() < .5 ? zinc : rust), x, z, w, d, Y + H, { pitch: .36, ov: .5, ground: Y });
-      DELTA_MAP.push([x, z, w, d, mapC]); TAKEN.push([x, z, w, d]);
+      DELTA_MAP.push([x, z, w, d, mapC]); TAKEN.push([x, z, w, d]); DELTA_DOORS.push({ x: x + fx * (w / 2 + 1.6), z: z + fz * (d / 2 + 1.6), place: `a home in ${deltaTown(x, z)}`, delta: true });
     },
     // a compound: a fence wall with a gate on one side round a house
     compound: (x, z, w, d, face, wallM = LM(0xd8d0c0)) => { const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[face];
@@ -9219,7 +9221,7 @@ if (DD) withSeed(7474, () => {
     b.box(4, .6, 60, DEL.niger + 26, Y - .3, -4720, LM(0x6a4a2a), 1, true, 'roof'); for (let k = 0; k < 8; k++) for (const s of [-1, 1]) b.box(.4, 4, .4, DEL.niger - 2 + k * 8, Y - 2, -4720 + s * 1.8, LM(0x4a3a2a), 1, false);   // the old pier
     b.box(56, .6, 4, DEL.niger + 26, Y - .3, -4720, LM(0x6a4a2a), 1, true, 'roof');
     const canoe = (x, z, ry) => { const c = LM(0x5a3a1e); sbox(7, .7, 1.3, x, WATER_Y + .2, z, ry, c); sbox(6.4, .2, 1, x, WATER_Y + .55, z, ry, LM(0x3a2414)); };
-    canoe(DEL.niger + 12, -4706, .1); canoe(DEL.niger + 18, -4736, -.2); canoe(DEL.niger + 6, -4690, .4);
+    board('BOAT TOURS ON THE NIGER', '🚤 TAKE A SPEEDBOAT OUT FROM THE PIER', '#1f4a7a', DEL.niger - 4, -4730, Math.PI / 2, 8); canoe(DEL.niger + 12, -4706, .1); canoe(DEL.niger + 18, -4736, -.2); canoe(DEL.niger + 6, -4690, .4);
     { const x = 4185, z = -4730, mp = LM(0xe8dcc0); b.box(20, 3.4, 14, x, Y + 1.7, z, mp, 2, true, 'house'); b.box(20, 3.4, 14, x, Y + 5.1, z, LM(0xd8ccb0), 2, true, 'house');   // Mungo Park House: two storeys of timber and plaster, a verandah all round
       b.box(24, .3, 18, x, Y + 3.5, z, LM(0x6a4a2a), 1, true, 'roof'); for (let k = 0; k < 7; k++) for (const s of [-1, 1]) b.box(.35, 6.8, .35, x - 11.5 + k * 3.8, Y + 3.4, z + s * 8.7, LM(0x6a4a2a), 1, false);
       hipRoof(b, LM(0x7a3a24), x, z, 25, 19, Y + 6.8, { pitch: .45, ov: .4, ground: Y }); sign('MUNGO PARK HOUSE', 'ROYAL NIGER COMPANY · 1886', '#4a2a1a', 8, 1.3, x - 12.2, Y + 2.6, z, -Math.PI / 2, '#f2d29a');
@@ -9382,7 +9384,8 @@ if (DD) withSeed(7575, () => {
   { const W = DEL.warri, keepOut = (x, z) => [DEL.refinery, DEL.pti, DEL.fupre, DEL.army, DEL.wmarket, DEL.olu, DEL.port, DEL.koko].some(R => inR(R, x, z, 6)) || Math.hypot((x - DEL.wstad.x) / (DEL.wstad.rx * 1.7), (z - DEL.wstad.z) / (DEL.wstad.rz * 1.7)) < 1 || Math.hypot(x - ex, z - ez) < DEL.er + 12 || z > DEL.river - 26 || heightAt(x, z) < Y - .5;
     for (const [x, z, f, n] of [[2780, -3030, 'pz', 'ST ANDREW’S ANGLICAN CHURCH'], [3020, -2860, 'nx', 'SACRED HEART CATHEDRAL'], [2620, -2850, 'px', 'DEEPER LIFE CHURCH'], [3300, -2900, 'nz', 'CHRIST EMBASSY'], [2860, -2700 - 70, 'pz', 'REDEEMED CHURCH']]) K.church(x, z, f, n);
     K.fuel(ex - 70, ez + 20, 'Conoil Fuels, Effurun', 'CONOIL', 0xd8342a); K.fuel(2700, -2860, 'NNPC Fuels, Warri', 'NNPC', 0x1f8a3a); K.fuel(3250, -3010, 'Oando Fuels, Airport Road', 'OANDO', 0x2f6fb0);
-    K.club(2860, -2950, 'No Carry Last Club', '#3ee8ff'); makeDrivable(2600, DEL.river + 30, Math.PI / 2, 'boat'); makeDrivable(2650, DEL.river + 34, Math.PI / 2, 'boat'); makeDrivable(3240, DEL.river + 30, -Math.PI / 2, 'boat');   // speedboats for the creeks
+    K.club(2860, -2950, 'No Carry Last Club', '#3ee8ff'); makeDrivable(2600, DEL.river + 30, Math.PI / 2, 'boat');
+    { const pl = LM(0x6a4a2a); b.box(4, .4, 30, 2600, Y - .2, DEL.river + 5, pl, 1, true, 'roof'); for (let z = DEL.river - 6; z < DEL.river + 20; z += 5) for (const sd of [-1.8, 1.8]) b.box(.35, 4, .35, 2600 + sd, Y - 2.2, z, LM(0x4a3a2a), 1, false); board('WARRI WATERFRONT', '🚤 BOAT TOURS OF THE CREEKS · STOP AT THE JETTY', '#1f4a7a', 2608, DEL.river - 12, Math.PI / 2, 9); OYO_PLACES.push(['Warri waterfront jetty', 2600, DEL.river - 14]); } makeDrivable(2650, DEL.river + 34, Math.PI / 2, 'boat'); makeDrivable(3240, DEL.river + 30, -Math.PI / 2, 'boat');   // speedboats for the creeks
     K.mosque(3260, -3060); K.tower(2980, -2800, 20, 16, 9); K.sign('WARRI RIVERSIDE HOTEL', '', '#1f3a5a', 9, 1.3, 2980, Y + 30.5, -2791.9, 0, '#f2d29a'); VENUES.push({ name: 'the Warri Riverside Hotel', x: 2980, z: -2788, r: 9, food: 'mall', toilet: 0, motel: 20000 }); K.tower(3100, -2800, 18, 16, 7); K.tower(2700, -3020, 16, 14, 6);
     K.blocks({ x0: W.x0 + 10, x1: W.x1 - 10, z0: W.z0 + 10, z1: DEL.river - 20 }, ex + 40, ez + 40, 80, keepOut, { two: .3, flats: .08, walls: .5 });
     for (const [x0, x1] of [[2300, 2860], [2940, 3390]]) { people('delta', 10, [x0, x1, ez - 14, ez - 8]); people('delta', 10, [x0, x1, ez + 8, ez + 14]); }
@@ -11021,7 +11024,7 @@ function updateHUD(dt) {
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
   else if (P.driving && JOBS.del) $('prompt').textContent = delPrompt();
-  else if (P.driving && P.driving.kind === 'boat' && JETTY_DOCK && !busy() && Math.hypot(P.driving.x - JETTY_DOCK.x, P.driving.z - JETTY_DOCK.z) < 40) $('prompt').textContent = '🚤 Stop at the end of the jetty to take tourists on a tour';
+  else if (P.driving && P.driving.kind === 'boat' && !busy() && dockNear(P.driving.x, P.driving.z, 40)) $('prompt').textContent = (dockNear(P.driving.x, P.driving.z, 40).name !== 'the Elegushi jetty' ? `🚤 ${dockNear(P.driving.x, P.driving.z, 40).name}: stop by the jetty to take tourists out` : '') || '🚤 Stop at the end of the jetty to take tourists on a tour';
   else if (P.driving && P.driving.kind === 'boat') $('prompt').textContent = `${Math.round(Math.abs(P.driving.speed) * 3.6 / 1.852)} knots · E · Get off at the jetty or beach`;
   else if (P.driving && TAXI.job) $('prompt').textContent = taxiPrompt();
   else if (P.driving && TAXI.hails.length) $('prompt').textContent = '✋ Someone wants a taxi · stop beside them';
@@ -13256,6 +13259,7 @@ const JOBS = { del: null, boat: null, buoyT: 0 };
 const busy = () => !!(TAXI.job || JOBS.del || JOBS.boat);
 // delivery counters: a post with a sign, and the place it stands
 const PICKUPS = [];
+if (DD) PICKUPS.push({ name: 'Asaba Mall', x: (DEL.mall.x0 + DEL.mall.x1) / 2 - 20, z: DEL.mall.z0 + 64 }, { name: 'Ogbeogonogo Market', x: DEL.market.x0 - 3, z: DEL.market.z0 + 10 }, { name: 'Warri Main Market', x: DEL.wmarket.x1 + 3, z: DEL.wmarket.z0 + 10 }, { name: 'Abraka Market', x: DEL.amarket.x0 - 3, z: DEL.amarket.z0 + 10 });
 if (TOWN && TOWN.mall) PICKUPS.push({ name: 'the mall', x: TOWN.mall.doorOut.x + 3, z: TOWN.mall.doorOut.z });
 if (TOWN && blockAt('gas')) { const [gx, gz] = blockAt('gas'); PICKUPS.push({ name: 'Gas & Go', x: gx - 6, z: gz + 9 }); }
 if (COAST) PICKUPS.push({ name: 'Meadowbrook General Store', x: 284, z: 190 }, { name: 'Mama T’s Kitchen', x: 105, z: 293.5 });
@@ -13271,16 +13275,17 @@ function homeDoors() {
   if (TOWN) take(TOWN.houses, () => 'a home in Naija City');
   if (BEACH) take(BEACH.houses, () => 'a house on the seafront');
   for (const E of ESTATES) take(E.houses, () => `a home in ${E.short}`);
+  for (const d of DELTA_DOORS) out.push(d);   // Delta's houses
   return out;
 }
 const parcelBox = new THREE.Mesh(new THREE.BoxGeometry(.42, .34, .3), LM(0xb98a52)); parcelBox.position.set(0, 1.32, .26); parcelBox.visible = false; playerModel.add(parcelBox);
 const delBeam = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 60, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0x4fd0e8, transparent: true, opacity: .3, depthWrite: false, side: THREE.DoubleSide })); delBeam.visible = false; scene.add(delBeam);
 const nearPickup = () => !busy() && !P.driving && PICKUPS.find(p => Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < 4.5);
 function takeDelivery(p) {
-  const doors = homeDoors().filter(d => Math.hypot(d.x - p.x, d.z - p.z) > 150), d = doors[Math.floor(Math.random() * doors.length)];
+  const doors = homeDoors().filter(d => { const dd = Math.hypot(d.x - p.x, d.z - p.z); return dd > 150 && dd < 1500; }), d = doors[Math.floor(Math.random() * doors.length)];
   if (!d) { toast('', 'No parcels right now'); return; }
-  const dist = Math.hypot(d.x - p.x, d.z - p.z), pay = Math.round((800 + dist * 4) / 100) * 100, names = TALK_NAMES[/Meadowbrook/.test(d.place) ? 'country' : /village/.test(d.place) ? 'village' : 'ng'];
-  const who = `${rp(Math.random() < .5 ? names.f : names.m)} ${rp(['Okafor', 'Adeyemi', 'Bello', 'Eze', 'Balogun', 'Nwosu', 'Ibrahim', 'Smith', 'Parker', 'Haas', 'Brandt', 'Cole'])}`;
+  const dist = Math.hypot(d.x - p.x, d.z - p.z), pay = Math.round((800 + dist * 4) / 100) * 100, names = TALK_NAMES[/Meadowbrook/.test(d.place) ? 'country' : /village/.test(d.place) ? 'village' : d.delta ? 'delta' : 'ng'];
+  const who = `${rp(Math.random() < .5 ? names.f : names.m)} ${rp(d.delta ? ['Edewor', 'Omatseye', 'Ogbe', 'Eboh', 'Okpara', 'Emiko', 'Akpofure', 'Erhire', 'Obruche', 'Etaghene', 'Nwaka', 'Ejiofor'] : ['Okafor', 'Adeyemi', 'Bello', 'Eze', 'Balogun', 'Nwosu', 'Ibrahim', 'Smith', 'Parker', 'Haas', 'Brandt', 'Cole'])}`;
   JOBS.del = { from: p.name, x: d.x, z: d.z, place: d.place, who, pay, dist, t0: S.time, limit: dist / 7 + 40 };
   sfx('swap'); toast('📦 Parcel picked up', `For ${who}, ${d.place} · ${Math.round(dist)} m · ${NAIRA(pay)} · tip if you're quick · follow the blue beam`);
 }
@@ -13300,8 +13305,17 @@ const delPrompt = () => { const j = JOBS.del, d = Math.hypot(j.x - P.pos.x, j.z 
 const buoyGeo = new THREE.TorusGeometry(2.2, .35, 8, 20), buoyMat = LM(0xe8742a), buoyDim = LM(0x8a5a3a);
 const BUOYS = [0, 1, 2].map(() => { const g = new THREE.Group(); const ring = new THREE.Mesh(buoyGeo, buoyMat); ring.rotation.x = Math.PI / 2; g.add(ring); const beamB = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 26, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xe8742a, transparent: true, opacity: .28, depthWrite: false, side: THREE.DoubleSide })); beamB.position.y = 13; g.add(beamB); g.visible = false; scene.add(g); return { g, ring, beam: beamB }; });
 const JETTY_DOCK = JETTY ? { x: JETTY.x + 3.6, z: JETTY.z1 - 8 } : null;
-function startBoatRide(boat) {
-  const pool = civilians.filter(c => c.v === BEACH && !c.club && !c.staff && c.active && !c.riding && !c.hailing && c.state !== 'down' && c !== TC.conv?.c);
+// where a boat tour can start: tourists from nearby climb in, three buoys out on the water, back to the same dock
+const wet = (x, z) => heightAt(x, z) <= 1;
+const DOCKS = [...(JETTY_DOCK ? [{ name: 'the Elegushi jetty', ...JETTY_DOCK, pool: c => c.v === BEACH, land: () => [JETTY.x + RM(-1, 1), JETTY.top, JETTY.z1 - 10 - RM(0, 8)], fare: 2000,
+    buoy: (k, a) => [clamp(JETTY_DOCK.x + Math.sin(a) * RM(70, 120) + (k - 1) * 60, -300, PORT ? PORT.rx - 30 : 330), JETTY_DOCK.z + 40 + Math.abs(Math.cos(a)) * RM(40, 90)] }] : []),
+  ...(DD ? [{ name: 'Cable Point', x: DEL.niger + 52, z: -4716, pool: c => Math.hypot(c.g.position.x - (DEL.niger - 10), c.g.position.z + 4700) < 160, land: () => [DEL.niger - 14 + RM(-2, 2), TOWN.y, -4700 + RM(-10, 10)], fare: 2500,
+      buoy: () => [DEL.niger + RM(50, 175), RM(-4880, -4470)] },
+    { name: 'the Warri waterfront', x: 2600, z: DEL.river + 16, pool: c => Math.hypot(c.g.position.x - 2600, c.g.position.z - DEL.river) < 180, land: () => [2600 + RM(-4, 4), TOWN.y, DEL.river - 16], fare: 2500,
+      buoy: () => [RM(2320, 2960), RM(DEL.river + 30, DEL.river + 110)] }] : [])];
+const dockNear = (x, z, r = 12) => DOCKS.find(D => Math.hypot(x - D.x, z - D.z) < r);
+function startBoatRide(boat, D) {
+  const pool = civilians.filter(c => D.pool(c) && !c.club && !c.staff && c.active && !c.riding && !c.hailing && c.state !== 'down' && c !== TC.conv?.c);
   const n = Math.min(pool.length, 2 + Math.floor(Math.random() * 3)); if (!n) return;
   const riders = [], seats = [[-.45, .6], [.45, .6], [-.45, 1.9], [.45, 1.9]];
   for (let k = 0; k < n; k++) {
@@ -13310,15 +13324,15 @@ function startBoatRide(boat) {
   }
   // three buoys out at sea, a loop that comes back toward the jetty
   const pts = []; let a = RM(-1, 1);
-  for (let k = 0; k < 3; k++) { a += RM(.6, 1.1) * (Math.random() < .5 ? 1 : -1); pts.push([clamp(JETTY_DOCK.x + Math.sin(a) * RM(70, 120) + (k - 1) * 60, -300, PORT ? PORT.rx - 30 : 330), JETTY_DOCK.z + 40 + Math.abs(Math.cos(a)) * RM(40, 90)]); }
+  for (let k = 0; k < 3; k++) { a += RM(.6, 1.1) * (Math.random() < .5 ? 1 : -1); let p = D.buoy(k, a); for (let t = 0; t < 20 && !wet(p[0], p[1]); t++) p = D.buoy(k, a); pts.push(p); }   // (on open water, not a sandbank)
   pts.forEach(([x, z], k) => { const b = BUOYS[k]; b.g.position.set(x, WATER_Y, z); b.g.visible = true; });
-  let route = 0, prev = [JETTY_DOCK.x, JETTY_DOCK.z]; for (const p of pts) { route += Math.hypot(p[0] - prev[0], p[1] - prev[1]); prev = p; } route += Math.hypot(prev[0] - JETTY_DOCK.x, prev[1] - JETTY_DOCK.z);
-  JOBS.boat = { boat, riders, pts, next: 0, pay: n * 2000, t0: S.time, limit: route / 14 + 30, n };
-  sfx('swap'); toast(`🚤 ${n} tourists aboard`, `Round the three orange buoys and back to the jetty · ${NAIRA(n * 2000)} · tip for a quick tour`);
+  let route = 0, prev = [D.x, D.z]; for (const p of pts) { route += Math.hypot(p[0] - prev[0], p[1] - prev[1]); prev = p; } route += Math.hypot(prev[0] - D.x, prev[1] - D.z);
+  JOBS.boat = { boat, riders, pts, next: 0, pay: n * D.fare, t0: S.time, limit: route / 14 + 30, n, D };
+  sfx('swap'); toast(`🚤 ${n} tourists aboard at ${D.name}`, `Round the three orange buoys and back · ${NAIRA(n * D.fare)} · tip for a quick tour`);
 }
 function endBoatRide(paid) {
   const j = JOBS.boat; if (!j) return;
-  for (const { c, fig } of j.riders) { j.boat.g.remove(fig.root); c.riding = false; c.g.visible = true; c.g.position.set(JETTY.x + RM(-1, 1), JETTY.top, JETTY.z1 - 10 - RM(0, 8)); c.state = 'idle'; c.timer = 4; c.homeAt = S.time + 20; }
+  for (const { c, fig } of j.riders) { j.boat.g.remove(fig.root); c.riding = false; c.g.visible = true; c.g.position.set(...j.D.land()); c.state = 'idle'; c.timer = 4; c.homeAt = S.time + 20; }
   for (const b of BUOYS) b.g.visible = false;
   JOBS.boat = null;
   if (paid) { goalEv('boat'); const tip = S.time - j.t0 < j.limit ? Math.round(j.pay * .3 / 100) * 100 : 0; earn(j.pay + tip, tip ? `Boat tour for ${j.n} · includes a ${NAIRA(tip)} tip` : `Boat tour for ${j.n}`); showBubble(j.riders[0].c, rp(['That was amazing!', 'Again, again!', 'Best part of my trip!', 'My hair! Worth it.']), 3.5); }
@@ -13327,7 +13341,7 @@ function endBoatRide(paid) {
 function updateBoatRide(dt) {
   const boat = P.driving && P.driving.kind === 'boat' ? P.driving : null, j = JOBS.boat;
   if (!j) {
-    if (boat && JETTY_DOCK && !busy() && Math.hypot(boat.x - JETTY_DOCK.x, boat.z - JETTY_DOCK.z) < 12 && Math.abs(boat.speed) < 1.5) startBoatRide(boat);
+    const D = boat && !busy() && Math.abs(boat.speed) < 1.5 && dockNear(boat.x, boat.z); if (D) startBoatRide(boat, D);
     return;
   }
   if (!boat) { endBoatRide(false); return; }
@@ -13336,14 +13350,14 @@ function updateBoatRide(dt) {
   if (j.next < 3) {
     const [bx, bz] = j.pts[j.next];
     if (Math.hypot(boat.x - bx, boat.z - bz) < 9) { j.next++; sfx('refill'); if (j.next < 3) toast('', `Buoy ${j.next} of 3`); else toast('', 'All three buoys! Back to the jetty'); }
-  } else if (Math.hypot(boat.x - JETTY_DOCK.x, boat.z - JETTY_DOCK.z) < 12 && Math.abs(boat.speed) < 2) endBoatRide(true);
+  } else if (Math.hypot(boat.x - j.D.x, boat.z - j.D.z) < 12 && Math.abs(boat.speed) < 2) endBoatRide(true);
 }
 function boatPrompt() {
-  const j = JOBS.boat, [tx, tz] = j.next < 3 ? j.pts[j.next] : [JETTY_DOCK.x, JETTY_DOCK.z], d = Math.hypot(tx - P.pos.x, tz - P.pos.z), left = Math.ceil(j.limit - (S.time - j.t0)), b = Math.round(((Math.atan2(tx - P.pos.x, -(tz - P.pos.z)) / TAU) * 8 + 8)) % 8;
-  return `🚤 BOAT TOUR · ${j.n} aboard · ${j.next < 3 ? `buoy ${j.next + 1} of 3` : 'back to the jetty'} · ${Math.round(d)} m ${COMPASS[b]} · ${NAIRA(j.pay)}${left > 0 ? ` · tip if back in ${left} s` : ''}`;
+  const j = JOBS.boat, [tx, tz] = j.next < 3 ? j.pts[j.next] : [j.D.x, j.D.z], d = Math.hypot(tx - P.pos.x, tz - P.pos.z), left = Math.ceil(j.limit - (S.time - j.t0)), b = Math.round(((Math.atan2(tx - P.pos.x, -(tz - P.pos.z)) / TAU) * 8 + 8)) % 8;
+  return `🚤 BOAT TOUR · ${j.n} aboard · ${j.next < 3 ? `buoy ${j.next + 1} of 3` : `back to ${j.D.name}`} · ${Math.round(d)} m ${COMPASS[b]} · ${NAIRA(j.pay)}${left > 0 ? ` · tip if back in ${left} s` : ''}`;
 }
 function updateJobs(dt) { updateDelivery(); updateBoatRide(dt); }
-const jobTarget = () => JOBS.del ? [JOBS.del.x, JOBS.del.z, '#4fd0e8'] : JOBS.boat ? (JOBS.boat.next < 3 ? [...JOBS.boat.pts[JOBS.boat.next], '#e8742a'] : [JETTY_DOCK.x, JETTY_DOCK.z, '#e8742a']) : null;
+const jobTarget = () => JOBS.del ? [JOBS.del.x, JOBS.del.z, '#4fd0e8'] : JOBS.boat ? (JOBS.boat.next < 3 ? [...JOBS.boat.pts[JOBS.boat.next], '#e8742a'] : [JOBS.boat.D.x, JOBS.boat.D.z, '#e8742a']) : null;
 
 function taxiPrompt() {
   const j = TAXI.job; if (!j) return null;
