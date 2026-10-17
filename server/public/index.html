@@ -5832,7 +5832,8 @@ function talkStart(c) {
   TC.conv = { c, turn: 0, limit: 3 + Math.floor(Math.random() * 3), asked: new Set(), ending: 0 }; goalEv('talk');
   c.state = 'talk'; c.path.length = 0;
   const rm = relOf(c), rs = rm && relStageOf(relDecayed(rm), rm.stage), bday = rm && c.resident.persona?.birthday === relDayOfYear();
-  const first = bday ? 'It’s my birthday today! Thanks for coming to see me.' : rs === 'close' ? rp(['My person! I missed you!', 'See who’s here! Come and gist me.', 'Ahh, my best friend!']) : rs === 'friend' ? rp(['My friend! How far?', 'Ah, good to see you!', 'Hey you! Long time.']) : p.met ? lineFor(TALK.again, c, 0) : lineFor(TALK.greet, c);
+  const atHome = rm?.romance && c.homeH && myHomeKeys().some(([k, h]) => h === c.homeH) && houseAtWorld(P.pos.x, P.pos.z, P.pos.y) === c.homeH;
+  const first = bday ? 'It’s my birthday today! Thanks for coming to see me.' : atHome ? rp(['Welcome home, love ❤️', 'There you are! I cooked 🍲', 'Home at last 😘']) : rm?.romance ? rp(['Hey love ❤️', 'My darling!', 'There you are 😘', 'I missed you 🥰']) : rs === 'close' ? rp(['My person! I missed you!', 'See who’s here! Come and gist me.', 'Ahh, my best friend!']) : rs === 'friend' ? rp(['My friend! How far?', 'Ah, good to see you!', 'Hey you! Long time.']) : p.met ? lineFor(TALK.again, c, 0) : lineFor(TALK.greet, c);
   if (rm) { TC.conv.limit = 6; relTalk(c, 'hello'); }
   p.met++;
   talkHeader(c);
@@ -5870,6 +5871,7 @@ function talkChoose(k) {
     relTalk(c, o.t, o.about).then(r => { if (TC.conv !== cv) return; talkSay(c, relAnswer(c, o, r) + (cv.ending ? ' ' + rp(TALK.wrap) : ''), o.label); talkOptions(); });
     return;
   }
+  if (['flirt', 'ask_out', 'commit', 'propose', 'move_in', 'wedding'].includes(o.t)) { cv.turn++; loveChoose(c, o, cv); return; }   // romance
   if (o.t === 'gift' || o.t === 'back') { cv.giftMenu = o.t === 'gift'; talkOptions(); return; }
   if (o.t === 'giftpick') {
     cv.giftMenu = false; $('talkOpts').innerHTML = ''; talkSay(c, '…', o.label);
@@ -15431,7 +15433,7 @@ const GOAL_DEFS = [   // [id, tier, what to do, how many, the event that counts,
   ['fare5', 'hard', 'Drive 5 taxi fares', 5, 'fare'], ['train3', 'hard', 'Get off the train at 3 different stations', 3, 'train', true], ['boat1', 'hard', 'Take tourists on a boat tour', 1, 'boat'],
   ['museums4', 'hard', 'Visit all four state museums', 4, 'museumVisit', true],
   ['biz2', 'medium', 'Collect takings from your businesses twice (or buy one)', 2, 'biz'],
-  ['gift1', 'easy', 'Give one of your contacts a gift', 1, 'gift'], ['friend1', 'hard', 'Become friends with someone (or closer)', 1, 'friend'], ['meet1', 'medium', 'Meet up with one of your contacts', 1, 'hangout'],
+  ['gift1', 'easy', 'Give one of your contacts a gift', 1, 'gift'], ['friend1', 'hard', 'Become friends with someone (or closer)', 1, 'friend'], ['meet1', 'medium', 'Meet up with one of your contacts', 1, 'hangout'], ['love1', 'hard', 'Take a relationship a step further', 1, 'love'],
 ];
 // places a "visit" goal can send you to (found by name on the map)
 const GOAL_PLACES = ['Ile-Ife', 'Ore junction', 'The Oba’s palace, Benin', 'King’s Square & National Museum, Benin', 'Benin Airport', 'Samuel Ogbemudia Stadium', 'University of Benin (UNIBEN)', 'Igun Street bronze casters',
@@ -16069,7 +16071,8 @@ async function peopleLoad() {
   PEOPLE.loaded = true; PEOPLE.loading = false; phoneRefresh();
 }
 // every house people could live in, by key: settlements' own houses (not yours, not the police station or the mall)
-function peopleHouses() {
+function peopleHouses(all) {   // (all: your own homes too, where a partner may live)
+  if (all) { const m = new Map(peopleHouses()); for (const [k, h, v] of myHomeKeys()) m.set(k, { h, v }); return m; }
   if (PEOPLE.houses) return PEOPLE.houses;
   const m = new Map(), vs = new Set(civilians.map(c => c.v).filter(Boolean));
   for (const v of vs) { if (v.mine || !v.houses) continue; for (const h of v.houses) {
@@ -16090,7 +16093,7 @@ function residentAnchor(c) {
 }
 // bring someone in the cast to life on their streets
 function spawnResident(R) {
-  const hv = peopleHouses().get(R.home); if (!hv) return null;
+  const hv = peopleHouses(true).get(R.home); if (!hv) return null;
   const c = makeCivilian(hv.v, { adult: true, female: R.female });
   c.spec = JSON.parse(JSON.stringify(R.spec)); c.elder = !!R.elder; c.child = false; c.ng = R.persona?.ng ?? c.ng; if (c.elder) c.speed *= .75;
   c.persona = { ...R.persona, name: R.name, met: PEOPLE.mine.has(personKey(R.id)) ? 1 : 0 };
@@ -16163,14 +16166,18 @@ PHONE.apps.contacts = { render: () => {
     card.append(ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}${P0.age ? ', ' + P0.age : ''}`), ph('span', 'phDim', `${P0.job ? '“' + P0.job + '”' : ''}${P0.interests?.length ? ' · into ' + P0.interests.join(' and ') : ''}`));
     const cl = relDecayed(m), st = relStageOf(cl, m.stage), bar = ph('div', 'phBar'), f = ph('i'); f.style.width = cl + '%'; bar.append(f);
     const ago = Math.floor((Date.now() - (m.last || m.since)) / 86400e3);
+    if (m.romance) card.append(ph('span', null, `${LOVE_STAGE[m.romance]} · ✨ spark ${m.spark || 0} · since ${new Date(m.rsince || m.since).toLocaleDateString()}`));
     card.append(ph('span', null, `${st === 'close' ? '💛' : st === 'friend' ? '🤝' : '📇'} ${REL_STAGE[st]} · ${cl} / 100${st === 'contact' ? ` · friends at 40` : st === 'friend' ? ' · close at 70' : ''}`), bar,
       ph('span', null, `${c ? contactWhere(c) : 'on their way'}${d != null ? ` · ${fmtDist(d)} away` : ''}`),
       ph('span', 'phDim', `${ago <= 0 ? 'Talked today' : ago === 1 ? 'Talked yesterday' : `Last talked ${ago} days ago${ago > 3 ? ': it’s fading' : ''}`} · met in ${P0.metAt || P0.hometown || 'town'}${P0.birthday === relDayOfYear() ? ' · 🎂 birthday today!' : ''}`));
     const row = ph('div', 'phChips');
     const un = chatOf(R.id).filter(x => !x.mine && !x.read).length; row.append(ph('button', 'phBtn', `💬 Chat${un ? ` (${un})` : ''}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } }));
     if (c) row.append(ph('button', 'phChip', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(c.g.position.x, c.g.position.z); toast('📍 Pinned', `${R.name}: ${contactWhere(c)}`); } } }));
-    const hv = peopleHouses().get(R.home); if (hv) row.append(ph('button', 'phChip', '🏠 Their home', { type: 'button', on: { click: () => { setWaypoint(hv.h.doorOut.x, hv.h.doorOut.z); toast('📍 Pinned', `${R.name}’s home`); } } }));
-    row.append(ph('button', 'phChip', PEOPLE.rmArm === m.id ? 'Tap again to delete' : 'Delete', { type: 'button', on: { click: () => peopleForget(m.id) } }));
+    const hv = peopleHouses(true).get(R.home); if (hv) row.append(ph('button', 'phChip', hv.v.mine ? '🏠 Your home' : '🏠 Their home', { type: 'button', on: { click: () => { setWaypoint(hv.h.doorOut.x, hv.h.doorOut.z); toast('📍 Pinned', `${R.name}’s home`); } } }));
+    if (m.romance) row.append(ph('button', 'phChip', PEOPLE.rmArm === 'b' + m.id ? 'Tap again to break up' : '💔 Break up', { type: 'button', on: { click: async () => {
+      if (PEOPLE.rmArm !== 'b' + m.id) { PEOPLE.rmArm = 'b' + m.id; phoneRefresh(); return; } PEOPLE.rmArm = null;
+      try { const r = await loveAct(c || { resident: R }, 'break_up'); if (r.ok) { toast(`💔 You and ${R.name} broke up`, 'It hurts. Give it time'); chatPush(R.id, { mine: false, kind: 'ack', answered: true, text: ri(['I can’t believe this. 💔', 'Okay. Take care of yourself.', 'Wow. Okay.']) }); } } catch (e) { toast('💔', e.message); } phoneRefresh(); } } }));
+    else row.append(ph('button', 'phChip', PEOPLE.rmArm === m.id ? 'Tap again to delete' : 'Delete', { type: 'button', on: { click: () => peopleForget(m.id) } }));
     card.append(row); out.push(card);
   }
   out.push(ph('div', 'phDim phFoot', `${PEOPLE.cast.size} ${PEOPLE.cast.size === 1 ? 'person' : 'people'} in town everyone knows${NET.token ? '' : ' · as a guest your contacts live in this browser'}`));
@@ -16242,7 +16249,7 @@ async function relGift(c, gid) {
 }
 function talkHeader(c, delta) {
   const p = personaOf(c), m = relOf(c);
-  $('talkName').textContent = p.name + (m ? ` · ${REL_STAGE[relStageOf(relDecayed(m), m.stage)]} · 💛 ${relDecayed(m)}${delta ? ` (${delta > 0 ? '+' : ''}${delta})` : ''}` : '');
+  $('talkName').textContent = p.name + (m ? ` · ${m.romance ? LOVE_STAGE[m.romance] : REL_STAGE[relStageOf(relDecayed(m), m.stage)]} · 💛 ${relDecayed(m)}${m.romance || m.spark ? ` · ✨ ${m.spark || 0}` : ''}${delta ? ` (${delta > 0 ? '+' : ''}${delta})` : ''}` : '');
 }
 const INTEREST_SAY = {
   football: ['Did you see the match? That referee sha!', 'Super Eagles will win the next AFCON, mark my words.'], Afrobeats: ['Have you heard the new Burna track? On repeat!', 'Rema or Asake? Don’t make me choose.'],
@@ -16264,7 +16271,7 @@ function relTopics(c, cv) {
   const about = Math.random() < .6 && mine.length ? ri(mine) : ri(others);
   const pool = [{ t: 'interest', about, label: `Ask about ${about}` }, { t: 'day', label: 'How was your day?' },
     { t: 'compliment', label: ri(['You look sharp today.', 'I like your style.', 'You always make me smile.', 'That colour suits you.']) }, { t: 'joke', label: 'Tell a joke' }];
-  return [...pool.sort(() => Math.random() - .5).slice(0, 3), { t: 'gift', label: '🎁 Give a gift' }];
+  return [...pool.sort(() => Math.random() - .5).slice(0, 3), ...loveTopics(c), { t: 'gift', label: '🎁 Give a gift' }];
 }
 function relAnswer(c, o, r) {
   const P0 = c.resident.persona || {};
@@ -16320,10 +16327,11 @@ function chatTick() {
   let r = Math.random() * tot, k = 0; while (r > w[k]) r -= w[k++];
   const [m, R] = list[Math.min(k, list.length - 1)], st = relStageOf(relDecayed(m), m.stage), quiet = (Date.now() - (m.last || m.since)) / 86400e3;
   let kind = R.persona?.birthday === relDayOfYear() && !chatOf(R.id).some(x => x.kind === 'birthday' && Date.now() - x.at < 86400e3) ? 'birthday' : quiet > 2 ? 'miss' : ri(['hello', 'chat', 'chat', st !== 'contact' ? 'invite' : 'hello', 'favour']), extra = null;
+  if (m.romance && kind !== 'birthday' && kind !== 'miss' && Math.random() < .5) kind = Math.random() < .35 ? 'invite' : 'love';   // someone you're with texts sweeter (and asks you out more)
   if (kind === 'invite') extra = ri(meetPlaces(R).filter(p => p.d < 1500)) || null;
   if (kind === 'invite' && !extra) kind = 'chat';
   if (kind === 'favour') { const g = ri(['suya', 'jollof', 'chocolate', 'flowers']); extra = { gid: g, name: REL_GIFTS[g][0] }; }
-  chatPush(R.id, { mine: false, kind, text: npcText(R, kind, extra), extra });
+  chatPush(R.id, { mine: false, kind, text: kind === 'love' ? loveText(R) : kind === 'invite' && m.romance ? `Date night? Meet me at ${extra.label} ❤️` : npcText(R, kind, extra), extra });
   sfx('swap'); toast(`💬 ${R.name}`, chatOf(R.id).at(-1).text);
   phoneRefresh(); peopleBadge();
 }
@@ -16332,6 +16340,7 @@ function chatReplies(R, last) {
   if (last.kind === 'invite') return [['Yes! I’m on my way 🏃', 'warm', 'accept'], ['Can’t today, sorry. Another time?', 'text_cold', 'decline'], ['😂 Only if you’re buying', 'text_fun', 'accept']];
   if (last.kind === 'favour') return [['Sure, I’ll bring it 👍', 'warm', 'favour'], ['Ah, I’m too busy today', 'text_cold']];
   if (last.kind === 'miss') return [['I’m so sorry! I’ve missed you too ❤️', 'warm'], ['Life has been crazy 😅', 'text_fun'], ['I’ve been busy.', 'text_cold']];
+  if (last.kind === 'love') return [['❤️ Me too, so much', 'warm'], ['😘😘', 'text_fun'], ['ok', 'text_cold']];
   if (last.kind === 'birthday') return [['Happy birthday!! 🎉🎂 Enjoy your day', 'warm'], ['HBD 🥳 Where’s my cake?', 'text_fun'], ['Nice.', 'text_cold']];
   return [[ri(['Hey! All good here 😊', 'Good to hear from you!', 'Doing well, and you?']), 'warm'], [ri(['😂😂 you’re funny', 'Na wa o 😅', 'Tell me more 👀']), 'text_fun'], ['k', 'text_cold']];
 }
@@ -16415,6 +16424,117 @@ function updateChat(dt) {
   updateMeets(dt);
 }
 // the chat view inside Contacts: a thread, quick replies, call and meet buttons
+
+// ---- phase 4: romance. With adults who are into you (their saved preference against your scout): flirting grows the
+// spark; then you ask them out, to go steady, to marry you (with a ring), and the wedding is an owambe at a club with
+// your other contacts as guests. A resident is with one player at a time. Partners can move into your home. ----
+const LOVE_STAGE = { dating: '❤️ Dating', partner: '💞 Partner', engaged: '💍 Engaged', married: '💒 Married' };
+const LOVE_RANK = ['dating', 'partner', 'engaged', 'married'];
+const loveInto = R => { const P0 = R.persona || {}, F = !!MY_LOOK?.female; return !R.elder && (P0.likes === 'both' || (P0.likes === 'men' && !F) || (P0.likes === 'women' && F)); };
+const loveHours = m => m.rsince ? (Date.now() - m.rsince) / 3600e3 : 0;
+// your own homes, by key (a partner can move in)
+function myHomeKeys() { const out = []; for (const v of MY_HOMES) for (const h of v.houses || []) if (h.doorIn && h.inside) out.push([`h:${Math.round(h.x)},${Math.round(h.z)}`, h, v]); return out; }
+// the romance options when you talk to someone (added after the usual ones)
+function loveTopics(c) {
+  const R = c.resident, m = relOf(c); if (!m || R.elder || c.child) return [];
+  const st = relStageOf(relDecayed(m), m.stage), out = [];
+  if (!m.romance && st !== 'contact') { out.push({ t: 'flirt', label: ri(['💌 Flirt a little', '💌 “You look really good today…”', '💌 “I like spending time with you.”']) }); out.push({ t: 'ask_out', label: '❤️ Will you go out with me?' }); }
+  else if (m.romance === 'dating') out.push({ t: 'flirt', label: '💌 Flirt' }, { t: 'commit', label: '💞 Let’s make it official' });
+  else if (m.romance === 'partner') out.push({ t: 'flirt', label: '💌 Sweet talk' }, { t: 'propose', label: `💍 Propose (ring ${NAIRA(500000)})` });
+  else if (m.romance === 'engaged') out.push({ t: 'wedding', label: `💒 Let’s have the wedding (${NAIRA(1500000)})` });
+  if (m.romance && m.romance !== 'dating' && myHomeKeys().length && R.home !== myHomeKeys()[0][0]) out.push({ t: 'move_in', label: '🏠 Move in with me' });
+  return out.slice(0, 2);
+}
+// the server (accounts) or the same rules here (guests)
+async function loveAct(c, act, extra = {}) {
+  const R = c.resident, id = personKey(R.id), m = PEOPLE.mine.get(id);
+  if (NET.token && String(R.id)[0] !== 'g') {
+    const r = (act === 'propose' || act === 'marry') ? await walletPost(`/people/${R.id}/romance`, { act, female: !!MY_LOOK?.female, ...extra }) : await api(`/people/${R.id}/romance`, 'POST', { act, female: !!MY_LOOK?.female, ...extra });
+    if (r.rel) Object.assign(m, r.rel); if (r.cost) bankSpend(r.cost, act === 'propose' ? `Engagement ring for ${R.name}` : `Wedding with ${R.name}`);
+    if (!r.ok && r.cost) m.closeness = Math.max(0, m.closeness - r.cost);
+    if (act === 'move_in' && r.home) R.home = r.home;
+    return r;
+  }
+  // guests: the same thresholds
+  const close = relDecayed(m), spark = Math.max(0, (m.spark || 0) - Math.max(0, Math.floor((Date.now() - (m.last || m.since)) / 86400e3) - 3)), hrs = loveHours(m), taken = R.taken && !m.romance;
+  const no = (why, cost = 0) => { m.closeness = Math.max(0, m.closeness - cost); peopleSave(); return { ok: false, why, cost }; };
+  const yes = (o = {}) => { Object.assign(m, o, { last: Date.now() }); peopleSave(); return { ok: true, rel: m }; };
+  if (act === 'flirt') { if (!loveInto(R)) return no('not_into_you'); if (taken) return no('taken'); if (close < 40) return no('too_soon');
+    if (m.fday !== relToday()) { m.fday = relToday(); m.flirts = 0; } if (m.flirts >= 3) return no('too_much', 2); m.flirts++; return yes({ spark: Math.min(100, spark + 7) }); }
+  if (act === 'ask_out') { if (m.romance) return no('already'); if (!loveInto(R)) return no('not_into_you', 3); if (taken) return no('taken'); if (close < 45 || spark < 20) return no('not_yet', 3); return yes({ romance: 'dating', rsince: Date.now() }); }
+  if (act === 'commit') { if (m.romance !== 'dating') return no('not_dating'); if (close < 65 || spark < 50 || hrs < 6) return no('not_yet', 2); return yes({ romance: 'partner', rsince: Date.now() }); }
+  if (act === 'propose' || act === 'marry') { const cost = act === 'propose' ? 500000 : 1500000;
+    if (m.romance !== (act === 'propose' ? 'partner' : 'engaged')) return no('not_ready'); if (act === 'propose' && (close < 80 || spark < 70 || hrs < 12)) return no('not_yet', 3); if (LAND.money < cost) return no('money');
+    LAND.money -= cost; saveLand(); bankSpend(cost, act === 'propose' ? `Engagement ring for ${R.name}` : `Wedding with ${R.name}`); return yes({ romance: act === 'propose' ? 'engaged' : 'married', rsince: Date.now(), closeness: Math.min(100, m.closeness + 5) }); }
+  if (act === 'move_in') { R.home = extra.home; peopleSave(); return yes({ closeness: Math.min(100, m.closeness + 3) }); }
+  if (act === 'break_up') { if (!m.romance) return no('not_together'); return yes({ romance: null, rsince: null, spark: 0, closeness: Math.max(0, m.closeness - 25) }); }
+  return no('unknown');
+}
+const LOVE_NO = {
+  not_into_you: ['Haha, you’re sweet. But I see you as a friend.', 'Ah, I like you, but not like that. Sorry o.', 'You’re a good friend. Let’s keep it that way.'],
+  taken: ['I’m flattered, but I’m seeing someone.', 'Ah, I’m in a relationship o. Sorry!'],
+  too_soon: ['Haha, slow down! We’re just getting to know each other.'], too_much: ['Okay, okay! You’ve said enough today 😂', 'Calm down, Romeo 😅'],
+  not_yet: ['I like you… but I’m not ready yet. Give it time.', 'Let’s not rush it. Take me out a few more times first?', 'Hmm, ask me again when we’re closer.'],
+  money: ['…', 'Ah, maybe when things are better with money.'], already: ['We’re already together, silly!'],
+};
+async function loveChoose(c, o, cv) {
+  const R = c.resident, p = personaOf(c);
+  if (o.t === 'wedding') { cv.ending = 1; talkSay(c, 'Yes! Let’s do it! I’ll tell everyone!', o.label); weddingPlan(R); talkOptions(); return; }
+  let extra = {};
+  if (o.t === 'move_in') extra.home = myHomeKeys()[0][0];
+  $('talkOpts').innerHTML = ''; talkSay(c, '…', o.label);
+  let r; try { r = await loveAct(c, o.t, extra); } catch (e) { r = { ok: false, why: 'error', err: e.message }; }
+  if (TC.conv !== cv) return;
+  if (r.err) toast('❤️', r.err);
+  if (!r.ok) { talkSay(c, ri(LOVE_NO[r.why] || ['Hmm.']), o.label); if (r.cost) talkHeader(c, -r.cost); talkOptions(); phoneRefresh(); return; }
+  const say = { flirt: ['Hehe, stop it 😊', 'You’re making me blush!', 'Ah, you this one ❤️', 'Is that so? 😏'], ask_out: ['Yes! I thought you’d never ask ❤️', 'Okay… yes. Yes!'],
+    commit: ['Official? I’d love that 💞', 'I’m yours. Let’s do this properly.'], propose: ['YES! Oh my God, YES! 💍', 'Are you serious?! Yes, a thousand times yes!'],
+    move_in: ['Move in? Okay! I’ll bring my things this evening 🏠', 'Our own home together ❤️'] }[o.t] || ['❤️'];
+  talkSay(c, ri(say), o.label); talkHeader(c);
+  const head = { ask_out: [`❤️ You and ${R.name} are dating`, 'Take them out: dates and sweet words grow the spark'], commit: [`💞 ${R.name} is your partner`, 'You can propose when you’re ready (and have a ring)'],
+    propose: [`💍 ${R.name} said yes!`, 'Plan the wedding when you talk to them next'], move_in: [`🏠 ${R.name} is moving in`, 'They’ll come home to your place in the evenings'] }[o.t];
+  if (head) { toast(...head); sfx('swap'); goalEv('love'); }
+  if (o.t === 'move_in') { const k = PEOPLE.civ.get(personKey(R.id)), hv = peopleHouses(true).get(extra.home); if (k && hv) { k.homeH = hv.h; } }
+  talkOptions(); phoneRefresh();
+}
+// the wedding: an owambe at the nearest club. Your partner and your other contacts gather there; turn up and it happens.
+const WED = { on: null };
+function weddingPlan(R) {
+  const club = CLUBS.map(C => ({ C, x: C.hs?.doorOut?.x ?? C.at?.[0], z: C.hs?.doorOut?.z ?? C.at?.[1] })).filter(q => q.x != null).sort((a, b) => Math.hypot(a.x - P.pos.x, a.z - P.pos.z) - Math.hypot(b.x - P.pos.x, b.z - P.pos.z))[0];
+  if (!club) { toast('💒', 'No hall nearby. Try again in town'); return; }
+  WED.on = { R, x: club.x, z: club.z, label: club.C.name, until: Date.now() + 15 * 60e3, near: 0, done: false };
+  for (const [id, c] of PEOPLE.civ) if (PEOPLE.mine.has(id)) c.meet = { x: club.x + RM(-6, 6), z: club.z + RM(-6, 6), label: club.C.name, until: WED.on.until };   // everyone you know comes
+  setWaypoint(club.x, club.z); toast(`💒 Wedding at ${club.C.name}`, `Your guests are on their way. Meet ${R.name} there (${NAIRA(1500000)} for the owambe)`);
+  for (const [id] of PEOPLE.mine) if (id !== personKey(R.id)) chatPush(id, { mine: false, kind: 'ack', answered: true, text: `Congratulations!! 🎉 See you at ${club.C.name} for the wedding!` });
+  peopleBadge();
+}
+function updateWedding(dt) {
+  const W = WED.on; if (!W) return;
+  if (Date.now() > W.until) { WED.on = null; return; }
+  const c = PEOPLE.civ.get(personKey(W.R.id)); if (!c) return;
+  c.meet = { x: W.x, z: W.z, label: W.label, until: W.until };
+  if (W.done) {   // the party: confetti and money in the air
+    if ((W.fx = (W.fx || 0) - dt) <= 0) { W.fx = .15; for (let k = 0; k < 4; k++) emit(new V3(W.x + RM(-5, 5), P.pos.y + RM(2.5, 4), W.z + RM(-5, 5)), new V3(RM(-1, 1), RM(-1.5, -.5), RM(-1, 1)), .18, RM(1.2, 2), ri([0xf2c230, 0xe85a9a, 0x3fae5a, 0xffffff, 0x2f8fd0]), .95, .2); }
+    return;
+  }
+  if (Math.hypot(P.pos.x - W.x, P.pos.z - W.z) < 10 && Math.hypot(c.g.position.x - W.x, c.g.position.z - W.z) < 10) {
+    if ((W.near += dt) > 5 && !W.busy) {
+      W.busy = true;
+      loveAct(c, 'marry').then(r => {
+        W.busy = false;
+        if (!r.ok) { toast('💒 Wedding', r.why === 'money' ? `You need ${NAIRA(1500000)} for the owambe` : 'Not today, it seems'); W.near = 0; return; }
+        W.done = true; W.until = Date.now() + 3 * 60e3; sfx('refill');
+        toast(`💒 You and ${W.R.name} are married!`, 'The owambe is on: dance, spray money, and enjoy your day');
+        showBubble(c, ri(['I love you! ❤️ Forever!', 'Husband and wife… or whatever we are, forever 💒', 'Best day of my life!']), 5);
+        for (const [id, g] of PEOPLE.civ) if (g !== c && PEOPLE.mine.has(id) && g.active) showBubble(g, ri(['Congratulations!! 🎉', 'Happy married life!', 'Owambe!! 💃', 'God bless your home!']), 4);
+        goalEv('love'); phoneRefresh();
+      }).catch(e => { W.busy = false; toast('💒', e.message); });
+    }
+  } else W.near = Math.max(0, W.near - dt);
+}
+// romance in your texts: sweeter words, and dates
+function loveText(R) { return ri(['Thinking of you ❤️', 'Can’t wait to see you 😘', 'I miss you already', 'Good ' + hourWord() + ', my love ☀️', 'You make me so happy, you know that?', 'Date night soon? 🥰']); }
+
 function chatView(R) {
   const out = [], head = ph('div', 'phHead'); head.append(ph('button', 'phBack', '‹', { type: 'button', 'aria-label': 'Back', on: { click: () => { CHAT.view = null; CHAT.call = null; phoneRefresh(); } } }), ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}`));
   out.push(head);
@@ -16505,7 +16625,7 @@ function frame(now) {
   updateLand(dt);
   updateWaypoint();
   if (mode === 'play') { updateTaxi(dt); updateJobs(dt); } furnLive(dt); updateClubs(dt); updateOnline(dt);
-  updateTouch(); updateBiz(dt); updatePeople(dt); updateChat(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
+  updateTouch(); updateBiz(dt); updatePeople(dt); updateChat(dt); updateWedding(dt); updateNeeds(dt); updateDance(); updateTipsy(dt); updateVisit(dt); updateLaw(dt);
   drawMinimap();
   if (!$('bigmap').hidden && ((bigMapT -= rawDt) <= 0 || MAPCUR.dirty)) { bigMapT = .1; MAPCUR.dirty = false; drawBigMap(); }
   shadowTick = (shadowTick + 1) % (LITE ? 3 : 2); if (!shadowTick) renderer.shadowMap.needsUpdate = true;   // shadows redraw every 2nd frame (every 3rd on phones)

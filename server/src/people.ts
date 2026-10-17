@@ -13,7 +13,7 @@ const fail = (res: Response, code: number, error: string) => res.status(code).js
 export const MAX_RESIDENTS = 400, MAX_PER_DAY = 25, MAX_CONTACTS = 150;
 const HOME_RE = /^h:-?\d{1,5},-?\d{1,5}$/;
 const spot = (o: any) => o && Number.isFinite(+o.x) && Number.isFinite(+o.z) ? { x: Math.round(+o.x * 10) / 10, z: Math.round(+o.z * 10) / 10, label: String(o.label || "").slice(0, 60) } : null;
-const COLS = "id, name, female, elder, spec, persona, home, work, hang";
+const COLS = "id, name, female, elder, spec, persona, home, work, hang, partner_user IS NOT NULL AS taken";
 const optionalUser = (req: Request): TokenUser | null => { const h = req.headers.authorization || ""; const m = /^Bearer (.+)$/.exec(h); if (!m) return null; try { return verifyToken(m[1]); } catch { return null; } };
 
 /* closeness: 0 to 100 per person. Talk moves it a little (up to 12 a day): asking about what they're into lands when you
@@ -35,7 +35,8 @@ function stageOf(c: number, prev: string) {
 }
 const lagosDay = () => new Date(Date.now() + 3600e3).toISOString().slice(0, 10);
 const dayOfYear = () => { const d = new Date(Date.now() + 3600e3); return Math.floor((+d - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86400e3); };
-const relOut = (r: any) => ({ id: r.resident_id ?? r.id, stage: r.stage, closeness: r.closeness, since: Math.round(+new Date(r.since)), last: Math.round(+new Date(r.last_contact)) });
+const relOut = (r: any) => ({ id: r.resident_id ?? r.id, stage: r.stage, closeness: r.closeness, since: Math.round(+new Date(r.since)), last: Math.round(+new Date(r.last_contact)),
+  romance: r.romance || null, spark: r.romance || r.spark ? decayed(r.spark || 0, r.last_contact) : 0, rsince: r.romance_since ? Math.round(+new Date(r.romance_since)) : null });
 // move closeness by d (talk: counted against the day's cap; gift: counted against the day's gifts)
 async function bump(c: any, me: string, id: number, d: number, kind: "talk" | "gift" | "compliment" | "hangout" | "favour" | "loss") {
   const r = (await c.query("SELECT *, day::text AS day_s FROM relations WHERE user_id = $1 AND resident_id = $2 FOR UPDATE", [me, id])).rows[0];
@@ -48,7 +49,8 @@ async function bump(c: any, me: string, id: number, d: number, kind: "talk" | "g
   else if (kind === "loss") d = Math.min(0, d);   // an ignored text: never more than a nudge down
   else { if (d > 0) { d = Math.max(0, Math.min(d, TALK_CAP - gain)); gain += d; } if (kind === "compliment") comps++; }
   const before = decayed(r.closeness, r.last_contact), now = Math.max(0, Math.min(100, before + d)), stage = stageOf(now, r.stage);
-  const u = (await c.query(`UPDATE relations SET closeness = $3, stage = $4, last_contact = ${kind === "loss" ? "last_contact" : "now()"}, day = $5, day_gain = $6, gifts = $7, compliments = $8, hangouts = $9, favours = $10 WHERE user_id = $1 AND resident_id = $2 RETURNING *`,
+  const spk = r.romance && (kind === "hangout" || kind === "gift") ? Math.min(100, decayed(r.spark || 0, r.last_contact) + (kind === "hangout" ? 5 : 3)) : r.spark;   // dates and gifts feed the spark
+  const u = (await c.query(`UPDATE relations SET spark = ${Number(spk) | 0}, closeness = $3, stage = $4, last_contact = ${kind === "loss" ? "last_contact" : "now()"}, day = $5, day_gain = $6, gifts = $7, compliments = $8, hangouts = $9, favours = $10 WHERE user_id = $1 AND resident_id = $2 RETURNING *`,
     [me, id, now, stage, today, gain, gifts, comps, hang, fav])).rows[0];
   await c.query("UPDATE residents SET last_seen = now() WHERE id = $1", [id]);
   return { rel: relOut(u), delta: now - before, up: STAGES.indexOf(stage) > STAGES.indexOf(r.stage), down: STAGES.indexOf(stage) < STAGES.indexOf(r.stage), compliments: comps };
@@ -141,6 +143,72 @@ people.post("/people/:id/gift", requireUser, wrap(async (req, res) => {
     const u = (await c.query("UPDATE wallets SET money = money - $2, version = version + 1, updated_at = now() WHERE user_id = $1 RETURNING version, money::float8 AS money", [me.id, G[1]])).rows[0];
     await c.query("COMMIT");
     res.json({ ok: true, suits, birthday, ...out, version: u.version, money: Math.round(u.money) });
+  } catch (e) { await c.query("ROLLBACK").catch(() => {}); throw e; } finally { c.release(); }
+}));
+
+/* romance: flirting (three times a day, +7) grows the spark, if they're into you; then you ask: out (dating), to go steady
+   (partner), to marry (engaged: with a ring) and the wedding itself. A resident is with one player at a time. */
+const ROMANCE = ["dating", "partner", "engaged", "married"], RING = 500_000, WEDDING = 1_500_000;
+const attracted = (P: any, female: boolean) => P && !P.elder && (P.likes === "both" || (P.likes === "men" && !female) || (P.likes === "women" && female));
+people.post("/people/:id/romance", requireUser, wrap(async (req, res) => {
+  const me = userOf(req), id = Math.round(+req.params.id), act = String(req.body?.act || ""), female = !!req.body?.female;
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    const R = (await c.query("SELECT id, name, elder, persona, partner_user FROM residents WHERE id = $1 AND status = 'active' FOR UPDATE", [id])).rows[0];
+    const r = (await c.query("SELECT *, day::text AS day_s FROM relations WHERE user_id = $1 AND resident_id = $2 FOR UPDATE", [me.id, id])).rows[0];
+    if (!R || !r) { await c.query("ROLLBACK"); return fail(res, 404, "Swap numbers first"); }
+    const P = { ...R.persona, elder: R.elder }, close = decayed(r.closeness, r.last_contact), spark = decayed(r.spark || 0, r.last_contact), today = lagosDay(), fresh = r.day_s !== today;
+    const hours = r.romance_since ? (Date.now() - +new Date(r.romance_since)) / 3600e3 : 0, taken = R.partner_user && R.partner_user !== me.id;
+    const done = async (sets: string, vals: any[], extra: object = {}) => {
+      const u = (await c.query(`UPDATE relations SET ${sets}, last_contact = now() WHERE user_id = $1 AND resident_id = $2 RETURNING *`, [me.id, id, ...vals])).rows[0];
+      await c.query("COMMIT"); res.json({ ok: true, rel: relOut(u), ...extra });
+    };
+    const no = async (why: string, cost = 0) => { if (cost) await c.query("UPDATE relations SET closeness = GREATEST(0, closeness - $3) WHERE user_id = $1 AND resident_id = $2", [me.id, id, cost]); await c.query("COMMIT"); res.json({ ok: false, why, cost }); };
+    if (act === "flirt") {
+      if (!attracted(P, female)) return no("not_into_you", r.flirts > 0 && !fresh ? 1 : 0);
+      if (taken) return no("taken");
+      if (close < 40) return no("too_soon");
+      const n = fresh ? 0 : r.flirts; if (n >= 3) return no("too_much", 2);
+      return done("spark = $3, flirts = $4, day = $5", [Math.min(100, spark + 7), n + 1, today], { spark: Math.min(100, spark + 7) });
+    }
+    if (act === "ask_out") {
+      if (r.romance) return no("already");
+      if (!attracted(P, female)) return no("not_into_you", 3);
+      if (taken) return no("taken");
+      if (close < 45 || spark < 20) return no("not_yet", 3);
+      await c.query("UPDATE residents SET partner_user = $2 WHERE id = $1", [id, me.id]);
+      return done("romance = 'dating', romance_since = now()", []);
+    }
+    const step = ROMANCE.indexOf(r.romance);
+    if (act === "commit") {
+      if (r.romance !== "dating") return no("not_dating");
+      if (close < 65 || spark < 50 || hours < 6) return no("not_yet", 2);
+      return done("romance = 'partner', romance_since = now()", []);
+    }
+    if (act === "propose" || act === "marry") {
+      const cost = act === "propose" ? RING : WEDDING, need = act === "propose" ? "partner" : "engaged";
+      if (r.romance !== need) return no(act === "propose" ? "not_partner" : "not_engaged");
+      if (act === "propose" && (close < 80 || spark < 70 || hours < 12)) return no("not_yet", 3);
+      const w = await wallet(c, me.id, true);
+      if (w.synced_at && req.body?.base !== w.version) { await c.query("ROLLBACK"); return res.status(409).json({ error: "Your money changed: syncing first", stale: true, state: await stateOf(pool, me.id) }); }
+      if (w.money < cost) return no("money");
+      const u = (await c.query("UPDATE wallets SET money = money - $2, version = version + 1, updated_at = now() WHERE user_id = $1 RETURNING version, money::float8 AS money", [me.id, cost])).rows[0];
+      return done(`romance = '${act === "propose" ? "engaged" : "married"}', romance_since = now(), closeness = LEAST(100, closeness + 5)`, [], { cost, version: u.version, money: Math.round(u.money) });
+    }
+    if (act === "move_in") {
+      const home = String(req.body?.home || "");
+      if (step < 1) return no("not_partner");
+      if (!HOME_RE.test(home)) return fail(res, 400, "That isn't a home");
+      await c.query("UPDATE residents SET home = $2 WHERE id = $1", [id, home]);
+      return done("closeness = LEAST(100, closeness + 3)", [], { home });
+    }
+    if (act === "break_up") {
+      if (!r.romance) return no("not_together");
+      await c.query("UPDATE residents SET partner_user = NULL WHERE id = $1 AND partner_user = $2", [id, me.id]);
+      return done("romance = NULL, romance_since = NULL, spark = 0, closeness = GREATEST(0, closeness - 25), stage = CASE WHEN closeness - 25 >= 40 THEN 'friend' ELSE 'contact' END", []);
+    }
+    await c.query("ROLLBACK"); return fail(res, 400, "Unknown");
   } catch (e) { await c.query("ROLLBACK").catch(() => {}); throw e; } finally { c.release(); }
 }));
 
