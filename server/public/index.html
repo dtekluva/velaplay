@@ -892,11 +892,13 @@ class Builder {
     if (collide) colliders.push({ x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2, z0: z - d / 2, z1: z + d / 2, tag });
   }
   build(parent = hookRoot) {
+    const out = [];
     for (const [mat, geos] of this.parts) {
       const m = new THREE.Mesh(mergeGeos(geos), mat);
       m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix();
-      parent.add(m);
+      parent.add(m); out.push(m);
     }
+    return out;   // (a giant tree keeps its meshes, so site prep can take it down)
   }
 }
 
@@ -4082,7 +4084,7 @@ for (const t of TREES) {
   b.box(R(14, 20), R(4, 6), R(14, 20), x, base + h + 1, z, M.leaves, 2);
   b.box(R(9, 13), R(3, 5), R(9, 13), x + R(-2, 2), base + h + 5.5, z + R(-2, 2), M.leaves, 2);
   for (let k = 0; k < 3; k++) b.box(R(6, 9), R(3, 5), R(6, 9), x + R(-9, 9), base + h + R(-4, 2), z + R(-9, 9), M.leaves, 2);
-  if (cut) { colliders.length = nc; t.cut = true; } else b.build();
+  if (cut) { colliders.length = nc; t.cut = true; } else { t.meshes = b.build(); t.cols = colliders.slice(nc); }
 }
 for (let k = TREES.length - 1; k >= 0; k--) if (TREES[k].cut) TREES.splice(k, 1);
 /* the road to Yaba: from the city's north-east corner, east, then north up to the mainland. Graded now (after the forest),
@@ -8034,11 +8036,11 @@ if (YABA) withSeed(9191, () => {
       const x = -HALF + 10 + rng() * (2 * HALF - 20), z = -HALF - 384 + 10 + rng() * (384 - 30);   // Yaba's own 384 m, so its trees stay put as the mainland grows
       if (inYabaCore(x, z, 24) || inR(UNILAG, x, z, 24) || inR(YTECH, x, z, 24) || yRoadDist(x, z) < 14 || heightAt(x, z) < 3 || x > UNILAG.lagoonX - 10 && z < -390) continue;
       if (TREES.some(t => Math.hypot(t.x - x, t.z - z) < 20)) continue;
-      const b = new Builder(), base = heightAt(x, z) - 1.5, w = Math.round(4 + rng() * 2.5), h = 52 + rng() * 32;
+      const b = new Builder(), nc = colliders.length, base = heightAt(x, z) - 1.5, w = Math.round(4 + rng() * 2.5), h = 52 + rng() * 32;
       b.box(w, h, w, x, base + h / 2, z, M.bark, 2, true, 'trunk'); b.box(w + 2.5, 3.8, w + 2.5, x, base + 1.9, z, M.bark, 2, true, 'trunk');
       b.box(14 + rng() * 6, 4 + rng() * 2, 14 + rng() * 6, x, base + h + 1, z, M.leaves, 2); b.box(9 + rng() * 4, 3 + rng() * 2, 9 + rng() * 4, x, base + h + 5.5, z, M.leaves, 2);
       for (let k = 0; k < 2; k++) { const [dx, dz] = DIRS[Math.floor(rng() * 4)], by = base + h * (.45 + rng() * .4), L = 5 + rng() * 6; b.box(dx ? L : 1.6, 1.6, dz ? L : 1.6, x + dx * (w / 2 + L / 2), by, z + dz * (w / 2 + L / 2), M.bark, 2); b.box(7, 4, 7, x + dx * (w / 2 + L), by + 1.8, z + dz * (w / 2 + L), M.leaves, 2); }
-      b.build(); TREES.push({ x, z, w }); n++;
+      TREES.push({ x, z, w, meshes: b.build(), cols: colliders.slice(nc) }); n++;
     }
   }
   document.fonts?.ready.then(() => YSIGNS.forEach(f => f())).catch(() => {});
@@ -10349,8 +10351,10 @@ function bmZoom(f, px = bmC.width / 2, py = bmC.height / 2) {   // keep the spot
   const [x, z] = bmFromB(px, py); BMV.span *= f; bmClamp(); const [x2, z2] = bmFromB(px, py); BMV.cx += x - x2; BMV.cz += z - z2; bmClamp(); MAPCUR.dirty = true;
 }
 function bmCentreOnMe() { const MP = typeof mapPos === 'function' ? mapPos() : P.pos; BMV.cx = MP.x; BMV.cz = MP.z; bmClamp(); [MAPCUR.x, MAPCUR.y] = bmToB(MP.x, MP.z); MAPCUR.dirty = true; }
+let MEETPICK = null;   // inviting someone to a spot you pick on the big map: who
 function toggleBigMap(force) {
   const el = $('bigmap'); el.hidden = force === undefined ? !el.hidden : !force;
+  if (el.hidden) MEETPICK = null;   // (closing the map drops a meet-up pick)
   if (!el.hidden) { bmCentreOnMe(); bigMapT = 0; drawBigMap(); }
 }
 function drawBigMap() {
@@ -11723,6 +11727,7 @@ function raiseHouse(key, house) {
   buildFence(key, house);
   parkHomeCars(key, house);
 }
+for (const [k, p] of [...LAND.plots, ...LAND.sold]) if (p.prep) treesClear(k);   // site prep took its trees down
 for (const [k, p] of LAND.plots) if (p.house) raiseHouse(k, p.house);
 for (const [k, p] of LAND.sold) if (p.house) raiseHouse(k, p.house);
 
@@ -11745,9 +11750,51 @@ function menuShow(title, sub, items) {
 }
 function menuClose() { LM_.open = false; LM_.venue = null; $('lmenu').hidden = true; $('help').hidden = !helpOn || TOUCH.on; }
 function menuPick(k) { const it = LM_.items[k]; if (!it) return; it.run(); }
+/* ---------- site prep: a crew clears the giant trees off a plot of yours and levels it, ready to build. The trees stay
+   gone for everyone (the plot's prep flag, which the server keeps); the levelling is ordinary bulldozer edits. ---------- */
+const SITE_PREP = 30000;   // (the server charges the same)
+const ordinaryPlot = key => !isUnit(key) && !ESTATE_LOTS.has(key) && !LAND.plots.get(key)?.big && /^-?\d+,-?\d+$/.test(key);
+function plotTrees(key) {   // giant trees standing on the plot (trunk or roots over it)
+  const [px, pz] = key.split(',').map(Number), r = plotRect(px, pz);
+  const over = b => b.x1 > r.x0 && b.x0 < r.x1 && b.z1 > r.z0 && b.z0 < r.z1;
+  return TREES.filter(t => { const m = (t.w || 5) / 2 + 2.5; if (t.x + m > r.x0 && t.x - m < r.x1 && t.z + m > r.z0 && t.z - m < r.z1) return true; const y = heightAt(t.x, t.z) + 6; return (t.cols || []).some(b => b.y0 < y && over(b)); });   // (or its roots reach in)
+}
+function plotLevels(key) {   // the most common height on the plot (least to dig) and how uneven it is
+  const [px, pz] = key.split(',').map(Number), r = plotRect(px, pz), n = new Map(); let lo = 99, hi = -99;
+  for (let x = r.x0 + .5; x < r.x1; x++) for (let z = r.z0 + .5; z < r.z1; z++) { const h = Hm[idxAt(x, z)]; n.set(h, (n.get(h) || 0) + 1); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  let best = lo, bn = -1; for (const [h, c] of n) if (c > bn || (c === bn && h < best)) { bn = c; best = h; }
+  return { target: best, uneven: hi - lo, r };
+}
+function prepOffer(key) {
+  const p = LAND.plots.get(key); if (!p || p.house || p.prep || !ordinaryPlot(key)) return null;
+  const trees = plotTrees(key).length, uneven = plotLevels(key).uneven;
+  return trees || uneven ? { trees, uneven } : null;
+}
+function treesClear(key) {   // take the giant trees on a plot down: their meshes, their collision, the map
+  let n = 0;
+  for (const t of plotTrees(key)) {
+    for (const m of t.meshes || []) { m.parent?.remove(m); m.geometry.dispose(); }
+    for (const c of t.cols || []) { for (const G of [solidGrid, obstacleGrid]) for (let gx = Math.floor(c.x0 / G.cell); gx <= Math.floor(c.x1 / G.cell); gx++) for (let gz = Math.floor(c.z0 / G.cell); gz <= Math.floor(c.z1 / G.cell); gz++) { const l = G.m.get(gx * 4099 + gz), i = l ? l.indexOf(c) : -1; if (i >= 0) l.splice(i, 1); } c.y0 = -999; c.y1 = -998; }
+    TREES.splice(TREES.indexOf(t), 1); n++;
+  }
+  if (n) { const [px, pz] = key.split(',').map(Number); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) LAND.info.delete(plotKey(px + a, pz + b)); const g = mapImg.getContext('2d'), r = plotRect(px, pz); g.fillStyle = '#a08864'; g.fillRect(r.x0 + HALF - 4, r.z0 + HALF - 4, PLOT + 8, PLOT + 8); }   // (the map: bare earth where the trees stood)
+  return n;
+}
+function sitePrep(key) {
+  const p = LAND.plots.get(key), pr = prepOffer(key); if (!pr) return;
+  if (LAND.money < SITE_PREP) { toast('', `Site prep is ${NAIRA(SITE_PREP)}; you have ${NAIRA(LAND.money)}`); return; }
+  LAND.money -= SITE_PREP; p.prep = true; try { bankSpend(SITE_PREP, `Site prep, plot ${key}`); } catch (e) {}
+  const felled = treesClear(key), L = plotLevels(key);
+  for (let x = L.r.x0 + .5; x < L.r.x1; x++) for (let z = L.r.z0 + .5; z < L.r.z1; z++) { const k = idxAt(x, z); if (Hm[k] !== L.target) setCell(k, L.target); }
+  for (let k = 0; k < 40; k++) emit(tmpA.set(RM(L.r.x0, L.r.x1), L.target + .5, RM(L.r.z0, L.r.z1)), tmpB.set(RM(-1, 1), RM(1, 3), RM(-1, 1)), RM(.8, 1.6), RM(.6, 1.2), 0x8a6a4a, .7, 2.2);
+  LAND.info.delete(key); LAND.cur = null; saveLand(); sfx('clank'); menuClose();
+  if (Math.abs(P.pos.y - L.target) > .2 && ownedAt(P.pos.x, P.pos.z)) P.pos.y = Math.max(P.pos.y, L.target);
+  toast('🌳 Site ready', `${felled ? `${felled > 1 ? felled + ' trees' : 'The tree'} cleared` : 'Cleared'}${L.uneven ? ` and levelled at ${L.target} m` : ''}. Build a house (E)`);
+}
 function openLandMenu(key) {
   const p = LAND.plots.get(key); if (!p) return; LM_.key = key;
   const val = p.big ? { total: Math.round((BIG.price * 1.4 + (p.house ? houseType(p.house.type).cost * .9 : 0)) / 100) * 100, flat: 1, house: p.house ? Math.round(houseType(p.house.type).cost * .9 / 100) * 100 : 0 } : plotValue(key), items = [];
+  if (!p.house && prepOffer(key)) { const pr = prepOffer(key); items.push({ label: `🌳 Site prep · ${NAIRA(SITE_PREP)}`, note: `a crew ${[pr.trees ? `takes down ${pr.trees > 1 ? pr.trees + ' giant trees' : 'the giant tree'}` : '', pr.uneven ? `levels the ground (${pr.uneven} m uneven)` : ''].filter(Boolean).join(' and ')}, ready to build`, off: LAND.money < SITE_PREP, run: () => sitePrep(key) }); }
   if (!p.house) items.push({ label: 'Build a house…', note: p.big ? 'the 11-bedroom mansion, with its grounds and staff' : 'a cabin, bungalow, family house, duplex or 5-bed mansionette', run: () => openBuildMenu(key) });
   if (p.house) items.push({ label: 'Change the fence…', note: p.house.fence && FENCE_KINDS[p.house.fence.kind] ? fenceLabel(p.house.fence.kind, p.house.fence.area, houseType(p.house.type)) : p.house.fence ? 'no fence at the moment' : 'the one it came with', run: () => openFenceMenu(key, houseType(p.house.type), p.house.side, false, true) });
   items.push({ label: `${p.big ? 'Sell Banana Island' : isUnit(key) ? (p.house ? `Sell your home and its ${m2(p.house.units?.length || 1)}` : 'Sell this 300 m² unit') : 'Sell this plot'} · ${NAIRA(val.total)}`, note: `you paid ${NAIRA(p.big ? BIG.price : p.paid)} · ${Math.round(val.flat * 100)}% level${val.house ? ` · house ${NAIRA(val.house)}` : ''}`, run: () => menuShow('Sell this plot?', `${NAIRA(val.total)} · the buyer keeps anything built on it`, [{ label: `Yes, sell for ${NAIRA(val.total)}`, run: () => p.big ? sellBig(val.total) : sellPlot(key, val.total) }, { label: 'No, keep it', run: () => openLandMenu(key) }]) });
@@ -11775,7 +11822,7 @@ function openBuildMenu(key) {
 }
 function sellPlot(key, price) {
   removeHomeCars(key);
-  const p = LAND.plots.get(key); LAND.plots.delete(key); LAND.sold.set(key, { house: p.house || null });
+  const p = LAND.plots.get(key); LAND.plots.delete(key); LAND.sold.set(key, { house: p.house || null, prep: p.prep || undefined });
   for (const u of p.house?.units || []) if (u !== key && LAND.plots.has(u)) { LAND.plots.delete(u); LAND.sold.set(u, { house: null }); const i = LAND.info.get(u); if (i) i.ok = false; }   // a house on units goes with all of them
   const f = LAND.flags.get(key); if (f) { scene.remove(f); LAND.flags.delete(key); }
   const info = LAND.info.get(key); if (info) info.ok = false;
@@ -13532,8 +13579,8 @@ function sharedBlocked() {   // guests in the shared world can look, not buy
   return false;
 }
 const canon = o => Array.isArray(o) ? '[' + o.map(canon).join(',') + ']' : o && typeof o === 'object' ? '{' + Object.keys(o).filter(k => o[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(o[k])).join(',') + '}' : JSON.stringify(o ?? null);
-const plotsSig = plots => canon(Object.keys(plots).sort().map(k => [k, plots[k].house || null]));
-const landRecord = () => ({ money: Math.round(LAND.money), dozer: !!LAND.dozer, plots: Object.fromEntries([...LAND.plots].map(([k, p]) => [k, { paid: p.paid, big: p.big || undefined, house: p.house || null }])), edits: LAND.edits });
+const plotsSig = plots => canon(Object.keys(plots).sort().map(k => [k, plots[k].house || null, !!plots[k].prep]));
+const landRecord = () => ({ money: Math.round(LAND.money), dozer: !!LAND.dozer, plots: Object.fromEntries([...LAND.plots].map(([k, p]) => [k, { paid: p.paid, big: p.big || undefined, house: p.house || null, prep: p.prep || undefined }])), edits: LAND.edits });
 function adoptLand(st, why) {   // take the server's land as this device's, and reload so the world is rebuilt from it
   let cur = {}; try { cur = JSON.parse(localStorage.getItem('giantwood-land') || '{}'); } catch (e) {}
   const save = { ...cur, grant500: true, grant10m: true, money: st.money, plots: st.plots, sold: {}, edits: st.edits || {}, dozer: st.dozer ? (cur.dozer || { x: DOZER_YARD.x, z: DOZER_YARD.z, yaw: 0 }) : null };
@@ -13574,6 +13621,7 @@ function applyOther(p) {
   if (NET.user && p.owner === NET.user.id) return;   // your own land comes through the sync
   if (LAND.plots.has(p.key)) return;
   const was = OTHERS.get(p.key); OTHERS.set(p.key, p);
+  if (p.prep) treesClear(p.key);   // their site prep: the trees are gone for everyone
   LAND.info.delete(p.key); FOR_SALE = null;
   for (const [k, h] of Object.entries(p.edits || {})) if (Hm[+k] !== h) otherCell(+k, h);
   if (!p.house) return;
@@ -14217,6 +14265,13 @@ function drawWayPin(ctx, toP, W, rim) {
 }
 function mapPick(px, py) {   // px, py: pixels on the big map's canvas
   const [x, z] = bmFromB(px, py);
+  if (MEETPICK) {   // the meeting place, wherever you tap (on dry land)
+    if (heightAt(x, z) <= WATER_Y + .3) { toast('🗺 That’s water', 'Pick somewhere on land to meet'); return; }
+    const R = MEETPICK.R, near = placeName(x, z); MEETPICK = null; toggleBigMap(false);
+    if (!PHONE.open) phoneToggle(true); PHONE.app = 'contacts'; CHAT.view = { id: R.id };
+    chatSend(R, 'invite', { x, z, label: near ? `the spot by ${near}` : 'the spot I pinned', kind: 'spot', d: Math.hypot(x - P.pos.x, z - P.pos.z) });
+    return;
+  }
   if (WAY.on) { const [wx, wy] = bmToB(WAY.x, WAY.z); if (Math.hypot(wx - px, wy - 13 - py) < 18) { clearWaypoint(false); toast('📍 Destination cleared', 'Tap the map anywhere to set a new one'); drawBigMap(); return; } }
   setWaypoint(x, z); drawBigMap();
   if (P.driving && driverHire(x, z)) toggleBigMap(false);   // in a car, the driver can take you there too
@@ -16432,7 +16487,7 @@ const CHAT = { threads: {}, nextT: 0, view: null, call: null, unread: 0 };
 try { Object.assign(CHAT, { threads: JSON.parse(localStorage.getItem(CHAT_STORE) || '{}') }); } catch (e) {}
 const chatSave = () => { try { for (const k in CHAT.threads) CHAT.threads[k] = CHAT.threads[k].slice(-40); localStorage.setItem(CHAT_STORE, JSON.stringify(CHAT.threads)); } catch (e) {} };
 const chatOf = id => CHAT.threads[personKey(id)] ||= [];
-const chatUnread = () => Object.values(CHAT.threads).reduce((a, t) => a + t.filter(m => !m.mine && !m.read).length, 0);
+const chatUnread = () => Object.entries(CHAT.threads).reduce((a, [id, t]) => a + (PEOPLE.cast.has(id) && PEOPLE.mine.has(id) ? t.filter(m => !m.mine && !m.read).length : 0), 0);   // (only people you still know: an old thread from someone gone can't hold the phone shut)
 const hourWord = () => { const h = tod * 24; return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night'; };
 // somewhere to meet: the nearest few kinds of place to you
 const museumFront = M => { const F = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[M.face] || [0, 1]; return [M.x + F[0] * (M.w / 2 + 5), M.z + F[1] * (M.d / 2 + 5)]; };   // at the foot of its front steps (its middle is inside the building)
@@ -16632,10 +16687,10 @@ function peopleBadge() {
 }
 function chatLatest() {   // the newest unread text, and who sent it
   let best = null;
-  for (const [id, t] of Object.entries(CHAT.threads)) for (const m of t) if (!m.mine && !m.read && (!best || m.at > best.m.at)) { const R = PEOPLE.cast.get(id); if (R) best = { R, m }; }
+  for (const [id, t] of Object.entries(CHAT.threads)) for (const m of t) if (!m.mine && !m.read && (!best || m.at > best.m.at)) { const R = PEOPLE.cast.get(id); if (R && PEOPLE.mine.has(id)) best = { R, m }; }
   return best;
 }
-function openLatestChat() { const lat = chatLatest(); if (!lat) return; if (!PHONE.open) phoneToggle(true); CHAT.view = { id: lat.R.id }; PHONE.app = 'contacts'; phoneRefresh(); }
+function openLatestChat() { const lat = chatLatest(); if (!lat) { if (!PHONE.open) phoneToggle(true); return; } if (!PHONE.open) phoneToggle(true); CHAT.view = { id: lat.R.id }; PHONE.app = 'contacts'; phoneRefresh(); }
 $('msgNote').addEventListener('click', e => { e.stopPropagation(); openLatestChat(); });
 // every few seconds
 function updateChat(dt) {
@@ -16775,6 +16830,7 @@ function chatView(R) {
   if (CHAT.view?.tab === 'meet') {
     const card = ph('div', 'phCard'); card.append(ph('b', null, `📍 Meet ${R.name} at…`));
     for (const p of meetPlaces(R)) card.append(ph('button', 'phChip', `${{ food: '🍲', club: '🪩', beach: '🏖', museum: '🏛', 'their spot': '⭐', home: '🏠' }[p.kind] || '📍'} ${p.label} · ${fmtDist(p.d)}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; chatSend(R, 'invite', p); } } }));
+    card.append(ph('button', 'phChip', '🗺 Pick a spot on the map', { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneToggle(false); toggleBigMap(true); MEETPICK = { R }; toast(`🗺 Where should you meet ${R.name}?`, 'Tap a spot on the map. Close the map to cancel'); } } }));
     card.append(ph('button', 'phChip', 'Cancel', { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } })); out.push(card);
   }
   const t = chatOf(R.id), box = ph('div', 'phThread');

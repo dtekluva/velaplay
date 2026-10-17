@@ -13,6 +13,7 @@ export function unitsOf(key: string, house: any): string[] | null {
 export const BIG_KEYS = Object.keys(PLOTS).filter((k) => PLOTS[k][1] === "b");
 export const START_MONEY = 10_000_000;
 export const DOZER_PRICE = 35_000;
+export const SITE_PREP = 30_000;   // a crew clears a plot's giant trees and levels it (the game charges the same)
 export const PLOT = 24;
 
 export interface HouseType { cost: number; furnish: number; w: number; d: number; site?: [number, number]; big?: boolean }

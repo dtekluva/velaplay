@@ -2,16 +2,16 @@ import { Router, type Request } from "express";
 import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { requireUser, type TokenUser } from "./auth";
-import { PLOTS, BIG_KEYS, START_MONEY, DOZER_PRICE, HOUSES, FURN, BATH_ITEMS, fenceCost, plotOfCell, isUnit, unitsOf } from "./catalog";
+import { PLOTS, BIG_KEYS, START_MONEY, DOZER_PRICE, SITE_PREP, HOUSES, FURN, BATH_ITEMS, fenceCost, plotOfCell, isUnit, unitsOf } from "./catalog";
 
 /* Shared ownership. The game keeps playing as before and, after each change, sends its land record (money, plots with
    their houses, furniture and fences, the bulldozer, terrain edits) along with the version it last saw. The server
    works out what changed, checks and prices every change from its own tables, and stores the result as the truth. */
 export const land = Router();
 const userOf = (req: Request) => (req as Request & { user: TokenUser }).user;
-type Plot = { paid: number; big?: boolean; house: any | null };
+type Plot = { paid: number; big?: boolean; house: any | null; prep?: boolean };
 type Edits = Record<string, number>;
-export interface PlotNews { key: string; owner: string | null; ownerName: string | null; npc: boolean; big: boolean; house: any | null; edits: Edits }
+export interface PlotNews { key: string; owner: string | null; ownerName: string | null; npc: boolean; big: boolean; house: any | null; edits: Edits; prep?: boolean }
 
 // rooms register a listener so every change reaches everyone online
 const listeners = new Set<(news: PlotNews[]) => void>();
@@ -24,9 +24,9 @@ export const tell = (userId: string, type: string, data: unknown) => { for (cons
 
 // everything that is owned or sold on, for drawing other people's homes
 land.get("/world", async (_req, res) => {
-  const q = await pool.query(`SELECT p.key, p.owner, u.display_name AS owner_name, p.npc, p.big, p.house, p.edits FROM plots p
+  const q = await pool.query(`SELECT p.key, p.owner, u.display_name AS owner_name, p.npc, p.big, p.house, p.edits, p.prep FROM plots p
     LEFT JOIN users u ON u.id = p.owner WHERE p.owner IS NOT NULL OR p.npc`);
-  res.json({ plots: q.rows.map((r) => ({ key: r.key, owner: r.owner, ownerName: r.owner_name, npc: r.npc, big: r.big, house: r.house, edits: r.edits })) });
+  res.json({ plots: q.rows.map((r) => ({ key: r.key, owner: r.owner, ownerName: r.owner_name, npc: r.npc, big: r.big, house: r.house, edits: r.edits, prep: r.prep || undefined })) });
 });
 
 export async function wallet(c: PoolClient | typeof pool, id: string, lock = false) {
@@ -35,9 +35,9 @@ export async function wallet(c: PoolClient | typeof pool, id: string, lock = fal
 }
 export async function stateOf(c: PoolClient | typeof pool, id: string) {
   const w = await wallet(c, id);
-  const q = await c.query("SELECT key, paid, big, house, edits FROM plots WHERE owner = $1", [id]);
+  const q = await c.query("SELECT key, paid, big, house, edits, prep FROM plots WHERE owner = $1", [id]);
   const plots: Record<string, Plot> = {}, edits: Edits = {};
-  for (const r of q.rows) { plots[r.key] = { paid: r.paid, big: r.big || undefined, house: r.house }; Object.assign(edits, r.edits); }
+  for (const r of q.rows) { plots[r.key] = { paid: r.paid, big: r.big || undefined, house: r.house, prep: r.prep || undefined }; Object.assign(edits, r.edits); }
   return { money: Math.round(w.money), dozer: w.dozer, version: w.version, imported: !!w.synced_at, plots, edits };
 }
 // who paid you (money sent, land they bought from you) since you were last told
@@ -99,7 +99,7 @@ land.post("/land/sync", requireUser, async (req, res) => {
       const o = old.plots[key], t = o.house && HOUSES[o.house.type];
       credit += Math.round(o.paid * 1.5 + (t ? t.cost * .9 : 0));
       await c.query("UPDATE plots SET owner = NULL, npc = true, updated_at = now() WHERE key = $1", [key]);
-      news.push({ key, owner: null, ownerName: null, npc: true, big: !!o.big, house: o.house, edits: {} });
+      news.push({ key, owner: null, ownerName: null, npc: true, big: !!o.big, house: o.house, edits: {}, prep: o.prep });
     }
     // 3. plots you keep: houses, fences and furniture, each priced
     for (const key of Object.keys(wantPlots)) {
@@ -128,13 +128,19 @@ land.post("/land/sync", requireUser, async (req, res) => {
           house = nh;
         }
       } else if (had.house && !nh) notes.push("Houses can't be demolished");
+      // site prep: once, on an ordinary plot (not Banana Island, not a unit), before a house
+      let prep = !!had.prep;
+      if (now.prep && !had.prep) {
+        if (PLOTS[key]?.[1] === "b" || isUnit(key) || had.house) notes.push(`Plot ${key} can't have site prep`);
+        else { prep = true; if (!importing) cost += SITE_PREP; }
+      }
       // bulldozer edits that fall on this plot
       const edits: Edits = {};
       for (const [k, h] of Object.entries(wantEdits)) if (plotOfCell(+k) === key && Number.isInteger(h) && h > -20 && h < 120) edits[k] = h;
-      const changed = !sameJSON(house, had.house) || !sameJSON(edits, Object.fromEntries(Object.entries(old.edits).filter(([k]) => plotOfCell(+k) === key))) || !!keep[key];
+      const changed = prep !== !!had.prep || !sameJSON(house, had.house) || !sameJSON(edits, Object.fromEntries(Object.entries(old.edits).filter(([k]) => plotOfCell(+k) === key))) || !!keep[key];
       if (changed) {
-        await c.query("UPDATE plots SET house = $2, edits = $3, updated_at = now() WHERE key = $1 AND owner = $4", [key, house, edits, me.id]);
-        news.push({ key, owner: me.id, ownerName: me.name, npc: false, big: !!(PLOTS[key]?.[1] === "b"), house, edits });
+        await c.query("UPDATE plots SET house = $2, edits = $3, prep = $5, updated_at = now() WHERE key = $1 AND owner = $4", [key, house, edits, me.id, prep]);
+        news.push({ key, owner: me.id, ownerName: me.name, npc: false, big: !!(PLOTS[key]?.[1] === "b"), house, edits, prep });
       }
     }
     // 4. the bulldozer
