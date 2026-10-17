@@ -2306,6 +2306,7 @@ function buildBungalow(hs, b) {
 
 /* office/apartment tower: an enterable glass lobby, then a solid glass-and-concrete shaft you can grapple up */
 function buildTower(hs, b) {
+  hs.nonres = true;   // (offices and apartment lobbies: nobody lives in the ground floor)
   const v = hs.v, y = v.y, fl = y + .3, F = mkFrame(hs, b), { L, WL, DL, pt } = F, { x, z, w, d } = hs;
   const T = .3, DW = 2.4, DH = 3.0, LH = 4.6, FH = 3.4, bodyH = hs.floors * FH, roofY = fl + LH + bodyH;
   const frameM = pick([M.concrete, M.renderGrey, MM.white]), glassM = pick(towerGlass), sofa = pick(MM.sofa);
@@ -2343,6 +2344,7 @@ function buildTower(hs, b) {
 
 /* church: stone nave with stained glass, pews and an altar; a bell tower with a spire at the front corner */
 function buildChurch(hs, b, big) {
+  hs.church = true;
   const v = hs.v, y = v.y, fl = y + .4, F = mkFrame(hs, b), { L, WL, DL, pt } = F;
   const T = .5, DW = 2.4, DH = 4.2, wallH = big ? 10 : 7.5, stone = big ? M.stone : M.brick, dX = big ? 1.6 : 1.4;
   const tw = big ? 5 : 3.6, tH = big ? 26 : 17;
@@ -5439,7 +5441,7 @@ function updateCivilians(dt) {
     if (c.riding) continue;   // in your taxi
     const g = c.g, px = g.position.x, pz = g.position.z;
     const dd = Math.hypot(px - P.pos.x, pz - P.pos.z);
-    c.active = (mode === 'title' ? Math.hypot(px - camera.position.x, pz - camera.position.z) : dd) < 115;   // past the fog: not drawn, not animated
+    c.active = (mode === 'title' ? Math.hypot(px - camera.position.x, pz - camera.position.z) : dd) < 115 && !c.away;   // past the fog (or up in their flat): not drawn, not animated
     if (c.active && !ensureFig(c)) c.active = false;   // (its figure comes next frame)
     else if (!c.active && c.lo && dd > 250) freeFig(c);
     g.visible = c.active;
@@ -5894,8 +5896,8 @@ function talkChoose(k) {
   if (o.t === 'swap') {
     cv.swapped = true; const p = personaOf(c);
     talkSay(c, rp(['Sure, give me your phone. There: saved.', 'Ehen, why not. Here’s my number. Call me o!', 'Okay! Put me in as ' + p.name + '. Don’t lose it.', 'No wahala. Flash me so I have yours too.']), o.label);
-    peopleSwap(c).then(err => { if (err) { toast('📇 Contacts', err); return; } const R = c.resident, hv = R && peopleHouses().get(R.home);
-      toast(`📇 ${p.name} is in your contacts`, `Lives ${hv ? 'in ' + placeName(hv.h.x, hv.h.z) : 'nearby'}${R?.work ? ' · works at ' + R.work.label : ''} · Contacts on your phone (G)`); sfx('swap'); });
+    peopleSwap(c).then(err => { if (err) { toast('📇 Contacts', err); return; } const R = c.resident, hv = R && residentHome(R);
+      toast(`📇 ${p.name} is in your contacts`, `Lives ${hv ? (hv.apt ? 'in a flat, ' + (hv.apt.name || '').replace(/^the /, '') : 'in ' + placeName(hv.h.x, hv.h.z)) : 'nearby'}${R?.work ? ' · works at ' + R.work.label : ''} · Contacts on your phone (G)`); sfx('swap'); });
     talkOptions(); return;
   }
   cv.asked.add(o.t); cv.turn++;
@@ -16099,28 +16101,41 @@ function peopleHouses(all) {   // (all: your own homes too, where a partner may 
   if (PEOPLE.houses) return PEOPLE.houses;
   const m = new Map(), vs = new Set(civilians.map(c => c.v).filter(Boolean));
   for (const v of vs) { if (v.mine || !v.houses) continue; for (const h of v.houses) {
-    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque || h.club) continue;
+    if (!h.doorIn || !h.inside || h.police || h.hospital || h.fire || h.school || h.mall || h.bank || h.church || h.mosque || h.club || h.nonres) continue;
     m.set(`h:${Math.round(h.x)},${Math.round(h.z)}`, { h, v });
   } }
   return PEOPLE.houses = m;
 }
+// apartment towers people can live in (their lobby doors), by key
+function peopleApts() { const m = new Map(); for (const e of INT.ents || []) if (e.type === 'apartment') m.set(`a:${Math.round(e.x)},${Math.round(e.z)}`, e); return m; }
 const peopleIn = key => { let n = 0; for (const R of PEOPLE.cast.values()) if (R.home === key) n++; return n; };
 // where someone is meant to be at this hour of the game's day
 function residentAnchor(c) {
   const R = c.resident, hr = tod * 24, H = c.homeH;
-  if (c.meet && Date.now() < c.meet.until) return { key: 'meet', x: c.meet.x, z: c.meet.z, label: `meeting you at ${c.meet.label}` };   // a meet-up comes first
+  if (c.meet && Date.now() < c.meet.until) return c.meet.house ? { key: 'meet', x: c.meet.house.inside.x, z: c.meet.house.inside.z, y: c.meet.house.floorY, home: true, house: c.meet.house, label: `at ${c.meet.label}` } : { key: 'meet', x: c.meet.x, z: c.meet.z, label: `meeting you at ${c.meet.label}` };   // a meet-up comes first
+  const Ap = c.homeApt;
+  if ((hr >= 22 || hr < 6.5) && Ap) return { key: 'home', x: Ap.x, z: Ap.z, flat: true, label: `at home in their flat${Ap.name ? ', ' + Ap.name.replace(/^the /, '') : ''}` };
   if ((hr >= 22 || hr < 6.5) && H) return { key: 'home', x: H.inside.x, z: H.inside.z, y: H.floorY, home: true, label: 'at home' };
   if (hr >= 8 && hr < 17 && R.work) return { key: 'work', x: R.work.x, z: R.work.z, label: `at work${R.work.label ? ' at ' + R.work.label : ''}` };
   if (hr >= 18 && hr < 22 && R.hang) return { key: 'hang', x: R.hang.x, z: R.hang.z, label: `out at ${R.hang.label || 'a spot nearby'}` };
-  return H ? { key: 'about', x: H.doorOut.x, z: H.doorOut.z, label: 'out and about near home', roam: true } : null;
+  return H ? { key: 'about', x: H.doorOut.x, z: H.doorOut.z, label: 'out and about near home', roam: true } : Ap ? { key: 'about', x: Ap.x, z: Ap.z, label: 'out and about near home', roam: true } : null;
 }
 // bring someone in the cast to life on their streets
+function residentHome(R) {
+  if (R.home[0] === 'a') { const e = peopleApts().get(R.home); if (!e) return null; let best = null, bd = 1e9;
+    for (const q of peopleHouses().values()) { const d = Math.hypot(q.h.x - e.x, q.h.z - e.z); if (d < bd) { bd = d; best = q; } }
+    return best ? { h: null, v: best.v, apt: e } : null; }
+  const all = peopleHouses(true), hv = all.get(R.home); if (hv) return hv;
+  const [x, z] = R.home.slice(2).split(',').map(Number); let best = null, bd = 400;   // (their old home was a church or a shop: the nearest real house)
+  for (const [k, q] of peopleHouses()) { const d = Math.hypot(q.h.x - x, q.h.z - z); if (d < bd || (d === bd && k < best[0])) { bd = d; best = [k, q]; } }
+  return best ? best[1] : null;
+}
 function spawnResident(R) {
-  const hv = peopleHouses(true).get(R.home); if (!hv) return null;
+  const hv = residentHome(R); if (!hv) return null;
   const c = makeCivilian(hv.v, { adult: true, female: R.female });
   c.spec = JSON.parse(JSON.stringify(R.spec)); c.elder = !!R.elder; c.child = false; c.ng = R.persona?.ng ?? c.ng; if (c.elder) c.speed *= .75;
   c.persona = { ...R.persona, name: R.name, met: PEOPLE.mine.has(personKey(R.id)) ? 1 : 0 };
-  c.resident = R; c.homeH = hv.h; PEOPLE.civ.set(personKey(R.id), c);
+  c.resident = R; c.homeH = hv.h; c.homeApt = hv.apt || null; PEOPLE.civ.set(personKey(R.id), c);
   const A = residentAnchor(c); if (A) placeResident(c, A);
   return c;
 }
@@ -16141,15 +16156,23 @@ async function peopleSwap(c) {
     } catch (e) { return e.message; }
   }
   // a home near where you met: one of the nearest houses on these streets with room for one more
+  // a few people are rich: a big house in an estate (or the biggest houses nearby), a business of their own
+  const rich = !!c.v?.estate || Math.random() < .12;
+  const richHomes = rich ? [...peopleHouses()].filter(([k, q]) => peopleIn(k) < 2 && (q.v.estate || q.h.w * q.h.d >= 140)).map(([k, q]) => [k, q, Math.hypot(q.h.x - c.g.position.x, q.h.z - c.g.position.z)]).sort((a, b) => a[2] - b[2]).slice(0, 3) : [];
+  const apts = [...peopleApts()].map(([k, e]) => [k, e, Math.hypot(e.x - c.g.position.x, e.z - c.g.position.z)]).filter(q => q[2] < 450).sort((a, b) => a[2] - b[2]);
   const homes = [...peopleHouses()].filter(([k, hv]) => peopleIn(k) < 4).map(([k, hv]) => [k, hv, Math.hypot(hv.h.x - c.g.position.x, hv.h.z - c.g.position.z) + (hv.v === c.v ? 0 : 200)]).sort((a, b) => a[2] - b[2]).slice(0, 6);
-  if (!homes.length) return `${p.name} says they live too far out to visit`;
-  const [hk, hv] = homes[Math.floor(Math.random() * homes.length)];
+  let hk, hv;
+  if (richHomes.length) [hk, hv] = richHomes[Math.floor(Math.random() * richHomes.length)];
+  else if (apts.length && (Math.random() < .75 || !homes.length)) { const [ak, e] = apts[Math.floor(Math.random() * Math.min(2, apts.length))]; hk = ak; hv = { h: null, apt: e, v: c.v };   // most people: a flat in a tower nearby
+    let bd = 1e9; for (const q of peopleHouses().values()) { const d = Math.hypot(q.h.x - e.x, q.h.z - e.z); if (d < bd) { bd = d; hv.v = q.v; } } }
+  else { if (!homes.length) return `${p.name} says they live too far out to visit`; [hk, hv] = homes[Math.floor(Math.random() * homes.length)]; }
   bizSitesFinish();
   const near = (list, x, z, r) => list.map(s => [s, Math.hypot(s.x - x, s.z - z)]).filter(q => q[1] < r).sort((a, b) => a[1] - b[1])[0]?.[0];
-  const ws = !c.elder && near(BIZ_SITES, c.g.position.x, c.g.position.z, 180), hs = near(VENUES.filter(V => V.food && V.food !== 'rest'), hv.h.x, hv.h.z, 450);
+  const hx = hv.h ? hv.h.x : hv.apt.x, hz = hv.h ? hv.h.z : hv.apt.z;
+  const ws = !c.elder && near(BIZ_SITES, c.g.position.x, c.g.position.z, 180), hs = near(VENUES.filter(V => V.food && V.food !== 'rest'), hx, hz, 450);
   civLookOf(c);   // (fixes their face and build for good)
   const R = { name: p.name, female: c.female, elder: !!c.elder, spec: JSON.parse(JSON.stringify(c.spec)), home: hk,
-    persona: { job: p.job, mood: p.mood, ng: p.ng, dest: p.dest, age: c.elder ? Math.round(RM(60, 78)) : Math.round(RM(19, 48)), interests: [...INTERESTS].sort(() => Math.random() - .5).slice(0, 2),
+    persona: { rich: !!richHomes.length || undefined, job: richHomes.length ? ri(['I run an oil and gas services company.', 'I own a chain of supermarkets.', 'I founded a fintech in Yaba.', 'I import cars. The good ones.', 'I develop property on the Island.', 'I’m in shipping, at the new port.']) : p.job, mood: p.mood, ng: p.ng, dest: p.dest, age: c.elder ? Math.round(RM(60, 78)) : Math.round(RM(19, 48)), interests: richHomes.length ? [ri(['business', 'cars', 'travel']), ri(INTERESTS.filter(x => !['business', 'cars', 'travel'].includes(x)))] : [...INTERESTS].sort(() => Math.random() - .5).slice(0, 2),
       birthday: Math.ceil(RM(0, 365)), hometown: areaName(c), likes: c.elder ? null : ri(['men', 'women', 'both', c.female ? 'men' : 'women', c.female ? 'men' : 'women']),
       metAt: areaName(c) },
     work: ws ? { x: ws.x, z: ws.z, label: ws.label } : null, hang: hs ? { x: hs.x, z: hs.z, label: hs.name.replace(/^the /, '') } : null };
@@ -16158,7 +16181,7 @@ async function peopleSwap(c) {
     if (NET.token) { const r = await api('/people', 'POST', R); saved = r.resident; rel = r.rel; }
     else { saved = { ...R, id: 'g' + (++PEOPLE.guestN) }; rel = { id: saved.id, stage: 'contact', closeness: 20, since: Date.now() }; }
     PEOPLE.cast.set(personKey(saved.id), saved); PEOPLE.mine.set(personKey(saved.id), rel);
-    c.resident = saved; c.homeH = hv.h; c.persona = { ...c.persona, ...saved.persona, name: saved.name }; PEOPLE.civ.set(personKey(saved.id), c);
+    c.resident = saved; c.homeH = hv.h; c.homeApt = hv.apt || null; c.persona = { ...c.persona, ...saved.persona, name: saved.name }; PEOPLE.civ.set(personKey(saved.id), c);
     if (c.v !== hv.v) { const i = c.v.civs.indexOf(c); if (i >= 0) c.v.civs.splice(i, 1); c.v = hv.v; hv.v.civs.push(c); }
     peopleSave(); phoneRefresh(); return null;
   } catch (e) { return e.message || String(e); }
@@ -16171,9 +16194,14 @@ function updatePeople(dt) {
   for (const c of PEOPLE.civ.values()) {
     const A = residentAnchor(c); if (!A || c.state === 'talk' || c.state === 'down' || c.riding || c.state === 'shelter' || c.state === 'hide' || c.state === 'flee') continue;
     const d = Math.hypot(c.g.position.x - A.x, c.g.position.z - A.z);
+    const inside = A.home && (A.house || c.homeH), Hh = inside && (A.house || c.homeH);   // on someone else's floor: stand on it, not the ground under it
+    c.fixedY = Hh && Math.abs(c.g.position.x - Hh.x) < Hh.w / 2 && Math.abs(c.g.position.z - Hh.z) < Hh.d / 2 && !houseAt(c.v, c.g.position.x, c.g.position.z) ? Hh.floorY : undefined;
+    if (c.away && !A.flat) c.away = false;   // back down from the flat
+    if (A.flat && (d < 3 || (!c.active && !c.away))) { if (!c.away) { c.g.position.set(A.x, groundAt(A.x, A.z), A.z); c.away = true; c.at = A.key; } continue; }   // home: up to the flat
     if (!c.active) { if (c.at !== A.key || (d > 25 && !A.roam)) placeResident(c, A); continue; }
     if (A.roam) { c.at = A.key; continue; }   // free time: they wander their streets like anyone
-    if (d > 6 && c.goingTo !== A.key) { c.goingTo = A.key; c.state = 'walk'; c.path = A.home ? [c.homeH.doorOut.clone(), c.homeH.doorIn.clone(), c.homeH.inside.clone()] : [new V3(A.x, 0, A.z)]; }
+    const HH = A.house || c.homeH;
+    if (d > 6 && c.goingTo !== A.key) { c.goingTo = A.key; c.state = 'walk'; c.path = A.home ? [HH.doorOut.clone(), HH.doorIn.clone(), HH.inside.clone()] : [new V3(A.x, 0, A.z)]; }
     else if (d <= 6) { c.at = A.key; c.goingTo = null; if (c.state === 'idle') c.timer = Math.max(c.timer, 4); }   // there: they stay
   }
 }
@@ -16186,7 +16214,7 @@ PHONE.apps.contacts = { render: () => {
   if (!list.length) out.push(ph('div', 'phCard', 'No contacts yet. Talk to someone (E) and ask for their number: they’ll be in town for good, with a home, a job and a place they go in the evening.'));
   for (const [m, R, c] of list) {
     const card = ph('div', 'phCard'), P0 = R.persona || {}, pos = c ? c.g.position : null, d = pos ? Math.hypot(pos.x - P.pos.x, pos.z - P.pos.z) : null;
-    card.append(ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}${P0.age ? ', ' + P0.age : ''}`), ph('span', 'phDim', `${P0.job ? '“' + P0.job + '”' : ''}${P0.interests?.length ? ' · into ' + P0.interests.join(' and ') : ''}`));
+    card.append(ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}${P0.age ? ', ' + P0.age : ''}${P0.rich ? ' 💎' : ''}`), ph('span', 'phDim', `${P0.job ? '“' + P0.job + '”' : ''}${P0.interests?.length ? ' · into ' + P0.interests.join(' and ') : ''}`));
     const cl = relDecayed(m), st = relStageOf(cl, m.stage), bar = ph('div', 'phBar'), f = ph('i'); f.style.width = cl + '%'; bar.append(f);
     const ago = Math.floor((Date.now() - (m.last || m.since)) / 86400e3);
     if (m.romance) card.append(ph('span', null, `${LOVE_STAGE[m.romance]} · ✨ spark ${m.spark || 0} · since ${new Date(m.rsince || m.since).toLocaleDateString()}`));
@@ -16196,7 +16224,7 @@ PHONE.apps.contacts = { render: () => {
     const row = ph('div', 'phChips');
     const un = chatOf(R.id).filter(x => !x.mine && !x.read).length; row.append(ph('button', 'phBtn', `💬 Chat${un ? ` (${un})` : ''}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } }));
     if (c) row.append(ph('button', 'phChip', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(c.g.position.x, c.g.position.z); toast('📍 Pinned', `${R.name}: ${contactWhere(c)}`); } } }));
-    const hv = peopleHouses(true).get(R.home); if (hv) row.append(ph('button', 'phChip', hv.v.mine ? '🏠 Your home' : '🏠 Their home', { type: 'button', on: { click: () => { setWaypoint(hv.h.doorOut.x, hv.h.doorOut.z); toast('📍 Pinned', `${R.name}’s home`); } } }));
+    const hv = residentHome(R); if (hv) row.append(ph('button', 'phChip', hv.apt ? '🏢 Their flat' : hv.v.mine ? '🏠 Your home' : '🏠 Their home', { type: 'button', on: { click: () => { const q = hv.apt || hv.h.doorOut; setWaypoint(q.x, q.z); toast('📍 Pinned', hv.apt ? `${R.name}’s flat: ${(hv.apt.name || 'the tower').replace(/^the /, '')}` : `${R.name}’s home`); } } }));
     if (m.romance) row.append(ph('button', 'phChip', PEOPLE.rmArm === 'b' + m.id ? 'Tap again to break up' : '💔 Break up', { type: 'button', on: { click: async () => {
       if (PEOPLE.rmArm !== 'b' + m.id) { PEOPLE.rmArm = 'b' + m.id; phoneRefresh(); return; } PEOPLE.rmArm = null;
       try { const r = await loveAct(c || { resident: R }, 'break_up'); if (r.ok) { toast(`💔 You and ${R.name} broke up`, 'It hurts. Give it time'); chatPush(R.id, { mine: false, kind: 'ack', answered: true, text: ri(['I can’t believe this. 💔', 'Okay. Take care of yourself.', 'Wow. Okay.']) }); } } catch (e) { toast('💔', e.message); } phoneRefresh(); } } }));
@@ -16264,7 +16292,7 @@ async function relGift(c, gid) {
     if (NET.token && String(c.resident.id)[0] !== 'g') out = await walletPost(`/people/${c.resident.id}/gift`, { gift: gid });
     else {
       const P0 = c.resident.persona || {}, suits = G[3].some(x => (P0.interests || []).includes(x)), birthday = P0.birthday === relDayOfYear();
-      const r = relLocal(m, Math.round(G[2] * (suits ? 2 : 1) * (birthday ? 1.5 : 1)), 'gift'); if (r.refused) throw new Error('They won’t take another gift today');
+      const r = relLocal(m, Math.round(G[2] * (suits ? 2 : 1) * (birthday ? 1.5 : 1) * (P0.rich && G[1] < 10000 ? .5 : 1)), 'gift'); if (r.refused) throw new Error('They won’t take another gift today');
       LAND.money -= G[1]; saveLand(); out = { suits, birthday, ...r };
     }
     bankSpend(G[1], `Gift for ${c.resident.name}`); goalEv('gift'); relAfter(c, out); return out;
@@ -16319,12 +16347,13 @@ const hourWord = () => { const h = tod * 24; return h < 5 ? 'night' : h < 12 ? '
 function meetPlaces(R) {
   const P0 = R.persona || {}, out = [], near = (list, f) => list.map(f).filter(Boolean).sort((a, b) => a.d - b.d)[0];
   const at = (x, z, label, kind) => ({ x, z, label, kind, d: Math.hypot(x - P.pos.x, z - P.pos.z) });
+  for (const [, h] of myHomeKeys().slice(0, 2)) out.push({ ...at(h.doorOut.x, h.doorOut.z, 'your place', 'home'), house: h });   // have them over
   const food = near(VENUES.filter(V => V.food && V.food !== 'rest'), V => at(V.x, V.z, V.name.replace(/^the /, ''), 'food')); if (food) out.push(food);
   const club = near(CLUBS.filter(C => C.hs?.doorOut || C.at), C => C.hs?.doorOut ? at(C.hs.doorOut.x, C.hs.doorOut.z, C.name, 'club') : at(C.at[0], C.at[1], C.name, 'club')); if (club) out.push(club);
   if (COAST) out.push(at(30, 286, 'Elegushi Beach', 'beach'));
   const mus = near(Object.entries(MUSEUM_SITES || {}), ([k, M]) => at(M.x, M.z, ({ lagos: 'Lagos History Museum', ogun: 'Ogun State Museum', oyo: 'Museum of Yoruba History', edo: 'National Museum, Benin' })[k] || 'the museum', 'museum')); if (mus) out.push(mus);
   if (R.hang) out.push(at(R.hang.x, R.hang.z, R.hang.label, 'their spot'));
-  return out.slice(0, 5);
+  return out.slice(0, 6);
 }
 // their side of a text, by kind
 function npcText(R, kind, extra) {
@@ -16351,7 +16380,7 @@ function chatTick() {
   const [m, R] = list[Math.min(k, list.length - 1)], st = relStageOf(relDecayed(m), m.stage), quiet = (Date.now() - (m.last || m.since)) / 86400e3;
   let kind = R.persona?.birthday === relDayOfYear() && !chatOf(R.id).some(x => x.kind === 'birthday' && Date.now() - x.at < 86400e3) ? 'birthday' : quiet > 2 ? 'miss' : ri(['hello', 'chat', 'chat', st !== 'contact' ? 'invite' : 'hello', 'favour']), extra = null;
   if (m.romance && kind !== 'birthday' && kind !== 'miss' && Math.random() < .5) kind = Math.random() < .35 ? 'invite' : 'love';   // someone you're with texts sweeter (and asks you out more)
-  if (kind === 'invite') extra = ri(meetPlaces(R).filter(p => p.d < 1500)) || null;
+  if (kind === 'invite') extra = ri(meetPlaces(R).filter(p => p.d < 1500 && p.kind !== 'home')) || null;
   if (kind === 'invite' && !extra) kind = 'chat';
   if (kind === 'favour') { const g = ri(['suya', 'jollof', 'chocolate', 'flowers']); extra = { gid: g, name: REL_GIFTS[g][0] }; }
   chatPush(R.id, { mine: false, kind, text: kind === 'love' ? loveText(R) : kind === 'invite' && m.romance ? `Date night? Meet me at ${extra.label} ❤️` : npcText(R, kind, extra), extra });
@@ -16404,7 +16433,7 @@ async function chatSend(R, kind, place) {
 // a meet-up: they go to the place (straight there if you're far away), it's pinned on your map, and they wait a while
 const MEETS = new Map();
 function meetSet(R, place, theyAsked) {
-  MEETS.set(personKey(R.id), { R, x: place.x, z: place.z, label: place.label, kind: place.kind, until: Date.now() + 8 * 60e3, near: 0, done: false });
+  MEETS.set(personKey(R.id), { R, x: place.house ? place.house.inside.x : place.x, z: place.house ? place.house.inside.z : place.z, house: place.house || null, label: place.label, kind: place.kind, until: Date.now() + 8 * 60e3, near: 0, done: false });
   setWaypoint(place.x, place.z); toast(`📍 Meet ${R.name} at ${place.label}`, theyAsked ? 'They’re heading there now' : 'Pinned on your map. They’ll wait a few minutes');
 }
 function updateMeets(dt) {
@@ -16416,7 +16445,7 @@ function updateMeets(dt) {
     if (!M.done && dP < 9 && dC < 9) {
       if ((M.near += dt) > 6) {   // a few moments together
         M.done = true; M.until = Date.now() + 90e3;
-        relTalk(c, 'hangout').then(r => { const what = { food: 'shared a meal', club: 'danced the night away', beach: 'walked on the beach', museum: 'looked round the museum', 'their spot': 'hung out' }[M.kind] || 'hung out';
+        relTalk(c, 'hangout').then(r => { const what = { food: 'shared a meal', club: 'danced the night away', beach: 'walked on the beach', museum: 'looked round the museum', 'their spot': 'hung out', home: 'had a lovely time at your place' }[M.kind] || 'hung out';
           toast(`😊 You ${what} with ${M.R.name}`, r?.delta ? `+${r.delta} closeness` : 'A good time'); });
         showBubble(c, ri(['This was fun! We should do it again.', 'I’m so glad you came 😊', 'Best time I’ve had all week!']), 4); goalEv('hangout');
       }
@@ -16471,7 +16500,7 @@ const LOVE_RANK = ['dating', 'partner', 'engaged', 'married'];
 const loveInto = R => { const P0 = R.persona || {}, F = !!MY_LOOK?.female; return !R.elder && (P0.likes === 'both' || (P0.likes === 'men' && !F) || (P0.likes === 'women' && F)); };
 const loveHours = m => m.rsince ? (Date.now() - m.rsince) / 3600e3 : 0;
 // your own homes, by key (a partner can move in)
-function myHomeKeys() { const out = []; for (const v of MY_HOMES) for (const h of v.houses || []) if (h.doorIn && h.inside) out.push([`h:${Math.round(h.x)},${Math.round(h.z)}`, h, v]); return out; }
+function myHomeKeys() { const out = []; for (const [key, h] of HOME_HS) if (LAND.plots.get(key)?.house && h.doorIn && h.inside) out.push([`h:${Math.round(h.x)},${Math.round(h.z)}`, h, h.v, key]); return out; }   // (homes on your own land: not the hotel or shops' rooms)
 // the romance options when you talk to someone (added after the usual ones)
 function loveTopics(c) {
   const R = c.resident, m = relOf(c); if (!m || R.elder || c.child) return [];
@@ -16586,7 +16615,7 @@ function chatView(R) {
   }
   if (CHAT.view?.tab === 'meet') {
     const card = ph('div', 'phCard'); card.append(ph('b', null, `📍 Meet ${R.name} at…`));
-    for (const p of meetPlaces(R)) card.append(ph('button', 'phChip', `${{ food: '🍲', club: '🪩', beach: '🏖', museum: '🏛', 'their spot': '⭐' }[p.kind] || '📍'} ${p.label} · ${fmtDist(p.d)}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; chatSend(R, 'invite', p); } } }));
+    for (const p of meetPlaces(R)) card.append(ph('button', 'phChip', `${{ food: '🍲', club: '🪩', beach: '🏖', museum: '🏛', 'their spot': '⭐', home: '🏠' }[p.kind] || '📍'} ${p.label} · ${fmtDist(p.d)}`, { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; chatSend(R, 'invite', p); } } }));
     card.append(ph('button', 'phChip', 'Cancel', { type: 'button', on: { click: () => { CHAT.view = { id: R.id }; phoneRefresh(); } } })); out.push(card);
   }
   const t = chatOf(R.id), box = ph('div', 'phThread');

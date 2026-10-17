@@ -11,7 +11,7 @@ const userOf = (req: Request) => (req as Request & { user: TokenUser }).user;
 const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => { fn(req, res).catch(next); };
 const fail = (res: Response, code: number, error: string) => res.status(code).json({ error });
 export const MAX_RESIDENTS = 400, MAX_PER_DAY = 25, MAX_CONTACTS = 150;
-const HOME_RE = /^h:-?\d{1,5},-?\d{1,5}$/;
+const HOME_RE = /^[ha]:-?\d{1,5},-?\d{1,5}$/;   // a house (h) or a flat in a tower (a), by its door
 const spot = (o: any) => o && Number.isFinite(+o.x) && Number.isFinite(+o.z) ? { x: Math.round(+o.x * 10) / 10, z: Math.round(+o.z * 10) / 10, label: String(o.label || "").slice(0, 60) } : null;
 const COLS = "id, name, female, elder, spec, persona, home, work, hang, partner_user IS NOT NULL AS taken";
 const optionalUser = (req: Request): TokenUser | null => { const h = req.headers.authorization || ""; const m = /^Bearer (.+)$/.exec(h); if (!m) return null; try { return verifyToken(m[1]); } catch { return null; } };
@@ -137,7 +137,7 @@ people.post("/people/:id/gift", requireUser, wrap(async (req, res) => {
     if (w.synced_at && req.body?.base !== w.version) { await c.query("ROLLBACK"); return res.status(409).json({ error: "Your money changed: syncing first", stale: true, state: await stateOf(pool, me.id) }); }
     if (w.money < G[1]) { await c.query("ROLLBACK"); return fail(res, 402, `${G[0]} is ₦${G[1].toLocaleString("en-NG")}; you don't have enough`); }
     const suits = G[3].some((x) => (P.interests || []).includes(x)), birthday = P.birthday === dayOfYear();
-    const out = await bump(c, me.id, id, Math.round(G[2] * (suits ? 2 : 1) * (birthday ? 1.5 : 1)), "gift");
+    const out = await bump(c, me.id, id, Math.round(G[2] * (suits ? 2 : 1) * (birthday ? 1.5 : 1) * (P.rich && G[1] < 10000 ? .5 : 1)), "gift");   // (the rich aren't moved much by small things)
     if (!out) { await c.query("ROLLBACK"); return fail(res, 404, "Swap numbers first"); }
     if ((out as any).refused) { await c.query("ROLLBACK"); return fail(res, 429, "They won't take another gift today"); }
     const u = (await c.query("UPDATE wallets SET money = money - $2, version = version + 1, updated_at = now() WHERE user_id = $1 RETURNING version, money::float8 AS money", [me.id, G[1]])).rows[0];
