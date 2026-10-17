@@ -71,6 +71,7 @@ export class WorldRoom extends Room<WorldState> {
   private stopTitle?: () => void;
   private lastRep = new Map<string, number>();
   private lastSms = new Map<string, number>();
+  private lastPc = new Map<string, number>(); private lastTyping = new Map<string, number>(); private pcReqs = new Map<string, Set<string>>();   // swapping numbers: who asked whom
   private lastDJ = new Map<string, number>();
   private lastRing = new Map<string, number>();
   private lastRideReq = new Map<string, number>();
@@ -247,6 +248,30 @@ export class WorldRoom extends Room<WorldState> {
       if (there) there.send("sms", { from: me.name, text, at: now });
       client.send("smsok", { to: toName, text, at: now, live: !!there });
     });
+    // swapping numbers with another player: ask (in person or from the phone), they say yes or no, and both phones save the other
+    this.onMessage("pcontact", (client, m: any) => {
+      const me = this.state.players.get(client.sessionId), to = typeof m?.to === "string" ? this.clients.find((c) => c.sessionId === m.to) : undefined;
+      if (!me || !to || to === client) return;
+      const t = Date.now(); if (t - (this.lastPc.get(client.sessionId) || 0) < 4000) return client.send("smserr", { error: "Wait a moment before asking again" });
+      this.lastPc.set(client.sessionId, t);
+      let set = this.pcReqs.get(to.sessionId); if (!set) this.pcReqs.set(to.sessionId, set = new Set()); set.add(client.sessionId);
+      to.send("pcontactreq", { id: client.sessionId, from: me.name });
+    });
+    this.onMessage("pcontactans", (client, m: any) => {
+      const me = this.state.players.get(client.sessionId), id = typeof m?.id === "string" ? m.id : "", other = this.state.players.get(id), oc = this.clients.find((c) => c.sessionId === id);
+      const set = this.pcReqs.get(client.sessionId); if (!me || !other || !oc || !set?.has(id)) return;   // only an answer to a real ask
+      set.delete(id);
+      if (!m.ok) return oc.send("pcontactres", { ok: false, name: me.name });
+      oc.send("pcontactres", { ok: true, name: me.name, id: client.sessionId }); client.send("pcontactres", { ok: true, name: other.name, id, mine: true });
+    });
+    // "typing…": shown in the other player's open conversation for a few seconds
+    this.onMessage("typing", (client, m: any) => {
+      const me = this.state.players.get(client.sessionId), to = String(m?.to || "").trim().toLowerCase(); if (!me || !to) return;
+      const t = Date.now(); if (t - (this.lastTyping.get(client.sessionId) || 0) < 1500) return; this.lastTyping.set(client.sessionId, t);
+      const base = (n: string) => n.replace(/ \(guest\)$/, "").toLowerCase();
+      const there = this.clients.find((c) => { const p = this.state.players.get(c.sessionId); return p && c !== client && (p.name.toLowerCase() === to || base(p.name) === base(to)); });
+      if (there) there.send("typing", { from: me.name });
+    });
     this.onMessage("chat", (client, m: any) => {
       const p = this.state.players.get(client.sessionId); if (!p) return;
       const text = typeof m?.text === "string" ? m.text.replace(/\s+/g, " ").trim().slice(0, 160) : "";
@@ -301,6 +326,6 @@ export class WorldRoom extends Room<WorldState> {
     const uid = (client as any).userData?.id;   // the host leaving ends their party
     if (uid) this.state.parties.forEach((pa, key) => { if (pa.owner === uid) { this.state.parties.delete(key); this.broadcast("partyend", { key, name: pa.name }); } });
     this.state.players.delete(client.sessionId);
-    this.lastChat.delete(client.sessionId); this.lastRep.delete(client.sessionId); this.lastSms.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
+    this.lastChat.delete(client.sessionId); this.lastRep.delete(client.sessionId); this.lastSms.delete(client.sessionId); this.lastPc.delete(client.sessionId); this.lastTyping.delete(client.sessionId); this.pcReqs.delete(client.sessionId); for (const v of this.pcReqs.values()) v.delete(client.sessionId); this.lastWarp.delete(client.sessionId); this.lastLook.delete(client.sessionId); this.lastDJ.delete(client.sessionId); this.lastRing.delete(client.sessionId); for (const k of [...this.rings.keys()]) if (k.startsWith(client.sessionId + "|")) this.rings.delete(k);
   }
 }

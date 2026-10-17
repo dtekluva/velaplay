@@ -173,6 +173,8 @@ body.photo #overlay,body.photo #hud,body.photo #vp{display:none!important}
 #phone .phIcon{position:relative}#phone .phBadge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#d8342c;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}#phone .phBadge:empty{display:none}
 #phone .phThread{flex:1;min-height:200px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:4px 0}
 #phone .phMsg{align-self:flex-start;max-width:80%;background:rgba(255,255,255,.12);padding:7px 10px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.35;overflow-wrap:anywhere}#phone .phMsg.mine{align-self:flex-end;background:#2f7a4a;border-radius:14px 14px 4px 14px}
+#phone .phTabs{display:flex;gap:4px;background:rgba(255,255,255,.08);border-radius:10px;padding:3px}#phone .phTab{flex:1;border:0;border-radius:8px;background:none;color:inherit;font:inherit;font-size:12px;padding:6px 4px;cursor:pointer;opacity:.7}#phone .phTab.on{background:rgba(255,255,255,.18);opacity:1;font-weight:600}
+#phone .phEmoji{display:flex;flex-wrap:wrap;gap:2px}#phone .phEmo{border:0;background:rgba(255,255,255,.08);border-radius:8px;font-size:17px;padding:3px 6px;cursor:pointer;line-height:1.2}#phone .phTyping{min-height:16px;font-size:12px;opacity:.7;font-style:italic}#phone .phDay{align-self:center;font-size:11px;opacity:.6;padding:2px 8px;border-radius:8px;background:rgba(255,255,255,.08)}#phone .phPresence{font-size:12px}#phone .phMsg small{display:block;font-size:10px;margin-top:2px;text-align:right}
 #phone .phSend{display:flex;gap:6px}#phone .phSend input{flex:1}#phone .phSend .phBtn{align-self:stretch}
 #phone .phChips{display:flex;flex-wrap:wrap;gap:6px}#phone .phChip{border:0;border-radius:12px;padding:4px 9px;background:rgba(255,255,255,.1);color:#f1ebda;font:inherit;font-size:12px;cursor:pointer}
 #phone .phRow{display:flex;flex-direction:column;gap:2px;text-align:left;border:0;border-radius:12px;padding:9px 11px;background:rgba(255,255,255,.07);color:#f1ebda;font:inherit;cursor:pointer}#phone .phRow:hover{background:rgba(255,255,255,.12)}
@@ -10928,7 +10930,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': slash(); break;
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ct = contactTarget(); if (ct) { talkStart(ct); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ct = contactTarget(); if (ct) { talkStart(ct); break; } } { const ps = playerSpot(); if (ps) { pcAsk(ps.id, ps.name); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -11398,7 +11400,7 @@ function updateHUD(dt) {
   const stn = !P.driving && stationNear(), stnA = stn && landAction();   // a station platform: the train, ahead of the people waiting on it
   const thS = !P.driving && nearThief(), doorS = !thS && !P.driving && doorSpot(), exS = !doorS && !P.driving && exhibitNear();
   const rgS = !P.driving && !bar && ringSpot(), ndS = !P.driving && !bar && !lift && !downed && needSpot(), djB = !P.driving && !bar && djBoothNear(), dnc = !P.dance && !djB && !bar && danceClub(), dncF = dnc && !(dnc.party && myHome()) && (onDanceFloor(dnc) || !who);
-  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !stn && !exS && !salesDesk() && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
+  $('prompt').hidden = !thS && !doorS && !sup && !downed && !car && !P.driving && !who && !lift && !landA && !pick && !bar && !desk && !stn && !exS && !salesDesk() && !ndS && !djB && !P.dance && !dncF && !rgS && !surrenderNear() && !RIDE.on && !playerSpot() && !rideSpot() && !JOBS.del || !!TC.conv || LM_.open;
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (TRAIN.ride.on) { $('prompt').hidden = false; $('prompt').textContent = trainPrompt(); }
   else if (INSPECT.on) { $('prompt').hidden = false; $('prompt').textContent = 'Mouse · turn it   ·   wheel / W S · closer   ·   A D · next piece   ·   E · step back'; }
@@ -11418,6 +11420,7 @@ function updateHUD(dt) {
   else if (exS) $('prompt').textContent = `🔍 E · Look closer: ${exS.title}`;
   else if (salesDesk()) $('prompt').textContent = '🔑 E · See the sales manager: buy a car';
   else if (rideSpot()) $('prompt').textContent = `E · Ask ${rideSpot().name} for a ride`;
+  else if (playerSpot()) $('prompt').textContent = `📇 E · Swap numbers with ${playerSpot().name}`;
   else if (!P.driving && surrenderNear()) $('prompt').textContent = 'E · Give yourself up · a quarter off the fine';
   else if (downed) $('prompt').textContent = 'E · Help the civilian up';
   else if (pick) $('prompt').textContent = `E · Take a delivery job at ${pick.name}`;
@@ -14578,7 +14581,7 @@ async function netJoin() {
     NET.room = room; NET.retry = 0; NET.sent = null; goalsLoad(); smsLoad(); garageLoad();
     room.onMessage('chat', m => chatIn(m));
     room.onMessage('plot', news => { for (const p of news) applyOther(p); });
-    room.onMessage('trade', tradeNews); room.onMessage('sms', smsIn); room.onMessage('market', marketNews); room.onMessage('smsok', smsSent); room.onMessage('smserr', m => toast('💬 Not sent', m.error || ''));
+    room.onMessage('trade', tradeNews); room.onMessage('sms', smsIn); room.onMessage('market', marketNews); room.onMessage('smsok', smsSent); room.onMessage('smserr', m => toast('💬 Not sent', m.error || '')); room.onMessage('pcontactreq', onPcReq); room.onMessage('pcontactres', onPcRes); room.onMessage('typing', onTyping);
     room.onMessage('rtc', m => onRtc(m));
     // the server's clock (for the shared club music): keep the reading with the shortest round trip
     NET.clk = { off: 0, rtt: 1e9 };
@@ -17047,7 +17050,7 @@ PHONE.apps.goals = { render: () => {
 const phHead = (title, sub) => { const h = ph('div', 'phHead'); h.append(ph('button', 'phBack', '‹', { type: 'button', 'aria-label': 'Back', on: { click: () => phoneApp('home') } }), ph('b', null, title)); if (sub) h.append(ph('span', 'phDim', sub)); return h; };
 const PHONE_APPS = [['goals', '🏅', 'Goals']];
 // ---- Messages: text anyone online by name (accounts also get texts left for them while away, and keep their history) ----
-const SMS = { list: [], thread: null, draftTo: '', unread: 0, loaded: false };
+const SMS = { list: [], thread: null, draftTo: '', unread: 0, loaded: false, drafts: {}, typingT: 0, focus: false };
 const SMS_STORE = 'giantwood-texts';
 try { SMS.list = JSON.parse(localStorage.getItem(SMS_STORE) || '[]'); } catch (e) {}
 const smsSave = () => { try { localStorage.setItem(SMS_STORE, JSON.stringify(SMS.list.slice(-300))); } catch (e) {} };
@@ -17055,15 +17058,16 @@ const smsWho = m => (m.mine ? m.to : m.from).replace(/ \(guest\)$/, '');
 const myNames = () => [NET.user?.name, NET.guest, NET.guest && NET.guest + ' (guest)'].filter(Boolean).map(s => s.toLowerCase());
 function smsCount() { SMS.unread = SMS.list.filter(m => !m.mine && !m.read).length; const b = document.querySelector('#phone [data-badge=messages]'); if (b) b.textContent = SMS.unread || ''; }
 function smsIn(m) {   // a text arrived
+  delete PCONT.typing[pcBase(m.from).toLowerCase()];
   SMS.list.push({ from: m.from, to: NET.user?.name || NET.guest, text: m.text, at: m.at || Date.now(), mine: false, read: PHONE.open && PHONE.app === 'messages' && SMS.thread === m.from.replace(/ \(guest\)$/, '') });
-  smsSave(); smsCount(); sfx('swap'); if (!PHONE.open || PHONE.app !== 'messages') toast(`💬 ${m.from}`, m.text.length > 70 ? m.text.slice(0, 68) + '…' : m.text); phoneRefresh();
+  smsSave(); smsCount(); sfx('swap'); if (!PHONE.open || PHONE.app !== 'messages') toast(`💬 ${pcBase(m.from)}${pcHas(m.from) ? '' : ' (not in your contacts)'}`, m.text.length > 70 ? m.text.slice(0, 68) + '…' : m.text); phoneRefresh();
 }
 function smsSend(to, text) {
   to = String(to || '').trim(); text = String(text || '').trim(); if (!to || !text) return;
   if (!NET.room) { toast('', 'Texts go through the online world: you’re offline right now'); return; }
   NET.room.send('sms', { to, text: text.slice(0, 240) });
 }
-function smsSent(m) { SMS.list.push({ from: NET.user?.name || NET.guest, to: m.to, text: m.text, at: m.at, mine: true, read: true }); SMS.thread = m.to.replace(/ \(guest\)$/, ''); smsSave(); phoneRefresh(); if (!m.live) toast('💬 Sent', `${m.to} isn’t on right now: they’ll get it next time they play`); }
+function smsSent(m) { SMS.list.push({ from: NET.user?.name || NET.guest, to: m.to, text: m.text, at: m.at, mine: true, read: true, live: !!m.live }); SMS.thread = m.to.replace(/ \(guest\)$/, ''); smsSave(); phoneRefresh(); if (!m.live) toast('💬 Sent', `${m.to} isn’t on right now: they’ll get it next time they play`); }
 async function smsLoad() {   // an account's history from the server, merged with this device's
   if (!NET.token) return;
   try { const r = await api('/phone/messages'); const seen = new Set(SMS.list.map(m => m.at + '|' + m.text)); for (const m of r.messages) if (!seen.has(m.at + '|' + m.text)) SMS.list.push(m); SMS.list.sort((a, b) => a.at - b.at); smsSave(); smsCount(); const n = r.messages.filter(m => !m.mine && !m.read).length; if (n) toast(`💬 ${n} new text${n > 1 ? 's' : ''}`, 'Open your phone (G) · Messages'); phoneRefresh(); } catch (e) {}
@@ -17073,13 +17077,24 @@ PHONE.apps.messages = { render: () => {
     const who = SMS.thread, msgs = SMS.list.filter(m => smsWho(m).toLowerCase() === who.toLowerCase()), out = [phHead('💬 ' + who)];
     for (const m of msgs) if (!m.mine && !m.read) { m.read = true; if (NET.token) api('/phone/read', 'POST', { from: m.from }).catch(() => {}); }
     smsSave(); smsCount();
-    const box = ph('div', 'phThread'); for (const m of msgs.slice(-60)) { const b = ph('div', 'phMsg' + (m.mine ? ' mine' : ''), m.text); b.title = new Date(m.at).toLocaleString(); box.append(b); }
-    if (!msgs.length) box.append(ph('div', 'phDim', 'Say hello.'));
-    const f = ph('form', 'phSend'), inp = ph('input', null, null, { name: 'text', maxlength: '240', placeholder: 'Message', autocomplete: 'off' });
-    f.append(inp, ph('button', 'phBtn', 'Send', { type: 'submit' })); f.addEventListener('submit', e => { e.preventDefault(); smsSend(who, inp.value); inp.value = ''; });
+    const on = pcOnline(who), sub = ph('div', 'phDim phPresence', on ? `🟢 Online${on.p ? ' · ' + fmtDist(Math.hypot(on.p.x - P.pos.x, on.p.z - P.pos.z)) + ' away' : ''}` : '⚪ Not online: they’ll get it next time (if they have an account)');
+    const box = ph('div', 'phThread'); let day = '';
+    for (const m of msgs.slice(-80)) { const d = new Date(m.at), dk = d.toDateString(); if (dk !== day) { day = dk; box.append(ph('div', 'phDay', dk === new Date().toDateString() ? 'Today' : d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }))); }
+      const b = ph('div', 'phMsg' + (m.mine ? ' mine' : '')); b.append(ph('span', null, m.text), ph('small', 'phDim', d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (m.mine ? (m.live === false ? ' ✓' : ' ✓✓') : ''))); b.title = d.toLocaleString(); box.append(b); }
+    if (!msgs.length) box.append(ph('div', 'phDim', 'Say hello 👋'));
+    const typ = ph('div', 'phTyping', pcTyping(who) ? `${who} is typing…` : ''); typ.id = 'phTyping';
+    const f = ph('form', 'phSend'), inp = ph('input', null, null, { name: 'text', maxlength: '240', placeholder: 'Type a message…', autocomplete: 'off', enterkeyhint: 'send' });
+    inp.value = SMS.drafts[who.toLowerCase()] || '';
+    inp.addEventListener('input', () => { SMS.drafts[who.toLowerCase()] = inp.value; if (inp.value.trim() && NET.room && Date.now() - (SMS.typingT || 0) > 2000) { SMS.typingT = Date.now(); NET.room.send('typing', { to: who }); } });
+    f.append(inp, ph('button', 'phBtn', 'Send', { type: 'submit' })); f.addEventListener('submit', e => { e.preventDefault(); smsSend(who, inp.value); inp.value = ''; SMS.drafts[who.toLowerCase()] = ''; });
+    const emo = ph('div', 'phEmoji'); for (const e of ['😂', '😊', '❤️', '🔥', '🙏', '👍', '😮', '😢', '🎉', '👀']) emo.append(ph('button', 'phEmo', e, { type: 'button', on: { click: () => { inp.value += e; SMS.drafts[who.toLowerCase()] = inp.value; inp.focus(); } } }));
     const back = out[0].querySelector('.phBack'); back.onclick = () => { SMS.thread = null; phoneRefresh(); };
-    setTimeout(() => { box.scrollTop = box.scrollHeight; inp.focus(); }, 0);
-    return [...out, box, f];
+    const acts = ph('div', 'phChips');
+    if (on) acts.append(ph('button', 'phChip', '📍 Find them', { type: 'button', on: { click: () => { const q = pcOnline(who); if (q) { setWaypoint(q.p.x, q.p.z, who); toast('📍 Pinned', `${who}’s spot right now`); } } } }));
+    if (!pcHas(who)) acts.append(ph('button', 'phChip', '📇 Save to contacts', { type: 'button', on: { click: () => { pcAdd(who); toast('📇 Saved', `${who} is in 👥 Contacts › Players`); phoneRefresh(); } } }));
+    setTimeout(() => { box.scrollTop = box.scrollHeight; if (!TOUCH.on || SMS.focus) inp.focus(); }, 0);
+    inp.addEventListener('focus', () => { SMS.focus = true; }); inp.addEventListener('blur', () => { SMS.focus = false; });
+    return [...out, sub, box, typ, emo, f, ...(acts.childNodes.length ? [acts] : [])];
   }
   const out = [phHead('💬 Messages', NET.room ? 'Text anyone in the world by name' : 'Offline: texts need the online world')];
   const f = ph('form', 'phSend'), inp = ph('input', null, null, { name: 'to', placeholder: 'Name', autocomplete: 'off', list: 'phPeople' });
@@ -17096,6 +17111,65 @@ PHONE.apps.messages = { render: () => {
   return out;
 } };
 
+// ---- other players in your contacts: swap numbers in person (E beside them) or from the phone; then text, see who's online, find them ----
+const PCONT_STORE = 'giantwood-player-contacts';
+const PCONT = { list: [], typing: {}, tab: 'people' };
+try { PCONT.list = JSON.parse(localStorage.getItem(PCONT_STORE) || '[]'); } catch (e) {}
+const pcSave = () => { try { localStorage.setItem(PCONT_STORE, JSON.stringify(PCONT.list)); } catch (e) {} };
+const pcBase = n => String(n || '').replace(/ \(guest\)$/, '');
+const pcHas = n => PCONT.list.some(q => q.name.toLowerCase() === pcBase(n).toLowerCase());
+function pcAdd(name) { if (!name || pcHas(name)) return; PCONT.list.push({ name: pcBase(name), since: Date.now() }); pcSave(); }
+function pcForget(name) { PCONT.list = PCONT.list.filter(q => q.name.toLowerCase() !== pcBase(name).toLowerCase()); pcSave(); }
+function pcOnline(name) {   // -> { id, p } while they're in this world
+  let hit = null; const k = pcBase(name).toLowerCase();
+  NET.room?.state.players.forEach((p, id) => { if (id !== NET.room.sessionId && pcBase(p.name).toLowerCase() === k) hit = { id, p }; });
+  return hit;
+}
+function playerSpot() {   // on foot right beside another player you haven't swapped numbers with
+  if (!NET.room || P.driving || RIDE.on) return null;
+  for (const [id, r] of NET.others) { const p = NET.room.state.players.get(id); if (!p || p.veh || pcHas(p.name)) continue; if (Math.hypot(r.x - P.pos.x, r.z - P.pos.z) < 2.6 && Math.abs(r.y - P.pos.y) < 2.5) return { id, name: pcBase(p.name) }; }
+  return null;
+}
+function pcAsk(id, name) { NET.room?.send('pcontact', { to: id }); toast('📇 Asking for their number', `Waiting for ${name} to say yes…`); }
+function onPcReq(m) {
+  doorbell(); const answer = ok => { NET.room?.send('pcontactans', { id: m.id, ok }); menuClose(); };
+  menuShow(`📇 ${pcBase(m.from)} wants to swap numbers`, 'Then you can text each other any time, and see when they’re online', [{ label: 'Save their number', run: () => answer(true) }, { label: 'No thanks', run: () => answer(false) }]);
+  LM_.venue = { x: 0, z: 0, r: 1e9 };
+}
+function onPcRes(m) {
+  if (!m.ok) { toast('📇 No number', `${pcBase(m.name)} said no this time`); return; }
+  pcAdd(m.name); sfx('swap'); toast(`📇 ${pcBase(m.name)} is in your contacts`, 'Text them: 👥 Contacts › Players (G for the phone)'); phoneRefresh();
+}
+function onTyping(m) {   // their "typing…", updated in place so a half-written reply of yours isn't disturbed
+  const k = pcBase(m.from).toLowerCase(); PCONT.typing[k] = Date.now() + 4000;
+  const show = () => { const el = document.getElementById('phTyping'); if (el && SMS.thread && SMS.thread.toLowerCase() === k) el.textContent = pcTyping(k) ? `${pcBase(m.from)} is typing…` : ''; };
+  show(); setTimeout(show, 4100);
+}
+const pcTyping = name => (PCONT.typing[pcBase(name).toLowerCase()] || 0) > Date.now();
+const pcOpen = name => { SMS.thread = pcBase(name); phoneApp('messages'); };
+function playersView() {   // Contacts › Players
+  const out = [];
+  if (!NET.room) out.push(ph('div', 'phCard', '🌐 You’re offline. Other players appear here when you play online: walk up to one and press E to swap numbers.'));
+  const unreadOf = n => SMS.list.filter(q => !q.mine && !q.read && smsWho(q).toLowerCase() === n.toLowerCase()).length;
+  const rows = PCONT.list.map(c => ({ c, on: pcOnline(c.name) })).sort((a, b) => (!!b.on - !!a.on) || a.c.name.localeCompare(b.c.name));
+  if (!rows.length) out.push(ph('div', 'phCard', 'No players saved yet. Stand next to another player and press E (“Swap numbers”), or ask someone online below.'));
+  for (const { c, on } of rows) {
+    const card = ph('div', 'phCard'), last = [...SMS.list].reverse().find(q => smsWho(q).toLowerCase() === c.name.toLowerCase()), un = unreadOf(c.name);
+    card.append(ph('b', null, `${on ? '🟢' : '⚪'} ${c.name}`), ph('span', 'phDim', on ? `Online · ${fmtDist(Math.hypot(on.p.x - P.pos.x, on.p.z - P.pos.z))} away${on.p.veh ? ' · driving' : ''}` : 'Not online right now'));
+    if (pcTyping(c.name)) card.append(ph('span', 'phDim', 'typing…')); else if (last) card.append(ph('span', 'phDim', (last.mine ? 'You: ' : '') + (last.text.length > 50 ? last.text.slice(0, 48) + '…' : last.text)));
+    const row = ph('div', 'phChips'); row.append(ph('button', 'phBtn', `💬 Chat${un ? ` (${un})` : ''}`, { type: 'button', on: { click: () => pcOpen(c.name) } }));
+    if (on) row.append(ph('button', 'phChip', '📍 Find them', { type: 'button', on: { click: () => { setWaypoint(on.p.x, on.p.z, c.name); toast('📍 Pinned', `${c.name}’s spot right now`); } } }));
+    row.append(ph('button', 'phChip', PEOPLE.rmArm === 'p:' + c.name ? 'Tap again to delete' : 'Delete', { type: 'button', on: { click: () => { if (PEOPLE.rmArm !== 'p:' + c.name) { PEOPLE.rmArm = 'p:' + c.name; phoneRefresh(); return; } PEOPLE.rmArm = null; pcForget(c.name); phoneRefresh(); } } }));
+    card.append(row); out.push(card);
+  }
+  const others = []; NET.room?.state.players.forEach((p, id) => { if (id !== NET.room.sessionId && !pcHas(p.name)) others.push({ id, p }); });
+  if (others.length) {
+    out.push(ph('div', 'phDim phFoot', `🌐 Online now · ${others.length}`));
+    for (const { id, p } of others.slice(0, 20)) { const card = ph('div', 'phCard'), n = pcBase(p.name); card.append(ph('b', null, `🟢 ${n}`), ph('span', 'phDim', `${fmtDist(Math.hypot(p.x - P.pos.x, p.z - P.pos.z))} away`));
+      const row = ph('div', 'phChips'); row.append(ph('button', 'phBtn', '📇 Ask for their number', { type: 'button', on: { click: () => pcAsk(id, n) } }), ph('button', 'phChip', '💬 Text', { type: 'button', on: { click: () => pcOpen(n) } })); card.append(row); out.push(card); }
+  }
+  return out;
+}
 // ---- Taxi: one comes to the nearest road; get in and it drives you to your map pin (or pick one on the map) ----
 const CAB = { car: null, state: '', t: 0 };
 function taxiCall() {
@@ -17694,6 +17768,9 @@ const contactWhere = c => { const A = c && residentAnchor(c); return A ? A.label
 PHONE.apps.contacts = { render: () => {
   if (CHAT.view) { const R0 = PEOPLE.cast.get(personKey(CHAT.view.id)); if (R0) return chatView(R0); CHAT.view = null; }
   const out = [phHead('👥 Contacts', 'People you’ve swapped numbers with')];
+  { const nOn = PCONT.list.filter(c => pcOnline(c.name)).length, tabs = ph('div', 'phTabs');
+    for (const [k, label] of [['people', '🏘 People in town'], ['players', `🌐 Players${nOn ? ` · ${nOn} online` : ''}`]]) tabs.append(ph('button', 'phTab' + (PCONT.tab === k ? ' on' : ''), label, { type: 'button', on: { click: () => { PCONT.tab = k; phoneRefresh(); } } }));
+    out.push(tabs); if (PCONT.tab === 'players') return [...out, ...playersView()]; }
   if (!PEOPLE.loaded) { peopleLoad(); out.push(ph('div', 'phDim', 'Loading your contacts…')); return out; }
   const list = [...PEOPLE.mine.values()].map(m => [m, PEOPLE.cast.get(personKey(m.id)), PEOPLE.civ.get(personKey(m.id))]).filter(q => q[1]).sort((a, b) => a[1].name.localeCompare(b[1].name));
   if (!list.length) out.push(ph('div', 'phCard', 'No contacts yet. Talk to someone (E) and ask for their number: they’ll be in town for good, with a home, a job and a place they go in the evening.'));
@@ -17822,7 +17899,7 @@ function relAnswer(c, o, r) {
 // all your contacts (more from closer friends); a kind reply brings you closer, a cold one or silence pushes you apart.
 // Invite someone out (a buka, a club, the beach, a museum) and they head there; turn up and spend a moment together. ----
 const CHAT_STORE = 'giantwood-people-texts';
-const CHAT = { threads: {}, nextT: 0, view: null, call: null, unread: 0 };
+const CHAT = { threads: {}, nextT: 0, view: null, call: null, unread: 0, typing: {}, drafts: {} };
 try { Object.assign(CHAT, { threads: JSON.parse(localStorage.getItem(CHAT_STORE) || '{}') }); } catch (e) {}
 const chatSave = () => { try { for (const k in CHAT.threads) CHAT.threads[k] = CHAT.threads[k].slice(-40); localStorage.setItem(CHAT_STORE, JSON.stringify(CHAT.threads)); } catch (e) {} };
 const chatOf = id => CHAT.threads[personKey(id)] ||= [];
@@ -18150,6 +18227,101 @@ function updateWedding(dt) {
 // romance in your texts: sweeter words, and dates
 function loveText(R) { return ri(['Thinking of you ❤️', 'Can’t wait to see you 😘', 'I miss you already', 'Good ' + hourWord() + ', my love ☀️', 'You make me so happy, you know that?', 'Date night soon? 🥰']); }
 
+// ---- typing your own texts to people you know: what you write is read for what it's about (a greeting, "where are you?", an
+// invitation, a compliment, food, music, football, an insult…) and they answer in their own voice: their job, hometown,
+// interests and mood, where they are right now, how close you are, the weather, pidgin if you write pidgin ----
+const TYPED_INTENTS = [
+  ['insult', /\b(stupid|idiot|ugly|mumu|fool|olodo|shut up|hate you|useless|dumb|nonsense|werey|ode)\b/i],
+  ['love', /(love you|luv you|miss you|❤|😘|😍|\bbabe\b|\bbaby\b|darling|my love|sweetheart|my heart)/i],
+  ['compliment', /\b(beautiful|handsome|pretty|cute|gorgeous|lovely|you'?re sweet|so sweet|smart|amazing|your smile|you look (good|nice|great))\b/i],
+  ['meet', /\b(meet|hang ?out|link ?up|come over|come (and )?see|let'?s go|chill|date|visit|join me|come out)\b/i],
+  ['where', /\b(where (are|r) (you|u)|wya|where you dey|where u dey|where you at|your location)\b/i],
+  ['wyd', /\b(what are you (doing|up to)|wyd|wetin you dey do|wetin dey happen|what (you|u) doing|what'?s up|whats up|sup)\b/i],
+  ['howareyou', /\b(how are you|how r u|how you dey|how u dey|how body|how far|how'?s (it going|life|your day|everything)|how was your day|how did today go|you good)\b/i],
+  ['age', /\b(how old|your age)\b/i],
+  ['job', /\b(what do you do|your job|where do you work|what work|for a living)\b/i],
+  ['home', /\b(where are you from|where you from|hometown|where did you grow|your village|state of origin)\b/i],
+  ['hobby', /\b(hobby|hobbies|for fun|what do you like|free time|what are you into)\b/i],
+  ['food', /\b(eat|ate|food|hungry|jollof|suya|amala|eba|fufu|afang|egusi|pepper ?soup|chop|dinner|lunch|breakfast|banga|starch|owo soup)\b/i],
+  ['music', /\b(music|song|burna|wizkid|davido|asake|rema|tems|ayra|olamide|afrobeats?|amapiano|concert)\b/i],
+  ['football', /\b(football|match|arsenal|chelsea|man ?u(nited)?|man city|liverpool|barca|madrid|super eagles|osimhen|lookman|akwa united)\b/i],
+  ['weather', /\b(rain|raining|sunny|hot|weather|cold|harmattan|heat)\b/i],
+  ['joke', /(joke|\blol\b|lmao|haha|😂|🤣)/i],
+  ['thanks', /\b(thanks?|thank you|thx|e se|daalu|sosongo|nagode)\b/i],
+  ['sorry', /\b(sorry|apolog|forgive)\b/i],
+  ['bye', /\b(bye|later|good ?night|\bgn\b|go(ing)? to sleep|talk soon|ttyl|see ya)\b/i],
+  ['greet', /^\W*(hi+|hello+|hey+|yo|good (morning|afternoon|evening|day)|mesiere|bawo|kedu|ndewo|sannu|abadie|morning|evening)\b/i],
+  ['yes', /^\W*(yes|yeah|yep|yup|sure|ok(ay)?|of course|definitely|i do|true|abi|e no bad)\b/i],
+  ['no', /^\W*(no|nope|nah|never|not really|i don'?t)\b/i],
+];
+const PIDGIN_RE = /\b(wetin|abeg|dey|na wa|sef|abi|oya|wahala|how far|una|wey|shey|o jare|no be|e be)\b/i;
+const typedIntent = text => { for (const [k, re] of TYPED_INTENTS) if (re.test(text)) return k; return /\?\s*$/.test(text) ? 'question' : 'other'; };
+function regionDish(P0) {   // what they'd tell you to eat, by where they're from
+  const h = String(P0.hometown || '') + ' ' + String(P0.job || '');
+  return /Uyo|Ibom|Eket|Oron|Ikot|Ibeno|Abasi/i.test(h) ? 'afang soup with fresh periwinkle' : /Asaba|Warri|Delta|Abraka|Sapele|Agbor|Effurun/i.test(h) ? 'starch and banga soup'
+    : /Benin|Edo|Ife|Ore/i.test(h) ? 'owo soup with yam' : /Umuahia|Abia|Aba/i.test(h) ? 'ofe nsala' : /Ibadan|Oyo|Abeokuta|Ogun/i.test(h) ? 'amala, ewedu and gbegiri' : 'smoky party jollof';
+}
+function typedReply(R, c, intent, text, pidgin, st, m) {   // -> [what they say, tone for relTalk (or null), follow-up allowed, action]
+  const P0 = R.persona || {}, w = hourWord(), mood = P0.mood || 'sunny', romance = !!m?.romance, close = st === 'close' || romance, name0 = (NET.user?.name || NET.guest || '').split(' ')[0];
+  const pg = (a, b) => pidgin && b ? b : a;
+  const its = P0.interests || [], about = INTERESTS.find(x => text.toLowerCase().includes(x.toLowerCase().split(' ')[0]));
+  if (about && intent !== 'insult' && intent !== 'love') return [its.includes(about) ? `${about}?! You’re speaking my language. ${ri(INTEREST_SAY[about] || ['I love it.'])}` : `${about}… I don’t really follow it, but tell me why you like it 😄`, 'interest', true, null, about];
+  switch (intent) {
+    case 'greet': return [/mesiere|abadie/i.test(text) ? ri(['Mesiere! Abadie? 😊', 'Mesiere o! I dey fine. You nko?']) : /bawo/i.test(text) ? 'Mo wa daadaa! 😊 How’s your day?' : /kedu/i.test(text) ? 'Adị m mma! 😄 Kedu?' : pg(ri([`Good ${w}${name0 ? ' ' + name0 : ''}! 😊`, `Hey you! 😄`, `Hiii! Good ${w} o`]), ri(['How far! I dey o 😄', `Good ${w} o! How body?`])), 'text_warm', true];
+    case 'howareyou': return [mood === 'grumpy' ? pg('Surviving. This heat and traffic no be small thing 😩', 'I dey manage o. This Lagos no easy 😩') : mood === 'shy' ? 'I’m fine 😊 thanks for asking. And you?' : pg(ri(['I’m good! Better now you texted 😄', `Doing great this ${w}! You?`, 'All good here, just vibing 😎']), ri(['I dey kampe! You nko?', 'I dey o, God dey 🙏 you nko?'])), 'day', false];
+    case 'where': { const here = contactWhere(c).replace(/\btheir\b/g, 'my').replace(/^walking with you$/, 'right here with you 😄').replace(/^meeting you at/, 'waiting for you at'); return [`I’m ${here}${/with you/.test(here) ? '' : ' right now'}.${st !== 'contact' ? ri([' Come and find me 😄', ' You dey come? 👀', '']) : ''}`, 'text_warm', false, 'pin']; }
+    case 'wyd': { const h = tod * 24; return [h < 7 ? 'Still in bed o 😴 You woke me up!' : h < 17 ? (P0.job ? ri(['At work. You know how it is 😅', `Working. ${P0.job}`, 'Hustling, as usual 💪']) : 'Running errands around town.') : h < 21 ? ri(['Just got home, cooking something small 🍲', 'Watching a Nollywood film, it’s so dramatic 😂', 'Relaxing small. What about you?']) : ri(['Lying down, scrolling my phone 📱', 'About to sleep. Why are you awake? 😏']), 'text_warm', true]; }
+    case 'age': return [P0.age ? ri([`I’m ${P0.age}. Don’t say anything 😂`, `${P0.age}! But I look younger, abi? 😏`]) : 'A lady never tells 😂', 'text_warm', true];
+    case 'job': return [P0.job ? `${P0.job}${/\.$/.test(P0.job) ? '' : '.'} ${ri(['It pays the bills 😅', 'I actually like it.', 'Some days are long, but it’s good.'])}` : 'A bit of this, a bit of that 😄', 'text_warm', true];
+    case 'home': return [P0.hometown ? `I’m from ${P0.hometown}. ${ri(['Best place in the world 😌', 'You should visit sometime.', 'Home is home.'])}` : 'Born and bred right here 😄', 'text_warm', true];
+    case 'hobby': return [its.length ? `I’m into ${its.join(' and ')}. ${ri(['What about you?', 'Don’t laugh 😂', 'You?'])}` : 'Sleeping, honestly 😂', 'text_warm', false];
+    case 'food': return [ri([`You know what I want right now? ${regionDish(P0)} 😋`, `Have you tried ${regionDish(P0)}? It’s the best thing ever.`, pg('I’m so hungry now that you mention food 😭', 'Na food you dey talk? My belle don hear 😂')]) + (st !== 'contact' ? ri([' Let’s go and eat together?', '']) : ''), 'text_warm', false, st !== 'contact' ? 'food' : null];
+    case 'music': return [its.includes('Afrobeats') ? ri(['Afrobeats is my life! Asake’s new one is on repeat 🔥', 'Burna or Wizkid? Choose carefully 😤', 'If there’s a concert in town, I’m there!']) : ri(['I like whatever’s playing at the club 😂', 'Music is nice, but I’m not a big fan like that.']), its.includes('Afrobeats') ? 'interest' : 'text_warm', true, null, its.includes('Afrobeats') ? 'Afrobeats' : null];
+    case 'football': return [its.includes('football') ? ri(['Don’t start me on football 😤 my team is giving me high blood pressure', 'Super Eagles to the World Cup! 🦅🇳🇬', 'Did you watch the match?! What a goal!']) : ri(['Football? I only watch for the jerseys 😂', 'I don’t follow football much 😅']), its.includes('football') ? 'interest' : 'text_warm', true, null, its.includes('football') ? 'football' : null];
+    case 'weather': return [WX.k > .3 ? ri(['This rain sef! I’m stuck indoors 🌧', 'The rain is serious today. Stay dry o!']) : w === 'night' ? 'It’s actually cool tonight. I like it.' : ri(['The sun is not playing today ☀️😩', 'This heat! I need a cold Chapman 🥤']), 'text_warm', true];
+    case 'joke': return [mood === 'grumpy' ? ri(['Hmm. Funny.', '😐']) : ri(['😂😂😂', 'You’re mad o 🤣', 'Hahaha stop!']) + (Math.random() < .4 ? ' Okay, my turn: ' + ri(CHAT_JOKES) : ''), mood === 'grumpy' ? 'text_cold' : 'text_fun', false];
+    case 'compliment': return [close ? ri(['Stop it, you’re making me blush 🙈❤️', 'Aww, you’re so sweet to me 🥺', 'Hehe, I could say the same about you 😏']) : st === 'friend' ? ri(['Haha thank you 😊', 'Aww that’s kind of you!']) : ri(['Lol, thank you 😅', 'Hmm, thanks o 😄']), 'compliment', false];
+    case 'love': return romance ? [loveText(R), 'text_warm', false] : close ? [ri(['Aww 🙈 are you saying what I think you’re saying? 👀', 'Hmm… I like you too, you know 😳']), 'text_fun', false] : [ri(['Lol slow down o 😅 we’re still getting to know each other', 'Ehn?! 😂 Where is this coming from?', 'Haha, you’re funny 😅']), st === 'contact' ? 'text_cold' : 'text_fun', false];
+    case 'meet': return ['', null, false, 'meet'];
+    case 'insult': return [mood === 'grumpy' ? ri(['Look at who’s talking 🙄', 'Ehn? Talk to yourself.']) : ri(['Wow. That wasn’t nice at all 😠', 'Why would you say that to me? 😔', 'Okay. I didn’t deserve that.']), 'text_cold', false];
+    case 'thanks': return [ri(['Anytime 😊', 'You’re welcome!', 'No wahala at all 🙏']), 'text_warm', false];
+    case 'sorry': return [ri(['It’s okay ❤️', 'Apology accepted 😊', 'Hmm. Okay, I forgive you 😌']), 'text_warm', false];
+    case 'bye': return [w === 'night' || /night|sleep|gn/i.test(text) ? ri(['Good night o, sleep well 😴', 'Night night! Sweet dreams 🌙']) : ri(['Okay, talk later! 👋', 'Bye bye, take care 😊', 'Later! Don’t forget me o 😄']), 'text_warm', false];
+    case 'yes': return [ri(['Nice! 😄', 'I knew it 😏', 'Yay!', 'Okay o 😊']), 'text_warm', true];
+    case 'no': return [ri(['Ah okay 😅', 'Hmm, fair enough.', 'Really? Okay o.']), 'text_warm', true];
+    case 'question': return [ri(['Hmm, good question 🤔 Let me think about it.', 'Why do you ask? 😏', 'Honestly? I’m not sure 😅', 'Ask me in person and I’ll tell you 😉']), 'text_warm', true];
+    default: return [text.trim().length <= 3 ? ri(['😅', 'Okay…', 'Hmm']) : pg(ri(['Lol true', 'Hmm, tell me more 👀', 'Really? 😮', 'I hear you', 'Interesting 😄', 'Haha, you’re funny']), ri(['Na so o 😂', 'You no serious 😂', 'I hear you well well', 'Ehen? Talk am 👀'])), text.trim().length <= 3 ? null : 'text_warm', true];
+  }
+}
+async function chatTyped(R, text) {
+  text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 240); if (!text) return;
+  const id = personKey(R.id), m = PEOPLE.mine.get(id), st = m ? relStageOf(relDecayed(m), m.stage) : 'contact', c = PEOPLE.civ.get(id) || { resident: R };
+  const t = chatOf(R.id), pend = t.filter(x => !x.mine).at(-1);
+  if (pend && !pend.answered) { pend.answered = true; pend.read = true; }   // a typed answer answers their last text
+  chatPush(R.id, { mine: true, text });
+  const intent = typedIntent(text), pidgin = PIDGIN_RE.test(text);
+  let [say, tone, follow, act, about] = typedReply(R, c, intent, text, pidgin, st, m);
+  if (act === 'meet') {   // an invitation in your own words: a place you named, or they ask you to pick
+    const yes = Math.random() < ({ contact: .55, friend: .85, close: .97 }[st] || .5) * (R.persona?.mood === 'shy' ? .8 : 1);
+    const places = meetPlaces(R), named = places.find(p => text.toLowerCase().includes(p.label.toLowerCase().split(/[ ,]/)[0]) || text.toLowerCase().includes(p.kind));
+    tone = 'text_warm';
+    if (!yes) say = ri(['Ah, I can’t today 😩 another time?', 'I’m so tired today. Rain check?', 'Not today o, sorry! Soon 🙏']);
+    else if (named) { say = ri([`Yes! See you at ${named.label} 😄`, `${named.label}? Oya, I’m coming!`]); setTimeout(() => meetSet(R, named, false), 400); }
+    else { say = ri(['Yes! Where should we meet? 😄', 'I’d love that! You pick the place.']); act = 'meetpick'; }
+  }
+  if (act === 'food' && Math.random() < .5) { const f = meetPlaces(R).find(p => p.kind === 'food'); if (f) say += ` What about ${f.label}?`; }
+  const r = tone ? await relTalk(c, tone, about) : null;
+  if (tone === 'interest' && r && !r.hit && about) say = relAnswer(c, { t: 'interest', about }, r) || say;
+  if (tone === 'compliment' && r?.compliments > 2) say = 'Okay o, that’s enough flattery 😂';
+  CHAT.typing[id] = Date.now() + 9000; phoneRefresh();
+  setTimeout(() => {
+    delete CHAT.typing[id];
+    chatPush(R.id, follow ? chatAnswer(R, tone === 'text_cold' ? 'text_cold' : 'warm', pend?.depth || 0, say) : { mine: false, kind: 'ack', answered: true, text: say });
+    if (act === 'pin' && st !== 'contact') { const cc = PEOPLE.civ.get(id); if (cc) setWaypoint(cc.g.position.x, cc.g.position.z, R.name); }
+    if (act === 'meetpick') CHAT.view = { id: R.id, tab: 'meet' };
+    sfx('swap'); phoneRefresh(); peopleBadge();
+  }, RM(1800, 4500) + Math.min(3000, say.length * 25));
+}
 function chatView(R) {
   const out = [], head = ph('div', 'phHead'); head.append(ph('button', 'phBack', '‹', { type: 'button', 'aria-label': 'Back', on: { click: () => { CHAT.view = null; CHAT.call = null; phoneRefresh(); } } }), ph('b', null, `${R.female ? '👩🏾' : '👨🏾'} ${R.name}`));
   out.push(head);
@@ -18178,6 +18350,14 @@ function chatView(R) {
   out.push(box); chatSave(); peopleBadge();
   const last = t.filter(m => !m.mine).at(-1);
   if (last && !last.answered && last.kind !== 'ack') { const row = ph('div', 'phChips'); chatReplies(R, last).forEach(([txt], i) => row.append(ph('button', 'phChip', txt, { type: 'button', on: { click: () => chatReply(R, i) } }))); out.push(row); }
+  if ((CHAT.typing[personKey(R.id)] || 0) > Date.now()) out.push(ph('div', 'phTyping', `${R.name} is typing…`));
+  { const k = personKey(R.id), f = ph('form', 'phSend'), inp = ph('input', null, null, { name: 'text', maxlength: '240', placeholder: `Type to ${R.name.split(' ')[0]}…`, autocomplete: 'off', enterkeyhint: 'send' });
+    inp.value = CHAT.drafts[k] || ''; inp.addEventListener('input', () => { CHAT.drafts[k] = inp.value; });
+    f.append(inp, ph('button', 'phBtn', 'Send', { type: 'submit' })); f.addEventListener('submit', e => { e.preventDefault(); const v = inp.value; inp.value = ''; CHAT.drafts[k] = ''; chatTyped(R, v); });
+    const emo = ph('div', 'phEmoji'); for (const e of ['😂', '😊', '❤️', '🔥', '🙏', '😘', '👀', '😢']) emo.append(ph('button', 'phEmo', e, { type: 'button', on: { click: () => { inp.value += e; CHAT.drafts[k] = inp.value; inp.focus(); } } }));
+    inp.addEventListener('focus', () => { CHAT.focus = k; }); inp.addEventListener('blur', () => { if (CHAT.focus === k) CHAT.focus = null; });
+    if (CHAT.focus === k) setTimeout(() => { const at = inp.value.length; inp.focus(); try { inp.setSelectionRange(at, at); } catch (e) {} }, 0);
+    out.push(emo, f); }
   const acts = ph('div', 'phChips');
   acts.append(ph('button', 'phBtn', '💬 Text…', { type: 'button', on: { click: () => { CHAT.view = { id: R.id, tab: CHAT.view?.tab === 'text' ? null : 'text' }; phoneRefresh(); } } }), ph('button', 'phChip', '📞 Call', { type: 'button', on: { click: () => callStart(R) } }),
     ph('button', 'phChip', '📍 Meet up', { type: 'button', on: { click: () => { CHAT.view = { id: R.id, tab: 'meet' }; phoneRefresh(); } } }));
