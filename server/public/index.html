@@ -281,6 +281,10 @@ button.go:hover{background:#e6c071}
 button.alt{font:700 16px/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink);background:transparent;border:1px solid var(--edge);padding:13px 18px;cursor:pointer}
 button.alt:hover{border-color:var(--brass);color:var(--brass)}
 button.alt:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.spawn{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.spawn>span{font:700 13px/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin-right:4px}
+.spawn button{font:600 14px/1 var(--ui);letter-spacing:.06em;color:var(--ink);background:transparent;border:1px solid var(--edge);padding:8px 11px;cursor:pointer}
+.spawn button:hover{border-color:var(--brass);color:var(--brass)}.spawn button[aria-pressed=true]{background:var(--brass);border-color:var(--brass);color:#1b1608}
+.spawn button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 button.go:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .online{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--edge);background:rgba(10,14,9,.45);font-size:15px}
 .online b{color:var(--brass);letter-spacing:.06em}
@@ -687,6 +691,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
         <dt>F</dt><dd>Slash the nape (needs speed)</dd>
         <dt>E</dt><dd>Refill at blue depots; help knocked-down villagers up</dd>
       </dl>
+      <div class="spawn" id="spawnRow" role="group" aria-label="Where to start"><span>Start in</span></div>
       <div class="btnrow"><button class="go" id="goBtn" type="button">Deploy</button><button class="alt" id="peaceBtn" type="button" aria-pressed="true">Titans: Off</button><button class="alt" id="needsBtn" type="button" aria-pressed="true">Daily needs: On</button><button class="alt" id="photoBtn" type="button" hidden>📷 Photo mode</button></div>
       <div class="online" id="online"><div><b>Play online</b> · <span id="onStatus">checking the server…</span></div><div class="btnrow onbtns" id="onBtns"></div></div>
       <div class="best num" id="cBest"></div>
@@ -11960,6 +11965,7 @@ function resetRun() {
   for (const s of shells) scene.remove(s.mesh); shells.length = 0;
   Object.assign(P, { ammo: AMMO_MAX, gunCD: 0, kick: 0, coyote: 0, jumpBuf: 0, jumpHold: false, health: HP_MAX, gas: 100, sharp: 100, spares: 6, dead: false, slashT: 0, slashCD: 0, lastHurt: -99, grounded: false, facing: Math.PI });
   P.pos.set(0, PYR_TOP + .01, 0); P.vel.set(0, 0, 0);
+  const sp = typeof spawnAt === 'function' && spawnAt(); if (sp) P.pos.set(sp[0], sp[1], sp[2]);   // or the city you picked
   Object.assign(S, { score: 0, shown: 0, kills: 0, time: 0, top: 0, fastCut: 0, chain: 0, bestChain: 0, lastKill: -99, rescued: 0 });
   for (const c of civilians) { c.state = 'idle'; c.timer = RM(0, 3); c.marker.visible = false; c.g.rotation.x = 0; }
   yaw = Math.PI; pitch = -.08;
@@ -11997,6 +12003,7 @@ function setMode(m) {
   }
   $('cBest').textContent = best ? `Best score on this device: ${best.toLocaleString()}` : '';
   $('photoBtn').hidden = m !== 'pause';
+  $('spawnRow').hidden = m === 'pause';   // (paused: Resume carries on where you are)
 }
 $('goBtn').addEventListener('click', () => {
   if (mode === 'title' && !NET.user && !nameOk(NET.guest)) { openNameGate(); return; }   // nobody enters without a name
@@ -15855,15 +15862,31 @@ $('bmIn').addEventListener('click', e => { e.stopPropagation(); bmZoom(1 / 1.5);
 // paving near the pin, clear of buildings; never on the water
 const FT = { gap: 120000, next: (() => { try { return +localStorage.getItem('giantwood-ft') || 0; } catch (e) { return 0; } })() };
 function ftLabel() { const b = $('bmFT'); if (!b) return; const left = Math.ceil((FT.next - Date.now()) / 1000); b.textContent = left > 0 ? `⚡ ${left}s` : '⚡ Fast travel'; b.classList.toggle('off', left > 0 || !WAY.on); }
+function landSpot(x, z, R = 80) {   // -> [x, z] on a road or paving near (x, z), clear of buildings and off the water; null if none
+  for (let r = 0; r <= R; r += 4) for (let a = 0; a < TAU; a += r ? 4 / r : TAU) {
+    const qx = x + Math.cos(a) * r, qz = z + Math.sin(a) * r, k = kindAt(qx, qz), h = heightAt(qx, qz);
+    if ((k === 6 || k === 7) && h > 1 && !queryGrid(solidGrid, qx, qz, 1.5).some(c => qx > c.x0 - .6 && qx < c.x1 + .6 && qz > c.z0 - .6 && qz < c.z1 + .6 && c.y1 > h + .5 && c.y0 < h + 2.5)) return [qx, qz]; }
+  return null;
+}
+// where a run starts: Lagos (the square, as always) or the heart of another city; the choice is kept in this browser
+const SPAWNS = [['lagos', 'Lagos', null], ['ibadan', 'Ibadan', 'Mapo Hall'], ['oyo', 'Oyo', 'The Alaafin’s palace, Oyo'], ['ife', 'Ile-Ife', 'Ile-Ife'], ['benin', 'Benin', 'King’s Square & National Museum, Benin'],
+  ['asaba', 'Asaba', 'Asaba'], ['warri', 'Warri', 'Warri'], ['uyo', 'Uyo', 'Uyo']].filter(([, , pl]) => !pl || OYO_PLACES.some(q => q[0] === pl));
+let SPAWN = (() => { try { const k = localStorage.getItem('giantwood-spawn'); return SPAWNS.some(q => q[0] === k) ? k : 'lagos'; } catch (e) { return 'lagos'; } })();
+function spawnAt() {   // -> [x, y, z] for the chosen city, or null for the Lagos square
+  const S1 = SPAWNS.find(q => q[0] === SPAWN), pl = S1 && S1[2] && OYO_PLACES.find(q => q[0] === S1[2]); if (!pl) return null;
+  const at = landSpot(pl[1], pl[2], 120); if (!at) return null; return [at[0], groundAt(at[0], at[1]) + .1, at[1]];
+}
+(function spawnRow() {
+  const row = $('spawnRow');
+  for (const [k, label] of SPAWNS) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.k = k; b.setAttribute('aria-pressed', String(k === SPAWN)); row.appendChild(b); }
+  row.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; SPAWN = b.dataset.k; try { localStorage.setItem('giantwood-spawn', SPAWN); } catch (x) {} for (const q of row.querySelectorAll('button')) q.setAttribute('aria-pressed', String(q === b)); });
+})();
 function fastTravel() {
   if (!WAY.on) { toast('⚡ Fast travel', 'Set a pin first: click anywhere on the map'); return; }
   const left = Math.ceil((FT.next - Date.now()) / 1000); if (left > 0) { toast('⚡ Fast travel', `Ready again in ${left} s`); return; }
   if (P.driving || TRAIN.ride.on || FLY.on || RIDE.on) { toast('⚡ Fast travel', 'Get out of the vehicle first'); return; }
   if (busy()) { toast('⚡ Fast travel', 'Finish the job you’re on first'); return; }
-  let [x, z] = keepXZ(WAY.x, WAY.z), best = null;
-  for (let r = 0; r <= 80 && !best; r += 4) for (let a = 0; a < TAU && !best; a += r ? 4 / r : TAU) {
-    const qx = x + Math.cos(a) * r, qz = z + Math.sin(a) * r, k = kindAt(qx, qz), h = heightAt(qx, qz);
-    if ((k === 6 || k === 7) && h > 1 && !queryGrid(solidGrid, qx, qz, 1.5).some(c => qx > c.x0 - .6 && qx < c.x1 + .6 && qz > c.z0 - .6 && qz < c.z1 + .6 && c.y1 > h + .5 && c.y0 < h + 2.5)) best = [qx, qz]; }
+  let [x, z] = keepXZ(WAY.x, WAY.z); const best = landSpot(x, z);
   if (best) [x, z] = best; else if (heightAt(x, z) <= 1) { toast('⚡ Fast travel', 'That pin is on the water. Pick a spot on land'); return; }
   FT.next = Date.now() + FT.gap; try { localStorage.setItem('giantwood-ft', String(FT.next)); } catch (e) {}
   toggleBigMap(false); const fade = $('fade'); fade.classList.add('on'); sfx('swap');
