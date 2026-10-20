@@ -16306,7 +16306,12 @@ function liftToRoof() {
   P.pos.set(rx, top + .2, rz); P.vel.set(0, 0, 0); sfx('swap'); toast('🏙 The roof', `${Math.round(top - a.e.gy)} m up · the lift is gone: jump, swing, or glide down`);
 }
 // still inside? (a teleport, a respawn or a fall takes you out)
-function updateInside() { const a = INSIDE.at; if (a && (Math.abs(P.pos.x - a.R.ox) > a.R.W / 2 + 6 || Math.abs(P.pos.z - a.R.oz) > a.R.D / 2 + 6)) INSIDE.at = null; }
+function updateInside() {
+  const a = INSIDE.at; if (!a) return; const R = a.R;
+  const out = Math.abs(P.pos.x - R.ox) > R.W / 2 + .3 || Math.abs(P.pos.z - R.oz) > R.D / 2 + .3, nearExit = Math.hypot(P.pos.x - R.exit.x, P.pos.z - R.exit.z) < 5;
+  if ((out && nearExit) || P.pos.y < R.FY - 2.5) { leaveBuilding(); return; }   // walking out through the doorway is leaving (and a fall out of a room puts you back at its door, never into the sea under it)
+  if (Math.abs(P.pos.x - R.ox) > R.W / 2 + 30 || Math.abs(P.pos.z - R.oz) > R.D / 2 + 30) INSIDE.at = null;   // (a teleport, a respawn, fast travel: you're simply elsewhere)
+}
 const mapPos = () => INSIDE.at ? INSIDE.at.back : P.pos;
 
 /* MUSEUMS-BEGIN */
