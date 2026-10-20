@@ -698,6 +698,10 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/curves/NURBSUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/curves/NURBSCurve.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
 <script>document.querySelector('#boot .bt-st').textContent = 'Building Naija City…';</script>
 <script>
 // the ground grids (the north, Edo, Delta, Akwa Ibom) take seconds to work out but never change for the same game code: the
@@ -5824,6 +5828,13 @@ function hairFor(pl, F, ng, old) {
 }
 // people draw from their own random stream, never the world's: making someone used to pull a varying number of numbers from
 // rng() (their look branches on Math.random), so every building after the first passer-by moved between loads and players
+// (the Rocketbox men: which spawn as one, and what they wear; the loader and the figures themselves are with the humans below)
+const RB = { ready: false, failed: false, avatars: {}, clips: {}, n: 0 };
+const RB_LIST = ['Male_Adult_12', 'Male_Adult_18', 'Male_Adult_04'];
+const RB_INFO = { Male_Adult_12: { code: 'm007', shirt: '#3a5a8a', pants: '#a8bcd0', shoes: '#f2f0ea' }, Male_Adult_18: { code: 'm023', shirt: '#cfc8b8', pants: '#2a2c30', shoes: '#4a5a3a' }, Male_Adult_04: { code: 'm006', shirt: '#22232a', pants: '#6a5a3a', shoes: '#f2f0ea' } };
+const RB_CLIP = { Idle_Loop: 'idle', Walk_Loop: 'walk', Walk_Formal_Loop: 'walk', Jog_Fwd_Loop: 'run', Sprint_Loop: 'run', Idle_Talking_Loop: 'talk', Sitting_Idle_Loop: 'sit', Interact: 'wave', Dance_Loop: 'idle', Pistol_Aim_Neutral: 'idle' };
+const RB_NOT = new Set(['security', 'chef', 'bartender', 'bouncer', 'housekeeper', 'gardener', 'driver', 'pool', 'beach', 'kid', 'cityschool', 'school']);
+const rbFits = (pl, o) => !(o.gown || o.kaftan || o.robe || o.agbada || o.skirt || o.print || o.fila || o.kufi || o.headwrap) && !RB_NOT.has(pl);
 let CIV_SEED = 52801;
 function makeCivilian(v, opts = {}) { const keep = seed; seed = CIV_SEED; try { return makeCivilian0(v, opts); } finally { CIV_SEED = seed; seed = keep; } }
 function makeCivilian0(v, opts = {}) {
@@ -5848,10 +5859,13 @@ function makeCivilian0(v, opts = {}) {
       hat: o.hat ? o.hat : o.fila || o.headwrap || o.kufi ? null : rural ? (Math.random() < (v.straw ?? .18) ? 'straw' : Math.random() < .1 ? 'cap' : null) : !female && Math.random() < .12 ? 'cap' : null,
       hatColor: o.hatColor || ri(['#2a2c30', '#b83a2e', '#2f5f9a', '#e6e1d3']) };
   }
+  let rbKey = null;   // a modern-dressed man (not in uniform, not traditional dress) is often one of the Rocketbox men; his far figure wears his clothes' colours
+  if (!female && !child && !elder && !opts.cop && !opts.fire && !opts.crook && !opts.jog && !opts.place?.match?.(/^(security|chef|bartender|bouncer|housekeeper|gardener|driver|pool)$/) && rbFits(pl, spec) && rng() < .5) {
+    rbKey = RB_LIST[RB.n = (RB.n + 1) % RB_LIST.length];   /* (in turn, so neighbours differ) */ const I = RB_INFO[rbKey]; Object.assign(spec, { shirt: I.shirt, sleeve: I.shirt, collar: I.shirt, longSleeve: true, pants: I.pants, shoes: I.shoes, hat: null, glasses: false, tank: false, shorts: null }); }
   const g = new THREE.Group(); g.rotation.order = 'YXZ';   // (the figure itself is built when they first come near: ensureFig)
   const marker = new THREE.Sprite(markerMat); marker.scale.setScalar(.6); marker.position.y = 2.3; marker.visible = false; g.add(marker);
   g.scale.setScalar((child ? .62 : 1) * RM(.9, 1.0) * (female && !child ? .96 : 1));
-  const c = { g, rig: null, lo: null, hi: null, spec, v, marker, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
+  const c = { g, rig: null, lo: null, hi: null, spec, v, marker, rb: rbKey, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
   if (opts.jog) { c.jog = true; c.speed = RM(2.6, 3.4); c.state = 'walk'; c.path = jogLoop(c); }
   g.position.set(p.x, v.y, p.z); g.rotation.y = RM(0, TAU);
   civRoot.add(g); civilians.push(c); v.civs.push(c);
@@ -6008,7 +6022,8 @@ function civHuman(c) {   // -> true while this person is drawn as a real human
   const want = NPC_HUM.set.has(c);
   if (want && !c.human && DETAIL.budget-- > 0) {
     if (c.rig === c.hi) setDetail(c, false);
-    const [L, o] = civLookOf(c), h = makeHuman(L, o); if (h) { c.human = h; c.formal = o.dress.formal; c.g.add(h.root); if (c.cop) wearGear(h, null, null, copGun()); }
+    if (c.rb && RB.ready) { const h = makeRBHuman(c.rb); if (h) { c.human = h; c.formal = false; c.g.add(h.root); } }   // a Rocketbox man
+    else { const [L, o] = civLookOf(c), h = makeHuman(L, o); if (h) { c.human = h; c.formal = o.dress.formal; c.g.add(h.root); if (c.cop) wearGear(h, null, null, copGun()); } }
   } else if (!want && c.human) { disposeHuman(c.human); c.human = null; if (c.lo) c.lo.root.visible = !c.statue?.visible; }
   if (c.human) { if (c.lo) c.lo.root.visible = false; if (c.hi) c.hi.root.visible = false; if (c.statue) c.statue.visible = false; }
   return !!c.human;
@@ -14154,6 +14169,41 @@ function humLoad(url) {   // .glb, or where a host won't serve that (the claude.
   const get = u => new Promise((ok, no) => new THREE.GLTFLoader().load(HUM_DIR + u, ok, undefined, no));
   return get(url).catch(() => get(url.replace(/\.glb$/, '.gltf.json')));
 }
+/* ---------- Rocketbox people (Microsoft Rocketbox, MIT): realistic men in everyday clothes for the passers-by of the city, campuses,
+   offices and markets; our own figures keep traditional dress. Three men (12, 18 and 04), each loaded once and cloned, with seven
+   animations converted to compact JSON (idle, walk, run, talk, sit, wave, phone). If the files can't load, everyone stays as before. ---------- */
+async function loadRB() {
+  if (!THREE.FBXLoader || !THREE.SkeletonUtils) { RB.failed = true; return; }
+  try {
+    const base = HUM_DIR + 'rb/', fbx = new THREE.FBXLoader(); fbx.manager.setURLModifier(u => /\.tga$/i.test(u) ? 'data:,' : u);
+    const TL = new THREE.TextureLoader(), tex = (u, srgb) => new Promise((ok, no) => TL.load(base + u, t => { if (srgb) t.encoding = THREE.sRGBEncoding; ok(t); }, undefined, no));
+    const clipFrom = d => { const tr = [], times = Float32Array.from({ length: d.frames }, (_, k) => Math.min(d.duration, k / d.fps));
+      const ok = b => /^Bip01($|_)/.test(b) && !/Footsteps/.test(b);   // (skip the exporter's helper nodes: an unknown name would bind to the whole model and tip it over)
+      for (const [b, v] of Object.entries(d.q)) if (ok(b)) tr.push(new THREE.QuaternionKeyframeTrack(b + '.quaternion', times, v));
+      for (const [b, v] of Object.entries(d.p)) if (ok(b)) { if (b === 'Bip01') for (let k = 0; k < v.length; k += 3) { v[k] = 0; v[k + 2] = 0; }   // (hips bob in place: no root drift)
+        tr.push(new THREE.VectorKeyframeTrack(b + '.position', times, v)); }
+      return new THREE.AnimationClip(d.name, d.duration, tr); };
+    const [clips, avs] = await Promise.all([
+      Promise.all(['idle', 'walk', 'run', 'talk', 'sit', 'wave', 'phone'].map(k => fetch(base + 'anims/' + k + '.json').then(r => { if (!r.ok) throw new Error(k); return r.json(); }).then(clipFrom))),
+      Promise.all(RB_LIST.map(async key => { const I = RB_INFO[key], [g, bc, bn, hc, hn] = await Promise.all([new Promise((ok, no) => fbx.load(`${base}${key}/${key}.fbx`, ok, undefined, no)), tex(`${key}/${I.code}_body_color.jpg`, true), tex(`${key}/${I.code}_body_normal.jpg`, false), tex(`${key}/${I.code}_head_color.jpg`, true), tex(`${key}/${I.code}_head_normal.jpg`, false)]);
+        const body = new THREE.MeshStandardMaterial({ map: bc, normalMap: bn, roughness: .75, metalness: 0, skinning: true }), head = new THREE.MeshStandardMaterial({ map: hc, normalMap: hn, roughness: .7, metalness: 0, skinning: true });
+        g.traverse(o => { if (o.isMesh) { const ms = Array.isArray(o.material) ? o.material : [o.material]; const nm = ms.map(m => /head/i.test(m.name || '') ? head : body); o.material = Array.isArray(o.material) ? nm : nm[0]; o.castShadow = true; o.frustumCulled = false; } });
+        g.animations = []; const box = new THREE.Box3().setFromObject(g); return [key, { scene: g, k: 1.76 / (box.max.y - box.min.y), y0: -box.min.y }]; }))]);
+    for (const c of clips) RB.clips[c.name] = c; for (const [k, v] of avs) RB.avatars[k] = v;
+    RB.ready = true;
+  } catch (e) { console.warn('rocketbox:', e); RB.failed = true; }
+}
+function makeRBHuman(key) {   // a Rocketbox man, in the same shape the game uses for its own humans (root, mixer, play)
+  const A = RB.avatars[key]; if (!A) return null;
+  const scene = THREE.SkeletonUtils.clone(A.scene), root = new THREE.Group(); scene.scale.setScalar(A.k); scene.position.y = A.y0 * A.k; scene.rotation.y = RB.face ?? Math.PI; root.add(scene);
+  const mixer = new THREE.AnimationMixer(scene), acts = {};
+  const h = { rb: key, root, scene, mixer, bones: {}, ease: [], parts: [], cur: '', headScale: 0,
+    play(name, fade = .22, ts = 1) { const k = RB_CLIP[name] || 'idle', clip = RB.clips[k]; if (!clip) return; const a = acts[k] ||= mixer.clipAction(clip);
+      if (h.cur === name) { a.timeScale = k === 'walk' || k === 'run' ? ts : 1; return; }
+      const prev = acts[RB_CLIP[h.cur] || 'idle']; a.reset(); a.setLoop(THREE.LoopRepeat); a.timeScale = k === 'walk' || k === 'run' ? ts : 1; a.enabled = true; a.setEffectiveWeight(1);
+      if (!h.cur) a.time = Math.random() * clip.duration; if (prev && prev !== a) a.crossFadeFrom(prev, fade, false); a.play(); h.cur = name; } };
+  return h;
+}
 function humTex(url, srgb = true) { return new Promise((ok, no) => new THREE.TextureLoader().load(HUM_DIR + url, t => { t.flipY = false; if (srgb) t.encoding = THREE.sRGBEncoding; ok(t); }, undefined, no)); }
 function texAverage(tex) {   // the mean colour of a skin texture (its centre, where the body is), in linear terms
   const img = tex.image, c = document.createElement('canvas'), n = 64; c.width = c.height = n; const g = c.getContext('2d'); g.drawImage(img, 0, 0, n, n);
@@ -14588,6 +14638,7 @@ function makeHuman(L0, opts = {}) {
 }
 // free a person's own GPU things (shared shapes and textures stay for the next one)
 function disposeHuman(h) {
+  if (h.rb) { h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene); h.root.parent?.remove(h.root); return; }   // (a Rocketbox clone shares its mesh and textures: just let it go)
   h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene);
   h.root.traverse(o => {
     if (o.isSkinnedMesh) o.skeleton.dispose?.();
@@ -18741,7 +18792,7 @@ function setPeaceful(on, announce) {
 $('peaceBtn').addEventListener('click', () => setPeaceful(!peaceful, false));
 $('needsBtn').addEventListener('click', () => setNeedsOn(!NEEDS.on)); setNeedsOn(NEEDS.on);
 setPeaceful(peaceful, false);
-loadHumans();   // the realistic people (see makeHuman)
+loadHumans(); loadRB();   // the realistic people (see makeHuman), and the Rocketbox men
 let last = performance.now(), shadowTick = 0, looping = true;
 function frame(now) {
   // paused or dead: the last frame stays on screen under the overlay and the loop stops until play resumes

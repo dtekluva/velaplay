@@ -32,8 +32,8 @@ PY
 # the club music loops (Pixabay Content License; see ../giantwood-scouts/music/CREDITS.md) sit beside the page
 MUSIC="$(dirname "$SRC")/music"
 if [ -d "$MUSIC" ]; then mkdir -p server/public/music && cp "$MUSIC"/*.mp3 "$MUSIC"/CREDITS.md server/public/music/ && echo "music copied: $(ls "$MUSIC"/*.mp3 | wc -l | tr -d ' ') loops"; fi
-# the realistic people (Quaternius character and animation packs, CC0; see the LICENSE files in humans/) too
+# the realistic people (Quaternius character and animation packs, CC0; Rocketbox men in rb/, MIT; see the LICENSE files in humans/) too
 HUMANS="$(dirname "$SRC")/humans"
-if [ -d "$HUMANS" ]; then rm -rf server/public/humans && mkdir -p server/public/humans && cp "$HUMANS"/*.glb "$HUMANS"/*.png "$HUMANS"/*.jpg "$HUMANS"/LICENSE-*.txt server/public/humans/ && echo "humans copied: $(du -sh server/public/humans | cut -f1)"; fi
+if [ -d "$HUMANS" ]; then rm -rf server/public/humans && mkdir -p server/public/humans && cp "$HUMANS"/*.glb "$HUMANS"/*.png "$HUMANS"/*.jpg "$HUMANS"/LICENSE-*.txt server/public/humans/ && { [ ! -d "$HUMANS/rb" ] || rsync -a --exclude='.DS_Store' "$HUMANS/rb" server/public/humans/; } && echo "humans copied: $(du -sh server/public/humans | cut -f1)"; fi
 # the link preview image (see the og: and twitter: tags above)
 [ -f "$(dirname "$SRC")/og-ikoyi.jpg" ] && cp "$(dirname "$SRC")/og-ikoyi.jpg" server/public/og-ikoyi.jpg && echo "preview card copied"
