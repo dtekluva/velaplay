@@ -6711,7 +6711,8 @@ function makeAirliner() {
     const body = [
       new THREE.CylinderGeometry(R, R, 20, 22).rotateX(Math.PI / 2).translate(0, cy, 0),
       new THREE.SphereGeometry(1, 22, 14, 0, TAU, 0, Math.PI / 2).scale(R, 3.4, R).rotateX(-Math.PI / 2).translate(0, cy, -10),
-      new THREE.CylinderGeometry(.45, R, 6, 22).rotateX(Math.PI / 2).translate(0, cy + .35, 13),
+      (() => { const g = new THREE.CylinderGeometry(.45, R, 6, 22).rotateX(Math.PI / 2).translate(0, cy, 13), p = g.attributes.position;   // the tail cone: flush with the body where they meet, rising toward its tip (no lip at the join)
+        for (let i = 0; i < p.count; i++) { const t = clamp((p.getZ(i) - 10) / 6, 0, 1); p.setY(i, p.getY(i) + .55 * t * t); } g.computeVertexNormals(); return g; })(),
       flatWing([[0, -2.2], [11, 2.6], [11, 4.2], [0, 3.2]], .3, cy - .9), flatWing([[0, -2.2], [-11, 2.6], [-11, 4.2], [0, 3.2]], .3, cy - .9),
       flatWing([[0, 11], [4.4, 13.4], [4.4, 14.6], [0, 14]], .2, cy + .4), flatWing([[0, 11], [-4.4, 13.4], [-4.4, 14.6], [0, 14]], .2, cy + .4),
     ];
@@ -9025,8 +9026,7 @@ if (YB) withSeed(9494, () => {
     b.box(A.tx1 - A.tx0 + 12, .8, A.tz1 - A.tz0 + 8, tcx, Y + 9.6, tcz, white, 1, true, 'roof');
     sign('IBADAN AIRPORT', 'ALAKIA · OYO SKYLINK', '#1f3f8a', 26, 2.4, A.tx0 - .7, Y + 7.6, tcz, -Math.PI / 2);
     b.box(6, 22, 6, A.tx0 + 6, Y + 11, A.tz0 - 16, white, 1, true, 'house'); b.box(9, 4, 9, A.tx0 + 6, Y + 24, A.tz0 - 16, glassM, 1, true, 'roof'); b.box(9.6, .6, 9.6, A.tx0 + 6, Y + 26.3, A.tz0 - 16, white, 1, false);
-    const jet = makeAirliner(); jet.position.set(A.tx1 + 32, Y, tcz - 20); jet.rotation.y = -Math.PI / 2; scene.add(jet);
-    colliders.push({ x0: A.tx1 + 14, x1: A.tx1 + 50, y0: Y, y1: Y + 6, z0: tcz - 26, z1: tcz - 14, tag: 'house' });
+    makeDrivable(A.tx1 + 32, tcz - 20, -Math.PI / 2, 'jet');   // (its jet flies too: get in with E)
     sign('OYO SKYLINK', 'IBADAN ⇄ LAGOS', '#7a1a2a', 10, 1.6, A.tx1 + 8, Y + 3, tcz + 34, 0);
     makeDrivable(A.tx1 + 30, tcz + 24, -Math.PI / 2, 'plane');
     FLIGHT_DESKS.push({ x: A.tx0 - 8, z: tcz + 3, y: Y, city: 'ibadan', to: 'lagos', name: 'Ibadan Airport', out: [A.tx0 - 12, tcz - 1] });   // the airline's booth on the kerb, a few steps from where you arrive
@@ -9303,7 +9303,7 @@ if (YB) withSeed(9494, () => {
       for (let x = A.rx0 + 4; x < A.rx1; x += 30) for (const s of [-1, 1]) b.box(.5, .4, .5, x, Y + .2, A.rz + s * 16, lampMat, 1, false);
       for (let z = A.rz - 14; z <= A.rz + 14; z += 4) b.box(.5, .4, .5, A.rx0 - 2, Y + .2, z, LM(0x3fd07a), 1, false);
       b.box(.2, 6, .2, A.rx1 - 30, Y + 3, A.rz - 26, darkM, 1, false); b.box(2.4, .9, .9, A.rx1 - 28.8, Y + 5.6, A.rz - 26, LM(0xe8742a), 1, false);   // the windsock
-      const jet = makeAirliner(); jet.position.set(1950, Y, A.tz - 30); jet.rotation.y = Math.PI / 2; addStatic(jet); colliders.push({ x0: 1932, x1: 1968, y0: Y, y1: Y + 7, z0: A.tz - 34, z1: A.tz - 26, tag: 'house' });   // (on its stand, clear of the taxiway links)
+      makeDrivable(1950, A.tz - 30, Math.PI / 2, 'jet');   // (on its stand, clear of the taxiway links: a jet you can fly)
       YABA_MAP.push([tcx, tcz, tx1 - tx0, tz1 - tz0, '#7fd3e8'], [(A.rx0 + A.rx1) / 2, A.rz, A.rx1 - A.rx0, 30, '#5a5c60']); TAKEN.push([(A.x0 + A.x1) / 2, (A.z0 + A.z1) / 2, A.x1 - A.x0, A.z1 - A.z0]);
       people('city', 12, [tx0 + 4, tx1 - 4, A.z0 - 1, A.z0 + 10]); people('security', 3, [tx0 + 10, tx0 + 30, A.z0 + 2, A.z0 + 10], { guard: true });
       FLIGHT_DESKS.push({ x: tcx - 22, z: A.z0 + 6, y: Y, city: 'benin', to: 'lagos', name: 'Benin Airport', out: [tcx - 26, A.z0 + 2] });
@@ -9514,7 +9514,8 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
       for (let x = tx0 + 8; x <= tx1 - 8; x += 12) b.box(.6, 7.4, .6, x, Y + 3.7, zl + 12, white, 1, true, 'house'); b.box(W - 8, .6, 9, cx, Y + 7.6, zl + 8.5, col, 1, true, 'roof');   // the drop-off canopy
       K.sign('✈ DEPARTURES', 'CHECK-IN · SKYLINK DESKS', '#1f3a5a', 9, 1.2, tx0 + W * .28, Y + 6.6, zl + 12.6, 0); K.sign('ARRIVALS', 'TAXIS · CAR PARK →', '#2a5a2a', 8, 1.2, tx0 + W * .72, Y + 6.6, zl + 12.6, 0);
       for (const [i, jx] of o.gates.entries()) { b.box(3.2, 3.2, 20, jx, Y + 5.2, za - 10.5, LM(0xd8d8d4), 1, true, 'roof'); b.box(1.4, 5, 1.4, jx, Y + 2.5, za - 17, LM(0x8a8f94), 1, true, 'house'); b.box(4, 4, 3, jx, Y + 5.4, za - 21.5, LM(0xd8d8d4), 1, false);   // a jet bridge
-        if (o.jets > i) { const jet = makeAirliner(); jet.position.set(jx, Y, za - 46); jet.rotation.y = Math.PI; addStatic(jet); colliders.push({ x0: jx - 18, x1: jx + 18, y0: Y, y1: Y + 7, z0: za - 66, z1: za - 26, tag: 'house' }); }
+        if (o.jets > i) { if (i === 0) makeDrivable(jx, za - 46, Math.PI, 'jet');   // (the first gate's jet flies: every airport has one)
+          else { const jet = makeAirliner(); jet.position.set(jx, Y, za - 46); jet.rotation.y = Math.PI; addStatic(jet); colliders.push({ x0: jx - 18, x1: jx + 18, y0: Y, y1: Y + 7, z0: za - 66, z1: za - 26, tag: 'house' }); } }
         K.sign(`GATE ${i + 1}`, '', '#1f3a5a', 3, .8, jx, Y + 7.2, za - .3, Math.PI); }
       for (let k = 0; k < 8; k++) { const x = tx0 + 10 + k * (W - 20) / 7, z = za - 20 - (k % 3) * 6; b.box(2.2, .9, 1.4, x, Y + .7, z, LM(k % 2 ? 0x2f6fb0 : 0xe8a020), 1, false); }   // baggage carts and tugs
       { const fx = tx1 + 16, fz = za - 30; b.box(2.6, 2.6, 8, fx, Y + 1.6, fz, LM(0xd8d8d4), 1, true, 'house'); b.box(2.4, 2, 2.4, fx, Y + 1.4, fz + 5, LM(0xd8342a), 1, false); K.sign('JET A-1', '', '#d8342a', 2.4, .5, fx + 1.32, Y + 2, fz, Math.PI / 2); }   // a fuel truck
@@ -10832,7 +10833,7 @@ function flyStep(dt) {
   const thr = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), pin = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
   const bank = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
   // the small plane is nimble; the airliner is heavy, needs more runway and turns wide
-  const F = c.kind === 'jet' ? { thrust: 100, k: .22, l0: 32, lr: 12, rot: 40, max: 110, pitchRate: .5, hit: 4, taxi: .5 } : { thrust: 62, k: .35, l0: 18, lr: 12, rot: 27, max: 75, pitchRate: .9, hit: 2.4, taxi: .9 };
+  const F = c.kind === 'jet' ? { thrust: 100, k: .22, l0: 32, lr: 12, rot: 40, max: 110, pitchRate: .5, hit: 4, taxi: .5, rudder: .2 } : { thrust: 62, k: .35, l0: 18, lr: 12, rot: 27, max: 75, pitchRate: .9, hit: 2.4, taxi: .9, rudder: .35 };
   c.throttle = clamp(c.throttle + thr * dt * .6, 0, 1);
   const gh = heightAt(c.x, c.z), onGround = c.y <= gh + .05;
   const lift = clamp((c.speed - F.l0) / F.lr, 0, 1);
@@ -10847,9 +10848,9 @@ function flyStep(dt) {
     if (c.speed < F.rot - 3) c.pitch = Math.min(c.pitch, 0);
     c.pitch = Math.max(c.pitch, 0);
   } else {
-    c.roll += (bank * .75 - c.roll) * Math.min(1, dt * 2.5);
+    c.roll += (bank * .48 - c.roll) * Math.min(1, dt * 2.5);   // (a gentle bank: the rudder below does much of the turning)
     if ((c.climbT = (c.climbT || 0) - dt) > 0 && pin === 0) c.pitch += (.28 - c.pitch) * Math.min(1, dt * 1.5);   // after take-off: climb out hands-off, clear of trees and the wall
-    c.yaw += Math.tan(c.roll) * 19.6 / Math.max(c.speed, 15) * dt;
+    c.yaw += (Math.tan(c.roll) * 19.6 / Math.max(c.speed, 15) * 1.6 + bank * F.rudder * lift) * dt;   // a coordinated turn plus rudder: turning doesn't need a full roll
     c.pitch -= (1 - lift) * .7 * dt;          // a stalling plane drops its nose
   }
   const cp = Math.cos(c.pitch), fx = -Math.sin(c.yaw) * cp, fy = Math.sin(c.pitch), fz = -Math.cos(c.yaw) * cp;
