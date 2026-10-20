@@ -734,7 +734,8 @@ const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); ret
 
 /* ---------- seeded randomness for the world ---------- */
 let seed = 20261011;
-function withSeed(sd, f) { const keep = seed; seed = sd; try { return f(); } finally { seed = keep; } }   // new content draws from its own seed, so the old world keeps its layout
+let BLOCK = 0;   // which builder block is running (its seed): every collider remembers it, so the audit can say who built what
+function withSeed(sd, f) { const keep = seed, kb = BLOCK; seed = sd; BLOCK = sd; try { return f(); } finally { seed = keep; BLOCK = kb; } }   // new content draws from its own seed, so the old world keeps its layout
 function rng() { seed = (seed + 0x6D2B79F5) | 0; let t = seed; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }
 const R = (a, b) => a + rng() * (b - a);
 const RM = (a, b) => a + Math.random() * (b - a);
@@ -909,13 +910,23 @@ function mergeGeos(geos) {
 
 const colliders = [];
 const hookRoot = new THREE.Group(); scene.add(hookRoot);
+const WIN_POS = [];   // every window drawn, as x, z pairs (the audit checks each building has some)
+const QUAD_UV = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), QUAD_IX = [0, 2, 1, 2, 3, 1];   // (a quad's corners: top-left, top-right, bottom-left, bottom-right; wound to face out)
 class Builder {
   constructor() { this.parts = new Map(); }
   box(w, h, d, x, y, z, mat, S = 1, collide = true, tag = null) {
+    if (mat && (mat.userData.glass || mat.userData.facade || mat.userData.win || (mat.isMeshLambertMaterial && mat.emissive && mat.emissive.getHex() !== 0 && !mat.map))) WIN_POS.push(x, z);   // (glazing of any kind)   // (a window here, for the audit's coverage check)
+    if (mat && mat.userData.win && !collide && Math.min(w, d) <= .16 && Math.max(w, d) >= .8 && Math.max(w, d) <= 3.2 && h >= .8 && h <= 3.6) { PARTS.window2(this, x, y, z, w <= d, Math.max(w, d), h); return; }   // (an old slab window: framed, glazed, with a sill)
     const g = boxGeo(w, h, d, S); g.translate(x, y, z);
     if (!this.parts.has(mat)) this.parts.set(mat, []);
     this.parts.get(mat).push(g);
-    if (collide) colliders.push({ x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2, z0: z - d / 2, z1: z + d / 2, tag });
+    if (collide) colliders.push({ x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2, z0: z - d / 2, z1: z + d / 2, tag, box: 1, src: BLOCK });   // (box: what's drawn is exactly this box; src: the builder block)
+  }
+  quad(w, h, x, y, z, nx, nz, mat) {   // a one-sided panel facing out along (nx, nz): 4 corners where a box has 24 (plain arrays, no geometry object)
+    const ux = nz * w / 2, uz = -nx * w / 2, hh = h / 2, pos = new Float32Array([x - ux, y + hh, z - uz, x + ux, y + hh, z + uz, x - ux, y - hh, z - uz, x + ux, y - hh, z + uz]);
+    const g = { attributes: { position: { array: pos, count: 4 }, normal: { array: new Float32Array([nx, 0, nz, nx, 0, nz, nx, 0, nz, nx, 0, nz]) }, uv: { array: QUAD_UV } }, index: { array: QUAD_IX, count: 6 }, dispose() {} };
+    if (!this.parts.has(mat)) this.parts.set(mat, []);
+    this.parts.get(mat).push(g);
   }
   build(parent = hookRoot) {
     const out = [];
@@ -1893,6 +1904,69 @@ if (BIW) {
   }
 }
 const kindAt = (x, z) => AK && x >= AK.X0 && x < AK.X1 && z >= AK.Z0 && z < AK.Z1 ? AK.k(Math.floor(x + HALF), Math.floor(z + HALF)) : DD && x >= DX0 && x < DX1 && z >= DZ0 && z < DZ1 ? DKIND[dIdx(x, z)] : inEdo(x, z) ? EKIND[eIdx(x, z)] : x >= HALF ? 0 : x < -HALF && WD ? (z < -HALF ? (z >= IKZ0 ? NWKIND[nwIdx(x, z)] : 0) : z >= HALF ? 1 : WKIND[wIdx(x, z)]) : z < -HALF ? NKIND[nIdx(x, z)] : z >= HALF && SD ? SKIND[sIdx(x, z)] : KIND[idxAt(x, z)];
+// writing a ground kind by world position (the mirror of kindAt), for the placement rules below
+function setKindAt(x, z, k) {
+  if (AK && x >= AK.X0 && x < AK.X1 && z >= AK.Z0 && z < AK.Z1) { const c = AK.cell(x, z); if (c) c[0].k[c[1]] = k; return; }
+  if (DD && x >= DX0 && x < DX1 && z >= DZ0 && z < DZ1) { DKIND[dIdx(x, z)] = k; return; }
+  if (inEdo(x, z)) { EKIND[eIdx(x, z)] = k; return; }
+  if (x >= HALF) return;
+  if (x < -HALF && WD) { if (z < -HALF) { if (z >= IKZ0) NWKIND[nwIdx(x, z)] = k; } else if (z < HALF) WKIND[wIdx(x, z)] = k; return; }
+  if (z < -HALF) NKIND[nIdx(x, z)] = k; else if (z >= HALF && SD) SKIND[sIdx(x, z)] = k; else KIND[idxAt(x, z)] = k;
+}
+/* ---- placement rule: no kerb left in the middle of a road. A strip of paving at most 2 cells wide with asphalt on both sides
+   and short along its length (8 m or less: a leftover where a road meets a junction, not a median, which runs on) becomes road.
+   Runs once, after every ground grid exists and before the terrain is meshed or anything is built on it. ---- */
+const PLACE_RULES = { kerbsFixed: 0, nudged: 0, skipped: 0 };
+/* ---- placement rule: a building's footprint (plus a margin) may not touch a road or water or another building. PLACE.fit tries
+   the spot asked for, then nudges it up to 3 m each way; null means it doesn't fit anywhere near (the builder skips it). ---- */
+const PLACE = {
+  // everything already standing (buildings, walls, platforms), indexed as builders add it, so a new footprint can be checked against the real world
+  idx: new Map(), done: 0,
+  sync() { for (; PLACE.done < colliders.length; PLACE.done++) { const c = colliders[PLACE.done]; if ((c.tag !== 'house' && c.tag !== 'tower' && c.tag !== 'base') || c.y1 - c.y0 < 1 || c.car) continue;   // (walls, fences and buildings: parked cars, some placed at random, never decide where anything goes)
+    for (let gx = Math.floor(c.x0 / 16); gx <= Math.floor(c.x1 / 16); gx++) for (let gz = Math.floor(c.z0 / 16); gz <= Math.floor(c.z1 / 16); gz++) { const k = gx + ',' + gz; if (!PLACE.idx.has(k)) PLACE.idx.set(k, []); PLACE.idx.get(k).push(c); } } },
+  hits(x0, x1, z0, z1, y, tags) { PLACE.sync();
+    for (let gx = Math.floor(x0 / 16); gx <= Math.floor(x1 / 16); gx++) for (let gz = Math.floor(z0 / 16); gz <= Math.floor(z1 / 16); gz++) for (const c of PLACE.idx.get(gx + ',' + gz) || [])
+      if (c.x1 > x0 && c.x0 < x1 && c.z1 > z0 && c.z0 < z1 && c.y0 < y + 2.5 && c.y1 > y + .3 && tags.includes(c.tag)) return c;
+    return null; },
+  bad(x, z, w, d, o = {}) {   // -> why a footprint can't go here, or ''
+    const m = o.road ?? .4, y = o.y ?? TOWN.y;
+    for (let a = x - w / 2 - m + .25; a < x + w / 2 + m; a += 1) for (let c = z - d / 2 - m + .25; c < z + d / 2 + m; c += 1) {
+      const k = kindAt(a, c); if ((k === 6 || k === 8 || k === 9) && Math.abs(heightAt(a, c) - y) < 2) return 'road'; if (k === 1 && !o.water && Math.abs(a - x) < w / 2 && Math.abs(c - z) < d / 2) return 'water';
+      if (!o.water && Math.abs(a - x) < w / 2 + .5 && Math.abs(c - z) < d / 2 + .5 && heightAt(a, c) > y + 1.2) return 'slope'; }   // (ground higher than the floor: it would bury the door)
+    const gap = o.gap ?? .8; if (o.taken) for (const [tx, tz, tw, td] of o.taken) if (Math.abs(tx - x) < (tw + w) / 2 + gap && Math.abs(tz - z) < (td + d) / 2 + gap) return 'building';
+    if (PLACE.hits(x - w / 2 - gap, x + w / 2 + gap, z - d / 2 - gap, z + d / 2 + gap, y, ['house', 'tower', 'base'])) return 'building';   // anything standing there already, whoever built it
+    if (o.face) {   // the door side keeps a yard: 2.5 m clear in front of it, and level with the floor
+      const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[o.face], fw = fx ? 2.5 : w, fd = fz ? 2.5 : d, cx = x + fx * (w / 2 + 1.25), cz = z + fz * (d / 2 + 1.25);
+      if (!o.water) for (let a = cx - fw / 2 + .25; a < cx + fw / 2; a += 1) for (let c = cz - fd / 2 + .25; c < cz + fd / 2; c += 1) if (Math.abs(heightAt(a, c) - y) > 1.2) return 'slope';
+      if (o.taken) for (const [tx, tz, tw, td] of o.taken) if (Math.abs(tx - cx) < (tw + fw) / 2 && Math.abs(tz - cz) < (td + fd) / 2) return 'door';
+      if (PLACE.hits(cx - fw / 2, cx + fw / 2, cz - fd / 2, cz + fd / 2, y, ['house', 'tower'])) return 'door';
+    }
+    return '';
+  },
+  fit(x, z, w, d, o = {}) {
+    if (!PLACE.bad(x, z, w, d, o)) return [x, z];
+    const R = o.nudge ?? 3; for (let r = 1; r <= R; r++) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (!PLACE.bad(x + dx * r, z + dz * r, w, d, o)) { PLACE_RULES.nudged++; return [x + dx * r, z + dz * r]; }
+    PLACE_RULES.skipped++; return null;
+  },
+};
+(function tidyKerbs() {
+  const road = k => k === 6 || k === 8 || k === 9, fix = [];
+  const run = (x, z, dx, dz) => { let n = 1; for (const s of [-1, 1]) for (let t = 1; t <= 9; t++) { if (kindAt(x + s * dx * t, z + s * dz * t) !== 7) break; n++; } return n; };
+  const scan = (x0, x1, z0, z1) => { for (let x = x0 + .5; x < x1; x += 1) for (let z = z0 + .5; z < z1; z += 1) {
+    if (kindAt(x, z) !== 7) continue;
+    for (const [ax, az] of [[1, 0], [0, 1]]) {   // across the strip along (ax, az); its length runs the other way
+      const a1 = kindAt(x - ax, z - az), b1 = kindAt(x + ax, z + az), b2 = kindAt(x + 2 * ax, z + 2 * az);
+      const strip = road(a1) && (road(b1) || (b1 === 7 && road(b2)));
+      if (strip && run(x, z, az, ax) <= 8) { fix.push([x, z]); if (!road(b1)) fix.push([x + ax, z + az]); break; }
+    } } };
+  scan(-HALF, HALF, -HALF - (YB ? ND : 0), HALF + (COAST ? SD : 0));
+  if (WD) scan(-HALF - WD, -HALF, IKZ0, HALF);
+  if (ED) scan(HALF, HALF + ED, EJ0 - HALF, EJ1 - HALF);
+  if (DD) for (const [a, b2, c2, d2] of DRECTS) scan(a, b2, c2, d2);
+  if (AK) for (const [a, b2, c2, d2] of AK.rects) scan(a, b2, c2, d2);
+  for (const [x, z] of fix) setKindAt(x, z, 6);
+  PLACE_RULES.kerbsFixed = fix.length;
+})();
 // the coastal road's smooth surface where you're on it (else -Infinity); groundAt is the terrain or the road, whichever is higher
 function roadSurf(x, z) {
   if (!COAST || !(x < COAST.xw + 24 || z > COAST.rz - 24 || Math.abs(z - TOWN.z) < 24 || x > COAST.xe - 24)) return -Infinity;
@@ -2389,11 +2463,12 @@ const MM = {
   glass: new THREE.MeshLambertMaterial({ color: 0x5a7d99, emissive: 0x10202c }), carGlass: new THREE.MeshLambertMaterial({ color: 0x24313c, emissive: 0x070b10 }),
   screen: new THREE.MeshBasicMaterial({ color: 0x2d5a8a }), tail: new THREE.MeshBasicMaterial({ color: 0xc8261e }),
 };
+MM.glass.userData.glass = M.glass.userData.glass = true;   // (glass panes count as windows in the audit)
 // driveway cars: a collider now, and a real car model once the car models exist (placeDrivewayCars)
 const DRIVEWAY_CARS = [];
 function addCar(b, cx, cz, y, alongX) {
   const hx = alongX ? 2.3 : 1.0, hz = alongX ? 1.0 : 2.3;
-  colliders.push({ x0: cx - hx, x1: cx + hx, y0: y, y1: y + 1.6, z0: cz - hz, z1: cz + hz, tag: 'house' });
+  colliders.push({ x0: cx - hx, x1: cx + hx, y0: y, y1: y + 1.6, z0: cz - hz, z1: cz + hz, tag: 'house', car: 1 });
   DRIVEWAY_CARS.push([cx, cz, y, alongX]);
 }
 function buildModernHouse(hs, shared) {
@@ -2537,9 +2612,179 @@ function addDoor(F, lx, lz, y, DW, DH, mat, v) {
   const [hx, hz] = F.toW(lx - DW / 2, lz);
   const dg = new THREE.Group(); dg.position.set(hx, y + DH / 2, hz); dg.rotation.y = F.rotY; scene.add(dg);
   const dm = new THREE.Mesh(boxGeo(DW - .06, DH - .04, .08, 1).translate((DW - .06) / 2, 0, 0), mat); dm.castShadow = true; dg.add(dm);
+  { const hm = mat === MM.glass ? PARTS.chrome : PARTS.brass;   // the handle, on both faces, at the far edge from the hinge
+    for (const s of [-1, 1]) { const k = new THREE.Mesh(new THREE.BoxGeometry(.06, .2, .02), hm); k.position.set(DW - .2, 1 - DH / 2, s * .05); dg.add(k); const l = new THREE.Mesh(new THREE.BoxGeometry(.15, .03, .03), hm); l.position.set(DW - .26, 1.06 - DH / 2, s * .075); dg.add(l); } }
+  { const fm = PARTS.mat(mat === MM.glass ? 0xc4cacf : 0xf2f0ea), fb = PARTS_FB, L = (bw, bh, bd, x2, y2, z2) => { const [wx, wz] = F.toW(x2, z2); fb.box(F.fx ? bd : bw, bh, F.fx ? bw : bd, wx, y2, wz, fm, 1, false); };   // the frame round the opening, both faces
+    for (const s of [-1, 1]) for (const e of [-1, 1]) { L(.12, DH + .1, .06, lx + s * (DW / 2 + .04), y + (DH + .1) / 2, lz + e * .1); }
+    for (const e of [-1, 1]) L(DW + .32, .12, .06, lx, y + DH + .05, lz + e * .1); }
   const [cx, cz] = F.toW(lx, lz);
   DOORS.push({ g: dg, base: F.rotY, open: 0, x: cx, z: cz, v, y });
 }
+/* ---------- building parts: one set of doors and windows for every building in every region (see BUILDINGS_PLAN.md).
+   PARTS.door(b, x, y, z, nx, nz, o): a door on a wall at (x, z), ground y, facing out along (nx, nz): a frame standing proud
+   of the wall, a step, the leaf and a handle, in one of several styles; PARTS.window(...): frame, glass, mullions, sill, and
+   bars, louvres, shutters or an arched head; PARTS.facade(b, box, o): windows round all four walls, floor by floor, and the
+   door. Colours come from a hash of the spot (never rng(), so the world's own sequence is untouched). Every drawn door is
+   recorded in DOOR_HINTS so the building's way in is the door you can see. ---------- */
+const DOOR_HINTS = [], SLIDERS = [];
+const PARTS = (() => {
+  const hash = (x, z, s = 0) => { let h = Math.imul(Math.round(x * 7.3) + 374761393, 668265263) ^ Math.imul(Math.round(z * 5.9) + s * 911, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const cache = new Map(), mat = (hex, emissive) => { const k = hex + '|' + (emissive || 0); if (!cache.has(k)) cache.set(k, emissive ? new THREE.MeshLambertMaterial({ color: hex, emissive }) : LM(hex)); return cache.get(k); };
+  const shade = (hex, k) => { const c = new THREE.Color(hex); c.multiplyScalar(k); return c.getHex(); };
+  // the door colours: deep brown, mahogany, light brown, white, black, green, maroon, navy, grey (and glass, as a style)
+  const LEAF = { deepBrown: 0x3a2214, mahogany: 0x5a2e18, brown: 0x6e4526, lightBrown: 0xa8784a, teak: 0x8a5a32, white: 0xeeebe2, black: 0x1a1a1c, green: 0x2a4a34, maroon: 0x5e1a1a, navy: 0x22324e, grey: 0x5e6266, cream: 0xe2d6b8 };
+  const HOME_COLS = ['deepBrown', 'mahogany', 'brown', 'lightBrown', 'teak', 'white', 'black', 'deepBrown', 'brown', 'green', 'maroon', 'navy', 'cream'];
+  const STEEL_COLS = [0x2a2c30, 0x1f3a2a, 0x5a1a1a, 0x24304a, 0x6a6e72, 0x3a2a1e];
+  const glass = mat(0x5f8098, 0x0e1c28), glassDark = mat(0x3a4e5e, 0x0a1218); glass.userData.glass = glassDark.userData.glass = true; const ___ = 0, alu = mat(0xc4cacf), brass = mat(0xc9a23a), chrome = mat(0xd8dde2), black = mat(0x18181a), step = M.concrete || mat(0xb8b4ac);
+  const frameCol = { white: 0xf2f0ea, wood: 0x4a2e1a, dark: 0x2a2c30, stone: 0xd8ceb8, alu: 0xc4cacf };
+  // placing along a wall: a = along it, h = up, n = out from it
+  const place = (x, y, z, nx, nz) => { const ux = nz, uz = -nx, side = Math.abs(nx) > .5;
+    return { at: (a, h, n) => [x + ux * a + nx * n, y + h, z + uz * a + nz * n],
+      box: (b, sw, sh, sd, a, h, n, m) => { const [px, py, pz] = [x + ux * a + nx * n, y + h, z + uz * a + nz * n]; b.box(side ? sd : sw, sh, side ? sw : sd, px, py, pz, m, 1, false); },
+      quad: (b, sw, sh, a, h, n, m) => b.quad(sw, sh, x + ux * a + nx * n, y + h, z + uz * a + nz * n, nx, nz, m) }; };
+  const pick = (list, x, z, s) => list[Math.floor(hash(x, z, s) * list.length) % list.length];
+  function leafPanels(P, b, a0, W, H, lm, pm, n = .015) {   // a panelled leaf: the face, four raised panels
+    P.quad(b, W, H, a0, H / 2, n, lm);
+    if (LITE) return;
+    for (const [pa, ph, phh] of [[-1, .27, .34], [1, .27, .34], [-1, .7, .4], [1, .7, .4]]) P.quad(b, W * .34, H * phh, a0 + pa * W * .21, H * ph, n + .012, pm);
+  }
+  function handle(P, b, a, kind, hm, side = 1) {   // a lever (homes), a knob, a pull bar (glass), a ring (grand doors)
+    if (kind === 'bar') { P.box(b, .04, .7, .05, a, 1.05, .07, hm); for (const o of [-.3, .3]) P.box(b, .04, .04, .06, a, 1.05 + o, .04, hm); return; }
+    if (kind === 'ring') { P.box(b, .14, .14, .03, a, 1.25, .04, hm); P.box(b, .2, .03, .03, a, 1.15, .06, hm); P.box(b, .03, .2, .03, a - .1, 1.15 - .02, .06, hm); P.box(b, .03, .2, .03, a + .1, 1.15 - .02, .06, hm); return; }
+    P.quad(b, .06, .22, a, 1.0, .03, hm);   // the backplate
+    if (kind === 'knob') { P.box(b, .07, .07, .07, a, 1.02, .08, hm); return; }
+    P.box(b, .16, .03, .03, a - side * .07, 1.06, .075, hm); P.box(b, .03, .03, .05, a, 1.06, .05, hm);   // the lever
+  }
+  function door(b, x, y, z, nx, nz, o = {}) {
+    const style = o.style || 'panel', P = place(x, y, z, nx, nz), seed = o.seed || 0;
+    const dbl = style === 'double' || style === 'grand' || style === 'sliding' || (style === 'glass' && (o.w || 1) >= 1.6);
+    const W = o.w || (style === 'grand' ? 2.4 : style === 'sliding' ? 2.6 : dbl ? 1.8 : 1.0), H = o.h || (style === 'grand' ? 3.3 : style === 'sliding' ? 2.6 : style === 'double' ? 2.6 : 2.15);
+    const colKey = o.color || pick(HOME_COLS, x, z, seed + 1), leafHex = typeof colKey === 'number' ? colKey : LEAF[colKey] || LEAF.brown;
+    const fM = mat(frameCol[o.frame || (style === 'glass' || style === 'sliding' ? 'alu' : style === 'grand' ? 'stone' : leafHex === LEAF.white ? 'wood' : 'white')]);
+    const hm = o.handleM || (style === 'glass' || style === 'sliding' ? chrome : style === 'steel' ? chrome : pick([brass, brass, chrome, black], x, z, seed + 2));
+    // the frame: jambs and head proud of the wall (an architrave), the step below
+    const fw = style === 'grand' ? .3 : .13, fd = style === 'grand' ? .22 : .14;
+    for (const s of [-1, 1]) P.box(b, fw, H + fw, fd, s * (W / 2 + fw / 2), (H + fw) / 2, fd / 2 - .02, fM);
+    P.box(b, W + 2 * fw + .1, fw + (style === 'grand' ? .2 : 0), fd + .02, 0, H + fw / 2 + (style === 'grand' ? .1 : 0), fd / 2 - .02, fM);
+    if (o.step !== false) P.box(b, W + 2 * fw + .5, .14, .5, 0, .07, .25, step);
+    if (style === 'panel' || style === 'double' || style === 'grand') {
+      const lm = mat(leafHex), pm = mat(shade(leafHex, leafHex === LEAF.white || leafHex === LEAF.cream ? .9 : 1.25));
+      if (!dbl) { leafPanels(P, b, 0, W, H, lm, pm); handle(P, b, W / 2 - .13, o.handle || pick(['lever', 'lever', 'knob'], x, z, seed + 3), hm, 1); }
+      else { for (const s of [-1, 1]) { leafPanels(P, b, s * W / 4, W / 2 - .02, H, lm, pm); handle(P, b, s * .12, style === 'grand' ? 'ring' : 'lever', hm, -s); } P.box(b, .03, H, .02, 0, H / 2, .02, mat(shade(leafHex, .7))); }
+      if (style === 'grand' && !LITE) for (let r = 0; r < 4; r++) for (const s of [-1, 1]) for (const c of [-1, 1]) P.box(b, .06, .06, .03, s * W / 4 + c * W * .12, H * (.18 + r * .2), .045, brass);   // studs
+      if (style !== 'panel' || o.transom) { P.quad(b, W, .45, 0, H + .02 + .225 - .45, .016, glass); }   // (a fanlight in the top of the frame)
+    } else if (style === 'steel') {   // burglar-proof: a painted steel leaf with a grid of bars and a heavy handle
+      const sHex = o.color ? leafHex : pick(STEEL_COLS, x, z, seed + 4), sm = mat(sHex), bm = mat(shade(sHex, sHex === 0x6a6e72 ? .7 : 1.6)); P.quad(b, W, H, 0, H / 2, .015, sm);
+      for (const fa of [-.25, 0, .25]) P.box(b, .035, H - .1, .03, fa * W, H / 2, .035, bm);
+      for (const fh of [.2, .45, .7, .9]) P.box(b, W - .06, .035, .03, 0, fh * H, .04, bm);
+      P.box(b, .3, .26, .025, 0, H * .78, .03, glassDark);   // the spy window
+      handle(P, b, W / 2 - .14, 'lever', hm, 1); P.box(b, .08, .12, .05, W / 2 - .14, 1.3, .05, chrome);   // the padlock box
+    } else if (style === 'glass') {   // shop or office: aluminium frames round glass, pull bars
+      const n2 = dbl ? 2 : 1, lw = W / n2;
+      for (let k = 0; k < n2; k++) { const a = -W / 2 + lw * (k + .5); P.quad(b, lw - .1, H - .1, a, H / 2, .015, glass);
+        for (const s of [-1, 1]) P.box(b, .06, H, .05, a + s * (lw / 2 - .03), H / 2, .03, alu); for (const hh of [.04, H - .04]) P.box(b, lw, .08, .05, a, hh, .03, alu); P.box(b, lw, .2, .05, a, .14, .03, alu);
+        handle(P, b, a + (n2 === 2 ? (k ? -1 : 1) * (lw / 2 - .16) : lw / 2 - .16), 'bar', hm); }
+    } else if (style === 'sliding') {   // automatic sliding doors: two glass leaves in a track under a header with its sensor; they slide apart as you come near
+      P.box(b, W + .5, .32, .3, 0, H + .16, .15, alu); P.box(b, .22, .07, .07, 0, H + .02, .32, black);   // the header box and the sensor
+      for (const s of [-1, 1]) P.quad(b, W / 2 - .05, H - .02, s * (W / 2 + W / 4), H / 2, .012, glassDark);   // the fixed side lights
+      const [cx, cy, cz] = P.at(0, 0, .08), ang = Math.atan2(nx, nz), leaves = [];
+      for (const s of [-1, 1]) { const g = new THREE.Group(); g.position.set(cx, cy, cz); g.rotation.y = ang; const lw = W / 2;
+        const pane = new THREE.Mesh(new THREE.PlaneGeometry(lw - .04, H - .06), glass); pane.position.set(s * lw / 2, H / 2, 0); g.add(pane);
+        for (const [fw2, fh2, px, py] of [[.06, H, s * (lw - .03), H / 2], [.06, H, s * .03, H / 2], [lw, .07, s * lw / 2, H - .035], [lw, .14, s * lw / 2, .07]]) { const m = new THREE.Mesh(new THREE.BoxGeometry(fw2, fh2, .05), alu); m.position.set(px, py, 0); g.add(m); }
+        g.matrixAutoUpdate = true; scene.add(g); leaves.push({ g, s, base: g.position.clone(), ux: nz, uz: -nx }); }
+      SLIDERS.push({ x: cx + nx * 1.2, z: cz + nz * 1.2, y, leaves, w: W / 2, open: 0 });
+    } else if (style === 'shutter') {   // a roller shutter half up over a glass shop door
+      P.box(b, W + .3, .4, .4, 0, H + .25, .18, mat(0x8a9096)); const sm = mat(pick([0x9aa0a6, 0x5f7a8c, 0x6a3a2a, 0x2f5a3a], x, z, seed + 5));
+      P.quad(b, W, H * .42, 0, H - H * .21, .03, sm); if (!LITE) for (let k = 0; k < 6; k++) P.box(b, W, .025, .02, 0, H - .06 - k * H * .07, .04, mat(shade(sm.color.getHex(), .7)));
+      P.quad(b, W - .1, H * .55, 0, H * .29, .015, glass); handle(P, b, W / 2 - .2, 'bar', chrome);
+    }
+    if (o.canopy) { P.box(b, W + 1.3, .12, 1.1, 0, H + .55, .55, o.canopyM || mat(0x8a9096)); for (const s of [-1, 1]) P.box(b, .06, .5, .06, s * (W / 2 + .5), H + .3, .9, black); }
+    if (o.lamp !== false && style !== 'sliding') P.box(b, .18, .24, .14, W / 2 + fw + .3, H - .1, .1, lampMat);   // the porch light beside the door
+    if (o.number && !LITE) P.box(b, .22, .16, .02, -W / 2 - fw - .3, H * .75, .015, brass);   // the house number plate
+    const [ox2, , oz2] = P.at(0, 0, 0);
+    if (o.hint !== false) DOOR_HINTS.push({ x: ox2, z: oz2, y, ox: nx, oz: nz, w: W, style, src: BLOCK });
+    return { x: ox2 + nx * 1.3, z: oz2 + nz * 1.3, wx: ox2, wz: oz2 };
+  }
+  function window(b, x, y, z, nx, nz, w, h, o = {}) {   // y is the window's centre
+    WIN_POS.push(x, z); const P = place(x, y, z, nx, nz), fM = mat(frameCol[o.frame || 'white']), gM = o.glassM || glassDark;
+    P.quad(b, w + .16, h + .16, 0, 0, .01, fM); P.quad(b, w, h, 0, 0, .02, gM);
+    if (o.simple) { if (!LITE) P.quad(b, w, .05, 0, h * .15, .03, fM); P.quad(b, w + .2, .08, 0, -h / 2 - .05, .03, o.sillM || step); return; }   // (high-rise windows: four panels each)
+    if (o.arch) { P.quad(b, w * .76, h * .14, 0, h / 2 + h * .07, .01, fM); P.quad(b, w * .66, h * .12, 0, h / 2 + h * .06, .02, gM); P.quad(b, w * .4, h * .1, 0, h / 2 + h * .15, .02, gM); }
+    if (!LITE) {
+      if (o.louvre) for (let k = 1; k < 6; k++) P.quad(b, w, .025, 0, -h / 2 + k * h / 6, .03, fM);
+      else if (w > .7) { P.quad(b, .05, h, 0, 0, .03, fM); P.quad(b, w, .05, 0, h * .15, .031, fM); }
+      if (o.bars) for (let k = 1; k < 5; k++) P.quad(b, .03, h + .06, -w / 2 + k * w / 5, 0, .06, black);
+    }
+    P.quad(b, w + .26, .08, 0, -h / 2 - .06, .1, o.sillM || step);   // the sill
+    if (o.shutters) { const sh = mat(o.shutterHex || 0x2f5a3a); for (const s of [-1, 1]) P.quad(b, w / 2, h + .1, s * (w * .75 + .1), 0, .015, sh); }
+  }
+  // all four walls of a box: windows in even bays on every floor (o.sides picks walls), and the door on o.face
+  function facade(b, B, o = {}) {
+    const { x, z, w, d } = B, y0 = B.y, fh = o.fh || 3.1, floors = o.floors || 1, bay = o.bay || 3.2, ww = o.ww || 1.2, wh = o.wh || 1.3, sill = o.sill ?? .95;
+    const faces = { pz: [0, 1, w, d / 2], nz: [0, -1, w, d / 2], px: [1, 0, d, w / 2], nx: [-1, 0, d, w / 2] }, out = {};
+    const doorA = o.doorA ?? 0;
+    for (const f of o.sides || ['pz', 'nz', 'px', 'nx']) {
+      const [fx, fz, L, half] = faces[f], wx = x + fx * (half + .005), wz = z + fz * (half + .005), nb = Math.max(1, Math.floor((L - .6) / bay));
+      for (let fl = o.from || 0; fl < floors; fl++) for (let k = 0; k < nb; k++) {
+        const a = -L / 2 + (k + .5) * L / nb; if (o.face === f && fl < (o.lobby || 1) && Math.abs(a - doorA) < (o.skip ?? ((o.door?.w || 1.1) / 2 + ww / 2 + .35))) continue;
+        if (ww >= L / nb - .3) continue;
+        const ux = fz, uz = -fx;
+        if (fl === 0 && o.avoid && o.avoid.some(([px, pz]) => Math.hypot(wx + ux * a - px, wz + uz * a - pz) < 2)) continue;   // (keep clear of a door on this wall)
+        window(b, wx + ux * a, y0 + fl * fh + sill + wh / 2, wz + uz * a, fx, fz, ww, wh, o.win || {});
+      }
+    }
+    if (o.face && o.door !== null) { const [fx, fz, , half] = faces[o.face]; out.door = door(b, x + fx * (half + .005) + fz * doorA, y0, z + fz * (half + .005) - fx * doorA, fx, fz, o.door || {}); }
+    return out;
+  }
+  // a shop front: a band for the sign, display glass both sides, a glass or sliding door in the middle
+  function storefront(b, x, y, z, nx, nz, W, o = {}) {
+    const P = place(x, y, z, nx, nz), H = o.h || 3;
+    for (const s of [-1, 1]) { const pw = (W - (o.doorW || 2)) / 2 - .2; if (pw > .4) { P.quad(b, pw, H - .6, s * ((o.doorW || 2) / 2 + .2 + pw / 2), (H - .6) / 2 + .35, .02, glass); P.box(b, pw + .1, .35, .1, s * ((o.doorW || 2) / 2 + .2 + pw / 2), .17, .05, mat(0x3a3a3e)); for (const e of [-1, 1]) P.box(b, .07, H - .3, .08, s * ((o.doorW || 2) / 2 + .2 + pw / 2) + e * pw / 2, (H - .3) / 2, .04, alu); } }
+    return door(b, x, y, z, nx, nz, { style: o.style || 'glass', w: o.doorW || 2, h: H - .6, lamp: false, ...o.door });
+  }
+  // an ordinary house or small block (the Oyo and Benin cottage, the Delta and Akwa Ibom kit house): windows round every wall on
+  // every floor (some with burglar bars or louvres), the door a little off-centre on its face: a panelled door in one of the
+  // colours or a steel security door for homes, a glass door under a canopy for 3+ storey offices and banks
+  function house(b, x, y, z, w, d, floors, face, o = {}) {
+    const hh = hash(x, z, 9), office = floors >= 3, L = face === 'pz' || face === 'nz' ? w : d;
+    const doorA = office ? 0 : (hh < .5 ? -1 : 1) * Math.min(L * .22, 1.6) * (.4 + hh), style = o.style || (office ? 'glass' : hh < .28 ? 'steel' : 'panel');
+    const win = { bars: !office && hash(x, z, 10) < .45, louvre: !office && hash(x, z, 11) < .3, frame: hash(x, z, 12) < .2 ? 'wood' : 'white' };
+    return facade(b, { x, z, w, d, y }, { floors, fh: 3.1, face, doorA, ww: office ? 1.5 : 1.15, wh: office ? 1.5 : 1.25, bay: office ? 3 : 3.3, win, door: { style, w: office ? 1.8 : 1, canopy: office || hash(x, z, 13) < .35, number: !office, ...o.door } }).door;
+  }
+  // a window drawn from both sides (where a builder only knew a slab in the wall, not which way was out)
+  function window2(b, x, y, z, alongZ, w, h) {
+    WIN_POS.push(x, z);
+    const fM = mat(frameCol.white), nx = alongZ ? 1 : 0, nz = alongZ ? 0 : 1;
+    for (const s of [-1, 1]) { b.quad(w + .16, h + .16, x + nx * s * .03, y, z + nz * s * .03, nx * s, nz * s, fM); b.quad(w, h, x + nx * s * .05, y, z + nz * s * .05, nx * s, nz * s, glassDark); }
+    for (const s of [-1, 1]) { const qx = x + nx * s * .07, qz = z + nz * s * .07; if (!LITE && w > .7) { b.quad(.05, h, qx, y, qz, nx * s, nz * s, fM); b.quad(w, .05, qx, y + h * .15, qz, nx * s, nz * s, fM); } b.quad(w + .24, .08, x + nx * s * .12, y - h / 2 - .06, z + nz * s * .12, nx * s, nz * s, step); }
+  }
+  // a wall along a line (a perimeter, a compound) that never blocks a road: walked a metre at a time, it leaves a gateway with
+  // pillars wherever a road crosses it; an optional coping along the top
+  function wall(b, x0, z0, x1, z1, o = {}) {
+    const y = o.y ?? TOWN.y, H = o.h ?? 2.4, T = o.t ?? .5, L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / (L || 1), uz = (z1 - z0) / (L || 1), ax = Math.abs(ux) > Math.abs(uz);
+    const open = t => { const px = x0 + ux * t, pz = z0 + uz * t; for (const e of [-.4, 0, .4]) { const k = kindAt(px + (ax ? 0 : e), pz + (ax ? e : 0)); if ((k === 6 || k === 8 || k === 9) && Math.abs(heightAt(px, pz) - y) < 2) return true; } return false; };
+    const segs = []; let a = null; for (let t = 0; t <= L; t += .5) { const op = t < L && open(t); if (!op && a === null) a = t; if ((op || t >= L) && a !== null) { if (t - a > .3) segs.push([a, Math.min(t, L)]); a = null; } }
+    const piece = (t0, t1, hh, tt, yy, m, S, tag) => { const c = (t0 + t1) / 2, len = t1 - t0; b.box(ax ? len : tt, hh, ax ? tt : len, x0 + ux * c, yy, z0 + uz * c, m, S, !!tag, tag || null); };
+    for (const [t0, t1] of segs) {
+      piece(t0, t1, H, T, y + H / 2, o.mat || M.concrete, o.S || 2, o.tag ?? 'house');
+      if (o.cap) piece(t0, t1, o.capH || .3, o.capT || T + .3, y + H + (o.capH || .3) / 2, o.cap, 1, null);
+      for (const t of [t0, t1]) if (t > .4 && t < L - .4) piece(t - T * .9, t + T * .9, H + .5, T * 1.8, y + (H + .5) / 2, o.pillar || o.mat || M.concrete, 1, 'house');   // a pillar each side of a gateway
+    }
+    if (segs.length > 1 || (segs[0] && (segs[0][0] > .4 || segs[0][1] < L - .4))) PLACE_RULES.gates = (PLACE_RULES.gates || 0) + 1;
+  }
+  const winMat = (hex, em) => { const m = new THREE.MeshLambertMaterial({ color: hex, emissive: em }); m.userData.win = true; return m; };
+  return { door, window, window2, wall, winMat, facade, storefront, house, hash, mat, LEAF, glass, glassDark, alu, brass, chrome, black };
+})();
+// the sliding doors part as you come near (and close behind you)
+function updateSliders(dt) {
+  for (const S of SLIDERS) {
+    const d = Math.hypot(P.pos.x - S.x, P.pos.z - S.z), want = d < 4.5 && Math.abs(P.pos.y - S.y) < 3 ? 1 : 0;
+    if (want === S.open && (S.open === 0 || S.open === 1) && !S.moving) continue;
+    S.open += Math.sign(want - S.open) * Math.min(Math.abs(want - S.open), dt * 2.2); S.moving = S.open !== want;
+    for (const L of S.leaves) L.g.position.set(L.base.x + L.ux * L.s * S.w * .92 * S.open, L.base.y, L.base.z + L.uz * L.s * S.w * .92 * S.open);
+  }
+}
+const PARTS_FB = new Builder();   // (frames for the hinged doors, built with everything else)
 const gold = LM(0xd6ae5f);
 const stainedMat = (() => {
   const c = document.createElement('canvas'); c.width = 32; c.height = 64; const g = c.getContext('2d');
@@ -3526,7 +3771,7 @@ if (AP) {
   for (const [rowU, yy] of [[69, y + .02], [89, y + .02], [69, pY], [89, pY]]) for (let v = 71; v <= 129; v += 3) {
     A(bC, .1, .02, 2.6, rowU + (rowU < 79 ? 2.4 : -2.4), yy + .02, v + 1.5, white);
     if (yy !== pY) { const [x, z] = Wp(rowU, v); AP.showSlots.push([x, z, yawTo(rowU < 79 ? 1 : -1, 0)]); }   // the ground floor: every model, to drive (see SHOWROOM)
-    else if (Math.random() < .3) { const [x, z] = Wp(rowU, v); const [hx, hz] = Hw(2.2, 1); AP.parkedCars.push([x, z, yawTo(rowU < 79 ? 1 : -1, 0), yy]); colliders.push({ x0: x - hx, x1: x + hx, y0: yy, y1: yy + 1.6, z0: z - hz, z1: z + hz, tag: 'house' }); }
+    else if (Math.random() < .3) { const [x, z] = Wp(rowU, v); const [hx, hz] = Hw(2.2, 1); AP.parkedCars.push([x, z, yawTo(rowU < 79 ? 1 : -1, 0), yy]); colliders.push({ x0: x - hx, x1: x + hx, y0: yy, y1: yy + 1.6, z0: z - hz, z1: z + hz, tag: 'house', car: 1 }); }
   }
   for (const [u, v] of [[70, 80], [88, 80], [70, 120], [88, 120]]) { A(bC, .2, 5, .2, u, pY + 2.5, v, MM.dark, 1, true, 'house'); A(bC, .5, .15, .5, u, pY + 5, v, lampMat); const [lx, lz] = Wp(u, v); LAMPS.push([lx, lz, pY]); }
   // covered skywalk from the car park roof to the departures kerb
@@ -4120,10 +4365,10 @@ function facadeMat(style, frame, glass, seed = 1) {
   }
   for (let fy = 0; fy <= 8; fy++) { g.fillStyle = shade(frame, .82); g.fillRect(0, fy * q - 2, n, 4); }   // the floor lines
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  return new THREE.MeshLambertMaterial({ map: t, emissive: 0x0a0e12 });
+  const fm = new THREE.MeshLambertMaterial({ map: t, emissive: 0x0a0e12 }); fm.userData.facade = true; return fm;
 }
 // the same facade wrapped round a cylinder or prism of this girth and height (its texture repeated to keep floors 3.4 m)
-function facadeWrap(mat, girth, h) { const m = mat.clone(); m.map = mat.map.clone(); m.map.needsUpdate = true; m.map.repeat.set(Math.max(1, Math.round(girth / FACADE_S * 8) / 8), h / FACADE_S); return m; }
+function facadeWrap(mat, girth, h) { const m = mat.clone(); m.userData.facade = true; m.map = mat.map.clone(); m.map.needsUpdate = true; m.map.repeat.set(Math.max(1, Math.round(girth / FACADE_S * 8) / 8), h / FACADE_S); return m; }
 
 /* Ikoyi: the lagoon and its beach, streets with lamps and palms, a board on every block, an arch where the boulevard
    leaves Banana Island West, six one-of-a-kind residential towers, the Ikoyi Grand Mall and a parade of shops, three
@@ -4253,8 +4498,8 @@ if (IKOYI) withSeed(5151, () => {
       for (let c = 0; c < 9; c++) mesh(new THREE.CylinderGeometry(.9, 1, 14, 16), W, front + 4.5, Y + 7.6, zc - 18 + c * 4.5);
       b.box(6, .6, hd - 2, front + 4.5, Y + .3, zc, M.stone, 1, true, 'base'); b.box(4, .6, hd - 6, front + 5.5, Y + .9, zc, M.stone, 1, true, 'base');
       sign(name, col, '#d6ae5f', 30, 2, front + 6.2, Y + 16.6, zc, E, '#d6ae5f');
-      K.ents.push({ x: front + 8, z: zc, ox: 1, oz: 0, name: name.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()), type: 'bank', bx: -452, bz: zc, br: 16 });
-      b.box(5, 6, 3, front + 1, Y + 3, zc, G.dark, 1, false);                                          // the great doors
+      K.ents.push({ x: front + 8, z: zc, ox: 1, oz: 0, wx: front + 2.5, wz: zc, gy: Y, drawn: true, name: name.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()), type: 'bank', bx: -452, bz: zc, br: 16 });
+      b.box(5, 6, 3, front + 1, Y + 3, zc, G.dark, 1, false); PARTS.door(b, front + 2.505, Y, zc, 1, 0, { style: 'grand', w: 3, h: 4.6, color: 'deepBrown', hint: false });   // the great doors, in the banking hall's portal
       const tx = -452, tw = 26, ty = Y + 15;
       b.box(tw, H, tw, tx, ty + H / 2, zc, F['bank' + k], FS, true, 'tower');
       for (let y = 13.6; y < H; y += 13.6) b.box(tw + .5, .6, tw + .5, tx, ty + y, zc, W, 1, false);
@@ -5577,7 +5822,11 @@ function hairFor(pl, F, ng, old) {
   if (pl === 'country' || pl === 'school') return F ? ri(['bun', 'ponytail', 'bob', 'long']) : ri(['short', 'messy', 'short']);
   return F ? ri(['long', 'ponytail', 'bob', 'bun', 'curly', 'long']) : ri(['short', 'fade', 'messy', 'curly', 'bald', 'short']);
 }
-function makeCivilian(v, opts = {}) {
+// people draw from their own random stream, never the world's: making someone used to pull a varying number of numbers from
+// rng() (their look branches on Math.random), so every building after the first passer-by moved between loads and players
+let CIV_SEED = 52801;
+function makeCivilian(v, opts = {}) { const keep = seed; seed = CIV_SEED; try { return makeCivilian0(v, opts); } finally { CIV_SEED = seed; seed = keep; } }
+function makeCivilian0(v, opts = {}) {
   const elder = !opts.child && !opts.adult && Math.random() < .15, child = opts.child || (!opts.adult && !elder && Math.random() < .14);
   const female = opts.female ?? Math.random() < .5;
   const p = roadPoint(v), pl = placeForSpawn(v, p, child, opts);
@@ -7309,7 +7558,8 @@ function mixAt(x, z) {   // which cars park and drive here
   return PARK_MIX;
 }
 function pickMix(mix) { let t = 0; for (const k in mix) t += mix[k]; let r = Math.random() * t; for (const k in mix) if ((r -= mix[k]) <= 0) return k; return 'corolla05'; }
-const makeMixed = (mix = TRAFFIC_MIX) => { const id = pickMix(mix); return id === 'keke' ? makeKeke() : id === 'tipper' ? makeTipper() : id === 'ctruck' ? makeContainerTruck() : makeModel(id); };
+let VEH_SEED = 90211;   // (vehicles too draw from their own stream: their type is a Math.random pick, and only some types used the world's numbers)
+const makeMixed = (mix = TRAFFIC_MIX) => { const keep = seed; seed = VEH_SEED; try { const id = pickMix(mix); return id === 'keke' ? makeKeke() : id === 'tipper' ? makeTipper() : id === 'ctruck' ? makeContainerTruck() : makeModel(id); } finally { VEH_SEED = seed; seed = keep; } };
 const makeTaxi = () => makeModel(pick(['corolla05', 'camry08', 'corolla05', 'sienna10']), 0xf2c230);
 
 /* ---------- traffic: cars cruise the grid, turn at junctions and stop for anything in their lane ---------- */
@@ -8205,7 +8455,7 @@ function ySign(mat, w, h, x, y, z, ry) { const m = new THREE.Mesh(new THREE.Plan
 if (YABA) withSeed(9191, () => {
   const Y = YABA.y, ri2 = a => a[Math.floor(rng() * a.length)];
   const paints = [0xf2e6c8, 0xf4d9b8, 0xc9e0f4, 0xd6f0d0, 0xf4ecc0, 0xf4c9c9, 0xe8e6df, 0xd9e8c4, 0xf2d0a0, 0xc8d8e8].map(c => LM(c));
-  const bandM = LM(0xd8d2c4), winM = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), rustM = LM(0x8a4a2a), zincM = LM(0x9aa3a8), blueRoofM = LM(0x2f5f9a);
+  const bandM = LM(0xd8d2c4), winM = PARTS.winMat(0x2c3a46, 0x0a1218), rustM = LM(0x8a4a2a), zincM = LM(0x9aa3a8), blueRoofM = LM(0x2f5f9a);
   const tankM = LM(0x1b1b1f), greenM = LM(0x2f8a4a), whiteM = MM.white, darkM = MM.dark, woodM = M.oak;
   const awnings = [0xd8342c, 0x2f8fd0, 0x3fae5a, 0xf2c230, 0xe8742a, 0x8a5ad0, 0x1fb5a8].map(c => LM(c));
   const facing = (nx, nz) => Math.atan2(nx, nz);   // a plane's rotation so it faces (nx, nz)
@@ -8241,7 +8491,7 @@ if (YABA) withSeed(9191, () => {
     const n = Math.max(1, Math.floor(len / 6)), tx = -nz, tz = nx;
     for (let k = 0; k < n; k++) {
       const o = (k + .5) * len / n - len / 2, cx = x + tx * o, cz = z + tz * o, sw = len / n - .8;
-      b.box(Math.abs(tx) * sw + Math.abs(nx) * .1 || .1, 2.4, Math.abs(tz) * sw + Math.abs(nz) * .1 || .1, cx + nx * .06, Y + 1.25, cz + nz * .06, darkM, 1, false);
+      PARTS.storefront(b, cx + nx * .005, Y, cz + nz * .005, nx, nz, sw, { style: PARTS.hash(cx, cz, 40) < .45 ? 'shutter' : 'glass', doorW: 1.4, h: 2.6, door: { canopy: false } });   // display glass and a glass or shutter door
       b.box(Math.abs(tx) * sw + Math.abs(nx) * 1.6, .12, Math.abs(tz) * sw + Math.abs(nz) * 1.6, cx + nx * .85, Y + 2.75, cz + nz * .85, ri2(awnings), 1, false);
       const [txt, bg] = SHOPS[shopN++ % SHOPS.length], mat = ySignMat(txt, bg);
       const sign = ySign(mat, sw, .9, cx + nx * .09, Y + 3.25, cz + nz * .09, facing(nx, nz));
@@ -8434,7 +8684,7 @@ const GRA_NAMES = ['ISAAC JOHN STREET', 'JOEL OGUNNAIKE STREET', 'ODUDUWA CRESCE
 if (IKEJA) withSeed(9393, () => {
   const Y = IKEJA.y, b = new Builder(), ri2 = a => a[Math.floor(rng() * a.length)];
   const stone = LM(0xf4efe2), trim = LM(0xe6dcc4), cornice = LM(0xfaf7ee), gold = LM(0xc9a24a), hedge = LM(0x2e6b30), rail = LM(0x1f3a2a), pave = LM(0xd8d0bc);
-  const winM = new THREE.MeshLambertMaterial({ color: 0x3a5468, emissive: 0x0c1820 }), copper = new THREE.MeshLambertMaterial({ color: 0x5fa894 }), water = new THREE.MeshPhongMaterial({ color: 0x7fd0ee, shininess: 120, transparent: true, opacity: .85 });
+  const winM = PARTS.winMat(0x3a5468, 0x0c1820), copper = new THREE.MeshLambertMaterial({ color: 0x5fa894 }), water = new THREE.MeshPhongMaterial({ color: 0x7fd0ee, shininess: 120, transparent: true, opacity: .85 });
   const flowers = [0xd8342c, 0xf2c230, 0xe07aa0, 0xf4f4f2, 0xe8742a].map(c => LM(c));
   const palm = (x, z) => { b.box(.45, 8, .45, x, Y + 4, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7], [.7, -.7], [-.7, .7]]) b.box(dx ? 3.2 : .6, .22, dz ? 3.2 : .6, x + dx * 1.5, Y + 8 - (dx && dz ? .3 : 0), z + dz * 1.5, M.leaves, 1, false); };
   const lamp = (x, z, ax, az) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, MM.dark, 1, true, 'house'); b.box(ax ? 1.4 : .12, .1, az ? 1.4 : .12, x + ax * .7, Y + 6.45, z + az * .7, MM.dark, 1, false); b.box(.45, .14, .45, x + ax * 1.3, Y + 6.35, z + az * 1.3, lampMat, 1, false); LAMPS.push([x + ax * 1.3, z + az * 1.3, Y]); };
@@ -8555,7 +8805,7 @@ if (IKEJA) withSeed(9393, () => {
   { const sh = new THREE.Shape(); sh.moveTo(-17, 0); sh.lineTo(17, 0); sh.lineTo(0, 5.5); sh.lineTo(-17, 0);
     const ped = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 9.6, bevelEnabled: false }), cornice); ped.rotation.y = Math.PI / 2; ped.position.set(bx0 - 9.8, colY + colH + 1.9, cz); ped.castShadow = true; scene.add(ped);
     b.box(.2, 1.6, 4, bx0 - 9.95, colY + colH + 3.1, cz, gold, 1, false); }   // the crest
-  b.box(.2, 7, 6, bx0 - .1, Y + 4.1, cz, LM(0x5a3218), 1, false); b.box(.25, .5, 7, bx0 - .15, Y + 7.8, cz, gold, 1, false);
+  b.box(.2, 7, 6, bx0 - .1, Y + 4.1, cz, LM(0xe8e2d0), 1, false); b.box(.25, .5, 7, bx0 - .15, Y + 7.8, cz, gold, 1, false); PARTS.door(b, bx0 - .21, Y + .6, cz, -1, 0, { style: 'grand', w: 3.4, h: 5, color: 'mahogany', hint: false });   // the state doors
   ySign(ySignMat('LAGOS HOUSE', '#f4efe2', '#8a6a20', 'GOVERNMENT HOUSE · IKEJA'), 12, 1.4, bx0 - 10.05, colY + colH + .8, cz, -Math.PI / 2);
   // the dome: a drum ringed with columns, a copper dome, a lantern, the flag on top
   { const dx = bcx, dzz = cz, dy = topC + 1.5, ring = (r, h, y, m, seg = 48) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m); o.position.set(dx, y, dzz); o.castShadow = true; scene.add(o); return o; };
@@ -8613,16 +8863,16 @@ if (YB) withSeed(9494, () => {
   const white = LM(0xf2f0ea), yel = LM(0xf2c230), conc = M.concrete, darkM = MM.dark, green = LM(0x1f6f3a);
   const rusts = [0x2e160a, 0x361a0c, 0x281208, 0x3c200e, 0x30180c, 0x382414].map(c => LM(c)), zinc = LM(0x9aa3a8);   // old rusted zinc: Ibadan's sea of brown roofs
   const walls = [0xe8d4a8, 0xd8b88a, 0xf0e2c4, 0xc89a6a, 0xe4c8a0, 0xf2e8d0, 0xd4a880, 0xe8c8b8].map(c => LM(c));
-  const winM = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), glassM = new THREE.MeshLambertMaterial({ color: 0x6a8ea8, emissive: 0x10202c });
+  const winM = PARTS.winMat(0x2c3a46, 0x0a1218), glassM = new THREE.MeshLambertMaterial({ color: 0x6a8ea8, emissive: 0x10202c });
   const sign = (text, sub, bg, w, h, x, y, z, ry, fg = '#ffffff') => ySign(ySignMat(text, bg, fg, sub), w, h, x, y, z, ry);
   const palm = (x, z, y = Y) => { b.box(.45, 7.5, .45, x, y + 3.75, z, M.bark, 1, true, 'house'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, -.7], [.7, -.7], [-.7, .7]]) b.box(dx ? 3 : .6, .22, dz ? 3 : .6, x + dx * 1.4, y + 7.5 - (dx && dz ? .3 : 0), z + dz * 1.4, M.leaves, 1, false); };
   const lamp = (x, z, ax, az) => { b.box(.2, 6.5, .2, x, Y + 3.25, z, darkM, 1, true, 'house'); b.box(ax ? 1.4 : .12, .1, az ? 1.4 : .12, x + ax * .7, Y + 6.45, z + az * .7, darkM, 1, false); b.box(.45, .14, .45, x + ax * 1.3, Y + 6.35, z + az * 1.3, lampMat, 1, false); LAMPS.push([x + ax * 1.3, z + az * 1.3, Y]); };
   // a plain house: rendered walls, a door and windows, a hip roof of rusty zinc (or tiles), on its own plot of red earth or grass
   const cottage = (x, z, w, d, floors = 1, face = 'pz', roofM = ri2(rusts), wallM = ri2(walls), mapC = '#c8a070') => {
+    const at = PLACE.fit(x, z, w, d, { taken: TAKEN, y: Y, face }); if (!at) return false; [x, z] = at;   // clear of roads, water and the neighbours, a yard before the door
     const H = floors * 3.1; b.box(w, H, d, x, Y + H / 2, z, wallM, 2, true, 'house');
     const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[face], along = fz !== 0;
-    b.box(along ? 1.1 : .08, 2.1, along ? .08 : 1.1, x + fx * (w / 2 + .03), Y + 1.05, z + fz * (d / 2 + .03), MM.door || darkM, 1, false);
-    for (let f = 0; f < floors; f++) for (const o of [-.3, .3]) { const L = along ? w : d; b.box(along ? 1 : .08, 1, along ? .08 : 1, x + fx * (w / 2 + .03) + (along ? o * L : 0), Y + f * 3.1 + 1.7, z + fz * (d / 2 + .03) + (along ? 0 : o * L), winM, 1, false); }
+    PARTS.house(b, x, Y, z, w, d, floors, face);   // windows round every wall, a proper door on its face
     hipRoof(b, roofM, x, z, w, d, Y + H, { pitch: .34, ov: .45, ground: Y });
     YABA_MAP.push([x, z, w, d, mapC]); TAKEN.push([x, z, w, d]);
   };
@@ -8835,7 +9085,7 @@ if (YB) withSeed(9494, () => {
   }
   // Agodi: Oyo State Government House
   { const A = AGODI, cz = -5090, bx0 = 190;
-    for (const [x0, z0, x1, z1] of [[A.x0, A.z0, A.x1, A.z0], [A.x0, A.z1, A.x1, A.z1], [A.x1, A.z0, A.x1, A.z1], [A.x0, A.z0, A.x0, cz - 8], [A.x0, cz + 8, A.x0, A.z1]]) { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; b.box(along ? L : .5, 2.4, along ? .5 : L, (x0 + x1) / 2, Y + 1.2, (z0 + z1) / 2, white, 2, true, 'house'); b.box(along ? L : .7, .25, along ? .7 : L, (x0 + x1) / 2, Y + 2.5, (z0 + z1) / 2, LM(0x2f8a4a), 1, false); }
+    for (const [x0, z0, x1, z1] of [[A.x0, A.z0, A.x1, A.z0], [A.x0, A.z1, A.x1, A.z1], [A.x1, A.z0, A.x1, A.z1], [A.x0, A.z0, A.x0, cz - 8], [A.x0, cz + 8, A.x0, A.z1]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 2.4, t: .5, mat: white, cap: LM(0x2f8a4a), capH: .25, capT: .7 }); }
     for (const s of [-1, 1]) { b.box(1.6, 5, 1.6, A.x0, Y + 2.5, cz + s * 8, white, 1, true, 'house'); b.box(1.9, .3, 1.9, A.x0, Y + 5.15, cz + s * 8, LM(0x2f8a4a), 1, false); }
     sign('OYO STATE GOVERNMENT HOUSE', 'AGODI · IBADAN', '#1f6f3a', 14, 1.5, A.x0 - .4, Y + 4.2, cz, -Math.PI / 2);
     b.box(70, 9, 26, bx0 + 35, Y + 4.5, cz, LM(0xf4efe2), 2, true, 'house'); hipRoof(b, LM(0x2f8a4a), bx0 + 35, cz, 70, 26, Y + 9, { pitch: .3, ov: .8, ground: Y });
@@ -9021,8 +9271,8 @@ if (YB) withSeed(9494, () => {
     { const U = EDO.uniben, cx = (U.x0 + U.x1) / 2, cream = LM(0xf2e8d0), blue = LM(0x2f4a7a);
       for (const s of [-1, 1]) { b.box(2.4, 6, 2.4, cx + s * 9, Y + 3, U.z1, cream, 2, true, 'house'); }
       b.box(20.4, 1.6, 2.6, cx, Y + 6.8, U.z1, blue, 1, true, 'roof'); sign('UNIVERSITY OF BENIN', 'UNIBEN · KNOWLEDGE FOR SERVICE', '#2f4a7a', 13, 1.4, cx, Y + 6.8, U.z1 + 1.35, 0, '#f2c230');
-      for (const [x0, z0, x1, z1] of [[U.x0, U.z0, U.x1, U.z0], [U.x0, U.z0, U.x0, U.z1], [U.x1, U.z0, U.x1, U.z1], [U.x0, U.z1, cx - 10, U.z1], [cx + 10, U.z1, U.x1, U.z1]]) { const along = x1 - x0 > z1 - z0, L = along ? x1 - x0 : z1 - z0; b.box(along ? L : .5, 2, along ? .5 : L, (x0 + x1) / 2, Y + 1, (z0 + z1) / 2, cream, 2, true, 'house'); }
-      const block = (x, z, w, d, fl, mat) => { const H = fl * 3.4; b.box(w, H, d, x, Y + H / 2, z, mat, 2, true, 'house'); for (let f = 0; f < fl; f++) b.box(w + .1, .9, d + .1, x, Y + f * 3.4 + 2, z, winM, 1, false); b.box(w + 1, .5, d + 1, x, Y + H + .25, z, LM(0x8a3a20), 1, false); YABA_MAP.push([x, z, w, d, '#e8e2d0']); TAKEN.push([x, z, w, d]); };
+      for (const [x0, z0, x1, z1] of [[U.x0, U.z0, U.x1, U.z0], [U.x0, U.z0, U.x0, U.z1], [U.x1, U.z0, U.x1, U.z1], [U.x0, U.z1, cx - 10, U.z1], [cx + 10, U.z1, U.x1, U.z1]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 2, t: .5, mat: cream }); }
+      const block = (x, z, w, d, fl, mat) => { const H = fl * 3.4; b.box(w, H, d, x, Y + H / 2, z, mat, 2, true, 'house'); PARTS.facade(b, { x, z, w, d, y: Y }, { floors: fl, fh: 3.4, face: 'pz', ww: 1.4, wh: 1.5, bay: 3, sill: 1, win: { louvre: PARTS.hash(x, z, 50) < .5, frame: 'alu' }, door: { style: 'double', w: 2, h: 2.6, lamp: false, canopy: true } }); b.box(w + 1, .5, d + 1, x, Y + H + .25, z, LM(0x8a3a20), 1, false); YABA_MAP.push([x, z, w, d, '#e8e2d0']); TAKEN.push([x, z, w, d]); };
       for (const [x, z, w, d, fl] of [[U.x0 + 30, U.z1 - 40, 44, 16, 3], [U.x1 - 30, U.z1 - 40, 44, 16, 3], [U.x0 + 30, U.z0 + 34, 44, 16, 3], [U.x1 - 30, U.z0 + 34, 44, 16, 2], [U.x0 + 26, (U.z0 + U.z1) / 2, 16, 40, 2], [U.x1 - 26, (U.z0 + U.z1) / 2, 16, 40, 2]]) block(x, z, w, d, fl, ri2([cream, LM(0xe8d4a8), LM(0xf0e2c4)]));
       block(cx, U.z0 + 26, 34, 22, 6, cream); sign('SENATE BUILDING', 'UNIVERSITY OF BENIN', '#2f4a7a', 8, 1.1, cx, Y + 4.4, U.z0 + 37.06, 0);
       block(cx, (U.z0 + U.z1) / 2 + 6, 30, 18, 3, LM(0xd8b88a)); sign('JOHN HAROLD ODUAH LIBRARY', '', '#3a2416', 9, .9, cx, Y + 3.4, (U.z0 + U.z1) / 2 + 15.06, 0, '#f2c230');
@@ -9180,7 +9430,7 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
   const MAPL = opt.map || DELTA_MAP, DOORS = opt.doors || DELTA_DOORS, townOf = opt.town || deltaTown;
   const Y = TOWN.y, ri2 = a => a[Math.floor(rng() * a.length)], R2 = (a, c) => a + rng() * (c - a), darkM = MM.dark;
   const walls = [0xf2ead8, 0xe8d4a8, 0xf0e2c4, 0xd8c0a0, 0xe4dccc, 0xf4f0e6, 0xe0c8a8, 0xd0d8c8, 0xf0d8c0, 0xc8d4dc].map(c => LM(c)), zinc = LM(0x9aa3a8), rust = LM(0x5a3418);
-  const winM = new THREE.MeshLambertMaterial({ color: 0x2c3a46, emissive: 0x0a1218 }), glassM = new THREE.MeshLambertMaterial({ color: 0x6a8ea8, emissive: 0x10202c });
+  const winM = PARTS.winMat(0x2c3a46, 0x0a1218), glassM = new THREE.MeshLambertMaterial({ color: 0x6a8ea8, emissive: 0x10202c });
   const TAKEN = [], free = (x, z, w, d, m = 2) => !TAKEN.some(([a, c, e, f]) => Math.abs(a - x) < (e + w) / 2 + m && Math.abs(c - z) < (f + d) / 2 + m);
   const K = {
     Y, ri2, R2, darkM, walls, zinc, rust, winM, glassM, TAKEN, free, white: LM(0xf2f0ea), conc: M.concrete,
@@ -9194,27 +9444,37 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
     shade: (x, z, y = Y, s = 1) => { b.box(.5 * s, 3.4 * s, .5 * s, x, y + 1.7 * s, z, M.bark, 1, true, 'house'); b.box(5 * s, 2.6 * s, 5 * s, x, y + 4.4 * s, z, M.leaves, 2, false); b.box(3.2 * s, 1.4 * s, 3.2 * s, x, y + 6.1 * s, z, M.leaves, 1, false); },   // a shade tree (mango, almond)
     // a house: rendered walls, door and windows, a stone-coated (Gerard) or zinc hip roof; becomes enterable (its rooms come from intFindBuildings)
     house: (x, z, w, d, floors = 1, face = 'pz', roofM = null, wallM = ri2(walls), mapC = '#c8a070') => {
+      const roofPick = roofM || (rng() < .7 ? gerardMat(roofColour(x, z)) : rng() < .5 ? zinc : rust);   // (chosen first, so a skipped site uses the same random numbers)
+      const at = PLACE.fit(x, z, w, d, { taken: TAKEN, y: Y, face }); if (!at) return false; [x, z] = at;   // clear of roads, water and the neighbours (with a yard before the door), or nudged, or not at all
       const H = floors * 3.1; b.box(w, H, d, x, Y + H / 2, z, wallM, 2, true, 'house');
       const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[face], along = fz !== 0;
-      b.box(along ? 1.1 : .08, 2.1, along ? .08 : 1.1, x + fx * (w / 2 + .03), Y + 1.05, z + fz * (d / 2 + .03), MM.door || darkM, 1, false);
-      for (let f = 0; f < floors; f++) for (const o of [-.3, .3]) { const L = along ? w : d; b.box(along ? 1 : .08, 1, along ? .08 : 1, x + fx * (w / 2 + .03) + (along ? o * L : 0), Y + f * 3.1 + 1.7, z + fz * (d / 2 + .03) + (along ? 0 : o * L), winM, 1, false); }
-      hipRoof(b, roofM || (rng() < .7 ? gerardMat(roofColour(x, z)) : rng() < .5 ? zinc : rust), x, z, w, d, Y + H, { pitch: .36, ov: .5, ground: Y });
+      PARTS.house(b, x, Y, z, w, d, floors, face);   // windows round every wall, a proper door on its face
+      hipRoof(b, roofPick, x, z, w, d, Y + H, { pitch: .36, ov: .5, ground: Y });
       MAPL.push([x, z, w, d, mapC]); TAKEN.push([x, z, w, d]); DOORS.push({ x: x + fx * (w / 2 + 1.6), z: z + fz * (d / 2 + 1.6), place: `a home in ${townOf(x, z)}`, delta: true });
+      return [x, z];   // (where it went, if it was nudged)
     },
     // a compound: a fence wall with a gate on one side round a house
     compound: (x, z, w, d, face, wallM = LM(0xd8d0c0)) => { const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[face];
       for (const [sx, sz] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) { const alongX = sz !== 0, L = alongX ? w : d, cx = x + sx * w / 2, cz = z + sz * d / 2;
-        if (sx === fx && sz === fz) { for (const s of [-1, 1]) b.box(alongX ? L / 2 - 2 : .3, 2.2, alongX ? .3 : L / 2 - 2, cx + (alongX ? s * (L / 4 + 1) : 0), Y + 1.1, cz + (alongX ? 0 : s * (L / 4 + 1)), wallM, 1, true, 'base'); b.box(alongX ? 3.6 : .12, 2, alongX ? .12 : 3.6, cx, Y + 1, cz, LM(0x2a3a5a), 1, false); }
+        if (sx === fx && sz === fz) { for (const s of [-1, 1]) b.box(alongX ? L / 2 - 2 : .3, 2.2, alongX ? .3 : L / 2 - 2, cx + (alongX ? s * (L / 4 + 1) : 0), Y + 1.1, cz + (alongX ? 0 : s * (L / 4 + 1)), wallM, 1, true, 'base'); PARTS.door(b, cx, Y, cz, sx, sz, { style: 'steel', w: 3.4, h: 2.1, step: false, lamp: false, hint: false }); }   // a steel gate
         else b.box(alongX ? L : .3, 2.2, alongX ? .3 : L, cx, Y + 1.1, cz, wallM, 1, true, 'base'); } },
     // a block of flats or offices: storeys of window bands, a flat roof with a water tank (8+ storeys get flats or offices inside)
-    tower: (x, z, w, d, floors, wallM = ri2(walls), mapC = '#d8d4cc') => { const H = floors * 3.2; b.box(w, H, d, x, Y + H / 2, z, wallM, 2, true, 'house');
-      for (let f = 0; f < floors; f++) for (const [ox, oz, ww, dd] of [[0, d / 2 + .04, w * .86, .08], [0, -d / 2 - .04, w * .86, .08], [w / 2 + .04, 0, .08, d * .86], [-w / 2 - .04, 0, .08, d * .86]]) b.box(ww, 1.3, dd, x + ox, Y + f * 3.2 + 1.9, z + oz, winM, 1, false);
+    tower: (x, z, w, d, floors, wallM = ri2(walls), mapC = '#d8d4cc') => { const at = PLACE.fit(x, z, w, d, { taken: TAKEN, y: Y, nudge: 2 }); if (!at) return false; [x, z] = at; const H = floors * 3.2; b.box(w, H, d, x, Y + H / 2, z, wallM, 2, true, 'house');
+      // the lobby on the side facing the road (glass, or sliding doors for 8+ storeys), framed windows round every floor
+      const FC = { pz: [0, 1, d / 2, w], nz: [0, -1, d / 2, w], px: [1, 0, w / 2, d], nx: [-1, 0, w / 2, d] }; let face = 'pz', bd = 1e9;
+      for (const f in FC) { const [fx, fz, half] = FC[f]; for (let t = 2; t < 40; t += 2) { const k = kindAt(x + fx * (half + t), z + fz * (half + t)); if (k === 6 || k === 7) { if (t < bd) { bd = t; face = f; } break; } } }
+      const [fx, fz, half, L] = FC[face], big = floors >= 8, fr = PARTS.hash(x, z, 21) < .5 ? 'dark' : 'alu';
+      PARTS.facade(b, { x, z, w, d, y: Y }, { floors, fh: 3.2, face, ww: 1.5, wh: 1.7, bay: 2.8, sill: .8, skip: Math.min(L / 2, 5.4), door: null, win: { simple: true, frame: fr } });
+      PARTS.storefront(b, x + fx * (half + .005), Y, z + fz * (half + .005), fx, fz, Math.min(L - 1.5, 10), { style: big ? 'sliding' : 'glass', doorW: big ? 2.6 : 1.8, door: { canopy: true } });
       b.box(w + .4, .4, d + .4, x, Y + H + .2, z, LM(0x8a8478), 1, true, 'roof'); b.box(2.2, 1.8, 2.2, x + w / 4, Y + H + 1.3, z - d / 4, LM(0x2a2a2e), 1, false);
       MAPL.push([x, z, w, d, mapC]); TAKEN.push([x, z, w, d]); },
-    church: (x, z, face = 'pz', name = 'CHURCH', w = 16, d = 28) => { const ax = face === 'px' || face === 'nx', W = ax ? d : w, D = ax ? w : d; b.box(W, 8, D, x, Y + 4, z, LM(0xf4f0e6), 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), x, z, W, D, Y + 8, { pitch: .7, ov: .6, ground: Y });
+    church: (x, z, face = 'pz', name = 'CHURCH', w = 16, d = 28) => { const ax = face === 'px' || face === 'nx', W = ax ? d : w, D = ax ? w : d; { const at = PLACE.fit(x, z, W, D, { taken: TAKEN, y: Y, face }); if (!at) return false; [x, z] = at; } b.box(W, 8, D, x, Y + 4, z, LM(0xf4f0e6), 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), x, z, W, D, Y + 8, { pitch: .7, ov: .6, ground: Y });
       const [fx, fz] = { pz: [0, 1], nz: [0, -1], px: [1, 0], nx: [-1, 0] }[face], tx = x + fx * (ax ? W / 2 - 2 : 0), tz = z + fz * (ax ? 0 : D / 2 - 2); b.box(4, 16, 4, tx, Y + 8, tz, LM(0xf4f0e6), 2, true, 'house'); b.box(.3, 2.4, .3, tx, Y + 17.2, tz, LM(0xf2c230), 1, false); b.box(1.4, .3, .3, tx, Y + 17.6, tz, LM(0xf2c230), 1, false);
-      K.sign(name, '', '#3a2a5a', Math.min(10, name.length * .55 + 2), 1.1, tx + fx * 2.05, Y + 6, tz + fz * 2.05, Math.atan2(fx, fz)); MAPL.push([x, z, W, D, '#f4f0e6']); TAKEN.push([x, z, W, D]); },
-    mosque: (x, z) => { b.box(14, 6, 14, x, Y + 3, z, LM(0xf4f0e6), 2, true, 'house'); b.box(7, 3, 7, x, Y + 7.5, z, LM(0x2f8a4a), 1, false); b.box(3, 14, 3, x + 8.5, Y + 7, z - 5, LM(0xf4f0e6), 1, true, 'house'); b.box(3.6, 1.6, 3.6, x + 8.5, Y + 14.8, z - 5, LM(0x2f8a4a), 1, false); MAPL.push([x, z, 17, 14, '#f4f0e6']); TAKEN.push([x, z, 17, 14]); },
+      K.sign(name, '', '#3a2a5a', Math.min(10, name.length * .55 + 2), 1.1, tx + fx * 2.05, Y + 6, tz + fz * 2.05, Math.atan2(fx, fz)); MAPL.push([x, z, W, D, '#f4f0e6']); TAKEN.push([x, z, W, D]);
+      PARTS.door(b, tx + fx * 2.005, Y, tz + fz * 2.005, fx, fz, { style: 'double', w: 2.6, h: 3.8, lamp: false });   // double doors in the tower, arched stained glass down both sides
+      PARTS.facade(b, { x, z, w: W, d: D, y: Y }, { floors: 1, sides: ax ? ['pz', 'nz'] : ['px', 'nx'], sill: 2.2, wh: 3.4, ww: 1.2, bay: 4, door: null, win: { arch: true, glassM: stainedMat } }); },
+    mosque: (x, z) => { { const at = PLACE.fit(x + 1.5, z, 17, 14, { taken: TAKEN, y: Y, face: 'pz' }); if (!at) return false; x = at[0] - 1.5; z = at[1]; } b.box(14, 6, 14, x, Y + 3, z, LM(0xf4f0e6), 2, true, 'house');
+      PARTS.facade(b, { x, z, w: 14, d: 14, y: Y }, { floors: 1, face: 'pz', sill: 1.4, wh: 2.6, ww: 1.1, bay: 3.4, win: { arch: true, glassM: PARTS.mat(0x3a7a6a, 0x0a1a14) }, door: { style: 'grand', w: 2, h: 3, color: PARTS.hash(x, z, 30) < .5 ? 'green' : 'deepBrown', lamp: false } }); b.box(7, 3, 7, x, Y + 7.5, z, LM(0x2f8a4a), 1, false); b.box(3, 14, 3, x + 8.5, Y + 7, z - 5, LM(0xf4f0e6), 1, true, 'house'); b.box(3.6, 1.6, 3.6, x + 8.5, Y + 14.8, z - 5, LM(0x2f8a4a), 1, false); MAPL.push([x, z, 17, 14, '#f4f0e6']); TAKEN.push([x, z, 17, 14]); },
     people: (place, n, rect, opts = {}) => { for (let k = 0; k < n; k++) { const c = makeCivilian({ x: (rect[0] + rect[1]) / 2, z: (rect[2] + rect[3]) / 2, y: opts.y ?? Y, houses: [], civs: [], sand: rect, place }, { adult: rng() < .85, ...opts }); if (opts.guard) c.guard = true; } },
     // a market: rows of stalls under zinc or umbrellas, piled with goods
     market: (R, rows = 6) => { const goods = [0xb83a2e, 0x2f5f9a, 0xd9a441, 0x3e6e4a, 0xe6e1d3, 0x8a5a9a, 0xe8742a, 0x6a3a1a, 0xf2d24a].map(LM), umb = [0xd8342a, 0x2f6fb0, 0xf2c230, 0x2f8a4a].map(LM);
@@ -9237,7 +9497,7 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
             t += wAlong + R2(2, 4.5);
             if (!okAt(x, z, w, d)) continue;
             if (rng() < (o.shops ?? 0) && face) { K.house(x, z, w, d, rng() < .5 ? 2 : 1, face, null, ri2(walls), '#d8b080'); continue; }
-            K.house(x, z, w, d, rng() < (o.two ?? .35) ? 2 : 1, face); if (rng() < (o.walls ?? .4)) K.compound(x, z, w + 3.5, d + 3.5, face);
+            const at = K.house(x, z, w, d, rng() < (o.two ?? .35) ? 2 : 1, face); if (rng() < (o.walls ?? .4) && at) K.compound(at[0], at[1], w + 3.5, d + 3.5, face);   // (the wall goes round the house where it actually stands)
           }
         }
         const r = rng(); if (r < (o.flats ?? .1) && okAt(cx, cz, 18, 16)) K.tower(cx, cz, 18, 16, 3 + Math.floor(rng() * (o.maxFloors ?? 5))); else if (r < .55) { K.shade(cx + R2(-8, 8), cz + R2(-8, 8)); }
@@ -9279,7 +9539,8 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
         const C2 = LM(col); b.box(16, .5, 10, x, Y + 5.4, z - 2, LM(0xf4f4f0), 1, true, 'roof'); b.box(16.3, .7, 10.3, x, Y + 5.6, z - 2, C2, 1, false);
         for (const [px, pz] of [[-6, -5.5], [6, -5.5], [-6, 1.5], [6, 1.5]]) b.box(.5, 5.2, .5, x + px, Y + 2.6, z + pz, LM(0xf4f4f0), 1, true, 'house');
         for (const px of [-3, 3]) { b.box(1.2, 1.8, .7, x + px, Y + .9, z - 2, LM(0xe8e8e4), 1, true, 'house'); b.box(1.25, .5, .75, x + px, Y + 1.6, z - 2, C2, 1, false); }
-        b.box(14, 4, 7, x, Y + 2, z + 6.5, LM(0xf4f4f0), 2, true, 'house'); b.box(14.4, .5, 7.4, x, Y + 4.2, z + 6.5, C2, 1, false); K.sign(brand, name.toUpperCase(), '#' + col.toString(16).padStart(6, '0'), 8, 1.4, x, Y + 7, z - 7.2, Math.PI);
+        b.box(14, 4, 7, x, Y + 2, z + 6.5, LM(0xf4f4f0), 2, true, 'house'); b.box(14.4, .5, 7.4, x, Y + 4.2, z + 6.5, C2, 1, false);
+        PARTS.storefront(b, x, Y, z + 2.995, 0, -1, 10, { style: 'glass', doorW: 1.8, h: 3.2 }); PARTS.facade(b, { x, z: z + 6.5, w: 14, d: 7, y: Y }, { floors: 1, sides: ['px', 'nx', 'pz'], sill: 1, wh: 1.2, ww: 1.2, bay: 3, door: null, win: { bars: true } });   // the shop: a glass front facing the pumps K.sign(brand, name.toUpperCase(), '#' + col.toString(16).padStart(6, '0'), 8, 1.4, x, Y + 7, z - 7.2, Math.PI);
         b.box(.3, 7, .3, x + 10, Y + 3.5, z - 8, K.darkM, 1, true, 'house'); K.sign(brand, 'PMS ₦ · AGO · KERO', '#' + col.toString(16).padStart(6, '0'), 2.6, 2.2, x + 10, Y + 7.5, z - 8.2, Math.PI);
         VENUES.push({ name, x, z: z - 2, r: 11, food: 'kiosk', toilet: 50 }); TAKEN.push([x, z, W, D]); MAPL.push([x, z, 16, 10, '#d8d8d4']); OYO_PLACES.push([name, x, z]); return true; }
       return false;
@@ -9301,7 +9562,7 @@ function deltaKit(b, ROT, opt = {}) {   // (opt: map, doors, town: the region's 
       if (!ok) continue;
       let face = 'pz', bd = 1e9; for (const [f, ox, oz] of [['pz', 0, 1], ['nz', 0, -1], ['px', 1, 0], ['nx', -1, 0]]) for (let t = 4; t < 30; t += 2) { const kd = kindAt(x + ox * (w / 2 + t), z + oz * (d / 2 + t)); if (kd === 6 || kd === 7) { if (t < bd) { bd = t; face = f; } break; } }
       if (tall) K.tower(x, z, w, d, 3 + Math.floor(rng() * (opts.maxFloors ?? 5)));
-      else { K.house(x, z, w, d, rng() < (opts.two ?? .3) ? 2 : 1, face); if (opts.walls !== false && rng() < .45) K.compound(x, z, w + 5, d + 5, face); }
+      else { const at = K.house(x, z, w, d, rng() < (opts.two ?? .3) ? 2 : 1, face); if (opts.walls !== false && rng() < .45 && at) K.compound(at[0], at[1], w + 5, d + 5, face); }
     } },
   };
   return K;
@@ -9338,7 +9599,7 @@ if (DD) withSeed(7474, () => {
   for (let x = 3612; x < DEL.niger - 14; x += 26) { if (Math.abs(((x - 3648) % 96 + 96) % 96 - 48) > 40) continue; for (const s of [-1, 1]) lamp(x, DEL.rd + s * 10, 0, -s); }
   /* Government House: a white mansion behind gates, a fountain, flags, guards */
   { const G = DEL.gov, cx = (G.x0 + G.x1) / 2, cz = (G.z0 + G.z1) / 2, wallW = LM(0xf4f0e6);
-    for (const [x0, z0, x1, z1] of [[G.x0, G.z0, G.x1, G.z0], [G.x0, G.z0, G.x0, G.z1], [G.x1, G.z0, G.x1, G.z1], [G.x0, G.z1, cx - 6, G.z1], [cx + 6, G.z1, G.x1, G.z1]]) { const ax = x1 - x0 > z1 - z0, L = Math.max(x1 - x0, z1 - z0); b.box(ax ? L : .6, 3, ax ? .6 : L, (x0 + x1) / 2, Y + 1.5, (z0 + z1) / 2, wallW, 1, true, 'base'); }
+    for (const [x0, z0, x1, z1] of [[G.x0, G.z0, G.x1, G.z0], [G.x0, G.z0, G.x0, G.z1], [G.x1, G.z0, G.x1, G.z1], [G.x0, G.z1, cx - 6, G.z1], [cx + 6, G.z1, G.x1, G.z1]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 3, t: .6, mat: wallW, S: 1, tag: 'base' }); }
     for (const s of [-1, 1]) { b.box(1.8, 4.4, 1.8, cx + s * 7, Y + 2.2, G.z1, wallW, 1, true, 'house'); b.box(2.2, .5, 2.2, cx + s * 7, Y + 4.6, G.z1, LM(0xf2c230), 1, false); }
     b.box(3, 2.6, 3, cx + 11, Y + 1.3, G.z1 - 4, LM(0x2f6a3a), 1, true, 'house');   // the guard post
     const hz = G.z0 + 46; b.box(54, 9, 26, cx, Y + 4.5, hz, wallW, 2, true, 'house'); b.box(56, .6, 28, cx, Y + 9.3, hz, LM(0xd8d0c0), 1, true, 'roof'); hipRoof(b, gerardMat(0x2c4a32), cx, hz, 56, 28, Y + 9.6, { pitch: .3, ov: .4, ground: Y });
@@ -9389,7 +9650,7 @@ if (DD) withSeed(7474, () => {
     people('city', 14, [px - 8, px + 2, C.z0 + 4, C.z1 - 4]); people('delta', 6, [DEL.niger - 9, DEL.niger - 2, C.z0 + 10, C.z1 - 10]); DELTA_MAP.push([px - 4, (C.z0 + C.z1) / 2, 14, C.z1 - C.z0, '#d8d0c0']); }
   /* the Asagba's palace: red laterite walls, the gate, the hall, the new heritage museum; the 1967 memorial garden at Ogbe-Osowa */
   { const P0 = DEL.palace, cx = (P0.x0 + P0.x1) / 2, lat = LM(0x9a4a2a);
-    for (const [x0, z0, x1, z1] of [[P0.x0, P0.z0, P0.x1, P0.z0], [P0.x0, P0.z0, P0.x0, P0.z1], [P0.x1, P0.z0, P0.x1, P0.z1], [P0.x0, P0.z1, cx - 6, P0.z1], [cx + 6, P0.z1, P0.x1, P0.z1]]) { const ax = x1 - x0 > z1 - z0, L = Math.max(x1 - x0, z1 - z0); b.box(ax ? L : 1, 3.2, ax ? 1 : L, (x0 + x1) / 2, Y + 1.6, (z0 + z1) / 2, lat, 2, true, 'house'); b.box(ax ? L : 1.4, .35, ax ? 1.4 : L, (x0 + x1) / 2, Y + 3.37, (z0 + z1) / 2, white, 1, false); }
+    for (const [x0, z0, x1, z1] of [[P0.x0, P0.z0, P0.x1, P0.z0], [P0.x0, P0.z0, P0.x0, P0.z1], [P0.x1, P0.z0, P0.x1, P0.z1], [P0.x0, P0.z1, cx - 6, P0.z1], [cx + 6, P0.z1, P0.x1, P0.z1]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 3.2, t: 1, mat: lat, cap: white, capH: .35, capT: 1.4 }); }
     for (const s of [-1, 1]) b.box(2.4, 6, 2.4, cx + s * 7.5, Y + 3, P0.z1, lat, 2, true, 'house'); b.box(18, 1.6, 3, cx, Y + 6.8, P0.z1, lat, 1, true, 'roof');
     sign('PALACE OF THE ASAGBA OF ASABA', 'OBI · ANIOMA', '#7a1a1a', 13, 1.4, cx, Y + 6.8, P0.z1 + 1.55, 0, '#f2c230');
     const hz = P0.z0 + 34; b.box(44, 6, 22, cx - 12, Y + 3, hz, LM(0xf2e8d0), 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), cx - 12, hz, 44, 22, Y + 6, { pitch: .42, ov: 1.2, ground: Y });
@@ -9497,7 +9758,7 @@ if (DD) withSeed(7575, () => {
     DELTA_MAP.push([(Pt.x0 + Pt.x1) / 2, (Pt.z0 + Pt.z1) / 2, Pt.x1 - Pt.x0, Pt.z1 - Pt.z0, '#b8b4ac']); OYO_PLACES.push(['Warri Port (NPA)', (Pt.x0 + Pt.x1) / 2, Pt.z0 - 36]); }
   /* the Olu of Warri's palace: white walls, the gate in red and white, the throne hall, chiefs */
   { const O = DEL.olu, cx = (O.x0 + O.x1) / 2, wallW = LM(0xf4f0e6), red = LM(0xb8261e);
-    for (const [x0, z0, x1, z1] of [[O.x0, O.z0, O.x1, O.z0], [O.x0, O.z0, O.x0, O.z1], [O.x1, O.z0, O.x1, O.z1], [O.x0, O.z1, cx - 7, O.z1], [cx + 7, O.z1, O.x1, O.z1]]) { const ax = x1 - x0 > z1 - z0, L = Math.max(x1 - x0, z1 - z0); b.box(ax ? L : 1, 3.4, ax ? 1 : L, (x0 + x1) / 2, Y + 1.7, (z0 + z1) / 2, wallW, 2, true, 'house'); b.box(ax ? L : 1.4, .4, ax ? 1.4 : L, (x0 + x1) / 2, Y + 3.6, (z0 + z1) / 2, red, 1, false); }
+    for (const [x0, z0, x1, z1] of [[O.x0, O.z0, O.x1, O.z0], [O.x0, O.z0, O.x0, O.z1], [O.x1, O.z0, O.x1, O.z1], [O.x0, O.z1, cx - 7, O.z1], [cx + 7, O.z1, O.x1, O.z1]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 3.4, t: 1, mat: wallW, cap: red, capH: .4, capT: 1.4 }); }
     for (const s of [-1, 1]) b.box(3, 7, 3, cx + s * 8.5, Y + 3.5, O.z1, red, 2, true, 'house'); b.box(20, 2, 3.4, cx, Y + 8, O.z1, wallW, 1, true, 'roof');
     sign('PALACE OF THE OLU OF WARRI', 'OGIAME · ITSEKIRI KINGDOM', '#b8261e', 14, 1.4, cx, Y + 8, O.z1 + 1.75, 0, '#ffffff');
     const hz = O.z0 + 56; b.box(56, 8, 26, cx, Y + 4, hz, wallW, 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), cx, hz, 56, 26, Y + 8, { pitch: .4, ov: 1.4, ground: Y }); for (let k = 0; k < 10; k++) b.box(.8, 7.4, .8, cx - 25 + k * 5.5, Y + 3.7, hz + 14, red, 1, true, 'house');
@@ -9518,9 +9779,11 @@ if (DD) withSeed(7575, () => {
     for (const [cx0, amp, per] of [[2560, 14, 40], [3220, 18, 50]]) for (let z = -2990; z < DEL.river - 4; z += 14) {
       const xc = cx0 + Math.sin(z / per) * amp; if (deltaRoad(xc, z) || [-1, 1].some(s => deltaRoad(xc + s * 12, z))) continue;
       for (const s of [-1, 1]) { if (rng() < .45) continue; const x = xc + s * 9, w = R2(5, 7), d = R2(5, 6.5);
+        if (PLACE.bad(x, z, w, d, { water: true, y: 3.2, road: .3 })) { ri2([0, 0, 0, 0]); rng(); if (rng() < .5) { R2(-2, 2); R2(-4, 4); rng(); } PLACE_RULES.skipped++; continue; }   // (not over a road: skipped, using the same random numbers as if built)
         for (const [px, pz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) b.box(.3, 3.2, .3, x + px, 1.6, z + pz, post, 1, false);
         b.box(w + 1, .25, d + 1, x, 3.1, z, plank, 1, true, 'roof'); b.box(w, 2.6, d, x, 4.5, z, ri2([LM(0x8a6a4a), LM(0x9a7a5a), LM(0xb8a07a), LM(0x6a8a9a)]), 1, true, 'house'); b.box(w + 1.2, .2, d + 1.2, x, 5.9, z, rng() < .6 ? K.zinc : K.rust, 1, true, 'roof');
         b.box(Math.abs(xc - x) + 2, .2, 1.2, (x + xc + s * 5) / 2, 3.05, z + d / 2 + .8, plank, 1, false);   // the walkway to the bank
+        PARTS.door(b, x, 3.22, z + d / 2 + .005, 0, 1, { style: 'panel', w: .9, h: 2, step: false, lamp: false, hint: false, frame: 'wood' }); for (const e of [-1, 1]) PARTS.window(b, x + e * (w / 2 + .005), 4.6, z, e, 0, .9, .8, { shutters: true, shutterHex: 0x5a3a22, frame: 'wood' });   // a plank door onto the walkway, shuttered windows
         if (rng() < .5) { sbox(5.5, .5, 1, xc + R2(-2, 2), WATER_Y + .15, z + R2(-4, 4), rng() * .6 - .3, canoeC); } }
       for (const s of [-1, 1]) if (rng() < .5) { const x = xc + s * R2(13, 16); if (!deltaRoad(x, z)) { b.box(.4, 2, .4, x, Y + 1, z, post, 1, false); b.box(3.6, 2.2, 3.6, x, Y + 2.6, z, mang, 1, false); } }
     }
@@ -9614,7 +9877,7 @@ if (DD) withSeed(7777, () => {
   const b = new Builder(), ROT = new Map(), K = deltaKit(b, ROT), { Y, ri2, R2, darkM, white, conc, sbox, sign, board, lamp, palm, shade, people, glassM } = K;
   const lat = LM(0x9a4a2a), red = LM(0xb8261e), cream = LM(0xf2ead8);
   const palace = (P0, title, sub, col = '#7a1a1a') => { const cx = (P0.x0 + P0.x1) / 2, gz = P0.z1;
-    for (const [x0, z0, x1, z1] of [[P0.x0, P0.z0, P0.x1, P0.z0], [P0.x0, P0.z0, P0.x0, P0.z1], [P0.x1, P0.z0, P0.x1, P0.z1], [P0.x0, gz, cx - 6, gz], [cx + 6, gz, P0.x1, gz]]) { const ax = x1 - x0 > z1 - z0, L = Math.max(x1 - x0, z1 - z0); b.box(ax ? L : 1, 3, ax ? 1 : L, (x0 + x1) / 2, Y + 1.5, (z0 + z1) / 2, lat, 2, true, 'house'); b.box(ax ? L : 1.4, .35, ax ? 1.4 : L, (x0 + x1) / 2, Y + 3.17, (z0 + z1) / 2, white, 1, false); }
+    for (const [x0, z0, x1, z1] of [[P0.x0, P0.z0, P0.x1, P0.z0], [P0.x0, P0.z0, P0.x0, P0.z1], [P0.x1, P0.z0, P0.x1, P0.z1], [P0.x0, gz, cx - 6, gz], [cx + 6, gz, P0.x1, gz]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 3, t: 1, mat: lat, cap: white, capH: .35, capT: 1.4 }); }
     for (const s of [-1, 1]) b.box(2.2, 5.6, 2.2, cx + s * 7, Y + 2.8, gz, lat, 2, true, 'house'); b.box(16, 1.4, 3, cx, Y + 6.3, gz, lat, 1, true, 'roof'); sign(title, sub, col, 12, 1.3, cx, Y + 6.3, gz + 1.55, 0, '#f2c230');
     const hz = P0.z0 + 30; b.box(40, 5.5, 20, cx, Y + 2.75, hz, LM(0xf2e8d0), 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), cx, hz, 40, 20, Y + 5.5, { pitch: .42, ov: 1.4, ground: Y }); for (let k = 0; k < 8; k++) b.box(.6, 5.2, .6, cx - 17.5 + k * 5, Y + 2.6, hz + 11, red, 1, true, 'house');
     for (const x of [cx - 10, cx + 10]) { b.box(1.2, 3, 1.2, x, Y + 1.5, gz - 12, LM(0x5a3a1e), 1, true, 'house'); b.box(.5, 1.4, .5, x - .9, Y + 3.7, gz - 12, LM(0x5a3a1e), 1, false); b.box(.5, 1.4, .5, x + .9, Y + 3.7, gz - 12, LM(0x5a3a1e), 1, false); }   // an ikenga either side of the way in
@@ -9642,7 +9905,7 @@ if (DD) withSeed(7777, () => {
   { K.blocks({ x0: 2620, x1: 2910, z0: DEL.obiaruku[0], z1: DEL.obiaruku[1] }, DEL.south[0][0], -4640, 60, (x, z) => ethiopeDist(x, z) < 18 || dSouthDist(x, z) < 8, { two: .2, flats: .02, shops: .2 });
     people('yaba', 18, [2650, 2900, DEL.obiaruku[0], DEL.obiaruku[1]]); }
   /* Eku: the Baptist hospital (1940s), a few houses */
-  { const E2 = DEL.eku, cx = (E2.x0 + E2.x1) / 2, cz = (E2.z0 + E2.z1) / 2; b.box(56, 7, 24, cx, Y + 3.5, cz, white, 2, true, 'house'); hipRoof(b, gerardMat(0x203d70), cx, cz, 57, 25, Y + 7, { pitch: .35, ov: .6, ground: Y });
+  { const E2 = DEL.eku, [cx, cz] = PLACE.fit((E2.x0 + E2.x1) / 2, (E2.z0 + E2.z1) / 2, 56, 24, { y: Y, nudge: 30 }) || [(E2.x0 + E2.x1) / 2, (E2.z0 + E2.z1) / 2]; b.box(56, 7, 24, cx, Y + 3.5, cz, white, 2, true, 'house'); hipRoof(b, gerardMat(0x203d70), cx, cz, 57, 25, Y + 7, { pitch: .35, ov: .6, ground: Y });
     b.box(2, 5, .3, cx, Y + 4, cz + 12.2, LM(0xd8342a), 1, false); b.box(5, 2, .3, cx, Y + 4, cz + 12.2, LM(0xd8342a), 1, false); sign('EKU BAPTIST HOSPITAL', 'EKU · SINCE 1948', '#1f6aa8', 12, 1.3, cx, Y + 6.2, cz + 12.25, 0);
     people('yaba', 10, [E2.x0, E2.x1, cz + 13, E2.z1 + 6]); OYO_PLACES.push(['Eku Baptist Hospital', cx, E2.z1 + 6]);
     K.fill({ x0: 2600, x1: 2720, z0: -3800, z1: -3730 }, 120, (x, z) => inR(E2, x, z, 4) || dSouthDist(x, z) < 8, { two: .2 }); }
@@ -9755,7 +10018,7 @@ if (AK) withSeed(8282, () => {
     people('ibom', 18, [sx - rx * .5, sx + rx * .5, sz - rz * .4, sz + rz * .4]); AK_MAP.push([sx, sz, rx * 2.9, rz * 2.9, '#f4f4f0'], [sx, sz, rx * 1.5, rz * 1.5, '#5f9a3c']); OYO_PLACES.push(['Godswill Akpabio Stadium', sx, sz + rz * 1.6]); }
   /* Government House: the hilltop mansion behind white walls, a dome, flags */
   { const G = S.gov, [cx] = mid(G), wallW = LM(0xf4f0e6);
-    for (const [x0, z0, x1, z1] of [[G.x0, G.z0, G.x1, G.z0], [G.x0, G.z0, G.x0, G.z1], [G.x1, G.z0, G.x1, G.z1], [G.x0, G.z1, cx - 6, G.z1], [cx + 6, G.z1, G.x1, G.z1]]) { const ax = x1 - x0 > z1 - z0, L = Math.max(x1 - x0, z1 - z0); b.box(ax ? L : .6, 3, ax ? .6 : L, (x0 + x1) / 2, Y + 1.5, (z0 + z1) / 2, wallW, 1, true, 'base'); }
+    for (const [x0, z0, x1, z1] of [[G.x0, G.z0, G.x1, G.z0], [G.x0, G.z0, G.x0, G.z1], [G.x1, G.z0, G.x1, G.z1], [G.x0, G.z1, cx - 6, G.z1], [cx + 6, G.z1, G.x1, G.z1]]) { PARTS.wall(b, x0, z0, x1, z1, { y: Y, h: 3, t: .6, mat: wallW, S: 1, tag: 'base' }); }
     for (const sd of [-1, 1]) { b.box(1.8, 4.4, 1.8, cx + sd * 7, Y + 2.2, G.z1, wallW, 1, true, 'house'); b.box(2.2, .5, 2.2, cx + sd * 7, Y + 4.6, G.z1, gold, 1, false); }
     const hz = G.z0 + 52; b.box(52, 10, 26, cx, Y + 5, hz, wallW, 2, true, 'house'); b.geo(new THREE.SphereGeometry(8, 20, 12, 0, TAU, 0, Math.PI / 2).translate(cx, Y + 10, hz), gold); for (let k = 0; k < 8; k++) b.box(1, 10, 1, cx - 14 + k * 4, Y + 5, hz + 14, wallW, 1, true, 'house'); b.box(34, 1, 6, cx, Y + 10.5, hz + 14, wallW, 1, true, 'roof');
     sign('GOVERNMENT HOUSE', 'AKWA IBOM STATE · UYO', '#1f3a7a', 11, 1.5, cx, Y + 3.1, G.z1 + .4, 0, '#f2c230');
@@ -9809,7 +10072,8 @@ if (AK) withSeed(8383, () => {
   const mid = R => [(R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2], cream = LM(0xf2ead8), raffia = LM(0xc8a060), raffiaD = LM(0x8a6a3a);
   const cyl = (r, h, x, y, z, mat, seg = 16, collide = true) => { b.geo(new THREE.CylinderGeometry(r, r, h, seg).translate(x, y + h / 2, z), mat); if (collide) colliders.push({ x0: x - r * .9, x1: x + r * .9, y0: y, y1: y + h, z0: z - r * .9, z1: z + r * .9, tag: 'house' }); };
   // a museum's building: rendered walls, a portico, a roof, the name; its door is pushed for the interiors (faces +z)
-  const museum = (x, z, w, d, name, sub, type, col, roofM) => { b.box(w, 8, d, x, Y + 4, z, cream, 2, true, 'house'); hipRoof(b, roofM || gerardMat(0x8e3523), x, z, w + 1, d + 1, Y + 8, { pitch: .4, ov: .8, ground: Y });
+  const museum = (x, z, w, d, name, sub, type, col, roofM) => { b.box(w, 8, d, x, Y + 4, z, cream, 2, true, 'house');
+    PARTS.facade(b, { x, z, w, d, y: Y }, { floors: 1, face: 'pz', skip: 2.8, door: null, sill: 1.5, wh: 3, ww: 1.3, bay: 4.2, win: { shutters: true, shutterHex: 0x4a3a22 } });   // tall shuttered windows round it (the grand doors come with its entrance) hipRoof(b, roofM || gerardMat(0x8e3523), x, z, w + 1, d + 1, Y + 8, { pitch: .4, ov: .8, ground: Y });
     for (let k = 0; k < 6; k++) b.box(.9, 7.6, .9, x - w / 2 + 3 + k * (w - 6) / 5, Y + 3.8, z + d / 2 + 3, white, 1, false); b.box(w, .8, 4, x, Y + 8, z + d / 2 + 2, cream, 1, true, 'roof');
     sign(name, sub, col, Math.min(w - 4, 16), 1.6, x, Y + 9.6, z + d / 2 + 4.1, 0, '#f2d29a'); AK_MUSEUMS.push({ x, z: z + d / 2 + 1.3, wx: x, wz: z + d / 2, gy: Y, ox: 0, oz: 1, type, name: 'the ' + name.replace(/^THE /, '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()), bx: x, bz: z, br: Math.max(w, d) / 2 + 3, top: Y + 12 });
     AK_MAP.push([x, z, w, d, '#e8dcc0']); OYO_PLACES.push([name.replace(/\b\w+/g, t => t[0] + t.slice(1).toLowerCase()), x, z + d / 2 + 8]); };
@@ -9846,7 +10110,7 @@ if (AK) withSeed(8383, () => {
     OYO_PLACES.push(['Government College Umuahia', gx, G.z1 + 6]); AK_MAP.push([gx, gz, G.x1 - G.x0, G.z1 - G.z0, '#9ac080']);
     const Mk = S.umkt; K.market(Mk); people('market', 18, [Mk.x0 + 2, Mk.x1 - 2, Mk.z0 + 2, Mk.z1 - 2]); board('UMUAHIA MAIN MARKET', 'ABIA STATE', '#8a3a1a', mid(Mk)[0], Mk.z0 - 2, Math.PI, 8); OYO_PLACES.push(['Umuahia Main Market', mid(Mk)[0], Mk.z0 - 6]);
     VENUES.push({ name: 'Umuahia Main Market bukas', x: mid(Mk)[0], z: mid(Mk)[1], r: 8, food: 'buka', toilet: 50 });
-    { const sx2 = 5380, sz2 = -4300; b.box(30, 5, 10, sx2, Y + 2.5, sz2, LM(0xd8c8a8), 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), sx2, sz2, 31, 11, Y + 5, { pitch: .4, ov: .8, ground: Y }); b.box(60, .8, 6, sx2, Y + .4, sz2 - 10, conc, 1, true, 'base');
+    { const sx2 = 5380, sz2 = -4330; b.box(30, 5, 10, sx2, Y + 2.5, sz2, LM(0xd8c8a8), 2, true, 'house'); hipRoof(b, gerardMat(0x8e3523), sx2, sz2, 31, 11, Y + 5, { pitch: .4, ov: .8, ground: Y }); b.box(60, .8, 6, sx2, Y + .4, sz2 - 10, conc, 1, true, 'base');
       for (const o of [-.75, .75]) b.box(80, .15, .12, sx2, Y + .1, sz2 - 18 + o, LM(0x5a5e62), 1, false); sign('UMUAHIA', 'NIGERIAN RAILWAY · EASTERN LINE', '#1f6f3a', 8, 1.2, sx2, Y + 4.4, sz2 + 5.2, 0); OYO_PLACES.push(['Umuahia station (Eastern Line)', sx2, sz2 + 8]); }
     K.fuel(5560, -4460, 'NNPC Fuels, Umuahia', 'NNPC', 0x1f8a3a); K.church(5480, -4220, 'pz', 'ST FINBARR’S CATHEDRAL');
     K.blocks({ x0: 5290, x1: 5910, z0: -4650, z1: -4010 }, P.sx + 40, P.rd + 40, 80, (x, z) => AK_SITES.some(R => inR(R, x, z, 6)), { two: .3, flats: .06, walls: .5 }); people('delta', 30, [5300, 5900, -4640, -4020]); }
@@ -10394,6 +10658,7 @@ if (YB) withSeed(9696, () => {
   /* ---- fuel stations: a canopy over four pumps, the shop behind, the price board on a pole by the road ---- */
   const BRAND = { PETROLINK: ['#1f5fa8', '#f2c230'], SUNOIL: ['#e8742a', '#ffffff'], AFRIGAS: ['#2f8a4a', '#f2c230'] };
   const station = (x, z, fx, fz, brand) => {   // centred at (x, z), the road on the (fx, fz) side
+    { const sx = x - fx * 12, sz = z - fz * 12, sw = Math.abs(fx) * 7 + Math.abs(fz) * 16, sd = Math.abs(fz) * 7 + Math.abs(fx) * 16; if (PLACE.bad(sx, sz, sw, sd, { y: Y, road: .2 }) === 'road') { PLACE_RULES.skipped++; return; } }   // (the shop behind may not sit on a road)
     VENUES.push({ name: `the ${brand} kiosk`, x: x - fx * 9, z: z - fz * 9, r: 6, food: 'kiosk', toilet: 50 });
     const [c1, c2] = BRAND[brand], col = LM(parseInt(c1.slice(1), 16)), tx = -fz, tz = fx, at = (a, o) => [x + fx * a + tx * o, z + fz * a + tz * o];
     for (const [a, o] of [[-5, -9], [-5, 9], [5, -9], [5, 9]]) { const [px, pz] = at(a, o); b.box(.6, 5.6, .6, px, Y + 2.8, pz, white, 1, true, 'house'); }
@@ -15957,6 +16222,7 @@ function intClassify(B, cx, cz) {
 }
 function intGridAdd(e) { const k = Math.floor(e.x / 32) + ',' + Math.floor(e.z / 32); if (!INT.grid.has(k)) INT.grid.set(k, []); INT.grid.get(k).push(e); }
 function intFindBuildings() {
+  const HG = new Map(); for (const h of DOOR_HINTS) { const k = Math.floor(h.x / 24) + ',' + Math.floor(h.z / 24); if (!HG.has(k)) HG.set(k, []); HG.get(k).push(h); }   // the doors the buildings were drawn with
   // every house that already has rooms, so we don't put a second door on it
   const vs = new Set([TOWN, BEACH, COUNTRY, ...ESTATES, YABA, YABA?.UNILAG, YABA?.YTECH, IKEJA, ...MY_HOMES, ...VILLAGES, ...civilians.map(c => c.v)].filter(Boolean));
   const ent = []; for (const v of vs) if (!v.interior) for (const h of v.houses || []) ent.push(h); for (const h of HOUSES) ent.push(h);
@@ -15971,33 +16237,36 @@ function intFindBuildings() {
   for (const b of B.values()) {
     if ((b.x1 - b.x0) * (b.z1 - b.z0) <= 24 || b.y1 - b.y0 <= 3) continue;
     const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, type = intClassify(b, cx, cz); if (!type) continue;
-    // the door: the side whose ground outside is nearest a road or paving (and not blocked), at the wall
+    // the door: the one the building was drawn with (DOOR_HINTS), or else the side whose ground outside is nearest a road or paving (and not blocked)
+    const hint = (HG.get(Math.floor(cx / 24) + ',' + Math.floor(cz / 24)) || []).concat(...[[-1, 0], [1, 0], [0, -1], [0, 1]].map(([a, c]) => HG.get((Math.floor(cx / 24) + a) + ',' + (Math.floor(cz / 24) + c)) || []))
+      .filter(h => h.x > b.x0 - .8 && h.x < b.x1 + .8 && h.z > b.z0 - .8 && h.z < b.z1 + .8 && Math.abs(h.y - b.y0) < 4).sort((p, q) => q.w - p.w)[0];
     let best = null;
-    for (const [ox, oz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+    if (hint) best = { ox: hint.ox, oz: hint.oz, px: hint.x + hint.ox * 2, pz: hint.z + hint.oz * 2, hint };
+    if (!hint) for (const [ox, oz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
       const fx = ox ? (ox > 0 ? b.x1 : b.x0) : cx, fz = oz ? (oz > 0 ? b.z1 : b.z0) : cz, px = fx + ox * 2, pz = fz + oz * 2;
       if (queryGrid(solidGrid, px, pz, 2).some(c => px > c.x0 - .3 && px < c.x1 + .3 && pz > c.z0 - .3 && pz < c.z1 + .3 && c.y1 > heightAt(px, pz) + .5 && c.y0 < heightAt(px, pz) + 2.5)) continue;
+      { const gy0 = heightAt(px, pz); if (PLACE.hits(px - ox * .7 - .25, px - ox * .7 + .25, pz - oz * .7 - .25, pz - oz * .7 + .25, gy0, ['house', 'tower', 'base'])) continue; }   // (and where you'd stand to go in, 1.3 m out)
       let dist = 40; for (let t = 0; t < 40; t += 2) { const k = kindAt(px + ox * t, pz + oz * t); if (k === 6 || k === 7 || k === 8 || k === 9 || k === 5) { dist = t; break; } }
       if (!best || dist < best.dist) best = { dist, ox, oz, px, pz };
     }
     if (!best) continue;
     // walk in from the outside spot to the wall itself
-    let wx = best.px, wz = best.pz; for (let t = 0; t < 30; t += .25) { const x = best.px - best.ox * t, z = best.pz - best.oz * t; if (b.parts.some(c => x > c.x0 && x < c.x1 && z > c.z0 && z < c.z1)) { wx = x + best.ox * .05; wz = z + best.oz * .05; break; } }
+    let wx = best.px, wz = best.pz; if (best.hint) { wx = best.hint.x; wz = best.hint.z; } else for (let t = 0; t < 30; t += .25) { const x = best.px - best.ox * t, z = best.pz - best.oz * t; if (b.parts.some(c => x > c.x0 && x < c.x1 && z > c.z0 && z < c.z1)) { wx = x + best.ox * .05; wz = z + best.oz * .05; break; } }
     const gy = Math.max(heightAt(wx + best.ox, wz + best.oz), b.y0);
     let name = '', bd = 140; for (const [nm, px, pz] of fareSpots()) { const dd = Math.hypot(px - cx, pz - cz); if (dd < bd) { bd = dd; name = nm; } }
     const pn = name.replace(/^the /i, ''), lbl = INT_LABEL[type], own = pn && new RegExp('\\b' + lbl.split(' ')[0], 'i').test(pn);   // a place already named for what it is (the Alaafin's palace) keeps its own name
-    out.push({ x: wx + best.ox * 1.3, z: wz + best.oz * 1.3, wx, wz, gy, ox: best.ox, oz: best.oz, type, name: type === 'palace' && EDO && inR(EDO.palace, cx, cz) ? 'the Oba’s palace, Benin' : own ? 'the ' + pn : lbl + (pn ? ', ' + pn : ''), bx: cx, bz: cz, br: Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2 + 2, top: b.y1 });
+    let sd = 1.3; { const yy = best.hint ? best.hint.y : gy; for (const t of [1.3, 1, 1.7, 2.2]) { const ex = wx + best.ox * t, ez = wz + best.oz * t; if (!PLACE.hits(ex - .2, ex + .2, ez - .2, ez + .2, yy, ['house', 'tower', 'base'])) { sd = t; break; } } }   // (where you stand to go in: the first clear spot out from the door)
+    out.push({ x: wx + best.ox * sd, z: wz + best.oz * sd, wx, wz, gy: best.hint ? best.hint.y : gy, ox: best.ox, oz: best.oz, drawn: !!best.hint, type, name: type === 'palace' && EDO && inR(EDO.palace, cx, cz) ? 'the Oba’s palace, Benin' : own ? 'the ' + pn : lbl + (pn ? ', ' + pn : ''), bx: cx, bz: cz, br: Math.max(b.x1 - b.x0, b.z1 - b.z0) / 2 + 2, top: b.y1 });
   }
   return out;
 }
-function intDoors(list) {   // a door in a white frame with a lamp over it, on each building's wall
+const INT_DOOR_STYLE = { home: 'panel', palace: 'grand', classroom: 'double', warehouse: 'steel', mall: 'sliding', supermarket: 'sliding', bank: 'sliding', showroom: 'sliding', workfloor: 'sliding', office: 'glass', apartment: 'glass', restaurant: 'glass', pharmacy: 'glass', boutique: 'glass', electronics: 'glass', bakery: 'glass', kiosk: 'shutter' };
+function intDoors(list) {   // the way into each building: drawn with the building's own door where it has one, otherwise a door to suit what's inside
   const b = new Builder();
   for (const e of list) {
-    const ax = e.oz !== 0, y = e.gy, x = e.wx ?? e.x - e.ox * 1.3, z = e.wz ?? e.z - e.oz * 1.3;
-    b.box(ax ? .18 : .5, 2.9, ax ? .5 : .18, ax ? x - 1.1 : x, y + 1.45, ax ? z : z - 1.1, MM.white, 1, false);
-    b.box(ax ? .18 : .5, 2.9, ax ? .5 : .18, ax ? x + 1.1 : x, y + 1.45, ax ? z : z + 1.1, MM.white, 1, false);
-    b.box(ax ? 2.4 : .5, .22, ax ? .5 : 2.4, x, y + 2.95, z, MM.white, 1, false);
-    b.box(ax ? 2 : .12, 2.8, ax ? .12 : 2, x + e.ox * .06, y + 1.4, z + e.oz * .06, e.type === 'home' || e.type === 'palace' ? M.door : MM.glass, 1, false);
-    b.box(ax ? .5 : .14, .14, ax ? .14 : .5, x + e.ox * .3, y + 3.25, z + e.oz * .3, lampMat, 1, false);
+    if (e.drawn) continue;
+    const style = /^m|^museum$/.test(e.type) && MUSEUM_TYPE && Object.values(MUSEUM_TYPE).includes(e.type) ? 'grand' : INT_DOOR_STYLE[e.type] || 'glass';
+    PARTS.door(b, e.wx ?? e.x - e.ox * 1.3, e.gy, e.wz ?? e.z - e.oz * 1.3, e.ox, e.oz, { style, hint: false, canopy: style === 'glass' || style === 'sliding', seed: 7 });
   }
   b.build();
 }
@@ -16655,7 +16924,23 @@ if (DD) {   // Delta's museums: Mungo Park House in Asaba (its door on the river
 MUSEUM_ENTS.push(...AK_MUSEUMS);   // Akwa Ibom's and Abia's museums
 INT.ents = [...(IKOYI?.ents || []).map(e => ({ ...e, gy: IKOYI.y, top: 0 })), ...MUSEUM_ENTS, ...intFindBuildings()];
 for (const e of INT.ents) if (!e.top) { let t = 0; for (const c of queryGrid(solidGrid, e.bx, e.bz, e.br || 10)) t = Math.max(t, c.y1); e.top = t; }
-intDoors(INT.ents); for (const e of INT.ents) intGridAdd(e);
+intDoors(INT.ents); for (const e of INT.ents) intGridAdd(e); PARTS_FB.build();
+/* ---- placement rule: every building has windows. Any plain box building (its collider is exactly the box drawn) that nothing
+   gave windows to gets framed windows on each wall that's open to the air, floor by floor. ---- */
+(function autoWindows() {
+  const WG = new Map(); for (let i = 0; i < WIN_POS.length; i += 2) { const k = Math.floor(WIN_POS[i] / 8) + ',' + Math.floor(WIN_POS[i + 1] / 8); if (!WG.has(k)) WG.set(k, []); WG.get(k).push(WIN_POS[i], WIN_POS[i + 1]); }
+  const has = c => { for (let gx = Math.floor((c.x0 - 1) / 8); gx <= Math.floor((c.x1 + 1) / 8); gx++) for (let gz = Math.floor((c.z0 - 1) / 8); gz <= Math.floor((c.z1 + 1) / 8); gz++) { const L = WG.get(gx + ',' + gz); if (L) for (let i = 0; i < L.length; i += 2) if (L[i] > c.x0 - 1 && L[i] < c.x1 + 1 && L[i + 1] > c.z0 - 1 && L[i + 1] < c.z1 + 1) return true; } return false; };
+  const b = new Builder(); let n = 0, doors = [...DOOR_HINTS.map(h => [h.x, h.z]), ...INT.ents.map(e => [e.wx ?? e.x, e.wz ?? e.z])];
+  for (const c of colliders) {
+    if (!c.box || (c.tag !== 'house' && c.tag !== 'tower') || c.y1 - c.y0 < 2.4 || c.y1 - c.y0 > 140 || Math.min(c.x1 - c.x0, c.z1 - c.z0) < 3 || (c.x1 - c.x0) * (c.z1 - c.z0) < 30 || has(c)) continue;
+    const w = c.x1 - c.x0, d = c.z1 - c.z0, x = (c.x0 + c.x1) / 2, z = (c.z0 + c.z1) / 2, H = c.y1 - c.y0, floors = Math.max(1, Math.min(40, Math.floor((H - .4) / 3.1)));
+    const sides = [['pz', 0, 1], ['nz', 0, -1], ['px', 1, 0], ['nx', -1, 0]].filter(([, fx, fz]) => !PLACE.hits(x + fx * (w / 2 + .3) - (fz ? w / 2 - 1 : .2), x + fx * (w / 2 + .3) + (fz ? w / 2 - 1 : .2), z + fz * (d / 2 + .3) - (fx ? d / 2 - 1 : .2), z + fz * (d / 2 + .3) + (fx ? d / 2 - 1 : .2), c.y0, ['house', 'tower'])).map(q => q[0]);
+    if (!sides.length) continue;
+    const avoid = doors.filter(([px, pz]) => px > c.x0 - 1.5 && px < c.x1 + 1.5 && pz > c.z0 - 1.5 && pz < c.z1 + 1.5);
+    PARTS.facade(b, { x, z, w, d, y: c.y0 }, { floors, fh: H / floors > 4.5 ? 3.4 : H / floors, sides, door: null, avoid, ww: 1.3, wh: 1.4, bay: 3.2, sill: Math.min(1, H / floors - 1.6), win: { simple: floors > 3 } }); n++;
+  }
+  b.build(); PLACE_RULES.autoWindows = n;
+})();
 gridCatchUp();   // (and the rooms)
 /* ---------- criminals: a gang of pickpockets based in Magboro and Mowe on the expressway. They loiter round the hamlets,
    pick a mark (someone passing, or you, at most every couple of minutes), walk up and lift their money, then run.
@@ -16832,6 +17117,53 @@ const CROWD = LITE ? 1 : 2;
 { const plain = civilians.filter(c => !c.guard && !c.staff && !c.cop && !c.fire && !c.crook && !c.jog && !c.dance && !c.dj && !c.clubRole && c.fixedY == null && !c.riding && c.v && c.v.y < INT_FY - 5);
   for (const c of plain) for (let k = CROWD + Math.random() - 1; k > 0; k--) { try { makeCivilian(c.v, { adult: !c.child }); } catch (e) { break; } } }
 crimeSetup();
+// ---- the placement audit (?audit, or call worldAudit()): after the world is built, every building and door is checked against
+// the placement rules: no building on a road, no kerb in the middle of a road, every drawn door clear in front, on the ground,
+// not over water. The report goes to the console and window.__audit; a deploy should see zero ----
+function worldAudit(max = 12) {
+  const t0 = performance.now(), R = { buildingsOnRoad: [], wallsAcrossRoad: [], kerbMidRoad: 0, kerbSamples: [], doorBlocked: [], doorFloating: [], doorOnWater: [], checked: { buildings: 0, doors: DOOR_HINTS.length } };
+  const road = k => k === 6 || k === 8 || k === 9, push = (L, v) => { if (L.length < max) L.push(v); L.n = (L.n || 0) + 1; };
+  const G = new Map(), cell = 8; for (const c of colliders) { if (c.tag !== 'house' && c.tag !== 'tower') continue; for (let gx = Math.floor(c.x0 / cell); gx <= Math.floor(c.x1 / cell); gx++) for (let gz = Math.floor(c.z0 / cell); gz <= Math.floor(c.z1 / cell); gz++) { const k = gx + ',' + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(c); } }
+  for (const c of colliders) {   // a building's footprint (walls 2.4 m+ tall, on the ground) must not sit on asphalt
+    if ((c.tag !== 'house' && c.tag !== 'tower') || c.y1 - c.y0 < 2.4 || (c.x1 - c.x0) * (c.z1 - c.z0) < 6) continue; R.checked.buildings++;
+    let hit = 0, n = 0; for (let x = c.x0 + .5; x < c.x1; x += 1) for (let z = c.z0 + .5; z < c.z1; z += 1) { n++; if (Math.abs(heightAt(x, z) - c.y0) < 1.2 && road(kindAt(x, z))) hit++; }
+    if (hit >= 2 && hit / n > .02 && Math.min(c.x1 - c.x0, c.z1 - c.z0) <= 1.5) push(R.wallsAcrossRoad, [Math.round((c.x0 + c.x1) / 2), Math.round((c.z0 + c.z1) / 2), +(c.x1 - c.x0).toFixed(1), +(c.z1 - c.z0).toFixed(1)]);   // a wall standing across a road
+    else if (hit >= 2 && hit / n > .02) push(R.buildingsOnRoad, [Math.round((c.x0 + c.x1) / 2), Math.round((c.z0 + c.z1) / 2), +(hit / n).toFixed(2), +(c.x1 - c.x0).toFixed(1), +(c.z1 - c.z0).toFixed(1), +c.y0.toFixed(1), +(c.y1 - c.y0).toFixed(1), c.src ?? '-']);
+  }
+  // windows: every building (walls 2.4 m+, 30 m2+, not a wall or a platform) has windows on it somewhere
+  { const WG = new Map(); for (let i = 0; i < WIN_POS.length; i += 2) { const k = Math.floor(WIN_POS[i] / 8) + ',' + Math.floor(WIN_POS[i + 1] / 8); if (!WG.has(k)) WG.set(k, []); WG.get(k).push(WIN_POS[i], WIN_POS[i + 1]); }
+    let n = 0, ok = 0; R.noWindows = [];
+    for (const c of colliders) { if (!c.box || (c.tag !== 'house' && c.tag !== 'tower') || c.y1 - c.y0 < 2.4 || Math.min(c.x1 - c.x0, c.z1 - c.z0) < 3 || (c.x1 - c.x0) * (c.z1 - c.z0) < 30) continue; n++;   // (box-drawn buildings: tanks, silos, ships and statues are other shapes)
+      let has = false; for (let gx = Math.floor((c.x0 - 1) / 8); gx <= Math.floor((c.x1 + 1) / 8) && !has; gx++) for (let gz = Math.floor((c.z0 - 1) / 8); gz <= Math.floor((c.z1 + 1) / 8) && !has; gz++) {
+        const L = WG.get(gx + ',' + gz); if (L) for (let i = 0; i < L.length && !has; i += 2) { const x = L[i], z = L[i + 1]; if (x > c.x0 - 1 && x < c.x1 + 1 && z > c.z0 - 1 && z < c.z1 + 1) has = true; } }
+      if (has) ok++; else push(R.noWindows, [Math.round((c.x0 + c.x1) / 2), Math.round((c.z0 + c.z1) / 2), +(c.x1 - c.x0).toFixed(1), +(c.z1 - c.z0).toFixed(1), +(c.y1 - c.y0).toFixed(1), c.src ?? '-']); }
+    R.windowCoverage = n ? ok / n : 1; R.checked.windowed = n; }
+  // entrances: the spot you stand on to go in must be clear and on the ground
+  R.entranceBlocked = []; for (const e of INT.ents || []) { if (e.type && /^m/.test(e.type) && Object.values(MUSEUM_TYPE).includes(e.type)) continue; const blk = (G.get(Math.floor(e.x / cell) + ',' + Math.floor(e.z / cell)) || []).find(c => e.x > c.x0 + .05 && e.x < c.x1 - .05 && e.z > c.z0 + .05 && e.z < c.z1 - .05 && c.y0 < (e.gy ?? 0) + 1.8 && c.y1 > (e.gy ?? 0) + .4); if (blk) { const hh = DOOR_HINTS.find(h => Math.hypot(h.x - (e.wx ?? e.x), h.z - (e.wz ?? e.z)) < 1); push(R.entranceBlocked, [Math.round(e.x), Math.round(e.z), e.type, e.drawn ? 'drawn' : 'int', hh?.src ?? '-', hh?.style ?? '-', blk.src ?? '-', +(blk.x1 - blk.x0).toFixed(1), +(blk.z1 - blk.z0).toFixed(1), +(blk.y1 - blk.y0).toFixed(1)]); } }
+  R.checked.entrances = (INT.ents || []).length;
+  for (const h of DOOR_HINTS) {   // a door: the spot a step in front of it must be free, on the ground, dry
+    const px = h.x + h.ox * 1.1, pz = h.z + h.oz * 1.1, gy = heightAt(px, pz);
+    const block = (G.get(Math.floor(px / cell) + ',' + Math.floor(pz / cell)) || []).find(c => px > c.x0 + .05 && px < c.x1 - .05 && pz > c.z0 + .05 && pz < c.z1 - .05 && c.y0 < h.y + 1.8 && c.y1 > h.y + .4);
+    if (block) push(R.doorBlocked, [Math.round(h.x), Math.round(h.z), h.style]);
+    else if (kindAt(px, pz) === 1 && gy < WATER_Y + .5 && h.y < WATER_Y + 1) push(R.doorOnWater, [Math.round(h.x), Math.round(h.z)]);
+    else if (Math.abs(gy - h.y) > 1.6 && h.y > 2.5) push(R.doorFloating, [Math.round(h.x), Math.round(h.z), +(h.y - gy).toFixed(1), h.style, h.src ?? '-']);
+  }
+  // kerbs (paving, 7) with asphalt on both sides of them, either way: a kerb left in the middle of a road
+  const run = (x, z, dx, dz) => { let n = 1; for (const s of [-1, 1]) for (let t = 1; t <= 9; t++) { if (kindAt(x + s * dx * t, z + s * dz * t) !== 7) break; n++; } return n; };
+  const scan = (x0, x1, z0, z1) => { for (let x = x0 + .5; x < x1; x += 1) for (let z = z0 + .5; z < z1; z += 1) if (kindAt(x, z) === 7 && ((road(kindAt(x - 1, z)) && road(kindAt(x + 1, z)) && run(x, z, 0, 1) <= 8) || (road(kindAt(x, z - 1)) && road(kindAt(x, z + 1)) && run(x, z, 1, 0) <= 8))) { R.kerbMidRoad++; if (R.kerbSamples.length < max) R.kerbSamples.push([Math.round(x), Math.round(z)]); } };
+  scan(-HALF, HALF, -HALF - (YB ? ND : 0), HALF + (COAST ? SD : 0));
+  if (ED) scan(HALF, HALF + ED, EJ0 - HALF, EJ1 - HALF); if (DD) for (const [a, b2, c2, d2] of DRECTS) scan(a, b2, c2, d2); if (AK) for (const [a, b2, c2, d2] of AK.rects) scan(a, b2, c2, d2);
+  // the world's fingerprint: every building, wall and door, rounded to 10 cm. Two builds of the same code must match exactly (the CI builds twice)
+  { let h = 2166136261; const mix = v => { h = Math.imul(h ^ (v | 0), 16777619); };
+    for (const c of colliders) if ((c.tag === 'house' || c.tag === 'tower' || c.tag === 'base') && c.y1 - c.y0 >= 2) { mix(c.x0 * 10); mix(c.z0 * 10); mix(c.x1 * 10); mix(c.z1 * 10); mix(c.y1 * 10); }
+    for (const d of DOOR_HINTS) { mix(d.x * 10); mix(d.z * 10); }
+    R.worldHash = (h >>> 0).toString(36); }
+  R.summary = { worldHash: R.worldHash, windowCoverage: +(R.windowCoverage * 100).toFixed(2), noWindows: R.noWindows.n || 0, entranceBlocked: R.entranceBlocked.n || 0, buildingsOnRoad: R.buildingsOnRoad.n || 0, wallsAcrossRoad: R.wallsAcrossRoad.n || 0, nudged: PLACE_RULES.nudged, skipped: PLACE_RULES.skipped, kerbsFixed: PLACE_RULES.kerbsFixed, kerbMidRoad: R.kerbMidRoad, doorBlocked: R.doorBlocked.n || 0, doorFloating: R.doorFloating.n || 0, doorOnWater: R.doorOnWater.n || 0, ms: Math.round(performance.now() - t0) };
+  console.log('[audit]', JSON.stringify(R.summary)); window.__audit = R;
+  try { const pre = document.createElement('pre'); pre.id = 'auditOut'; pre.hidden = true; pre.textContent = JSON.stringify(R); document.body.appendChild(pre); } catch (e) {}   // (for the headless CI run: ops/audit.sh reads it from the page)
+  return R;
+}
+if (/[?&]audit(&|$)/.test(location.search)) setTimeout(() => worldAudit(400), 500);   // (CI: every violation listed, not just a sample)
 /* ---------- distance culling for static scenery: every static mesh (the builders' merged scenery, terrain chunks, signs, parked
    props) goes into a 128 m cell; cells past the draw distance are moved to render layer 1, which the camera and the shadow
    camera don't draw, so the renderer skips their tests too. (Their visibility stays the game's own business.) ---------- */
@@ -18402,7 +18734,7 @@ function frame(now) {
   if (mode === 'play') adaptResolution(rawDt);
   updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateCab(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
-  if (mode !== 'pause') { updateCivilians(dt); updateSellers(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
+  if (mode !== 'pause') { updateCivilians(dt); updateSellers(dt); if (SLIDERS.length) updateSliders(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
   titanRoot.updateMatrixWorld(true);
   if (mode === 'play') {

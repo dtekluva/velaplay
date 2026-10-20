@@ -1,0 +1,9 @@
+{
+  "minUniformity": 99.9,
+  "max": { "doorBlocked": 0, "doorFloating": 0, "doorOnWater": 0, "wallsAcrossRoad": 0, "entranceBlocked": 0, "buildingsOnRoad": 0, "kerbMidRoad": 53 },
+  "min": { "windowCoverage": 99.5 },
+  "allow": {
+    "_why": "terminals stand at the edge of their own apron (asphalt by design); the Warri port sheds and crane posts stand in the port's yard",
+    "buildingsOnRoad": [[3810, -5686], [3880, -5686], [3580, -3230], [7480, -2466], [7550, -2466], [7620, -2466], [3024, -2774], [3124, -2774], [2772, -2754], [2789, -2754]]
+  }
+}

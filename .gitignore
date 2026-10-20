@@ -9,3 +9,4 @@ dist/
 .DS_Store
 server/public/music/
 server/public/humans/
+ops/last-audit.json

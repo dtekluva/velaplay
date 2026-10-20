@@ -5,6 +5,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 HOST="${VELAPLAY_HOST:-root@46.101.63.217}"
 SSH=(ssh -i "${SSH_KEY:-$HOME/.ssh/id_rsa}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+# the gate: the world audit must pass before anything ships (SKIP_AUDIT=1 to override, e.g. a server-only fix)
+if [ -f ../giantwood-scouts/index.html ] && [ "${SKIP_AUDIT:-}" != "1" ]; then bash ops/audit.sh || { echo "deploy: the world audit failed, nothing was deployed (SKIP_AUDIT=1 to override)" >&2; exit 1; }; fi
 [ -f ../giantwood-scouts/index.html ] && bash ops/build-client.sh
 echo "→ copying code to $HOST:/opt/velaplay"
 "${SSH[@]}" "$HOST" "mkdir -p /opt/velaplay"
