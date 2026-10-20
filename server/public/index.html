@@ -10843,12 +10843,16 @@ function crashPlane(c) {
   [c.x, c.z, c.yaw] = c.home; c.y = heightAt(c.x, c.z); c.pitch = c.roll = c.speed = c.throttle = 0; placePlane(c);
   hurt(80); if (!P.dead) toast('', 'Crashed! The plane is back at the airport');
 }
-function flyStep(dt) {
+function flyStep(dt) {   // fast planes move in small steps, so they can't skip through a building between frames
+  const n = clamp(Math.ceil((P.driving?.speed || 0) * dt / 3), 1, 8);
+  for (let i = 0; i < n && P.driving; i++) flyStep1(dt / n);
+}
+function flyStep1(dt) {
   const c = P.driving;
   const thr = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), pin = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
   const bank = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
   // the small plane is nimble; the airliner is heavy, needs more runway and turns wide
-  const F = c.kind === 'jet' ? { thrust: 100, k: .22, l0: 32, lr: 12, rot: 40, max: 110, pitchRate: .5, hit: 4, taxi: .5, rudder: .2 } : { thrust: 62, k: .35, l0: 18, lr: 12, rot: 27, max: 75, pitchRate: .9, hit: 2.4, taxi: .9, rudder: .35 };
+  const F = c.kind === 'jet' ? { thrust: 200, k: .22, l0: 32, lr: 12, rot: 40, max: 220, vt: 110, pitchRate: .5, hit: 4, taxi: .5, rudder: .2 } : { thrust: 124, k: .35, l0: 18, lr: 12, rot: 27, max: 150, vt: 75, pitchRate: .9, hit: 2.4, taxi: .9, rudder: .35 };
   c.throttle = clamp(c.throttle + thr * dt * .6, 0, 1);
   const gh = heightAt(c.x, c.z), onGround = c.y <= gh + .05;
   const lift = clamp((c.speed - F.l0) / F.lr, 0, 1);
@@ -10865,7 +10869,7 @@ function flyStep(dt) {
   } else {
     c.roll += (bank * .48 - c.roll) * Math.min(1, dt * 2.5);   // (a gentle bank: the rudder below does much of the turning)
     if ((c.climbT = (c.climbT || 0) - dt) > 0 && pin === 0) c.pitch += (.28 - c.pitch) * Math.min(1, dt * 1.5);   // after take-off: climb out hands-off, clear of trees and the wall
-    c.yaw += (Math.tan(c.roll) * 19.6 / Math.max(c.speed, 15) * 1.6 + bank * F.rudder * lift) * dt;   // a coordinated turn plus rudder: turning doesn't need a full roll
+    c.yaw += (Math.tan(c.roll) * 19.6 / clamp(c.speed, 15, F.vt) * 1.6 + bank * F.rudder * lift) * dt;   // a coordinated turn plus rudder: turning doesn't need a full roll
     c.pitch -= (1 - lift) * .7 * dt;          // a stalling plane drops its nose
   }
   const cp = Math.cos(c.pitch), fx = -Math.sin(c.yaw) * cp, fy = Math.sin(c.pitch), fz = -Math.cos(c.yaw) * cp;
