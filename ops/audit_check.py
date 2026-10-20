@@ -22,6 +22,8 @@ rows = [
   ('doors on the ground', C['doors'] - S['doorFloating'], C['doors']),
   ('doors not onto water', C['doors'] - S['doorOnWater'], C['doors']),
   ('entrances reachable', C['entrances'] - S['entranceBlocked'], C['entrances']),
+  ('entrances lead to a room', C['entrances'] - S.get('noRoom', 0), C['entrances']),
+  ('coming out onto solid ground', C['entrances'] - S.get('exitBad', 0), C['entrances']),
   ('buildings with windows', C['windowed'] - S['noWindows'], C['windowed']),
 ]
 print(f"\n{'check':34} {'passed':>9} {'of':>8} {'rate':>8}")

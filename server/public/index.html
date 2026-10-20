@@ -16228,7 +16228,7 @@ function intFindBuildings() {
   const ent = []; for (const v of vs) if (!v.interior) for (const h of v.houses || []) ent.push(h); for (const h of HOUSES) ent.push(h);
   const inEnt = c => ent.some(h => c.x1 > h.x - h.w / 2 - 1.5 && c.x0 < h.x + h.w / 2 + 1.5 && c.z1 > h.z - h.d / 2 - 1.5 && c.z0 < h.z + h.d / 2 + 1.5);
   const C = colliders.filter(c => (c.tag === 'house' || c.tag === 'tower' || c.tag === 'roof' || c.tag === 'base') && (c.y1 - c.y0) > 2.4 && Math.min(c.x1 - c.x0, c.z1 - c.z0) > 1.4 && (c.x1 - c.x0) * (c.z1 - c.z0) > 10 && Math.max(c.x1 - c.x0, c.z1 - c.z0) < 180
-    && c.y0 < 200 && !(c.x0 < -360 && c.z0 > -940 && c.z1 < 300) && !(c.z0 > 560 && c.x1 < -100) && !inEnt(c) && !museumSiteAt((c.x0 + c.x1) / 2, (c.z0 + c.z1) / 2, 2));   // (Ikoyi has its own named doors; the rooms themselves are out at sea)
+    && c.y0 < 200 && !(c.x0 < -360 && c.z0 > -940 && c.z1 < 300) && !(c.z0 > 560 && c.x1 < -100) && !inEnt(c) && !museumSiteAt((c.x0 + c.x1) / 2, (c.z0 + c.z1) / 2, 2) && !INT.slots.some(([sx, sz]) => Math.abs((c.x0 + c.x1) / 2 - sx) < 40 && Math.abs((c.z0 + c.z1) / 2 - sz) < 40));   // (and never the interior rooms themselves, out on their slabs)   // (Ikoyi has its own named doors; the rooms themselves are out at sea)
   const n = C.length, par = Array.from({ length: n }, (_, i) => i), f = i => par[i] === i ? i : (par[i] = f(par[i])), G = new Map();
   C.forEach((c, i) => { for (let gx = Math.floor(c.x0 / 16); gx <= Math.floor(c.x1 / 16); gx++) for (let gz = Math.floor(c.z0 / 16); gz <= Math.floor(c.z1 / 16); gz++) { const k = gx + ',' + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(i); } });
   for (const arr of G.values()) for (let a = 0; a < arr.length; a++) for (let q = a + 1; q < arr.length; q++) { const p = C[arr[a]], o = C[arr[q]]; if (p.x1 >= o.x0 - .6 && o.x1 >= p.x0 - .6 && p.z1 >= o.z0 - .6 && o.z1 >= p.z0 - .6) par[f(arr[a])] = f(arr[q]); }
@@ -16246,6 +16246,7 @@ function intFindBuildings() {
       const fx = ox ? (ox > 0 ? b.x1 : b.x0) : cx, fz = oz ? (oz > 0 ? b.z1 : b.z0) : cz, px = fx + ox * 2, pz = fz + oz * 2;
       if (queryGrid(solidGrid, px, pz, 2).some(c => px > c.x0 - .3 && px < c.x1 + .3 && pz > c.z0 - .3 && pz < c.z1 + .3 && c.y1 > heightAt(px, pz) + .5 && c.y0 < heightAt(px, pz) + 2.5)) continue;
       { const gy0 = heightAt(px, pz); if (PLACE.hits(px - ox * .7 - .25, px - ox * .7 + .25, pz - oz * .7 - .25, pz - oz * .7 + .25, gy0, ['house', 'tower', 'base'])) continue; }   // (and where you'd stand to go in, 1.3 m out)
+      { const sx = px - ox * .1, sz = pz - oz * .1, g = groundAt(sx, sz); if ((kindAt(sx, sz) === 1 && g <= WATER_Y + .5) || g < b.y0 - 1.5 || g > b.y0 + 1.5) continue; }   // (never a door onto water, or onto a drop, or into a bank of earth)
       let dist = 40; for (let t = 0; t < 40; t += 2) { const k = kindAt(px + ox * t, pz + oz * t); if (k === 6 || k === 7 || k === 8 || k === 9 || k === 5) { dist = t; break; } }
       if (!best || dist < best.dist) best = { dist, ox, oz, px, pz };
     }
@@ -17146,6 +17147,16 @@ function worldAudit(max = 12) {
   // entrances: the spot you stand on to go in must be clear and on the ground
   R.entranceBlocked = []; for (const e of INT.ents || []) { if (e.type && /^m/.test(e.type) && Object.values(MUSEUM_TYPE).includes(e.type)) continue; const blk = (G.get(Math.floor(e.x / cell) + ',' + Math.floor(e.z / cell)) || []).find(c => e.x > c.x0 + .05 && e.x < c.x1 - .05 && e.z > c.z0 + .05 && e.z < c.z1 - .05 && c.y0 < (e.gy ?? 0) + 1.8 && c.y1 > (e.gy ?? 0) + .4); if (blk) { const hh = DOOR_HINTS.find(h => Math.hypot(h.x - (e.wx ?? e.x), h.z - (e.wz ?? e.z)) < 1); push(R.entranceBlocked, [Math.round(e.x), Math.round(e.z), e.type, e.drawn ? 'drawn' : 'int', hh?.src ?? '-', hh?.style ?? '-', blk.src ?? '-', +(blk.x1 - blk.x0).toFixed(1), +(blk.z1 - blk.z0).toFixed(1), +(blk.y1 - blk.y0).toFixed(1)]); } }
   R.checked.entrances = (INT.ents || []).length;
+  // interiors: every entrance leads to a room, and where you come back out (0.6 m outside the entrance) is solid, dry ground at the right height
+  R.noRoom = []; R.exitBad = []; const GB = new Map(); for (const c of colliders) if (c.tag === 'base') for (let gx = Math.floor(c.x0 / cell); gx <= Math.floor(c.x1 / cell); gx++) for (let gz = Math.floor(c.z0 / cell); gz <= Math.floor(c.z1 / cell); gz++) { const k = gx + ',' + gz; if (!GB.has(k)) GB.set(k, []); GB.get(k).push(c); }
+  for (const e of INT.ents || []) {
+    if (!INT.rooms[e.type]) { push(R.noRoom, [Math.round(e.x), Math.round(e.z), e.type, e.name]); continue; }
+    const bx = e.x + e.ox * .6, bz = e.z + e.oz * .6, gy = e.gy ?? 0, g = groundAt(bx, bz), k = kindAt(bx, bz);
+    const inside = (G.get(Math.floor(bx / cell) + ',' + Math.floor(bz / cell)) || []).find(c => bx > c.x0 + .05 && bx < c.x1 - .05 && bz > c.z0 + .05 && bz < c.z1 - .05 && c.y0 < gy + 1.6 && c.y1 > gy + .3);
+    const deck = (G.get(Math.floor(bx / cell) + ',' + Math.floor(bz / cell)) || []).concat(GB.get(Math.floor(bx / cell) + ',' + Math.floor(bz / cell)) || []).some(c => bx > c.x0 && bx < c.x1 && bz > c.z0 && bz < c.z1 && Math.abs(c.y1 - gy) < .8);
+    const why = !Number.isFinite(g) ? 'no ground' : g > gy + 1 ? 'buried' : g < gy - 1.5 && !deck ? 'drop ' + (gy - g).toFixed(1) + ' m' : k === 1 && g <= WATER_Y + .5 ? 'water' : inside ? 'inside a wall' : '';
+    if (why) push(R.exitBad, [Math.round(bx), Math.round(bz), e.type, why, e.name.slice(0, 40)]);
+  }
   for (const h of DOOR_HINTS) {   // a door: the spot a step in front of it must be free, on the ground, dry
     const px = h.x + h.ox * 1.1, pz = h.z + h.oz * 1.1, gy = heightAt(px, pz);
     const block = (G.get(Math.floor(px / cell) + ',' + Math.floor(pz / cell)) || []).find(c => px > c.x0 + .05 && px < c.x1 - .05 && pz > c.z0 + .05 && pz < c.z1 - .05 && c.y0 < h.y + 1.8 && c.y1 > h.y + .4);
@@ -17163,7 +17174,7 @@ function worldAudit(max = 12) {
     for (const c of colliders) if ((c.tag === 'house' || c.tag === 'tower' || c.tag === 'base') && c.y1 - c.y0 >= 2) { mix(c.x0 * 10); mix(c.z0 * 10); mix(c.x1 * 10); mix(c.z1 * 10); mix(c.y1 * 10); }
     for (const d of DOOR_HINTS) { mix(d.x * 10); mix(d.z * 10); }
     R.worldHash = (h >>> 0).toString(36); }
-  R.summary = { worldHash: R.worldHash, windowCoverage: +(R.windowCoverage * 100).toFixed(2), noWindows: R.noWindows.n || 0, entranceBlocked: R.entranceBlocked.n || 0, buildingsOnRoad: R.buildingsOnRoad.n || 0, wallsAcrossRoad: R.wallsAcrossRoad.n || 0, nudged: PLACE_RULES.nudged, skipped: PLACE_RULES.skipped, kerbsFixed: PLACE_RULES.kerbsFixed, kerbMidRoad: R.kerbMidRoad, doorBlocked: R.doorBlocked.n || 0, doorFloating: R.doorFloating.n || 0, doorOnWater: R.doorOnWater.n || 0, ms: Math.round(performance.now() - t0) };
+  R.summary = { worldHash: R.worldHash, noRoom: R.noRoom.n || 0, exitBad: R.exitBad.n || 0, windowCoverage: +(R.windowCoverage * 100).toFixed(2), noWindows: R.noWindows.n || 0, entranceBlocked: R.entranceBlocked.n || 0, buildingsOnRoad: R.buildingsOnRoad.n || 0, wallsAcrossRoad: R.wallsAcrossRoad.n || 0, nudged: PLACE_RULES.nudged, skipped: PLACE_RULES.skipped, kerbsFixed: PLACE_RULES.kerbsFixed, kerbMidRoad: R.kerbMidRoad, doorBlocked: R.doorBlocked.n || 0, doorFloating: R.doorFloating.n || 0, doorOnWater: R.doorOnWater.n || 0, ms: Math.round(performance.now() - t0) };
   console.log('[audit]', JSON.stringify(R.summary)); window.__audit = R;
   try { const pre = document.createElement('pre'); pre.id = 'auditOut'; pre.hidden = true; pre.textContent = JSON.stringify(R); document.body.appendChild(pre); } catch (e) {}   // (for the headless CI run: ops/audit.sh reads it from the page)
   return R;
