@@ -5846,6 +5846,7 @@ const MH_LIST = { f: ['mhw1', 'mhw2', 'mhw3', 'mhw4', 'mhw5', 'mhw6'], m: ['mhm1
 // how each outfit is worn: 'plain' takes the person's own colour (the cloth's folds stay, in its normal map); 'keep' keeps the cloth's own texture (denim)
 const MH_INFO = { mhw1: ['plain', 'keep'], mhw2: ['plain', 'plain'], mhw3: ['plain', 'keep'], mhw4: ['plain', 'plain'], mhw5: ['plain', 'plain'], mhw6: ['plain', 'keep'],
   mhm1: ['plain', 'keep'], mhm2: ['plain', 'plain'], mhm3: ['keep', 'keep'], mhm4: ['plain', 'keep'], mhm5: ['plain', 'plain'] };
+const MH_ARM = { mhw2: 18, mhw5: 18, mhw1: 10, mhw4: 9, mhm5: 12, mhm2: 10 };   // how far out the arms swing (degrees), by figure
 const MH_DENIM = new Set(Object.keys(MH_INFO).filter(k => MH_INFO[k][1] === 'keep'));
 const MH_TOPS = ['#f2efe6', '#2a2c30', '#b8352e', '#2f5f9a', '#e8b23a', '#3f7a4a', '#8a3f78', '#e07a3a', '#5f8fbf', '#c9b48a', '#6b2f2f', '#1f6f6a', '#d8d2c4', '#9a4a6a'];
 const MH_BOTTOMS = ['#2a2c30', '#3a3f4a', '#5a4a3a', '#2f3f5f', '#c9b48a', '#6a6a66', '#1f2a3a'];
@@ -14244,7 +14245,7 @@ function mhLoad(key) {   // -> the model, loading it the first time (null while 
     g.scene.traverse(o => {
       if (!o.isMesh) return; o.castShadow = true; o.frustumCulled = false;
       const a = o.material, n = a.name || '', cut = /hair|brow|lash|braid|afro|bob|pony|short0|long0/i.test(n) && !/\.(top|bottom)$/.test(n);
-      const b = new THREE.MeshStandardMaterial({ name: n, map: a.map, normalMap: a.normalMap, color: a.color, roughness: cut ? .7 : .78, metalness: 0, skinning: true, alphaTest: cut ? .5 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide });
+      const b = new THREE.MeshStandardMaterial({ name: n, map: a.map, normalMap: a.normalMap, color: a.color, roughness: cut ? .7 : .78, metalness: 0, skinning: true, alphaTest: cut ? .5 : 0, side: cut || /\.(top|bottom)$/.test(n) ? THREE.DoubleSide : THREE.FrontSide });   // (clothes too: a skirt's inside shows as it flares)
       b.userData.role = /\.top$/.test(n) ? 'top' : /\.bottom$/.test(n) ? 'bottom' : /hair|braid|afro|bob|pony|short0|long0/i.test(n) ? 'hair' : '';
       o.material = b; a.dispose();
     });
@@ -14274,12 +14275,17 @@ function mhClip(key, name) {
   const outQ = {}; for (const b of tgt.order) if (S[b] && G[b] && !MH_FINGER.test(b)) outQ[b] = new Float32Array(n * 4);
   const outP = new Float32Array(n * 3), Gq = {}; for (const b in G) Gq[b] = new THREE.Quaternion().fromArray(G[b]);
   const Sw = {}, Tw = {}, q = new THREE.Quaternion(), m = new THREE.Matrix4(), m2 = new THREE.Matrix4(), v = new THREE.Vector3();
-  const k = T.pelvis.wp.y / S.pelvis.wp.y;
+  const k = (T.pelvis.wp.y - T.foot_l.wp.y) / (S.pelvis.wp.y - S.foot_l.wp.y);   // (hip heights above the feet: these models are exported with the hips at the origin)
+  // the collarbones keep MakeHuman's own slope (the game body's straight T-pose ones look like a shrug), and the arms swing a little
+  // wider than on the slim game body, so they clear a fuller figure (MH_ARM degrees, out to each side about the body's front-back axis)
+  for (const sd of ['l', 'r']) if (Gq['clavicle_' + sd] && T['clavicle_' + sd]) Gq['clavicle_' + sd] = T['clavicle_' + sd].wq.clone();
+  const spread = THREE.MathUtils.degToRad(MH_ARM[key] ?? 8), out = { l: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), spread), r: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -spread) };
+  const ARM = /^(upperarm|lowerarm|hand)_([lr])$/;
   for (let f = 0; f < n; f++) {
     const t = Math.min(clip.duration, f / fps); times[f] = t;
     for (const b of src.order) { const s = S[b], it = I[b + '.quaternion']; Sw[b] = (s.parent ? Sw[s.parent] : s.pq).clone().multiply(it ? q.fromArray(it.evaluate(t)) : s.lq); }
     for (const b of tgt.order) { const tb = T[b], pw = tb.parent ? Tw[tb.parent] : tb.pq;
-      if (outQ[b]) { Tw[b] = Sw[b].clone().multiply(S[b].iwq).multiply(Gq[b]); pw.clone().invert().multiply(Tw[b]).toArray(outQ[b], f * 4); }
+      if (outQ[b]) { Tw[b] = Sw[b].clone().multiply(S[b].iwq).multiply(Gq[b]); const a = ARM.exec(b); if (a) Tw[b].premultiply(out[a[2]]); pw.clone().invert().multiply(Tw[b]).toArray(outQ[b], f * 4); }
       else Tw[b] = pw.clone().multiply(tb.lq); }
     const ip = I['pelvis.position'], sl = ip ? v.fromArray(ip.evaluate(t)) : v.copy(S.pelvis.lp);
     const sp = sl.clone().applyMatrix4(m2.multiplyMatrices(S.root.pm, m.compose(S.root.lp, S.root.pq.clone().invert().multiply(Sw.root), S.root.ls)));
