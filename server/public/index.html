@@ -5839,6 +5839,16 @@ const RB_LIST = ['Male_Adult_12', 'Male_Adult_18', 'Male_Adult_04'];
 const RB_INFO = { Male_Adult_12: { code: 'm007', shirt: '#3a5a8a', pants: '#a8bcd0', shoes: '#f2f0ea' }, Male_Adult_18: { code: 'm023', shirt: '#cfc8b8', pants: '#2a2c30', shoes: '#4a5a3a' }, Male_Adult_04: { code: 'm006', shirt: '#22232a', pants: '#6a5a3a', shoes: '#f2f0ea' } };
 const RB_CLIP = { Idle_Loop: 'idle', Walk_Loop: 'walk', Walk_Formal_Loop: 'walk', Jog_Fwd_Loop: 'run', Sprint_Loop: 'run', Idle_Talking_Loop: 'talk', Sitting_Idle_Loop: 'sit', Interact: 'wave', Dance_Loop: 'idle', Pistol_Aim_Neutral: 'idle' };
 const RB_NOT = new Set(['security', 'chef', 'bartender', 'bouncer', 'housekeeper', 'gardener', 'driver', 'pool', 'beach', 'kid', 'cityschool', 'school']);
+// the MakeHuman people (CC0, built with MPFB2: see mh-test/gen.py): Nigerian women and men in modern clothes, on the game's own skeleton,
+// so the game's clips play on them as they are. Each loads the first time someone near you needs it.
+const MH = { ready: false, failed: false, info: {}, models: {}, clips: {}, n: { f: 0, m: 0 } };
+const MH_LIST = { f: ['mhw1', 'mhw2', 'mhw3', 'mhw4', 'mhw5', 'mhw6'], m: ['mhm1', 'mhm2', 'mhm3', 'mhm4', 'mhm5'] };
+// how each outfit is worn: 'plain' takes the person's own colour (the cloth's folds stay, in its normal map); 'keep' keeps the cloth's own texture (denim)
+const MH_INFO = { mhw1: ['plain', 'keep'], mhw2: ['plain', 'plain'], mhw3: ['plain', 'keep'], mhw4: ['plain', 'plain'], mhw5: ['plain', 'plain'], mhw6: ['plain', 'keep'],
+  mhm1: ['plain', 'keep'], mhm2: ['plain', 'plain'], mhm3: ['keep', 'keep'], mhm4: ['plain', 'keep'], mhm5: ['plain', 'plain'] };
+const MH_DENIM = new Set(Object.keys(MH_INFO).filter(k => MH_INFO[k][1] === 'keep'));
+const MH_TOPS = ['#f2efe6', '#2a2c30', '#b8352e', '#2f5f9a', '#e8b23a', '#3f7a4a', '#8a3f78', '#e07a3a', '#5f8fbf', '#c9b48a', '#6b2f2f', '#1f6f6a', '#d8d2c4', '#9a4a6a'];
+const MH_BOTTOMS = ['#2a2c30', '#3a3f4a', '#5a4a3a', '#2f3f5f', '#c9b48a', '#6a6a66', '#1f2a3a'];
 const rbFits = (pl, o) => !(o.gown || o.kaftan || o.robe || o.agbada || o.skirt || o.print || o.fila || o.kufi || o.headwrap) && !RB_NOT.has(pl);
 let CIV_SEED = 52801;
 function makeCivilian(v, opts = {}) { const keep = seed; seed = CIV_SEED; try { return makeCivilian0(v, opts); } finally { CIV_SEED = seed; seed = keep; } }
@@ -5865,12 +5875,21 @@ function makeCivilian0(v, opts = {}) {
       hatColor: o.hatColor || ri(['#2a2c30', '#b83a2e', '#2f5f9a', '#e6e1d3']) };
   }
   let rbKey = null;   // a modern-dressed man (not in uniform, not traditional dress) is often one of the Rocketbox men; his far figure wears his clothes' colours
-  if (!female && !child && !elder && !opts.cop && !opts.fire && !opts.crook && !opts.jog && !opts.place?.match?.(/^(security|chef|bartender|bouncer|housekeeper|gardener|driver|pool)$/) && rbFits(pl, spec) && rng() < .5) {
-    rbKey = RB_LIST[RB.n = (RB.n + 1) % RB_LIST.length];   /* (in turn, so neighbours differ) */ const I = RB_INFO[rbKey]; Object.assign(spec, { shirt: I.shirt, sleeve: I.shirt, collar: I.shirt, longSleeve: true, pants: I.pants, shoes: I.shoes, hat: null, glasses: false, tank: false, shorts: null }); }
+  let mhKey = null, mhLook = null;   // ...or one of the MakeHuman people (the women, and more men with Nigerian faces)
+  const modern = !child && !opts.cop && !opts.fire && !opts.crook && !opts.jog && !opts.place?.match?.(/^(security|chef|bartender|bouncer|housekeeper|gardener|driver|pool)$/) && rbFits(pl, spec);
+  if (modern && !female && !elder && rng() < .6) {
+    const pool = [...RB_LIST, ...MH_LIST.m], k = pool[(RB.n = (RB.n + 1) % pool.length)];   /* (in turn, so neighbours differ) */
+    if (RB_INFO[k]) { rbKey = k; const I = RB_INFO[k]; Object.assign(spec, { shirt: I.shirt, sleeve: I.shirt, collar: I.shirt, longSleeve: true, pants: I.pants, shoes: I.shoes, hat: null, glasses: false, tank: false, shorts: null }); }
+    else mhKey = k;
+  } else if (modern && female && rng() < .55) { const L = MH_LIST.f; mhKey = L[(MH.n.f = (MH.n.f + 1) % L.length)]; }
+  if (mhKey) { const h = (MH.n.c = (MH.n.c || 0) + 1) * 2654435761 >>> 0;   // its colours: from a counter, not rng()
+    mhLook = { key: mhKey, top: MH_TOPS[h % MH_TOPS.length], bottom: MH_BOTTOMS[(h >>> 8) % MH_BOTTOMS.length], hair: ['#151110', '#1c1512', '#241a14', '#0e0c0b'][(h >>> 16) & 3] };
+    const jeans = MH_DENIM.has(mhKey);
+    Object.assign(spec, { shirt: mhLook.top, sleeve: mhLook.top, collar: mhLook.top, pants: jeans ? '#4a5a78' : mhLook.bottom, hat: null, glasses: false, tank: false, shorts: null }); }
   const g = new THREE.Group(); g.rotation.order = 'YXZ';   // (the figure itself is built when they first come near: ensureFig)
   const marker = new THREE.Sprite(markerMat); marker.scale.setScalar(.6); marker.position.y = 2.3; marker.visible = false; g.add(marker);
   g.scale.setScalar((child ? .62 : 1) * RM(.9, 1.0) * (female && !child ? .96 : 1));
-  const c = { g, rig: null, lo: null, hi: null, spec, v, marker, rb: rbKey, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
+  const c = { g, rig: null, lo: null, hi: null, spec, v, marker, rb: rbKey, mh: mhLook, cop: !!opts.cop, fire: !!opts.fire, female, child, elder, ng, fireCD: 0, state: 'idle', timer: RM(0, 3), path: [], phase: RM(0, TAU), speed: RM(1.2, 1.6) * (elder ? .75 : 1), look: 0 };
   if (opts.jog) { c.jog = true; c.speed = RM(2.6, 3.4); c.state = 'walk'; c.path = jogLoop(c); }
   g.position.set(p.x, v.y, p.z); g.rotation.y = RM(0, TAU);
   civRoot.add(g); civilians.push(c); v.civs.push(c);
@@ -6028,6 +6047,7 @@ function civHuman(c) {   // -> true while this person is drawn as a real human
   if (want && !c.human && DETAIL.budget-- > 0) {
     if (c.rig === c.hi) setDetail(c, false);
     if (c.rb && RB.ready) { const h = makeRBHuman(c.rb); if (h) { c.human = h; c.formal = false; c.g.add(h.root); } }   // a Rocketbox man
+    else if (c.mh && !MH.models[c.mh.key]?.failed) { const h = makeMHHuman(c.mh); if (h) { c.human = h; c.formal = false; c.g.add(h.root); } else DETAIL.budget++; }   // a MakeHuman person (not this frame if the model is still coming)
     else { const [L, o] = civLookOf(c), h = makeHuman(L, o); if (h) { c.human = h; c.formal = o.dress.formal; c.g.add(h.root); if (c.cop) wearGear(h, null, null, copGun()); } }
   } else if (!want && c.human) { disposeHuman(c.human); c.human = null; if (c.lo) c.lo.root.visible = !c.statue?.visible; }
   if (c.human) { if (c.lo) c.lo.root.visible = false; if (c.hi) c.hi.root.visible = false; if (c.statue) c.statue.visible = false; }
@@ -14215,6 +14235,60 @@ function makeRBHuman(key) {   // a Rocketbox man, in the same shape the game use
       if (!h.cur) a.time = Math.random() * clip.duration; if (prev && prev !== a) a.crossFadeFrom(prev, fade, false); a.play(); h.cur = name; } };
   return h;
 }
+function mhLoad(key) {   // -> the model, loading it the first time (null while it comes, or if it can't)
+  if (MH.failed || !THREE.GLTFLoader) return null;
+  const M = MH.models[key]; if (M) return M.ready ? M : null;
+  const m = MH.models[key] = { ready: false };
+  new THREE.GLTFLoader().load(HUM_DIR + 'mh/' + key + '/' + key + '.gltf', g => {
+    g.scene.traverse(o => {
+      if (!o.isMesh) return; o.castShadow = true; o.frustumCulled = false;
+      const a = o.material, n = a.name || '', cut = /hair|brow|lash|braid|afro|bob|pony|short0|long0/i.test(n) && !/\.(top|bottom)$/.test(n);
+      const b = new THREE.MeshStandardMaterial({ name: n, map: a.map, normalMap: a.normalMap, color: a.color, roughness: cut ? .7 : .78, metalness: 0, skinning: true, alphaTest: cut ? .5 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide });
+      b.userData.role = /\.top$/.test(n) ? 'top' : /\.bottom$/.test(n) ? 'bottom' : /hair|braid|afro|bob|pony|short0|long0/i.test(n) ? 'hair' : '';
+      o.material = b; a.dispose();
+    });
+    const box = new THREE.Box3().setFromObject(g.scene); m.y0 = -box.min.y; m.scene = g.scene; m.ready = true;
+  }, undefined, e => { console.warn('MakeHuman', key, e); m.failed = true; });
+  return null;
+}
+const MH_FINGER = /^(thumb|index|middle|ring|pinky)_/;
+function mhClips(key) {   // the game's clips for this body: every rotation, and the hips' bob scaled to its height (other moves would stretch its limbs)
+  if (MH.clips[key]) return MH.clips[key];
+  const M = MH.models[key], bones = {}; M.scene.traverse(o => { if (o.isBone) bones[o.name] = o; });
+  const out = {}, tg = bones.pelvis.position;
+  for (const [name, clip] of Object.entries(HUM.clips)) {
+    const tr = [];
+    for (const t of clip.tracks) { const [b, p] = t.name.split('.'); if (!bones[b] || MH_FINGER.test(b)) continue;   // (the hands keep their relaxed shape)
+      if (p === 'quaternion') tr.push(t);
+      else if (p === 'position' && b === 'pelvis') { const v = t.values.slice(), sx = v[0], sy = v[1], sz = v[2], k = tg.length() / Math.hypot(sx, sy, sz);
+        for (let i = 0; i < v.length; i += 3) { v[i] = tg.x + (v[i] - sx) * k; v[i + 1] = tg.y + (v[i + 1] - sy) * k; v[i + 2] = tg.z + (v[i + 2] - sz) * k; }
+        tr.push(new THREE.VectorKeyframeTrack(t.name, t.times, v)); } }
+    out[name] = new THREE.AnimationClip(name, clip.duration, tr);
+  }
+  return MH.clips[key] = out;
+}
+function makeMHHuman(look) {   // a MakeHuman person in the shape the game uses for its humans (root, mixer, play); null until the model is in
+  const M = HUM.ready && mhLoad(look.key); if (!M) return null;
+  const clips = mhClips(look.key), [topW, botW] = MH_INFO[look.key] || ['plain', 'plain'];
+  const scene = THREE.SkeletonUtils.clone(M.scene), root = new THREE.Group(); scene.position.y = M.y0; scene.rotation.y = Math.PI; root.add(scene);
+  const own = [];
+  scene.traverse(o => {
+    if (!o.isMesh) return; const r = o.material.userData.role; if (!r) return;
+    const m = o.material.clone(); own.push(m); o.material = m;
+    if (r === 'hair') m.color.set(look.hair).convertSRGBToLinear();
+    else if ((r === 'top' ? topW : botW) === 'plain') { m.map = null; m.color.set(r === 'top' ? look.top : look.bottom).convertSRGBToLinear(); }
+  });
+  const mixer = new THREE.AnimationMixer(scene), acts = {};
+  const h = { mh: look.key, root, scene, mixer, own, bones: {}, ease: [], parts: [], cur: '', headScale: 0,
+    play(name, fade = .22, ts = 1) { const clip = clips[name] || clips.Idle_Loop; if (!clip) return; const fresh = !acts[name], a = acts[name] ||= mixer.clipAction(clip);
+      if (h.cur === name) { a.timeScale = ts; return; }
+      const once = !/_Loop$/.test(name) && name !== 'Interact';
+      a.reset(); a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); a.clampWhenFinished = once; a.timeScale = ts; a.enabled = true; a.setEffectiveWeight(1);
+      if (!once && fresh && !h.cur) a.time = Math.random() * clip.duration;   // a crowd doesn't step in time
+      if (h.cur && acts[h.cur]) a.crossFadeFrom(acts[h.cur], fade, false); a.play(); h.cur = name; } };
+  h.play('Idle_Loop', 0);
+  return h;
+}
 function humTex(url, srgb = true) { return new Promise((ok, no) => new THREE.TextureLoader().load(HUM_DIR + url, t => { t.flipY = false; if (srgb) t.encoding = THREE.sRGBEncoding; ok(t); }, undefined, no)); }
 function texAverage(tex) {   // the mean colour of a skin texture (its centre, where the body is), in linear terms
   const img = tex.image, c = document.createElement('canvas'), n = 64; c.width = c.height = n; const g = c.getContext('2d'); g.drawImage(img, 0, 0, n, n);
@@ -14649,7 +14723,7 @@ function makeHuman(L0, opts = {}) {
 }
 // free a person's own GPU things (shared shapes and textures stay for the next one)
 function disposeHuman(h) {
-  if (h.rb) { h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene); h.root.parent?.remove(h.root); return; }   // (a Rocketbox clone shares its mesh and textures: just let it go)
+  if (h.rb || h.mh) { h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene); h.root.parent?.remove(h.root); for (const m of h.own || []) m.dispose(); return; }   // (a Rocketbox or MakeHuman clone shares its mesh and textures: only its own tinted materials go)
   h.gone = true; h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.scene);
   h.root.traverse(o => {
     if (o.isSkinnedMesh) o.skeleton.dispose?.();
