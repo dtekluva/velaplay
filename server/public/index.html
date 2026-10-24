@@ -5846,6 +5846,7 @@ const MH_LIST = { f: ['mhw1', 'mhw2', 'mhw3', 'mhw4', 'mhw5', 'mhw6'], m: ['mhm1
 // how each outfit is worn: 'plain' takes the person's own colour (the cloth's folds stay, in its normal map); 'keep' keeps the cloth's own texture (denim)
 const MH_INFO = { mhw1: ['plain', 'keep'], mhw2: ['plain', 'plain'], mhw3: ['plain', 'keep'], mhw4: ['plain', 'plain'], mhw5: ['plain', 'plain'], mhw6: ['plain', 'keep'],
   mhm1: ['plain', 'keep'], mhm2: ['plain', 'plain'], mhm3: ['keep', 'keep'], mhm4: ['plain', 'keep'], mhm5: ['plain', 'plain'] };
+const MH_STYLE = { Walk: { knee: .5, lean: 6, arm: 1.4, sway: 5 }, Jog: { knee: .25, lean: 3, arm: 1, sway: 3 }, Sprint: { knee: .2, lean: 2, arm: 1, sway: 2 } };   // by clip family (see mhClip)
 const MH_ARM = { mhw2: 18, mhw5: 18, mhw1: 10, mhw4: 9, mhm5: 12, mhm2: 10 };   // how far out the arms swing (degrees), by figure
 const MH_DENIM = new Set(Object.keys(MH_INFO).filter(k => MH_INFO[k][1] === 'keep'));
 const MH_TOPS = ['#f2efe6', '#2a2c30', '#b8352e', '#2f5f9a', '#e8b23a', '#3f7a4a', '#8a3f78', '#e07a3a', '#5f8fbf', '#c9b48a', '#6b2f2f', '#1f6f6a', '#d8d2c4', '#9a4a6a'];
@@ -14281,15 +14282,32 @@ function mhClip(key, name) {
   for (const sd of ['l', 'r']) if (Gq['clavicle_' + sd] && T['clavicle_' + sd]) Gq['clavicle_' + sd] = T['clavicle_' + sd].wq.clone();
   const spread = THREE.MathUtils.degToRad(MH_ARM[key] ?? 8), out = { l: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), spread), r: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -spread) };
   const ARM = /^(upperarm|lowerarm|hand)_([lr])$/;
+  // posture and movement (MH_STYLE): the game's walk crouches (a 139° knee, a 10° lean, against 156° standing). On these people the knees
+  // straighten part way with the hips lifted to match, the lean eases, the arms swing bigger, and the hips sway with the shoulders turning against them
+  const ST = MH_STYLE[name.replace(/_.*/, '')] || null, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), LOWER = /^(pelvis|thigh_|calf_|foot_|ball_)/;
+  const mean = {}; if (ST && ST.arm !== 1) for (const b of ['upperarm_l', 'upperarm_r']) { const it = I[b + '.quaternion']; if (!it) continue; const acc = [0, 0, 0, 0]; let first = null;
+    for (let f = 0; f < n; f++) { const a = it.evaluate(Math.min(clip.duration, f / fps)); if (!first) first = [...a]; const sg = a[0] * first[0] + a[1] * first[1] + a[2] * first[2] + a[3] * first[3] < 0 ? -1 : 1; for (let i = 0; i < 4; i++) acc[i] += sg * a[i]; }
+    mean[b] = new THREE.Quaternion().fromArray(acc).normalize(); }
+  const legY = () => { let lo = Infinity; for (const sd of ['l', 'r']) { let p = new THREE.Vector3(), prev = 'pelvis'; for (const b of ['thigh_' + sd, 'calf_' + sd, 'foot_' + sd, 'ball_' + sd]) { if (!S[b]) break; p.add(S[b].lp.clone().applyQuaternion(Sw[prev])); lo = Math.min(lo, p.y); prev = b; } } return lo; };
   for (let f = 0; f < n; f++) {
     const t = Math.min(clip.duration, f / fps); times[f] = t;
-    for (const b of src.order) { const s = S[b], it = I[b + '.quaternion']; Sw[b] = (s.parent ? Sw[s.parent] : s.pq).clone().multiply(it ? q.fromArray(it.evaluate(t)) : s.lq); }
+    for (const b of src.order) { const s = S[b], it = I[b + '.quaternion']; let lq = it ? q.fromArray(it.evaluate(t)) : s.lq;
+      if (mean[b]) { const dev = mean[b].clone().invert().multiply(lq), ang = 2 * Math.acos(Math.min(1, Math.abs(dev.w))); if (ang > 1e-4) { const ax = new THREE.Vector3(dev.x, dev.y, dev.z).normalize().multiplyScalar(Math.sign(dev.w) || 1); lq = mean[b].clone().multiply(new THREE.Quaternion().setFromAxisAngle(ax, ang * ST.arm)); } }
+      Sw[b] = (s.parent ? Sw[s.parent] : s.pq).clone().multiply(lq); }
+    let lift = 0;
+    if (ST) { const y0 = legY();
+      for (const sd of ['l', 'r']) { const c = 'calf_' + sd; if (S[c] && ST.knee) Sw[c].slerp(Sw['thigh_' + sd].clone().multiply(S[c].lq), ST.knee); }   // (the feet keep their world orientation: they aren't recomputed from the calf)
+      const pitch = new THREE.Quaternion().setFromAxisAngle(X, -THREE.MathUtils.degToRad(ST.lean || 0));
+      let ph = 0; if (ST.sway) { const fz = sd => { let p = new THREE.Vector3(), prev = 'pelvis'; for (const b of ['thigh_' + sd, 'calf_' + sd, 'foot_' + sd]) { p.add(S[b].lp.clone().applyQuaternion(Sw[prev])); prev = b; } return p.z; }; ph = THREE.MathUtils.clamp((fz('l') - fz('r')) / .45, -1, 1); }
+      const yawLo = new THREE.Quaternion().setFromAxisAngle(Y, THREE.MathUtils.degToRad(ST.sway || 0) * ph), yawUp = new THREE.Quaternion().setFromAxisAngle(Y, -THREE.MathUtils.degToRad(ST.sway || 0) * .6 * ph);
+      for (const b of src.order) { if (b === 'root') continue; if (LOWER.test(b)) Sw[b].premultiply(yawLo); else Sw[b].premultiply(pitch).premultiply(yawUp); }
+      lift = y0 - legY(); }
     for (const b of tgt.order) { const tb = T[b], pw = tb.parent ? Tw[tb.parent] : tb.pq;
       if (outQ[b]) { Tw[b] = Sw[b].clone().multiply(S[b].iwq).multiply(Gq[b]); const a = ARM.exec(b); if (a) Tw[b].premultiply(out[a[2]]); pw.clone().invert().multiply(Tw[b]).toArray(outQ[b], f * 4); }
       else Tw[b] = pw.clone().multiply(tb.lq); }
     const ip = I['pelvis.position'], sl = ip ? v.fromArray(ip.evaluate(t)) : v.copy(S.pelvis.lp);
     const sp = sl.clone().applyMatrix4(m2.multiplyMatrices(S.root.pm, m.compose(S.root.lp, S.root.pq.clone().invert().multiply(Sw.root), S.root.ls)));
-    const tp = T.pelvis.wp.clone().add(sp.sub(S.pelvis.wp).multiplyScalar(k));
+    const tp = T.pelvis.wp.clone().add(sp.sub(S.pelvis.wp).multiplyScalar(k)); tp.y += lift * k;
     tp.applyMatrix4(m2.multiplyMatrices(T.root.pm, m.compose(T.root.lp, T.root.pq.clone().invert().multiply(Tw.root), T.root.ls)).invert()).toArray(outP, f * 3);
   }
   const tracks = Object.entries(outQ).map(([b, a]) => new THREE.QuaternionKeyframeTrack(b + '.quaternion', times, a));
