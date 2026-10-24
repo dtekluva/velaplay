@@ -791,8 +791,8 @@ $('app').prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const SKY = 0xbfd5d0;
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, LITE ? 44 : 53, LITE ? 131 : 170);   // draw distance: cut 30%, back up 20%, then up 30% more (on request)
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, LITE ? 140 : 185);   // just past the fog, so hidden things are culled
+scene.fog = new THREE.Fog(SKY, LITE ? 57 : 69, LITE ? 170 : 221);   // draw distance: cut 30%, back up 20%, then up 30% twice (on request)
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, LITE ? 182 : 240);   // just past the fog, so hidden things are culled
 
 const hemi = new THREE.HemisphereLight(0xe2eff2, 0x587538, 0.78); scene.add(hemi);
 // a warm glow that follows the scout after dark, and a headlight for whatever you are driving
@@ -4232,13 +4232,14 @@ function fitClub(F, b, club, fl, H, WL, DL, T) {
   for (let k = 0; k < 3; k++) { const lz = -DL / 2 + 3 + k * (DL - 5) / 2.2; L(1.2, .45, 2.4, inX1 - .7, fl + .23, lz, purple); L(.3, .9, 2.4, inX1 - .15, fl + .55, lz, purple, 1, false); L(.8, .5, .8, inX1 - 2, fl + .25, lz, dark); L(.2, .25, .2, inX1 - 2, fl + .62, lz, LM(0xd6ae5f), 1, false); }
   // lights: a mirror ball and four sweeping beams
   const [mx, mz] = F.toW(0, 0), ball = new THREE.Mesh(new THREE.SphereGeometry(.45, 16, 12), new THREE.MeshBasicMaterial({ map: ballTex })); ball.position.set(mx, fl + H - .9, mz); scene.add(ball);
-  const beams = [];
+  const beams = [];   // (hidden until you're inside: see the club loop)
   for (const [ax, az, c] of [[-WL / 4, -DL / 4, 0], [WL / 4, -DL / 4, 1], [-WL / 4, DL / 4, 2], [WL / 4, DL / 4, 4]]) {
     const [x, z] = F.toW(ax, az), g = new THREE.Group(); g.position.set(x, fl + H - .2, z); scene.add(g);
-    const cone = new THREE.Mesh(clubBeamGeo, new THREE.MeshBasicMaterial({ color: NEON[c], transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); g.add(cone); beams.push({ g, cone, ph: Math.random() * 6 });
+    const cone = new THREE.Mesh(clubBeamGeo, new THREE.MeshBasicMaterial({ color: NEON[c], transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); cone.visible = false; g.add(cone); beams.push({ g, cone, ph: Math.random() * 6 });
   }
   for (const lx of [-WL / 3, 0, WL / 3]) L(WL / 4, .06, .12, lx, fl + H - .06, inZ0 + .3, new THREE.MeshBasicMaterial({ color: NEON[(lx > 0) + 1] }), 1, false);
-  Object.assign(club, { ball, beams, floorAt: pt(0, 0), barFront: pt(bx + 1.5, .3), barBack: pt(inX0 + .9, .3), djAt: pt(0, inZ1 - 2.5), dance: [], fy: fl });
+  const cs = [[-WL / 2, -DL / 2], [WL / 2, -DL / 2], [-WL / 2, DL / 2], [WL / 2, DL / 2]].map(([a, c]) => F.toW(a, c));   // the footprint, whichever way the club faces
+  Object.assign(club, { ball, beams, rect: [Math.min(...cs.map(c => c[0])), Math.max(...cs.map(c => c[0])), Math.min(...cs.map(c => c[1])), Math.max(...cs.map(c => c[1]))], floorAt: pt(0, 0), barFront: pt(bx + 1.5, .3), barBack: pt(inX0 + .9, .3), djAt: pt(0, inZ1 - 2.5), dance: [], fy: fl });
   for (let i = 0; i < 9; i++) club.dance.push(pt(-3 + (i % 3) * 3 + RM(-.6, .6), -2.5 + Math.floor(i / 3) * 2.5 + RM(-.5, .5)));
 }
 // a club building: dark walls with neon trim, a sign, a red carpet and a velvet rope, bouncers' spot by the door
@@ -5915,7 +5916,7 @@ function jogLoop(c) {
 }
 const addGun = rig => { const gun = new THREE.Mesh(new THREE.BoxGeometry(.035, .17, .05), MM.dark); gun.position.set(0, -.36, -.01); rig.fArm[1].add(gun); };
 // detail on demand: the full figure (sculpted head, painted face, smooth body) is built when you come close, and freed when you leave
-const DETAIL = { near: 16, far: 22, drop: 45, statue: 45, budget: 0, figs: 0 };
+const DETAIL = { near: 24, far: 33, drop: 68, statue: 68, budget: 0, figs: 0 };   // (the realistic people reach 50% further, on request)
 // a civilian's light figure exists only while they're anywhere near you (built a few a frame, freed once they're far): ~1,500
 // people would otherwise hold ~900 MB of figures
 function ensureFig(c) {
@@ -6031,7 +6032,7 @@ function rescue(c) {
 /* realistic passers-by: the nearest people (up to NPC_HUM.max, fewer on phones) are the rigged humans, dressed from
    their own outfits with their own faces and builds; everyone further out keeps the light figure. Chosen a few times
    a second, nearest first (someone already real keeps their place until they're past DETAIL.far), built one a frame. */
-const NPC_HUM = { max: LITE ? 6 : 14, set: new Set(), t: 0 };
+const NPC_HUM = { max: LITE ? 8 : 20, set: new Set(), t: 0 };
 function civLookOf(c) {
   const S = c.spec;
   S.morph ||= [...faceMorphs(S.face, S.feat, .45, S.beard ? 'beard' : '').slice(0, 6), ...buildMorphs(S.body, S.build)].map((x, i) => i >= 6 ? clamp(x + (Math.random() - .5) * .3, 0, 1) : x);
@@ -6065,7 +6066,7 @@ function civClip(c, sp, moving) {
   if (c.state === 'talk' || c.hailing || c.chatty) return ['Idle_Talking_Loop', 1];
   return ['Idle_Loop', c.elder ? .8 : 1];
 }
-const CIV_R = LITE ? 125 : 165;   // people are drawn out to just short of the fog
+const CIV_R = LITE ? 163 : 215;   // people are drawn out to just short of the fog
 function updateCivilians(dt) {
   DETAIL.budget = 3; DETAIL.figs = 6; if (HUM?.ready) { pickNpcHumans(dt); DETAIL.budget = 1; }   // build at most a few figures a frame, so walking into a crowd never stalls
   const alive = aliveTitans();
@@ -8444,7 +8445,8 @@ function updateClubs(dt) {
   for (const C of CLUBS) {
     const d = Math.hypot(C.at[0] - P.pos.x, C.at[1] - P.pos.z); near = Math.min(near, d); if (d > 80) continue;
     if (C.ball) C.ball.rotation.y += dt * .8;
-    for (const bm of C.beams) { bm.g.rotation.set(Math.sin(S.time * .9 + bm.ph) * .7, S.time * 1.4 + bm.ph, Math.cos(S.time * .7 + bm.ph) * .5); }
+    const inside = !!C.rect && P.pos.x > C.rect[0] && P.pos.x < C.rect[1] && P.pos.z > C.rect[2] && P.pos.z < C.rect[3];   // (the beams sweep through the walls: shown only from inside)
+    for (const bm of C.beams) { bm.cone.visible = inside; bm.g.rotation.set(Math.sin(S.time * .9 + bm.ph) * .7, S.time * 1.4 + bm.ph, Math.cos(S.time * .7 + bm.ph) * .5); }
   }
   if (!AC || !noiseBuf || mode !== 'play') return;
   if (!BEAT.gain) { BEAT.gain = AC.createGain(); BEAT.gain.connect(master); BEAT.next = AC.currentTime + .1; }
