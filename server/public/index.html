@@ -5848,7 +5848,7 @@ const MH_LIST = { f: ['mhw1', 'mhw2', 'mhw3', 'mhw4', 'mhw5', 'mhw6'], m: ['mhm1
 const MH_INFO = { mhw1: ['plain', 'keep'], mhw2: ['plain', 'plain'], mhw3: ['plain', 'keep'], mhw4: ['plain', 'plain'], mhw5: ['plain', 'plain'], mhw6: ['plain', 'keep'],
   mhm1: ['plain', 'keep'], mhm2: ['plain', 'plain'], mhm3: ['keep', 'keep'], mhm4: ['plain', 'keep'], mhm5: ['plain', 'plain'] };
 const MH_STYLE = { Walk: { knee: .5, lean: 6, arm: 1.4, sway: 5 }, Jog: { knee: .25, lean: 3, arm: 1, sway: 3 }, Sprint: { knee: .2, lean: 2, arm: 1, sway: 2 } };   // by clip family (see mhClip)
-const MH_ARM = { mhw2: 18, mhw5: 18, mhw1: 10, mhw4: 9, mhm5: 12, mhm2: 10 };   // how far out the arms swing (degrees), by figure
+const MH_ARM = { mhw2: 3, mhw5: 3, mhm1: -4, mhm2: -4, mhm3: -4, mhm4: -4, mhm5: -5 };   // (the game's walk hangs the arms 12° out on these bodies; this brings the men to about 10° and the fuller women to 13°)   // how far out the arms swing (degrees), by figure
 const MH_DENIM = new Set(Object.keys(MH_INFO).filter(k => MH_INFO[k][1] === 'keep'));
 const MH_TOPS = ['#f2efe6', '#2a2c30', '#b8352e', '#2f5f9a', '#e8b23a', '#3f7a4a', '#8a3f78', '#e07a3a', '#5f8fbf', '#c9b48a', '#6b2f2f', '#1f6f6a', '#d8d2c4', '#9a4a6a'];
 const MH_BOTTOMS = ['#2a2c30', '#3a3f4a', '#5a4a3a', '#2f3f5f', '#c9b48a', '#6a6a66', '#1f2a3a'];
@@ -14282,7 +14282,7 @@ function mhClip(key, name) {
   // the collarbones keep MakeHuman's own slope (the game body's straight T-pose ones look like a shrug), and the arms swing a little
   // wider than on the slim game body, so they clear a fuller figure (MH_ARM degrees, out to each side about the body's front-back axis)
   for (const sd of ['l', 'r']) if (Gq['clavicle_' + sd] && T['clavicle_' + sd]) Gq['clavicle_' + sd] = T['clavicle_' + sd].wq.clone();
-  const spread = THREE.MathUtils.degToRad(MH_ARM[key] ?? 8), out = { l: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), spread), r: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -spread) };
+  const spread = THREE.MathUtils.degToRad(MH_ARM[key] ?? 0), out = { l: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), spread), r: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -spread) };
   const ARM = /^(upperarm|lowerarm|hand)_([lr])$/;
   // posture and movement (MH_STYLE): the game's walk crouches (a 139° knee, a 10° lean, against 156° standing). On these people the knees
   // straighten part way with the hips lifted to match, the lean eases, the arms swing bigger, and the hips sway with the shoulders turning against them
@@ -14290,6 +14290,7 @@ function mhClip(key, name) {
   const mean = {}; if (ST && ST.arm !== 1) for (const b of ['upperarm_l', 'upperarm_r']) { const it = I[b + '.quaternion']; if (!it) continue; const acc = [0, 0, 0, 0]; let first = null;
     for (let f = 0; f < n; f++) { const a = it.evaluate(Math.min(clip.duration, f / fps)); if (!first) first = [...a]; const sg = a[0] * first[0] + a[1] * first[1] + a[2] * first[2] + a[3] * first[3] < 0 ? -1 : 1; for (let i = 0; i < 4; i++) acc[i] += sg * a[i]; }
     mean[b] = new THREE.Quaternion().fromArray(acc).normalize(); }
+  const footY = sd => { let p = new THREE.Vector3(), prev = 'pelvis', lo = Infinity; for (const b of ['thigh_' + sd, 'calf_' + sd, 'foot_' + sd, 'ball_' + sd]) { if (!S[b]) break; p.add(S[b].lp.clone().applyQuaternion(Sw[prev])); if (/foot|ball/.test(b)) lo = Math.min(lo, p.y); prev = b; } return lo; };
   const legY = () => { let lo = Infinity; for (const sd of ['l', 'r']) { let p = new THREE.Vector3(), prev = 'pelvis'; for (const b of ['thigh_' + sd, 'calf_' + sd, 'foot_' + sd, 'ball_' + sd]) { if (!S[b]) break; p.add(S[b].lp.clone().applyQuaternion(Sw[prev])); lo = Math.min(lo, p.y); prev = b; } } return lo; };
   for (let f = 0; f < n; f++) {
     const t = Math.min(clip.duration, f / fps); times[f] = t;
@@ -14298,7 +14299,9 @@ function mhClip(key, name) {
       Sw[b] = (s.parent ? Sw[s.parent] : s.pq).clone().multiply(lq); }
     let lift = 0;
     if (ST) { const y0 = legY();
-      for (const sd of ['l', 'r']) { const c = 'calf_' + sd; if (S[c] && ST.knee) Sw[c].slerp(Sw['thigh_' + sd].clone().multiply(S[c].lq), ST.knee); }   // (the feet keep their world orientation: they aren't recomputed from the calf)
+      // only the weight-bearing leg straightens (the lower foot); the swinging leg keeps its bend to clear the ground. The feet keep their world orientation
+      const fy = { l: footY('l'), r: footY('r') }, lo = Math.min(fy.l, fy.r);
+      for (const sd of ['l', 'r']) { const c = 'calf_' + sd; if (S[c] && ST.knee) Sw[c].slerp(Sw['thigh_' + sd].clone().multiply(S[c].lq), ST.knee * THREE.MathUtils.clamp(1 - (fy[sd] - lo) / .08, 0, 1)); }
       const pitch = new THREE.Quaternion().setFromAxisAngle(X, -THREE.MathUtils.degToRad(ST.lean || 0));
       let ph = 0; if (ST.sway) { const fz = sd => { let p = new THREE.Vector3(), prev = 'pelvis'; for (const b of ['thigh_' + sd, 'calf_' + sd, 'foot_' + sd]) { p.add(S[b].lp.clone().applyQuaternion(Sw[prev])); prev = b; } return p.z; }; ph = THREE.MathUtils.clamp((fz('l') - fz('r')) / .45, -1, 1); }
       const yawLo = new THREE.Quaternion().setFromAxisAngle(Y, THREE.MathUtils.degToRad(ST.sway || 0) * ph), yawUp = new THREE.Quaternion().setFromAxisAngle(Y, -THREE.MathUtils.degToRad(ST.sway || 0) * .6 * ph);
