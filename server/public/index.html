@@ -16013,7 +16013,6 @@ function spawnAt() {   // -> [x, y, z] for the chosen city, or null for the Lago
   for (const [k, label] of SPAWNS) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.k = k; b.setAttribute('aria-pressed', String(k === SPAWN)); row.appendChild(b); }
   row.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; SPAWN = b.dataset.k; try { localStorage.setItem('giantwood-spawn', SPAWN); } catch (x) {} for (const q of row.querySelectorAll('button')) q.setAttribute('aria-pressed', String(q === b)); });
 })();
-window.__v = () => ({ P, groundAt, kindAt, heightAt, set yaw(v) { yaw = v; }, get yaw() { return yaw; }, set pitch(v) { pitch = v; } });   // TEMP
 function fastTravel() {
   if (!WAY.on) { toast('⚡ Fast travel', 'Set a pin first: click anywhere on the map'); return; }
   const left = Math.ceil((FT.next - Date.now()) / 1000); if (left > 0) { toast('⚡ Fast travel', `Ready again in ${left} s`); return; }
