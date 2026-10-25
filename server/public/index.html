@@ -5916,7 +5916,7 @@ function jogLoop(c) {
 }
 const addGun = rig => { const gun = new THREE.Mesh(new THREE.BoxGeometry(.035, .17, .05), MM.dark); gun.position.set(0, -.36, -.01); rig.fArm[1].add(gun); };
 // detail on demand: the full figure (sculpted head, painted face, smooth body) is built when you come close, and freed when you leave
-const DETAIL = { near: 24, far: 33, drop: 68, statue: 68, budget: 0, figs: 0 };   // (the realistic people reach 50% further, on request)
+const DETAIL = { near: 48, far: 66, drop: 90, statue: 90, budget: 0, figs: 0 };   // (the realistic people reach 50% further, then double that, on request)
 // a civilian's light figure exists only while they're anywhere near you (built a few a frame, freed once they're far): ~1,500
 // people would otherwise hold ~900 MB of figures
 function ensureFig(c) {
@@ -6032,7 +6032,7 @@ function rescue(c) {
 /* realistic passers-by: the nearest people (up to NPC_HUM.max, fewer on phones) are the rigged humans, dressed from
    their own outfits with their own faces and builds; everyone further out keeps the light figure. Chosen a few times
    a second, nearest first (someone already real keeps their place until they're past DETAIL.far), built one a frame. */
-const NPC_HUM = { max: LITE ? 8 : 20, set: new Set(), t: 0 };
+const NPC_HUM = { max: LITE ? 10 : 30, set: new Set(), t: 0 };
 function civLookOf(c) {
   const S = c.spec;
   S.morph ||= [...faceMorphs(S.face, S.feat, .45, S.beard ? 'beard' : '').slice(0, 6), ...buildMorphs(S.body, S.build)].map((x, i) => i >= 6 ? clamp(x + (Math.random() - .5) * .3, 0, 1) : x);
