@@ -650,7 +650,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     </dl>
     <button id="helpTab" type="button" title="Show the controls (H)">H · controls</button>
     <div id="bigmap" hidden><div class="frame">
-      <div class="head"><h3>Map of NaijLife</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmFT" title="Fast travel to your pin (once every 2 minutes)">⚡ Fast travel</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">Click to set a destination · P to close · wheel zooms · drag to move</span></div>
+      <div class="head"><h3>Map of NaijLife</h3><span class="bmz"><button type="button" id="bmOut" title="Zoom out">－</button><button type="button" id="bmIn" title="Zoom in">＋</button><button type="button" id="bmMe" title="Centre on me">⌖</button><button type="button" id="bmAll" title="The whole world">World</button><button type="button" id="bmFT" title="Fast travel to your pin (once every 2 minutes)">⚡ Fast travel</button><button type="button" id="bmX" title="Close the map">✕ Close</button></span><span class="hint" id="bmHint">Click to set a destination · F or ⚡ to fast travel there · P to close · wheel zooms · drag to move</span></div>
       <canvas id="bigmapC" width="960" height="960"></canvas>
       <div class="side"><div class="key"><span><i style="background:#fff"></i>You</span><span><i style="background:#2f7fd0"></i>Supply depot</span><span><i style="background:#e0392b;border-radius:50%"></i>Titan</span><span><i style="background:#3a6fd0"></i>Police</span><span><i style="background:#d64a3c"></i>Hospital</span><span><i style="background:#e8742a"></i>Fire station</span><span><i style="background:#e8c84a"></i>School</span><span><i style="background:#9a5ad0"></i>Mall</span><span><i style="background:#7fd3e8"></i>Airport terminal</span><span><i style="background:rgba(242,194,48,.5);border-color:#f2c230"></i>Land for sale</span><span><i style="background:#e8742a"></i>Your land</span><span><i style="background:#b98a52"></i>Deliveries</span></div></div>
     </div></div>
@@ -1580,6 +1580,7 @@ const STATION_YARDS = YB ? [
   { x0: -176, x1: -142, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 }, { x0: 20, x1: 45, z0: -557, z1: -545, level: 3, kind: 6, blend: 5 },   // the north edge of the city grid, east and west
   { x0: -144, x1: -126, z0: -570, z1: -558, level: 3, kind: 6, blend: 5 }, { x0: -111, x1: -93, z0: -570, z1: -558, level: 3, kind: 6, blend: 5 },   // turning bays at the tops of its streets
   { x0: -35, x1: -17, z0: -574, z1: -558, level: 3, kind: 6, blend: 5 }, { x0: 2, x1: 20, z0: -574, z1: -558, level: 3, kind: 6, blend: 5 },
+  { x0: -64, x1: 20, z0: -562, z1: -554, level: 3, kind: 6, blend: 5 },   // a link along the foot of the hill from both bays to the north road at x -64 (the two streets by the airport read as roads straight into a cliff)
   { x0: 286, x1: 295, z0: 124, z1: 140, level: 4, kind: 6, blend: 3 },   // the Meadowbrook lane's end
   { x0: -290, x1: -229, z0: 32, z1: 40, level: 3, kind: 6, blend: 2 },
   { x0: 177, x1: 182, z0: -138, z1: -106, level: 3, kind: 6, blend: 2 },   // the airport-road stub that stopped short of the forecourt south of it
@@ -11242,7 +11243,7 @@ addEventListener('keydown', e => {
       if (P.grounded || P.coyote > 0 || P.inWater) { P.jumpBuf = .15; P.superJump = !!keys.KeyM; }
       else if (P.gas > 3) { const d = camDir(tmpA); P.vel.addScaledVector(d, 6); P.gas -= 3; puff(8); }
       break;
-    case 'KeyF': slash(); break;
+    case 'KeyF': if (!$('bigmap').hidden) { fastTravel(); break; } slash(); break;   // (on the map, F is fast travel to the pin)
     case 'KeyR': swapBlades(); break;
     case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ct = contactTarget(); if (ct) { talkStart(ct); break; } } { const ps = playerSpot(); if (ps) { pcAsk(ps.id, ps.name); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
@@ -11297,7 +11298,7 @@ addEventListener('wheel', e => { if (!indoorsNow() || !$('bigmap').hidden || PHO
 function lockPointer() { try { const r = renderer.domElement.requestPointerLock?.(); r?.catch?.(() => {}); } catch (e) {} }
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement) { hadLock = true; if (PHONE.open) phoneToggle(false); }
-  else if (mode === 'play' && hadLock && !ARR.on && !PHONE.open) setMode('pause');   // (the phone frees the mouse without pausing)
+  else if (mode === 'play' && hadLock && !ARR.on && !PHONE.open && $('bigmap').hidden) setMode('pause');   // (the phone and the map free the mouse without pausing)
 });
 
 /* ---------- player actions ---------- */
@@ -11882,8 +11883,8 @@ function bmCentreOnMe() { const MP = typeof mapPos === 'function' ? mapPos() : P
 let MEETPICK = null;   // inviting someone to a spot you pick on the big map: who
 function toggleBigMap(force) {
   const el = $('bigmap'); el.hidden = force === undefined ? !el.hidden : !force;
-  if (el.hidden) MEETPICK = null;   // (closing the map drops a meet-up pick)
-  if (!el.hidden) { bmCentreOnMe(); bigMapT = 0; drawBigMap(); }
+  if (el.hidden) { MEETPICK = null; if (BMV.freed) { BMV.freed = false; if (mode === 'play' && !TOUCH.on) lockPointer(); } }   // (closing the map drops a meet-up pick, and takes the mouse back)
+  if (!el.hidden) { bmCentreOnMe(); bigMapT = 0; drawBigMap(); if (document.pointerLockElement) { BMV.freed = true; document.exitPointerLock(); } }   // the map frees the mouse, so its buttons (fast travel, zoom, close) can be clicked
 }
 function drawBigMap() {
   const W = bmC.width, sc = W / BMV.span, toB = bmToB;   // the part of the world in view (BMV)
