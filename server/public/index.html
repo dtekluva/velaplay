@@ -87,6 +87,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .mapwrap{position:absolute;right:max(18px,env(safe-area-inset-right));top:calc(12px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:center;gap:6px}
 #minimap{width:150px;height:150px;border-radius:50%;border:3px solid rgba(241,235,218,.85);box-shadow:0 2px 10px rgba(0,0,0,.45)}
 #clock{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-shadow:0 1px 3px rgba(0,0,0,.7);margin-top:-4px}
+#pos{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--muted);opacity:.75;text-shadow:0 1px 3px rgba(0,0,0,.7);margin-top:-2px}
 #kmh{font-size:15px;font-weight:600;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 
 #cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px}
@@ -581,7 +582,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
     <div class="banner"><div class="mode" id="modeName">Free Roam</div><div class="sub" id="modeSub">The forest keeps sending titans</div><div class="pill num" id="nearby">Titans nearby 0 · Slain 0</div></div>
     <div id="mstat" role="button" aria-label="Open the menu"><div class="mm"><b id="mMoney" class="num">₦0</b><span id="mTit" class="num"></span><span id="mNeeds" class="mneeds"></span></div><div class="mb"><i id="mHp"></i></div><div class="mb gas"><i id="mGas"></i></div></div>
     <div id="drawer" hidden><div class="scrim"></div><aside id="dAside"></aside></div>
-    <div class="mapwrap"><canvas id="minimap" width="300" height="300"></canvas><div id="kmh" class="num">0 km/h</div><div id="clock" class="num">08:00</div></div>
+    <div class="mapwrap"><canvas id="minimap" width="300" height="300"></canvas><div id="kmh" class="num">0 km/h</div><div id="clock" class="num">08:00</div><div id="pos" class="num" title="Where you are (x · z)"></div></div>
     <button type="button" id="msgNote" hidden aria-label="New texts"><i>💬</i><b id="msgN">1</b><span id="msgPrev"></span><kbd>G</kbd></button>
     <div id="cross">
       <svg viewBox="-23 -23 46 46" aria-hidden="true">
@@ -11591,6 +11592,7 @@ function updateDayNight(dt) {
   } else headlight.intensity = 0;
   const hrs = tod * 24, hh = Math.floor(hrs), mm = Math.floor((hrs - hh) * 60);
   $('clock').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} · ${night > .5 ? 'Night' : dusk > .3 ? (sh > 0 && tod < .5 ? 'Dawn' : 'Dusk') : 'Day'}${wk > .3 ? ' · 🌧' : ''}`;
+  $('pos').textContent = `${Math.round(P.pos.x)} · ${Math.round(P.pos.z)}`;   // where you are, so a screenshot says exactly where something's wrong
 }
 
 /* ---------- weather: rain. Real time is cut into 6-minute slots. In each slot every region rolls for a shower, weighted by how
