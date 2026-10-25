@@ -93,6 +93,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 #cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px}
 #cross svg{width:46px;height:46px;overflow:visible}
 #cross .ring{stroke:var(--steel);transition:stroke .1s}
+#cross.aim svg{width:28px;height:28px}#cross.aim .ring{stroke:var(--brass)}
 #cross.inrange .ring{stroke:#7fe0e8}
 #aimdist{font-size:12px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000;margin-top:-4px}
 #cutcue{font-size:15px;font-weight:700;letter-spacing:.12em;color:var(--brass);text-shadow:0 1px 3px #000;opacity:0;transition:opacity .08s}
@@ -689,6 +690,7 @@ body.touch #bmX{display:inline-block;background:var(--brass);color:#1b1608;borde
         <dt>← →</dt><dd>Turn</dd>
         <dt>SPACE</dt><dd>Jump (hold M for a super jump); in the air, gas boost</dd>
         <dt>X</dt><dd>Fire your pistol. Rounds refill 2 per second</dd>
+        <dt>RMB</dt><dd>Hold to aim down the pistol; the left button fires</dd>
         <dt>F</dt><dd>Slash the nape (needs speed)</dd>
         <dt>E</dt><dd>Refill at blue depots; help knocked-down villagers up</dd>
       </dl>
@@ -10679,6 +10681,47 @@ function updatePort(dt) {   // ships: wait at the berth (or out at sea), then sa
   }
 }
 
+/* ---------- the Gas & Go shooting range: a walled yard beside the start of the airport road. E at the counter starts a 40 s
+   round: every hit on a disc scores by ring (50 · 25 · 10), doubled on the far row. A round pays ₦20 a point; the best score is kept. ---------- */
+const RANGE = { on: false, t: 0, score: 0, hits: 0, shots: 0, targets: [], booth: null, best: (() => { try { return +localStorage.getItem('giantwood-range') || 0; } catch (e) { return 0; } })() };
+RANGE.mat = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  for (const [r, col] of [[64, '#f2f0ea'], [52, '#1b1608'], [38, '#f2f0ea'], [24, '#b83a2e'], [11, '#f2c230']]) { g.fillStyle = col; g.beginPath(); g.arc(64, 64, r, 0, TAU); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return new THREE.MeshLambertMaterial({ map: t }); })();
+if (YB) withSeed(4242, () => {
+  const X0 = -24, X1 = -6, Z0 = -133, Z1 = -105, Y = 3, cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;   // (the bank at the far end keeps 4 m clear of the road to the north)
+  if (PLACE.bad(cx, cz, X1 - X0, Z1 - Z0, { y: Y, road: .2 }) === 'road') { PLACE_RULES.skipped++; return; }
+  const b = new Builder(), wallM = LM(0x8a8378), sand = LM(0xc9b48a);
+  b.box(X1 - X0 + .4, .06, Z1 - Z0 + .4, cx, Y + .03, cz, sand, 2, false);   // the yard floor
+  b.box(X1 - X0 + .8, 3, 1, cx, Y + 1.5, Z0 - .5, wallM, 2, true, 'house');   // the bank at the far end stops every round
+  for (const x of [X0 - .2, X1 + .2]) b.box(.4, 1.2, Z1 - Z0 + .8, x, Y + .6, cz, wallM, 2, true, 'house');
+  b.box(X1 - X0 - 4, 1, .5, cx, Y + .5, Z1 - 1.5, M.oak, 1, true, 'house');   // the counter you shoot from
+  for (const x of [X0 + 1.5, X1 - 1.5]) b.box(.25, 3.2, .25, x, Y + 1.6, Z1 - 1.2, MM.dark, 1, true, 'house');
+  textSign('GAS & GO RANGE', '#1b1608', '#f2c230', X1 - X0 - 2, 1.1, cx, Y + 3.3, Z1 - 1.2, 0, '#f2c230');
+  for (const [z, far] of [[Z1 - 14, false], [Z0 + 5, true]]) for (let i = 0; i < 3; i++) {   // a near row and a far row of discs on posts
+    const x = X0 + 4 + i * 5 + (far ? 2.5 : 0), top = Y + 1.6;
+    b.box(.14, 1.15, .14, x, Y + .575, z, MM.dark, 1, true, 'house');
+    b.box(.95, .95, .1, x, top, z, RANGE.mat, 1, true, 'house');
+    RANGE.targets.push({ x, y: top, z, far });
+  }
+  b.build();
+  RANGE.booth = new V3(cx, Y, Z1 - 3);
+  OYO_PLACES.push(['Gas & Go shooting range', cx, Z1 + 4]);
+});
+const rangeNear = () => !!RANGE.booth && !P.driving && Math.hypot(P.pos.x - RANGE.booth.x, P.pos.z - RANGE.booth.z) < 4;
+function rangeStart() { if (RANGE.on) return; Object.assign(RANGE, { on: true, t: 40, score: 0, hits: 0, shots: 0 }); P.ammo = AMMO_MAX; sfx('swap'); toast('🎯 Range', '40 seconds: hit the discs. Hold the right mouse button to aim, the left to fire (or X)'); }
+function rangeHit(point) {
+  if (!RANGE.on) return false;
+  for (const T of RANGE.targets) { if (Math.abs(point.z - T.z) > .3) continue; const r = Math.hypot(point.x - T.x, point.y - T.y); if (r > .5) continue;
+    const pts = (r < .1 ? 50 : r < .25 ? 25 : 10) * (T.far ? 2 : 1); RANGE.score += pts; RANGE.hits++;
+    for (let i = 0; i < 6; i++) emit(point, tmpB.set(RM(-2, 2), RM(1, 3), RM(-2, 2)), RM(.1, .25), RM(.3, .6), 0xf2c230, .9, 2);
+    sfx('swap'); toast(`+${pts}`, r < .1 ? 'Bullseye!' : T.far ? 'Far row: double points' : ''); return true; }
+  return false;
+}
+function rangeStep(dt) { if (!RANGE.on) return; RANGE.t -= dt; if (RANGE.t > 0) return;
+  RANGE.on = false; const sc = RANGE.score, pay = sc * 20; if (sc > RANGE.best) { RANGE.best = sc; try { localStorage.setItem('giantwood-range', String(sc)); } catch (e) {} }
+  goalEv('range'); if (sc >= 600) goalEv('range600');
+  if (pay) earn(pay, `Range round: ${sc} points from ${RANGE.hits} hits · best ${RANGE.best}`); else toast('🎯 Range', `No hits this round · best ${RANGE.best}`); }
+
 /* ---------- roadside: billboards along every road out of town and in Ibadan and Oyo; fuel stations (their pumps refill you,
    as at Gas & Go) along the expressway and in Ibadan and Oyo town; three factories along the expressway with smoking chimneys;
    the Magboro Shopping Plaza at the end of Magboro's street ---------- */
@@ -11039,7 +11082,7 @@ let hitFlash = 0;
 function fireGun() {
   if (mode !== 'play' || P.dead || P.gunCD > 0) return;
   if (P.ammo < 1) { P.gunCD = .4; sfx('empty'); toast('', 'Out of rounds. Reloading…'); return; }
-  P.ammo--; P.gunCD = .17; P.kick = 1; P.lastShot = S.time;
+  P.ammo--; P.gunCD = .17; P.kick = 1; P.lastShot = S.time; if (RANGE.on) RANGE.shots++;
   playerModel.updateMatrixWorld(true);
   const muzzle = pm.muzzle.getWorldPosition(new V3());
   const target = aim.hit ? aim.point : tmpB.copy(camera.position).addScaledVector(camDir(tmpC), 170);
@@ -11073,6 +11116,7 @@ function copHit(point, obj) {
   if (t && !t.dead) damageTitan(t, 4, 'Taken down by the police');
 }
 function bulletHit(point, obj) {
+  if (rangeHit(point)) return;
   const t = obj && obj.userData.titan;
   for (let i = 0; i < 4; i++) emit(point, tmpB.set(RM(-1.5, 1.5), RM(0, 2), RM(-1.5, 1.5)), RM(.15, .35), RM(.2, .4), t ? 0xc65446 : 0xcfc6b4, .8, 1.5);
   if (t && !t.dead) {
@@ -11108,6 +11152,8 @@ let yaw = Math.PI, pitch = -.08, firstPerson = false, camDist = 6;
 function camDir(out) { const cp = Math.cos(pitch); return out.set(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp); }
 const ray = new THREE.Raycaster();
 const aim = { hit: false, point: new V3(), object: null, dist: Infinity };
+const AIM = { on: false, lmb: false }, AIM_R = new V3();   // hold the right mouse button to aim down the pistol: a closer camera over the shoulder, a tighter view, a steadier hand; the left button fires
+function aimSet(on) { AIM.on = on; if (!on) AIM.lmb = false; $('cross').classList.toggle('aim', on); }
 function marchTerrain(o, d, t0, t1) {
   let prev = t0;
   for (let t = t0; t <= t1; t += .4) {
@@ -11182,7 +11228,7 @@ function updateSim(dt, target, d) {
 function updateCamera(dt) {
   const spd = P.vel.length();
   shake = Math.max(0, shake - dt * 2.2);
-  const targetFov = (mode === 'play' ? 72 + Math.min(spd, 60) * .38 : 60);
+  const targetFov = mode !== 'play' ? 60 : AIM.on && !P.driving && !firstPerson ? 46 : 72 + Math.min(spd, 60) * .38;
   camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix();
   if (mode === 'title') {
     attractT += dt * .06;
@@ -11207,7 +11253,9 @@ function updateCamera(dt) {
     if (Math.abs(cx - room.x) < room.w / 2 - .5 && Math.abs(cz - room.z) < room.d / 2 - .5) break;
   }
   camDist = dist;
+  if (AIM.on && !P.driving) dist = Math.min(dist, 2.6);
   camera.position.copy(target).addScaledVector(d, -dist); camera.position.y += .9 * (dist / 6);
+  if (AIM.on && !P.driving) { camera.position.addScaledVector(AIM_R.set(-d.z, 0, d.x).normalize(), .6); camera.position.y += .2; }   // over the right shoulder
   if (room) {
     const ceil = room.two && P.pos.y < room.upper - .5 ? room.upper - .25 : room.top;
     camera.position.y = Math.min(camera.position.y, ceil - .35);
@@ -11251,7 +11299,7 @@ addEventListener('keydown', e => {
       break;
     case 'KeyF': if (!$('bigmap').hidden) { fastTravel(); break; } slash(); break;   // (on the map, F is fast travel to the pin)
     case 'KeyR': swapBlades(); break;
-    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ct = contactTarget(); if (ct) { talkStart(ct); break; } } { const ps = playerSpot(); if (ps) { pcAsk(ps.id, ps.name); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
+    case 'KeyE': { if (LM_.open) { menuClose(); break; } if (TC.conv) { talkEnd(); break; } if (rangeNear() && !RANGE.on) { rangeStart(); break; } if (RIDE.on) { NET.room?.send('rideleave'); break; } { const rs = rideSpot(); if (rs) { askRide(rs); break; } } if (!P.driving && surrenderNear()) { arrestPlayer(true); break; } if (P.driving && P.driving.kind === 'boat') { boatExit(); break; } if (P.driving) { if (isAir(P.driving) && (P.driving.speed > 6 || P.driving.y > heightAt(P.driving.x, P.driving.z) + .5)) { toast('', 'Land and slow down before getting out'); break; } exitCar(); break; } { const th = nearThief(); if (th) { arrestCrook(th, null); break; } } { const ct = contactTarget(); if (ct) { talkStart(ct); break; } } { const ps = playerSpot(); if (ps) { pcAsk(ps.id, ps.name); break; } } { const ds = doorSpot(); if (ds) { ds.run(); break; } } if (salesDesk()) { GARAGE.view = 'shop'; phoneToggle(true); phoneApp('garage'); break; } { const ex = exhibitNear(); if (ex) { inspectOpen(ex); break; } } const c = nearDowned(); if (c) { rescue(c); break; } const lift = nearLift(); if (lift) { rideLift(lift); break; } const bar = nearBar(); if (bar) { barMenu(clubBar(bar), false); break; } const djC = djBoothNear(); if (djC) { openDJ(djC, false); break; } const rg = ringSpot(); if (rg) { ringDoor(rg); break; } { const dC = danceClub(); if (P.dance || (dC && !(dC.party && myHome()) && (onDanceFloor(dC) || !talkTarget()))) { danceToggle(); break; } } const nd = needSpot(); if (nd) { nd.run(); break; } const pk = nearPickup(); if (pk) { takeDelivery(pk); break; } const fd = flightDeskNear(); if (fd) { flyFrom(fd); break; } { const stn = stationNear(); if (stn) { boardTrain(stn); break; } } const who = talkTarget(); if (who) { talkStart(who); break; } const car = nearestCar(); if (car) { enterCar(car); break; } const la = !nearSupply() && landAction(); if (la) la.run(); else resupply(); break; }
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Numpad1': case 'Numpad2': case 'Numpad3': case 'Numpad4': case 'Digit5': case 'Numpad5': case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': case 'Numpad6': case 'Numpad7': case 'Numpad8': case 'Numpad9': if (TC.conv) talkChoose(+e.code.slice(-1) - 1); else if (LM_.open) menuPick(+e.code.slice(-1) - 1); break;
     case 'KeyP': toggleBigMap(); break;
     case 'KeyL': toggleBlade(); break;
@@ -11285,10 +11333,12 @@ renderer.domElement.addEventListener('mousedown', e => {
   if (!$('bigmap').hidden && document.pointerLockElement) { if (e.button === 0) BMV.lockDrag = { moved: 0 }; return; }   // the map is open: hold and drag pans it, a click (on release) picks the spot under the crosshair
   if (hadLock && !document.pointerLockElement) { lockPointer(); return; }
   if (INSPECT.on) return;
+  if (e.button === 2 && !P.driving) { aimSet(true); return; }
+  if (e.button === 0 && AIM.on) { AIM.lmb = true; fireGun(); return; }
   if (e.button === 1) { e.preventDefault(); midHeld = true; }
 });
 let midHeld = false;
-addEventListener('mouseup', e => { if (e.button === 0 && BMV.lockDrag) { const d = BMV.lockDrag; BMV.lockDrag = null; if (d.moved < 6 && !$('bigmap').hidden) mapPick(MAPCUR.x, MAPCUR.y); return; } if (e.button === 1) midHeld = false; });
+addEventListener('mouseup', e => { if (e.button === 2 && AIM.on) aimSet(false); if (e.button === 0) AIM.lmb = false; if (e.button === 0 && BMV.lockDrag) { const d = BMV.lockDrag; BMV.lockDrag = null; if (d.moved < 6 && !$('bigmap').hidden) mapPick(MAPCUR.x, MAPCUR.y); return; } if (e.button === 1) midHeld = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 let lastMouse = -9;
 addEventListener('mousemove', e => {
@@ -11297,7 +11347,7 @@ addEventListener('mousemove', e => {
   if (!$('bigmap').hidden && document.pointerLockElement && BMV.lockDrag) { const k = bmC.width / (bmC.clientWidth || bmC.width), sc = bmC.width / BMV.span; BMV.cx -= e.movementX * k / sc; BMV.cz -= e.movementY * k / sc; bmClamp(); BMV.lockDrag.moved += Math.abs(e.movementX) + Math.abs(e.movementY); MAPCUR.dirty = true; return; }   // dragging the map
   if (!$('bigmap').hidden) { if (document.pointerLockElement) { const k = bmC.width / (bmC.clientWidth || bmC.width); const nx = MAPCUR.x + e.movementX * k, ny = MAPCUR.y + e.movementY * k, sc = bmC.width / BMV.span; MAPCUR.x = clamp(nx, 0, bmC.width); MAPCUR.y = clamp(ny, 0, bmC.height); if (nx !== MAPCUR.x || ny !== MAPCUR.y) { BMV.cx += (nx - MAPCUR.x) / sc; BMV.cz += (ny - MAPCUR.y) / sc; bmClamp(); } MAPCUR.dirty = true; } return; }   // the map is open: the mouse moves its crosshair, not the camera
   if (INSPECT.on) { INSPECT.yaw -= e.movementX * .006; INSPECT.pitch = clamp(INSPECT.pitch + e.movementY * .004, -.3, 1.1); INSPECT.moved = performance.now() / 1000; return; }
-  yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.35, 1.35);
+  const sens = AIM.on ? .0011 : .0022; yaw -= e.movementX * sens; pitch = clamp(pitch - e.movementY * sens, -1.35, 1.35);   // (aiming: half the turn per mouse movement)
   if (SIM.t > .5 && indoorsNow()) SIM.pitch = clamp(SIM.pitch - e.movementY * .0022, -1.45, -.3);
 });
 addEventListener('wheel', e => { if (!indoorsNow() || !$('bigmap').hidden || PHONE.open) return; VIEWZ.k = clamp(VIEWZ.k * (e.deltaY > 0 ? 1.1 : 1 / 1.1), VIEWZ.min, VIEWZ.max); }, { passive: true });
@@ -11459,7 +11509,7 @@ function playerTimers(dt) {
   P.slashCD -= dt; P.slashT = Math.max(0, P.slashT - dt);
   P.gunCD -= dt; P.kick = Math.max(0, P.kick - dt * 6);
   P.ammo = Math.min(AMMO_MAX, P.ammo + 2 * dt);   // shells regenerate 2 per second
-  if (keys.KeyX || midHeld) fireGun();
+  if (keys.KeyX || midHeld || (AIM.on && AIM.lmb)) fireGun();
   if (S.time - P.lastHurt > 5 && !P.dead) P.health = Math.min(HP_MAX, P.health + 9 * dt);
   if (P.grounded) P.gas = Math.min(100, P.gas + 6 * dt);   // gas tops up 6% a second while on the ground
   if (P.thrust > 0 && Math.random() < .7) puff(1);
@@ -11726,6 +11776,8 @@ function updateHUD(dt) {
   if (FLY.on) { $('prompt').hidden = false; $('prompt').textContent = flightPrompt(); }
   else if (TRAIN.ride.on) { $('prompt').hidden = false; $('prompt').textContent = trainPrompt(); }
   else if (INSPECT.on) { $('prompt').hidden = false; $('prompt').textContent = 'Mouse · turn it   ·   wheel / W S · closer   ·   A D · next piece   ·   E · step back'; }
+  else if (RANGE.on) { $('prompt').hidden = false; $('prompt').textContent = `🎯 ${RANGE.score} pts · ${RANGE.hits} hits · ${Math.ceil(RANGE.t)} s left`; }
+  else if (rangeNear()) { $('prompt').hidden = false; $('prompt').textContent = `E · Shoot a round at the range (40 s)${RANGE.best ? ' · best ' + RANGE.best : ''}`; }
   else if (isAir(P.driving)) { const c = P.driving; $('prompt').textContent = `ALT ${Math.max(0, Math.round(c.y - heightAt(c.x, c.z)))} m · ${Math.round(c.speed * 3.6)} km/h · throttle ${Math.round(c.throttle * 100)}%`; }
   else if (P.driving && JOBS.boat) $('prompt').textContent = boatPrompt();
   else if (P.driving && JOBS.del) $('prompt').textContent = delPrompt();
@@ -12010,7 +12062,7 @@ function setMode(m) {
   // stop all rendering and sound while paused or dead; pick the loop back up on resume
   if (AC) { if (m === 'pause' || m === 'dead') AC.suspend?.(); else AC.resume?.(); }
   if (!looping && m !== 'pause' && m !== 'dead') { looping = true; last = performance.now(); requestAnimationFrame(frame); }
-  for (const k in keys) keys[k] = false;
+  for (const k in keys) keys[k] = false; aimSet(false);
   if (hissG) hissG.gain.value = 0;
   if (engine) engine.g.gain.value = 0;
   sirenOff();
@@ -17464,6 +17516,7 @@ const GOAL_DEFS = [   // [id, tier, what to do, how many, the event that counts,
   ['fare5', 'hard', 'Drive 5 taxi fares', 5, 'fare'], ['train3', 'hard', 'Get off the train at 3 different stations', 3, 'train', true], ['boat1', 'hard', 'Take tourists on a boat tour', 1, 'boat'],
   ['museums4', 'hard', 'Visit all four state museums', 4, 'museumVisit', true],
   ['biz2', 'medium', 'Collect takings from your businesses twice (or buy one)', 2, 'biz'],
+  ['range1', 'easy', 'Shoot a round at the Gas & Go range', 1, 'range'], ['range600', 'hard', 'Score 600 in one round at the range', 1, 'range600'],
   ['gift1', 'easy', 'Give one of your contacts a gift', 1, 'gift'], ['friend1', 'hard', 'Become friends with someone (or closer)', 1, 'friend'], ['meet1', 'medium', 'Meet up with one of your contacts', 1, 'hangout'], ['love1', 'hard', 'Take a relationship a step further', 1, 'love'],
 ];
 // places a "visit" goal can send you to (found by name on the map)
@@ -18961,7 +19014,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt = Math.max(0, (now - last) / 1000) || 0, dt = Math.min(.05, rawDt); last = now;   // (never negative: a hidden tab's first frame can carry a timestamp seconds behind the clock, which once made the camera shake grow instead of decay)
   if (mode === 'play') adaptResolution(rawDt);
-  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateCab(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
+  updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); rangeStep(dt); if (mode === 'play') updateCab(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
   if (mode !== 'pause') { updateCivilians(dt); updateSellers(dt); if (SLIDERS.length) updateSliders(dt); updateDoors(dt); if (TOWN) updateTraffic(dt); updateSkyPlanes(dt); if (AP) updateRoadTraffic(dt); if (COAST) { updateCoastTraffic(dt); updateSea(dt); updateBoats(dt); updatePort(dt); } updateRouteTraffic(dt); if (YB) updateRoadside(dt); }
   updateTalk(dt);
