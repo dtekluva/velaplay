@@ -18952,7 +18952,7 @@ function frame(now) {
   // paused or dead: the last frame stays on screen under the overlay and the loop stops until play resumes
   if (mode === 'pause' || mode === 'dead') { looping = false; return; }
   requestAnimationFrame(frame);
-  const rawDt = (now - last) / 1000, dt = Math.min(.05, rawDt); last = now;
+  const rawDt = Math.max(0, (now - last) / 1000) || 0, dt = Math.min(.05, rawDt); last = now;   // (never negative: a hidden tab's first frame can carry a timestamp seconds behind the clock, which once made the camera shake grow instead of decay)
   if (mode === 'play') adaptResolution(rawDt);
   updateInside(); crimeTidy(dt); updateMuseums(); updateGoals(dt); if (mode === 'play') updateCab(dt); if (INSPECT.on && !INSIDE.at) inspectClose();
   updateTitans(mode === 'pause' || INSIDE.at ? 0 : dt);   // (titans can't follow you indoors)
